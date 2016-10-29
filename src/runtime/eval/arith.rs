@@ -3,18 +3,23 @@
 use runtime::ExpansionError;
 use runtime::env::{StringWrapper, VariableEnvironment};
 use syntax::ast::Arithmetic;
+use syntax::ast::Arithmetic::*;
 
-impl Arithmetic {
+/// A trait for evaluating arithmetic expansions.
+pub trait ArithEval<E: ?Sized> {
     /// Evaluates an arithmetic expression in the context of an environment.
+    ///
     /// A mutable reference to the environment is needed since an arithmetic
     /// expression could mutate environment variables.
-    pub fn eval<E: ?Sized>(&self, env: &mut E) -> Result<isize, ExpansionError>
-        where E: VariableEnvironment,
-              E::VarName: StringWrapper,
-              E::Var: StringWrapper,
-    {
-        use syntax::ast::Arithmetic::*;
+    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError>;
+}
 
+impl<E: ?Sized> ArithEval<E> for Arithmetic
+    where E: VariableEnvironment,
+          E::VarName: StringWrapper,
+          E::Var: StringWrapper,
+{
+    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
         let get_var = |env: &E, var| {
             env.var(var)
                 .and_then(|s| s.as_str().parse().ok())
@@ -138,6 +143,7 @@ impl Arithmetic {
 mod tests {
     use runtime::ExpansionError;
     use runtime::env::{Env, VariableEnvironment};
+    use super::*;
     use syntax::ast::Arithmetic;
 
     #[test]

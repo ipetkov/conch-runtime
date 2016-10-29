@@ -5,7 +5,7 @@ use glob;
 use runtime::{ExpansionError, ExitStatus, IFS, Result, Run, RuntimeError};
 use runtime::env::{ArgumentsEnvironment, FileDescEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
-use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use runtime::eval::{ArithEval, Fields, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::{FileDescWrapper, getpid};
 use std::borrow::Borrow;
 use std::io;
