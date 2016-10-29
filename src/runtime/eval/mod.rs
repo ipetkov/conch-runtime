@@ -4,6 +4,7 @@
 mod arith;
 mod parameter;
 mod redirect;
+mod subst;
 mod word;
 
 use glob;
@@ -16,6 +17,8 @@ pub use self::arith::*;
 pub use self::parameter::*;
 pub use self::redirect::*;
 pub use self::word::*;
+
+const IFS_DEFAULT: &'static str = " \t\n";
 
 /// Represents the types of fields that may result from evaluating a word.
 /// It is important to maintain such distinctions because evaluating parameters
@@ -226,6 +229,111 @@ pub trait WordEval<T, E: ?Sized> {
     ///
     /// The caller is responsible for doing path expansions.
     fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>;
+}
+
+/// Splits a vector of fields further based on the contents of the `IFS`
+/// variable (i.e. as long as it is non-empty). Any empty fields, original
+/// or otherwise created will be discarded.
+fn split_fields<T, E: ?Sized>(fields: Fields<T>, env: &E) -> Fields<T>
+    where T: StringWrapper,
+          E: VariableEnvironment,
+          E::VarName: Borrow<String>,
+          E::Var: StringWrapper,
+{
+    match fields {
+        Fields::Zero      => Fields::Zero,
+        Fields::Single(f) => split_fields_internal(vec!(f), env).into(),
+        Fields::At(fs)    => Fields::At(split_fields_internal(fs, env)),
+        Fields::Star(fs)  => Fields::Star(split_fields_internal(fs, env)),
+        Fields::Split(fs) => Fields::Split(split_fields_internal(fs, env)),
+    }
+}
+
+/// Actual implementation of `split_fields`.
+fn split_fields_internal<T, E: ?Sized>(words: Vec<T>, env: &E) -> Vec<T>
+    where T: StringWrapper,
+          E: VariableEnvironment,
+          E::VarName: Borrow<String>,
+          E::Var: StringWrapper,
+{
+    // If IFS is set but null, there is nothing left to split
+    let ifs = env.var(&IFS).map_or(IFS_DEFAULT, StringWrapper::as_str);
+    if ifs.is_empty() {
+        return words;
+    }
+
+    let whitespace: Vec<char> = ifs.chars().filter(|c| c.is_whitespace()).collect();
+
+    let mut fields = Vec::with_capacity(words.len());
+    'word: for word in words.iter().map(StringWrapper::as_str) {
+        if word.is_empty() {
+            continue;
+        }
+
+        let mut iter = word.chars().enumerate().peekable();
+        loop {
+            let start;
+            loop {
+                match iter.next() {
+                    // If we are still skipping leading whitespace, and we hit the
+                    // end of the word there are no fields to create, even empty ones.
+                    None => continue 'word,
+                    Some((idx, c)) => {
+                        if whitespace.contains(&c) {
+                            continue;
+                        } else if ifs.contains(c) {
+                            // If we hit an IFS char here then we have encountered an
+                            // empty field, since the last iteration of this loop either
+                            // had just consumed an IFS char, or its the start of the word.
+                            // In either case the result should be the same.
+                            fields.push(String::new().into());
+                        } else {
+                            // Must have found a regular field character
+                            start = idx;
+                            break;
+                        }
+                    },
+                }
+            }
+
+            let end;
+            loop {
+                match iter.next() {
+                    None => {
+                        end = None;
+                        break;
+                    },
+                    Some((idx, c)) => if ifs.contains(c) {
+                        end = Some(idx);
+                        break;
+                    },
+                }
+            }
+
+            let field = match end {
+                Some(end) => &word[start..end],
+                None      => &word[start..],
+            };
+
+            fields.push(String::from(field).into());
+
+            // Since now we've hit an IFS character, we need to also skip past
+            // any adjacent IFS whitespace as well. This also conveniently
+            // ignores any trailing IFS whitespace in the input as well.
+            loop {
+                match iter.peek() {
+                    Some(&(_, c)) if whitespace.contains(&c) => {
+                        iter.next();
+                    },
+                    Some(_) |
+                    None => break,
+                }
+            }
+        }
+    }
+
+    fields.shrink_to_fit();
+    fields
 }
 
 #[cfg(test)]
