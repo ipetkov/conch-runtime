@@ -44,7 +44,7 @@ impl<T, E: ?Sized, W, C> WordEval<T, E> for SimpleWord<W, C>
                 },
             },
 
-            SimpleWord::Subst(ref s) => try!(s.eval(env, cfg)),
+            SimpleWord::Subst(ref s) => try!(s.eval_with_config(env, cfg)),
             SimpleWord::Param(ref p) => p.eval(cfg.split_fields_further, env).unwrap_or(Fields::Zero),
         };
 

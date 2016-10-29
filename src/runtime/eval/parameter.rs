@@ -62,25 +62,25 @@ impl Parameter {
     }
 }
 
-impl<W, C> ParameterSubstitution<W, C> {
+impl<T, W, C, E: ?Sized> WordEval<T, E> for ParameterSubstitution<W, C>
+    where T: StringWrapper,
+          E: ArgumentsEnvironment<Arg = T>
+              + LastStatusEnvironment
+              + FileDescEnvironment
+              + SubEnvironment
+              + VariableEnvironment<Var = T>,
+          E::FileHandle: FileDescWrapper,
+          E::VarName: StringWrapper,
+          W: WordEval<T, E>,
+          C: Run<E>,
+{
     /// Evaluates a parameter subsitution in the context of some environment,
     /// optionally splitting fields.
     ///
     /// Note: even if the caller specifies no splitting should be done,
     /// multiple fields can occur if `$@` or `$*` is evaluated.
-    pub fn eval<T, E>(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>
-        where T: StringWrapper,
-              E: ArgumentsEnvironment<Arg = T>
-                  + LastStatusEnvironment
-                  + FileDescEnvironment
-                  + SubEnvironment
-                  + VariableEnvironment<Var = T>,
-              E::FileHandle: FileDescWrapper,
-              E::VarName: StringWrapper,
-              W: WordEval<T, E>,
-              C: Run<E>,
-    {
-        self.eval_inner(env, cfg.tilde_expansion).map(|f| {
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+        eval_inner(self, env, cfg.tilde_expansion).map(|f| {
             if cfg.split_fields_further {
                 split_fields(f, env)
             } else {
@@ -88,252 +88,255 @@ impl<W, C> ParameterSubstitution<W, C> {
             }
         })
     }
+}
 
-    /// Evaluates a paarameter substitution without splitting fields further.
-    fn eval_inner<T, E>(&self, env: &mut E, tilde_expansion: TildeExpansion) -> Result<Fields<T>>
-        where T: StringWrapper,
-              E: ArgumentsEnvironment<Arg = T>
-                  + LastStatusEnvironment
-                  + FileDescEnvironment
-                  + SubEnvironment
-                  + VariableEnvironment<Var = T>,
-              E::FileHandle: FileDescWrapper,
-              E::VarName: StringWrapper,
-              W: WordEval<T, E>,
-              C: Run<E>,
-    {
-        use syntax::ast::ParameterSubstitution::*;
-
-        fn remove_pattern<T, E, W, F>(param: &Parameter,
+/// Evaluate a parameter and remove a pattern from it.
+fn remove_pattern<T, E: ?Sized, W, F>(param: &Parameter,
                                       pat: &Option<W>,
                                       env: &mut E,
                                       remove: F) -> Result<Option<Fields<T>>>
-            where T: StringWrapper,
-                  E: ArgumentsEnvironment<Arg = T>
-                      + LastStatusEnvironment
-                      + VariableEnvironment<Var = T>,
-                  E::VarName: Borrow<String>,
-                  W: WordEval<T, E>,
-                  F: Fn(T, &glob::Pattern) -> T,
-        {
-            let map = |v: Vec<T>, p| v.into_iter().map(|f| remove(f, &p)).collect();
-            let param = param.eval(false, env);
+    where T: StringWrapper,
+          E: ArgumentsEnvironment<Arg = T>
+              + LastStatusEnvironment
+              + VariableEnvironment<Var = T>,
+          E::VarName: Borrow<String>,
+          W: WordEval<T, E>,
+          F: Fn(T, &glob::Pattern) -> T,
+{
+    let map = |v: Vec<T>, p| v.into_iter().map(|f| remove(f, &p)).collect();
+    let param = param.eval(false, env);
 
-            match *pat {
-                None => Ok(param),
-                Some(ref pat) => {
-                    let pat = try!(pat.eval_as_pattern(env));
-                    Ok(param.map(|p| match p {
-                        Fields::Zero      => Fields::Zero,
-                        Fields::Single(s) => Fields::Single(remove(s, &pat)),
-                        Fields::At(v)    => Fields::At(map(v, pat)),
-                        Fields::Star(v)  => Fields::Star(map(v, pat)),
-                        Fields::Split(v) => Fields::Split(map(v, pat)),
-                    }))
+    match *pat {
+        None => Ok(param),
+        Some(ref pat) => {
+            let pat = try!(pat.eval_as_pattern(env));
+            Ok(param.map(|p| match p {
+                Fields::Zero      => Fields::Zero,
+                Fields::Single(s) => Fields::Single(remove(s, &pat)),
+                Fields::At(v)    => Fields::At(map(v, pat)),
+                Fields::Star(v)  => Fields::Star(map(v, pat)),
+                Fields::Split(v) => Fields::Split(map(v, pat)),
+            }))
+        },
+    }
+}
+
+/// Evaluates a paarameter substitution without splitting fields further.
+fn eval_inner<W, C, T, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
+                                  env: &mut E,
+                                  tilde_expansion: TildeExpansion) -> Result<Fields<T>>
+    where T: StringWrapper,
+          E: ArgumentsEnvironment<Arg = T>
+              + LastStatusEnvironment
+              + FileDescEnvironment
+              + SubEnvironment
+              + VariableEnvironment<Var = T>,
+          E::FileHandle: FileDescWrapper,
+          E::VarName: StringWrapper,
+          W: WordEval<T, E>,
+          C: Run<E>,
+{
+    use syntax::ast::ParameterSubstitution::*;
+
+    // Since we will do field splitting in the outer, public method,
+    // we don't want internal word evaluations to also do field splitting
+    // otherwise we will doubly split and potentially lose some fields.
+    let cfg = WordEvalConfig {
+        tilde_expansion: tilde_expansion,
+        split_fields_further: false,
+    };
+
+    let match_opts = glob::MatchOptions {
+        case_sensitive: true,
+        require_literal_separator: false,
+        require_literal_leading_dot: false,
+    };
+
+    // A macro that evaluates a parameter in some environment and immediately
+    // returns the result as long as there is at least one non-empty field inside.
+    // If all fields from the evaluated result are empty and the evaluation is
+    // considered NON-strict, an empty vector is returned to the caller.
+    macro_rules! check_param_subst {
+        ($param:expr, $env:expr, $strict:expr) => {{
+            if let Some(fields) = $param.eval(false, $env) {
+                if !fields.is_null() {
+                    return Ok(fields)
+                } else if !$strict {
+                    return Ok(Fields::Zero)
+                }
+            }
+        }}
+    }
+
+    let ret = match *subst {
+        Command(ref body) => {
+            let output = try!(run_cmd_subst(body, env).map_err(|e| RuntimeError::Io(e, None)));
+            let wrapper: T = output.into();
+            wrapper.into()
+        },
+
+        // We won't do field splitting here because any field expansions
+        // should be done on the result we are about to return, and not the
+        // intermediate value.
+        Len(ref p) => Fields::Single(match p.eval(false, env) {
+            None |
+            Some(Fields::Zero) => String::from("0").into(),
+
+            Some(Fields::Single(s)) => s.as_str().len().to_string().into(),
+
+            Some(Fields::At(v))   |
+            Some(Fields::Star(v)) => v.len().to_string().into(),
+
+            // Since we should have specified NO field splitting above,
+            // this variant should never occur, but since we cannot control
+            // external implementations, we'll fallback somewhat gracefully
+            // rather than panicking.
+            Some(Fields::Split(v)) => {
+                let len = v.into_iter().fold(0, |len, s| len + s.as_str().len());
+                len.to_string().into()
+            },
+        }),
+
+        Arith(ref a) => Fields::Single(match *a {
+            Some(ref a) => try!(a.eval(env)).to_string().into(),
+            None => String::from("0").into(),
+        }),
+
+        Default(strict, ref p, ref default) => {
+            check_param_subst!(p, env, strict);
+            match *default {
+                Some(ref w) => try!(w.eval_with_config(env, cfg)),
+                None => Fields::Zero,
+            }
+        },
+
+        Assign(strict, ref p, ref assig) => {
+            check_param_subst!(p, env, strict);
+            match p {
+                p@&Parameter::At       |
+                p@&Parameter::Star     |
+                p@&Parameter::Pound    |
+                p@&Parameter::Question |
+                p@&Parameter::Dash     |
+                p@&Parameter::Dollar   |
+                p@&Parameter::Bang     |
+                p@&Parameter::Positional(_) => {
+                    return Err(ExpansionError::BadAssig(p.clone()).into());
+                },
+
+                &Parameter::Var(ref name) => {
+                    let val = match *assig {
+                        Some(ref w) => try!(w.eval_with_config(env, cfg)),
+                        None => Fields::Zero,
+                    };
+
+                    env.set_var(name.clone().into(), val.clone().join());
+                    val
                 },
             }
-        }
+        },
 
-        // Since we will do field splitting in the outer, public method,
-        // we don't want internal word evaluations to also do field splitting
-        // otherwise we will doubly split and potentially lose some fields.
-        let cfg = WordEvalConfig {
-            tilde_expansion: tilde_expansion,
-            split_fields_further: false,
-        };
+        Error(strict, ref p, ref msg) => {
+            check_param_subst!(p, env, strict);
+            let msg = match *msg {
+                None => String::from("parameter null or not set"),
+                Some(ref w) => try!(w.eval_with_config(env, cfg)).join().into_owned(),
+            };
 
-        let match_opts = glob::MatchOptions {
-            case_sensitive: true,
-            require_literal_separator: false,
-            require_literal_leading_dot: false,
-        };
+            return Err(ExpansionError::EmptyParameter(p.clone(), msg).into());
+        },
 
-        // A macro that evaluates a parameter in some environment and immediately
-        // returns the result as long as there is at least one non-empty field inside.
-        // If all fields from the evaluated result are empty and the evaluation is
-        // considered NON-strict, an empty vector is returned to the caller.
-        macro_rules! check_param_subst {
-            ($param:expr, $env:expr, $strict:expr) => {{
-                if let Some(fields) = $param.eval(false, $env) {
-                    if !fields.is_null() {
-                        return Ok(fields)
-                    } else if !$strict {
-                        return Ok(Fields::Zero)
+        Alternative(strict, ref p, ref alt) => {
+            let val = p.eval(false, env);
+            if val.is_none() || (strict && val.unwrap().is_null()) {
+                return Ok(Fields::Zero);
+            }
+
+            match *alt {
+                Some(ref w) => try!(w.eval_with_config(env, cfg)),
+                None => Fields::Zero,
+            }
+        },
+
+        RemoveSmallestSuffix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
+            {
+                let s = s.as_str();
+                let len = s.len();
+                for idx in 0..len {
+                    let idx = len - idx - 1;
+                    if pat.matches_with(&s[idx..], &match_opts) {
+                        return String::from(&s[0..idx]).into();
                     }
                 }
-            }}
-        }
+            }
+            s
+        })).unwrap_or(Fields::Zero),
 
-        let ret = match *self {
-            Command(ref body) => {
-                let output = try!(run_cmd_subst(body, env).map_err(|e| RuntimeError::Io(e, None)));
-                let wrapper: T = output.into();
-                wrapper.into()
-            },
+        RemoveLargestSuffix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
+            let mut longest_start = None;
 
-            // We won't do field splitting here because any field expansions
-            // should be done on the result we are about to return, and not the
-            // intermediate value.
-            Len(ref p) => Fields::Single(match p.eval(false, env) {
-                None |
-                Some(Fields::Zero) => String::from("0").into(),
-
-                Some(Fields::Single(s)) => s.as_str().len().to_string().into(),
-
-                Some(Fields::At(v))   |
-                Some(Fields::Star(v)) => v.len().to_string().into(),
-
-                // Since we should have specified NO field splitting above,
-                // this variant should never occur, but since we cannot control
-                // external implementations, we'll fallback somewhat gracefully
-                // rather than panicking.
-                Some(Fields::Split(v)) => {
-                    let len = v.into_iter().fold(0, |len, s| len + s.as_str().len());
-                    len.to_string().into()
-                },
-            }),
-
-            Arith(ref a) => Fields::Single(match *a {
-                Some(ref a) => try!(a.eval(env)).to_string().into(),
-                None => String::from("0").into(),
-            }),
-
-            Default(strict, ref p, ref default) => {
-                check_param_subst!(p, env, strict);
-                match *default {
-                    Some(ref w) => try!(w.eval_with_config(env, cfg)),
-                    None => Fields::Zero,
-                }
-            },
-
-            Assign(strict, ref p, ref assig) => {
-                check_param_subst!(p, env, strict);
-                match p {
-                    p@&Parameter::At       |
-                    p@&Parameter::Star     |
-                    p@&Parameter::Pound    |
-                    p@&Parameter::Question |
-                    p@&Parameter::Dash     |
-                    p@&Parameter::Dollar   |
-                    p@&Parameter::Bang     |
-                    p@&Parameter::Positional(_) => {
-                        return Err(ExpansionError::BadAssig(p.clone()).into());
-                    },
-
-                    &Parameter::Var(ref name) => {
-                        let val = match *assig {
-                            Some(ref w) => try!(w.eval_with_config(env, cfg)),
-                            None => Fields::Zero,
-                        };
-
-                        env.set_var(name.clone().into(), val.clone().join());
-                        val
-                    },
-                }
-            },
-
-            Error(strict, ref p, ref msg) => {
-                check_param_subst!(p, env, strict);
-                let msg = match *msg {
-                    None => String::from("parameter null or not set"),
-                    Some(ref w) => try!(w.eval_with_config(env, cfg)).join().into_owned(),
-                };
-
-                return Err(ExpansionError::EmptyParameter(p.clone(), msg).into());
-            },
-
-            Alternative(strict, ref p, ref alt) => {
-                let val = p.eval(false, env);
-                if val.is_none() || (strict && val.unwrap().is_null()) {
-                    return Ok(Fields::Zero);
-                }
-
-                match *alt {
-                    Some(ref w) => try!(w.eval_with_config(env, cfg)),
-                    None => Fields::Zero,
-                }
-            },
-
-            RemoveSmallestSuffix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
-                {
-                    let s = s.as_str();
-                    let len = s.len();
-                    for idx in 0..len {
-                        let idx = len - idx - 1;
-                        if pat.matches_with(&s[idx..], &match_opts) {
-                            return String::from(&s[0..idx]).into();
-                        }
+            {
+                let s = s.as_str();
+                let len = s.len();
+                for idx in 0..len {
+                    let idx = len - idx - 1;
+                    if pat.matches_with(&s[idx..], &match_opts) {
+                        longest_start = Some(idx);
                     }
                 }
+            }
+
+            match longest_start {
+                None => s,
+                Some(idx) => String::from(&s.as_str()[0..idx]).into(),
+            }
+        })).unwrap_or(Fields::Zero),
+
+        RemoveSmallestPrefix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
+            {
+                let s = s.as_str();
+                for idx in 0..s.len() {
+                    if pat.matches_with(&s[0..idx], &match_opts) {
+                        return String::from(&s[idx..]).into();
+                    }
+                }
+            }
+
+            // Don't forget to check the entire string for a match
+            if pat.matches_with(s.as_str(), &match_opts) {
+                String::new().into()
+            } else {
                 s
-            })).unwrap_or(Fields::Zero),
+            }
+        })).unwrap_or(Fields::Zero),
 
-            RemoveLargestSuffix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
-                let mut longest_start = None;
+        RemoveLargestPrefix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
+            let mut longest_end = None;
 
-                {
-                    let s = s.as_str();
-                    let len = s.len();
-                    for idx in 0..len {
-                        let idx = len - idx - 1;
-                        if pat.matches_with(&s[idx..], &match_opts) {
-                            longest_start = Some(idx);
-                        }
+            {
+                let s = s.as_str();
+                if pat.matches_with(&s, &match_opts) {
+                    return String::new().into();
+                }
+
+                for idx in 0..s.len() {
+                    if pat.matches_with(&s[0..idx], &match_opts) {
+                        longest_end = Some(idx);
                     }
                 }
+            }
 
-                match longest_start {
-                    None => s,
-                    Some(idx) => String::from(&s.as_str()[0..idx]).into(),
-                }
-            })).unwrap_or(Fields::Zero),
+            match longest_end {
+                None => s,
+                Some(idx) => String::from(&s.as_str()[idx..]).into(),
+            }
+        })).unwrap_or(Fields::Zero),
+    };
 
-            RemoveSmallestPrefix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
-                {
-                    let s = s.as_str();
-                    for idx in 0..s.len() {
-                        if pat.matches_with(&s[0..idx], &match_opts) {
-                            return String::from(&s[idx..]).into();
-                        }
-                    }
-                }
-
-                // Don't forget to check the entire string for a match
-                if pat.matches_with(s.as_str(), &match_opts) {
-                    String::new().into()
-                } else {
-                    s
-                }
-            })).unwrap_or(Fields::Zero),
-
-            RemoveLargestPrefix(ref p, ref pat) => try!(remove_pattern(p, pat, env, |s, pat| {
-                let mut longest_end = None;
-
-                {
-                    let s = s.as_str();
-                    if pat.matches_with(&s, &match_opts) {
-                        return String::new().into();
-                    }
-
-                    for idx in 0..s.len() {
-                        if pat.matches_with(&s[0..idx], &match_opts) {
-                            longest_end = Some(idx);
-                        }
-                    }
-                }
-
-                match longest_end {
-                    None => s,
-                    Some(idx) => String::from(&s.as_str()[idx..]).into(),
-                }
-            })).unwrap_or(Fields::Zero),
-        };
-
-        Ok(match ret {
-            Fields::Single(ref s) if s.as_str().is_empty() => Fields::Zero,
-            field => field,
-        })
-    }
+    Ok(match ret {
+        Fields::Single(ref s) if s.as_str().is_empty() => Fields::Zero,
+        field => field,
+    })
 }
 
 /// Runs a collection of `Run`able commands as a command substitution.
@@ -806,13 +809,13 @@ mod tests {
         let mut env = Env::new();
         let cmd_subst: ParameterSubstitution<TopLevelWord, TopLevelCommand>
             = Command(vec!(cmd_args("echo", &["hello\n\n\n ~ * world\n\n\n\n"])));
-        assert_eq!(cmd_subst.eval(&mut env, cfg), Ok(Fields::Single("hello\n\n\n ~ * world".to_owned())));
+        assert_eq!(cmd_subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("hello\n\n\n ~ * world".to_owned())));
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
             split_fields_further: true,
         };
-        assert_eq!(cmd_subst.eval(&mut env, cfg), Ok(Fields::Split(vec!(
+        assert_eq!(cmd_subst.eval_with_config(&mut env, cfg), Ok(Fields::Split(vec!(
             "hello".to_owned().into(),
             "~".to_owned().into(),
             "*".to_owned().into(),
@@ -820,7 +823,7 @@ mod tests {
         ))));
 
         env.set_var("IFS".to_owned(), "o".to_owned());
-        assert_eq!(cmd_subst.eval(&mut env, cfg), Ok(Fields::Split(vec!(
+        assert_eq!(cmd_subst.eval_with_config(&mut env, cfg), Ok(Fields::Split(vec!(
             "hell".to_owned().into(),
             "\n\n\n ~ * w".to_owned().into(),
             "rld".to_owned().into(),
@@ -873,14 +876,14 @@ mod tests {
 
                 for (param, result) in cases.clone() {
                     let len: ParamSubst = Len(param);
-                    assert_eq!(len.eval(&mut env, cfg), Ok(Fields::Single(result.to_string())));
+                    assert_eq!(len.eval_with_config(&mut env, cfg), Ok(Fields::Single(result.to_string())));
                 }
 
                 env.set_last_status(ExitStatus::Code(42));
                 let len: ParamSubst = Len(Parameter::Question);
-                assert_eq!(len.eval(&mut env, cfg), Ok(Fields::Single("2".to_owned())));
+                assert_eq!(len.eval_with_config(&mut env, cfg), Ok(Fields::Single("2".to_owned())));
                 env.set_last_status(ExitStatus::Signal(5)); // Signals have an offset
-                assert_eq!(len.eval(&mut env, cfg), Ok(Fields::Single("3".to_owned())));
+                assert_eq!(len.eval_with_config(&mut env, cfg), Ok(Fields::Single("3".to_owned())));
             }
         }
     }
@@ -900,15 +903,15 @@ mod tests {
                 };
 
                 let arith: ParamSubst = Arith(None);
-                assert_eq!(arith.eval(&mut env, cfg), Ok(Fields::Single("0".to_owned())));
+                assert_eq!(arith.eval_with_config(&mut env, cfg), Ok(Fields::Single("0".to_owned())));
 
                 let arith: ParamSubst = Arith(Some(Arithmetic::Literal(5)));
-                assert_eq!(arith.eval(&mut env, cfg), Ok(Fields::Single("5".to_owned())));
+                assert_eq!(arith.eval_with_config(&mut env, cfg), Ok(Fields::Single("5".to_owned())));
 
                 let arith: ParamSubst = Arith(Some(
                     Arithmetic::Div(Box::new(Arithmetic::Literal(1)), Box::new(Arithmetic::Literal(0)))
                 ));
-                assert!(arith.eval(&mut env, cfg).is_err());
+                assert!(arith.eval_with_config(&mut env, cfg).is_err());
             }
         }
     }
@@ -942,36 +945,36 @@ mod tests {
 
         // Strict with default
         let subst: ParamSubst = Default(true, Parameter::Var(var.clone()), Some(default));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Default(true, Parameter::Var(var_null.clone()), Some(default));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
         let subst: ParamSubst = Default(true, Parameter::Var(var_unset.clone()), Some(default));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
 
         // Strict without default
         let subst: ParamSubst = Default(true, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Default(true, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Default(true, Parameter::Var(var_unset.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
 
         // Non-strict with default
         let subst: ParamSubst = Default(false, Parameter::Var(var.clone()), Some(default));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Default(false, Parameter::Var(var_null.clone()), Some(default));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Default(false, Parameter::Var(var_unset.clone()), Some(default));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
 
         // Non-strict without default
         let subst: ParamSubst = Default(false, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Default(false, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Default(false, Parameter::Var(var_unset.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         // Args have one non-null argument
         {
@@ -988,22 +991,22 @@ mod tests {
             });
 
             let subst: ParamSubst = Default(true, Parameter::At, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Default(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Default(true, Parameter::Star, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
             let subst: ParamSubst = Default(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
 
             let subst: ParamSubst = Default(false, Parameter::At, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Default(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Default(false, Parameter::Star, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
             let subst: ParamSubst = Default(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
         }
 
         // Args all null
@@ -1018,22 +1021,22 @@ mod tests {
             });
 
             let subst: ParamSubst = Default(true, Parameter::At, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
             let subst: ParamSubst = Default(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(true, Parameter::Star, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
             let subst: ParamSubst = Default(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
             let subst: ParamSubst = Default(false, Parameter::At, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(false, Parameter::Star, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
 
         // Args not set
@@ -1041,22 +1044,22 @@ mod tests {
             let mut env = Env::new();
 
             let subst: ParamSubst = Default(true, Parameter::At, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
             let subst: ParamSubst = Default(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(true, Parameter::Star, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(default_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
             let subst: ParamSubst = Default(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
             let subst: ParamSubst = Default(false, Parameter::At, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(false, Parameter::Star, Some(default));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Default(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
     }
 
@@ -1087,34 +1090,34 @@ mod tests {
 
         // Variable set and non-null
         let subst: ParamSubst = Assign(true, Parameter::Var(var.clone()), Some(assig));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Assign(true, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Assign(false, Parameter::Var(var.clone()), Some(assig));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
         let subst: ParamSubst = Assign(false, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
 
 
         // Variable set but null
         env.set_var(var_null.clone(), null.clone());
         let subst: ParamSubst = Assign(true, Parameter::Var(var_null.clone()), Some(assig));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(assig_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(assig_value.clone()));
         assert_eq!(env.var(&var_null), Some(&assig_var_value));
 
         env.set_var(var_null.clone(), null.clone());
         let subst: ParamSubst = Assign(true, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         assert_eq!(env.var(&var_null), Some(&null));
 
         env.set_var(var_null.clone(), null.clone());
         let subst: ParamSubst = Assign(false, Parameter::Var(var_null.clone()), Some(assig));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         assert_eq!(env.var(&var_null), Some(&null));
 
         env.set_var(var_null.clone(), null.clone());
         let subst: ParamSubst = Assign(false, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         assert_eq!(env.var(&var_null), Some(&null));
 
 
@@ -1122,28 +1125,28 @@ mod tests {
         {
             let mut env = env.sub_env();
             let subst: ParamSubst = Assign(true, Parameter::Var(var_unset.clone()), Some(assig));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(assig_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(assig_value.clone()));
             assert_eq!(env.var(&var_unset), Some(&assig_var_value));
         }
 
         {
             let mut env = env.sub_env();
             let subst: ParamSubst = Assign(true, Parameter::Var(var_unset.clone()), None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             assert_eq!(env.var(&var_unset), Some(&null));
         }
 
         {
             let mut env = env.sub_env();
             let subst: ParamSubst = Assign(false, Parameter::Var(var_unset.clone()), Some(assig));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(assig_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(assig_value.clone()));
             assert_eq!(env.var(&var_unset), Some(&assig_var_value));
         }
 
         {
             let mut env = env.sub_env();
             let subst: ParamSubst = Assign(false, Parameter::Var(var_unset.clone()), None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             assert_eq!(env.var(&var_unset), Some(&null));
         }
 
@@ -1163,7 +1166,7 @@ mod tests {
         for param in unassignable_params {
             let err = ExpansionError::BadAssig(param.clone());
             let subst: ParamSubst = Assign(true, param.clone(), Some(assig));
-            assert_eq!(subst.eval(&mut env, cfg), Err(RuntimeError::Expansion(err.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(err.clone())));
         }
     }
 
@@ -1205,21 +1208,21 @@ mod tests {
 
         // Strict with error message
         let subst: ParamSubst = Error(true, Parameter::Var(var.clone()), Some(err_msg));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
 
         let subst: ParamSubst = Error(true, Parameter::Var(var_null.clone()), Some(err_msg));
-        assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_null));
+        assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_null));
 
         let subst: ParamSubst = Error(true, Parameter::Var(var_unset.clone()), Some(err_msg));
-        assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_unset));
+        assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_unset));
 
 
         // Strict without error message
         let subst: ParamSubst = Error(true, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
 
         let subst: ParamSubst = Error(true, Parameter::Var(var_null.clone()), None);
-        let eval = subst.eval(&mut env, cfg);
+        let eval = subst.eval_with_config(&mut env, cfg);
         if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(param, _))) = eval {
             assert_eq!(param, Parameter::Var(var_null.clone()));
         } else {
@@ -1227,7 +1230,7 @@ mod tests {
         }
 
         let subst: ParamSubst = Error(true, Parameter::Var(var_unset.clone()), None);
-        let eval = subst.eval(&mut env, cfg);
+        let eval = subst.eval_with_config(&mut env, cfg);
         if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(param, _))) = eval {
             assert_eq!(param, Parameter::Var(var_unset.clone()));
         } else {
@@ -1237,24 +1240,24 @@ mod tests {
 
         // Non-strict with error message
         let subst: ParamSubst = Error(false, Parameter::Var(var.clone()), Some(err_msg));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
 
         let subst: ParamSubst = Error(false, Parameter::Var(var_null.clone()), Some(err_msg));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Error(false, Parameter::Var(var_unset.clone()), Some(err_msg));
-        assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_unset));
+        assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_unset));
 
 
         // Non-strict without error message
         let subst: ParamSubst = Error(false, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(var_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(var_value.clone()));
 
         let subst: ParamSubst = Error(false, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Error(false, Parameter::Var(var_unset.clone()), None);
-        let eval = subst.eval(&mut env, cfg);
+        let eval = subst.eval_with_config(&mut env, cfg);
         if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(param, _))) = eval {
             assert_eq!(param, Parameter::Var(var_unset.clone()));
         } else {
@@ -1277,22 +1280,22 @@ mod tests {
             });
 
             let subst: ParamSubst = Error(true, Parameter::At, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Error(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Error(true, Parameter::Star, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
             let subst: ParamSubst = Error(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
 
             let subst: ParamSubst = Error(false, Parameter::At, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Error(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(args.clone())));
             let subst: ParamSubst = Error(false, Parameter::Star, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
             let subst: ParamSubst = Error(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(args.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(args.clone())));
         }
 
         // Args all null
@@ -1307,10 +1310,10 @@ mod tests {
             });
 
             let subst: ParamSubst = Error(true, Parameter::At, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_at));
+            assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_at));
 
             let subst: ParamSubst = Error(true, Parameter::At, None);
-            let eval = subst.eval(&mut env, cfg);
+            let eval = subst.eval_with_config(&mut env, cfg);
             if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::At, _))) = eval {
                 // Nothing
             } else {
@@ -1318,10 +1321,10 @@ mod tests {
             }
 
             let subst: ParamSubst = Error(true, Parameter::Star, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_star));
+            assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_star));
 
             let subst: ParamSubst = Error(true, Parameter::Star, None);
-            let eval = subst.eval(&mut env, cfg);
+            let eval = subst.eval_with_config(&mut env, cfg);
             if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::Star, _))) = eval {
             } else {
                 panic!("Unexpected evaluation: {:?}", eval);
@@ -1329,13 +1332,13 @@ mod tests {
 
 
             let subst: ParamSubst = Error(false, Parameter::At, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Error(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Error(false, Parameter::Star, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Error(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
 
         // Args not set
@@ -1343,20 +1346,20 @@ mod tests {
             let mut env = DefaultEnv::<String>::new();
 
             let subst: ParamSubst = Error(true, Parameter::At, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_at));
+            assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_at));
 
             let subst: ParamSubst = Error(true, Parameter::At, None);
-            let eval = subst.eval(&mut env, cfg);
+            let eval = subst.eval_with_config(&mut env, cfg);
             if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::At, _))) = eval {
             } else {
                 panic!("Unexpected evaluation: {:?}", eval);
             }
 
             let subst: ParamSubst = Error(true, Parameter::Star, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg).as_ref(), Err(&err_star));
+            assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_star));
 
             let subst: ParamSubst = Error(true, Parameter::Star, None);
-            let eval = subst.eval(&mut env, cfg);
+            let eval = subst.eval_with_config(&mut env, cfg);
             if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::Star, _))) = eval {
                 // Nothing
             } else {
@@ -1364,13 +1367,13 @@ mod tests {
             }
 
             let subst: ParamSubst = Error(false, Parameter::At, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Error(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Error(false, Parameter::Star, Some(err_msg));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Error(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
     }
 
@@ -1400,36 +1403,36 @@ mod tests {
 
         // Strict with alternative
         let subst: ParamSubst = Alternative(true, Parameter::Var(var.clone()), Some(alternative));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
         let subst: ParamSubst = Alternative(true, Parameter::Var(var_null.clone()), Some(alternative));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Alternative(true, Parameter::Var(var_unset.clone()), Some(alternative));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         // Strict without alternative
         let subst: ParamSubst = Alternative(true, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Alternative(true, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Alternative(true, Parameter::Var(var_unset.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
 
         // Non-strict with alternative
         let subst: ParamSubst = Alternative(false, Parameter::Var(var.clone()), Some(alternative));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
         let subst: ParamSubst = Alternative(false, Parameter::Var(var_null.clone()), Some(alternative));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
         let subst: ParamSubst = Alternative(false, Parameter::Var(var_unset.clone()), Some(alternative));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         // Non-strict without alternative
         let subst: ParamSubst = Alternative(false, Parameter::Var(var.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Alternative(false, Parameter::Var(var_null.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = Alternative(false, Parameter::Var(var_unset.clone()), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
 
         // Args have one non-null argument
@@ -1447,22 +1450,22 @@ mod tests {
             });
 
             let subst: ParamSubst = Alternative(true, Parameter::At, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::Star, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
             let subst: ParamSubst = Alternative(false, Parameter::At, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(false, Parameter::Star, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
 
         // Args all null
@@ -1477,22 +1480,22 @@ mod tests {
             });
 
             let subst: ParamSubst = Alternative(true, Parameter::At, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::Star, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
             let subst: ParamSubst = Alternative(false, Parameter::At, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(false, Parameter::Star, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
 
         // Args not set
@@ -1500,22 +1503,22 @@ mod tests {
             let mut env = Env::new();
 
             let subst: ParamSubst = Alternative(true, Parameter::At, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::Star, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(true, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
             let subst: ParamSubst = Alternative(false, Parameter::At, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(false, Parameter::At, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
             let subst: ParamSubst = Alternative(false, Parameter::Star, Some(alternative));
-            assert_eq!(subst.eval(&mut env, cfg), Ok(alt_value.clone()));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(alt_value.clone()));
             let subst: ParamSubst = Alternative(false, Parameter::Star, None);
-            assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         }
     }
 
@@ -1562,44 +1565,44 @@ mod tests {
         };
 
         let subst: ParamSubst = Default(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Default(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Assign(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Assign(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Error(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Error(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock1));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock2));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveSmallestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveLargestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveLargestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveSmallestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveLargestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveLargestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         // Without splitting
 
@@ -1612,44 +1615,44 @@ mod tests {
         let val2 = Fields::Zero;
 
         let subst: ParamSubst = Default(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Default(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = Assign(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Assign(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = Error(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Error(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock1));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock2));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = RemoveSmallestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveSmallestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = RemoveLargestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveLargestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = RemoveSmallestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveSmallestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
 
         let subst: ParamSubst = RemoveLargestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveLargestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
     }
 
     #[test]
@@ -1715,13 +1718,13 @@ mod tests {
         };
 
         let subst: ParamSubst = Len(var_missing.clone());
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("".to_owned())));
 
         let subst: ParamSubst = Arith(Some(Arithmetic::Add(
             Box::new(Arithmetic::Literal(100)),
             Box::new(Arithmetic::Literal(5)),
         )));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(
             Fields::Split(vec!(
                 "1".to_owned(),
                 "5".to_owned(),
@@ -1729,60 +1732,60 @@ mod tests {
         );
 
         let subst: ParamSubst = Default(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Default(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = Default(false, var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Assign(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Assign(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = Assign(false, var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Error(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Error(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = Error(false, var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock1));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock2));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock3));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveSmallestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = RemoveSmallestSuffix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveLargestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveLargestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = RemoveLargestSuffix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveSmallestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = RemoveSmallestPrefix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveLargestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_foo_bar.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_foo_bar.clone()));
         let subst: ParamSubst = RemoveLargestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(fields_all_blanks.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(fields_all_blanks.clone()));
         let subst: ParamSubst = RemoveLargestPrefix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         // Without splitting
 
@@ -1792,73 +1795,73 @@ mod tests {
         };
 
         let subst: ParamSubst = Len(var_missing.clone());
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("0".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("0".to_owned())));
 
         let subst: ParamSubst = Arith(Some(Arithmetic::Add(
             Box::new(Arithmetic::Literal(100)),
             Box::new(Arithmetic::Literal(5)),
         )));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("105".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("105".to_owned())));
 
         let val1 = Fields::Single(val1.clone());
         let val2 = Fields::Single(val2.clone());
         let val3 = Fields::Zero;
 
         let subst: ParamSubst = Default(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Default(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = Default(false, var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = Assign(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Assign(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = Assign(false, var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = Error(false, var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Error(false, var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = Error(false, var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock1));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock2));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = Alternative(false, var_null.clone(), Some(mock3));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = RemoveSmallestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveSmallestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = RemoveSmallestSuffix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = RemoveLargestSuffix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveLargestSuffix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = RemoveLargestSuffix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = RemoveSmallestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveSmallestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = RemoveSmallestPrefix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
 
         let subst: ParamSubst = RemoveLargestPrefix(var1.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val1.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val1.clone()));
         let subst: ParamSubst = RemoveLargestPrefix(var2.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val2.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val2.clone()));
         let subst: ParamSubst = RemoveLargestPrefix(var3.clone(), None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(val3.clone()));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(val3.clone()));
     }
 
     #[test]
@@ -1898,17 +1901,17 @@ mod tests {
         });
 
         let subst: ParamSubst = RemoveSmallestSuffix(foobar, None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
 
         let subst: ParamSubst = RemoveSmallestSuffix(unset, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = RemoveSmallestSuffix(null, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestSuffix(Parameter::At, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
         let subst: ParamSubst = RemoveSmallestSuffix(Parameter::Star, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
     }
 
     #[test]
@@ -1948,17 +1951,17 @@ mod tests {
         });
 
         let subst: ParamSubst = RemoveLargestSuffix(foobar, None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
 
         let subst: ParamSubst = RemoveLargestSuffix(unset, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = RemoveLargestSuffix(null, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveLargestSuffix(Parameter::At, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
         let subst: ParamSubst = RemoveLargestSuffix(Parameter::Star, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
     }
 
     #[test]
@@ -1999,20 +2002,20 @@ mod tests {
         });
 
         let subst: ParamSubst = RemoveSmallestPrefix(foobar, None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
 
         let subst: ParamSubst = RemoveSmallestPrefix(abc, Some(MockSubstWord("abc")));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestPrefix(unset, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = RemoveSmallestPrefix(null, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveSmallestPrefix(Parameter::At, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
         let subst: ParamSubst = RemoveSmallestPrefix(Parameter::Star, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
     }
 
     #[test]
@@ -2050,17 +2053,17 @@ mod tests {
         });
 
         let subst: ParamSubst = RemoveLargestPrefix(foobar, None);
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("foobar".to_owned())));
 
         let subst: ParamSubst = RemoveLargestPrefix(unset, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
         let subst: ParamSubst = RemoveLargestPrefix(null, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Zero));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let subst: ParamSubst = RemoveLargestPrefix(Parameter::At, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::At(fields_args.clone())));
         let subst: ParamSubst = RemoveLargestPrefix(Parameter::Star, Some(pat));
-        assert_eq!(subst.eval(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
+        assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Star(fields_args.clone())));
     }
 
     #[test]
@@ -2098,19 +2101,19 @@ mod tests {
 
             env.unset_var(name);
             let subst: ParamSubst = Default(true, var.clone(), Some(mock));
-            subst.eval(&mut env, cfg).unwrap();
+            subst.eval_with_config(&mut env, cfg).unwrap();
 
             env.unset_var(name);
             let subst: ParamSubst = Assign(true, var.clone(), Some(mock));
-            subst.eval(&mut env, cfg).unwrap();
+            subst.eval_with_config(&mut env, cfg).unwrap();
 
             env.unset_var(name);
             let subst: ParamSubst = Error(true, var.clone(), Some(mock));
-            subst.eval(&mut env, cfg).unwrap_err();
+            subst.eval_with_config(&mut env, cfg).unwrap_err();
 
             env.set_var(name.to_owned(), "some value".to_owned());
             let subst: ParamSubst = Alternative(true, var.clone(), Some(mock));
-            subst.eval(&mut env, cfg).unwrap();
+            subst.eval_with_config(&mut env, cfg).unwrap();
         }
     }
 }
