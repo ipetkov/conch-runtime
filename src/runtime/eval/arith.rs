@@ -14,6 +14,12 @@ pub trait ArithEval<E: ?Sized> {
     fn eval(&self, env: &mut E) -> Result<isize, ExpansionError>;
 }
 
+impl<'a, T: ArithEval<E>, E: ?Sized> ArithEval<E> for &'a T {
+    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
+        (**self).eval(env)
+    }
+}
+
 impl<E: ?Sized> ArithEval<E> for Arithmetic
     where E: VariableEnvironment,
           E::VarName: StringWrapper,

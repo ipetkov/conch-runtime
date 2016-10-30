@@ -230,6 +230,12 @@ pub trait WordEval<T, E: ?Sized> {
     fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>;
 }
 
+impl<'a, T, E: ?Sized, W: WordEval<T, E>> WordEval<T, E> for &'a W {
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+        (**self).eval_with_config(env, cfg)
+    }
+}
+
 /// Splits a vector of fields further based on the contents of the `IFS`
 /// variable (i.e. as long as it is non-empty). Any empty fields, original
 /// or otherwise created will be discarded.
