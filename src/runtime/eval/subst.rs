@@ -5,7 +5,7 @@ use glob;
 use runtime::{ExpansionError, Result, Run, RuntimeError};
 use runtime::env::{ArgumentsEnvironment, FileDescEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
-use runtime::eval::{ArithEval, Fields, TildeExpansion, WordEval, WordEvalConfig};
+use runtime::eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::eval::split_fields;
 use runtime::io::FileDescWrapper;
 use std::borrow::Borrow;
@@ -41,7 +41,7 @@ impl<T, W, C, E: ?Sized> WordEval<T, E> for ParameterSubstitution<W, C>
 }
 
 /// Evaluate a parameter and remove a pattern from it.
-fn remove_pattern<T, E: ?Sized, W, F>(param: &Parameter,
+fn remove_pattern<W, E: ?Sized, F, T>(param: &ParamEval<T, E>,
                                       pat: &Option<W>,
                                       env: &mut E,
                                       remove: F) -> Result<Option<Fields<T>>>

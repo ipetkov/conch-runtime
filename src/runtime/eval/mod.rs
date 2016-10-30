@@ -16,7 +16,6 @@ use std::vec;
 pub use self::arith::*;
 pub use self::parameter::*;
 pub use self::redirect::*;
-pub use self::word::*;
 
 const IFS_DEFAULT: &'static str = " \t\n";
 

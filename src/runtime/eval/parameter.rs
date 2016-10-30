@@ -9,16 +9,27 @@ use syntax::ast::Parameter;
 
 const EXIT_SIGNAL_OFFSET: u32 = 128;
 
-impl Parameter {
+/// A trait for evaluating parameters.
+pub trait ParamEval<T, E: ?Sized> {
     /// Evaluates a parameter in the context of some environment,
     /// optionally splitting fields.
     ///
     /// A `None` value indicates that the parameter is unset.
-    pub fn eval<T, E: ?Sized>(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>>
-        where T: StringWrapper,
-              E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
-              E::VarName: Borrow<String>,
-    {
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>>;
+}
+
+impl<'a, T, E: ?Sized, P: ParamEval<T, E>> ParamEval<T, E> for &'a P {
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>> {
+        (**self).eval(split_fields_further, env)
+    }
+}
+
+impl<T, E: ?Sized> ParamEval<T, E> for Parameter
+    where T: StringWrapper,
+          E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
+          E::VarName: Borrow<String>,
+{
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>> {
         let get_args = || {
             let args = env.args();
             if args.is_empty() {
@@ -64,6 +75,7 @@ mod tests {
     use runtime::env::{ArgsEnv, ArgumentsEnvironment, Env, EnvConfig,
                        LastStatusEnvironment, StringWrapper, VariableEnvironment};
     use runtime::eval::{Fields, WordEval, WordEvalConfig};
+    use super::*;
     use syntax::ast::Parameter;
 
     #[derive(Copy, Clone, Debug)]

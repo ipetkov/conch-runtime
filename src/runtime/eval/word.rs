@@ -4,7 +4,7 @@ use runtime::{HOME, Result, Run};
 use runtime::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionExecutorEnvironment,
                    IsInteractiveEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
-use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use runtime::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::FileDescWrapper;
 use std::convert::{From, Into};
 use std::iter::{IntoIterator, Iterator};
