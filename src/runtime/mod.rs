@@ -15,7 +15,7 @@ use std::result;
 
 use syntax::ast::{AndOr, AndOrList, Command, CompoundCommand, CompoundCommandKind, GuardBodyPair,
                   ListableCommand, PipeableCommand, Redirect, TopLevelCommand};
-use runtime::eval::{TildeExpansion, WordEval, WordEvalConfig};
+use runtime::eval::{RedirectEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::FileDescWrapper;
 
 mod errors;
@@ -272,7 +272,8 @@ impl<E, W, C> Run<E> for CompoundCommand<W, C>
           C: Run<E>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        run_with_local_redirections(env, &self.io, |env| self.kind.run(env))
+        let io = self.io.iter().map(|r| r as &RedirectEval<E>);
+        run_with_local_redirections(env, io, |env| self.kind.run(env))
     }
 }
 
@@ -451,13 +452,12 @@ pub fn run<I, E: ?Sized>(iter: I, env: &mut E) -> Result<ExitStatus>
 
 /// Adds a number of local redirects to the specified environment, runs the provided closure,
 /// then removes the local redirects and restores the previous file descriptors before returning.
-pub fn run_with_local_redirections<'a, I, F, E, W, R>(env: &mut E, redirects: I, closure: F)
+pub fn run_with_local_redirections<'a, I, F, E: ?Sized, R>(env: &mut E, redirects: I, closure: F)
     -> Result<R>
-    where I: IntoIterator<Item = &'a Redirect<W>>,
+    where I: IntoIterator<Item = &'a RedirectEval<E>>,
           F: FnOnce(&mut E) -> Result<R>,
-          E: FileDescEnvironment + IsInteractiveEnvironment,
-          E::FileHandle: FileDescWrapper,
-          W: WordEval<E> + 'a,
+          E: 'a + FileDescEnvironment,
+          E::FileHandle: Clone,
 {
     use runtime::env::ReversibleRedirectWrapper;
 

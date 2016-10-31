@@ -8,7 +8,6 @@ use runtime::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig}
 use runtime::io::FileDescWrapper;
 use std::convert::{From, Into};
 use std::iter::{IntoIterator, Iterator};
-use std::rc::Rc;
 use syntax::ast::{ComplexWord, SimpleWord, TopLevelWord, Word};
 
 impl<E: ?Sized, W, C> WordEval<E> for SimpleWord<W, C>

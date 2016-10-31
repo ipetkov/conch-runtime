@@ -10,7 +10,7 @@ use runtime::env::{FileDescEnvironment, FunctionEnvironment, FunctionExecutorEnv
                    IsInteractiveEnvironment, LastStatusEnvironment, StringWrapper, SubEnvironment,
                    VariableEnvironment};
 use runtime::errors::{CommandError, RuntimeError};
-use runtime::eval::WordEval;
+use runtime::eval::{RedirectEval, WordEval};
 use runtime::io::FileDescWrapper;
 
 use std::borrow::Borrow;
@@ -67,11 +67,13 @@ fn run_simple_command<W, E>(cmd: &SimpleCommand<W>, env: &mut E) -> Result<ExitS
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
           W: WordEval<E>,
+          ::syntax::ast::Redirect<W>: RedirectEval<E>,
 {
     // Whether this is a variable assignment, function invocation,
     // or regular command, make sure we open/touch all redirects,
     // as this will have side effects (possibly desired by script).
-    let prep = try!(run_with_local_redirections(env, &cmd.io, |env| {
+    let io = cmd.io.iter().map(|r| r as &RedirectEval<E>);
+    let prep = try!(run_with_local_redirections(env, io, |env| {
         let vars: Vec<_> = try!(cmd.vars.iter()
             .map(|&(ref var, ref val)| val.as_ref()
                  .map_or_else(|| Ok(String::new().into()), |val| val.eval_as_assignment(env))

@@ -29,18 +29,23 @@ impl<T> RedirectAction<T> {
     }
 }
 
-impl<W> Redirect<W> {
+/// A trait for evaluating file descriptor redirections.
+pub trait RedirectEval<E: ?Sized + FileDescEnvironment> {
     /// Evaluates a redirection path and opens the appropriate redirect.
     ///
     /// Newly opened/closed/duplicated file descriptors are NOT updated
     /// in the environment, and thus it is up to the caller to update the
     /// environment as appropriate.
+    fn eval(&self, env: &mut E) -> Result<RedirectAction<E::FileHandle>>;
+}
+
+impl<W, E: ?Sized> RedirectEval<E> for Redirect<W>
+    where E: FileDescEnvironment + IsInteractiveEnvironment,
+          E::FileHandle: Clone + From<FileDesc>,
+          W: WordEval<E>,
+{
     // FIXME: on unix set file permission bits based on umask
-    pub fn eval<E>(&self, env: &mut E) -> Result<RedirectAction<E::FileHandle>>
-        where E: FileDescEnvironment + IsInteractiveEnvironment,
-              E::FileHandle: Clone + From<FileDesc>,
-              W: WordEval<E>,
-    {
+    fn eval(&self, env: &mut E) -> Result<RedirectAction<E::FileHandle>> {
         let open_path_with_options = |path: &W, env, fd, options: OpenOptions, permissions|
             -> Result<RedirectAction<E::FileHandle>>
         {
@@ -89,7 +94,7 @@ impl<W> Redirect<W> {
 /// Evaluates a path in a given environment. Tilde expansion will be done,
 /// and words will be split if running in interactive mode. If the evaluation
 /// results in more than one path, an error will be returned.
-fn eval_path<E, W: ?Sized>(path: &W, env: &mut E) -> Result<W::EvalResult>
+fn eval_path<E: ?Sized, W: ?Sized>(path: &W, env: &mut E) -> Result<W::EvalResult>
     where E: IsInteractiveEnvironment,
           W: WordEval<E>,
 {
@@ -118,7 +123,7 @@ fn eval_path<E, W: ?Sized>(path: &W, env: &mut E) -> Result<W::EvalResult>
 ///
 /// On success the duplicated descritor is returned. It is up to the caller to
 /// actually store the duplicate in the environment.
-fn dup_fd<E, W: ?Sized>(dst_fd: Fd, src_fd: &W, readable: bool, env: &mut E)
+fn dup_fd<E: ?Sized, W: ?Sized>(dst_fd: Fd, src_fd: &W, readable: bool, env: &mut E)
     -> Result<RedirectAction<E::FileHandle>>
     where E: FileDescEnvironment + IsInteractiveEnvironment,
           E::FileHandle: Clone,
@@ -165,6 +170,7 @@ mod tests {
     use std::io::{Read as IoRead, Write as IoWrite};
     use std::path::PathBuf;
     use std::rc::Rc;
+    use super::*;
     use super::RedirectAction::*;
     use syntax::ast::Redirect::*;
 
