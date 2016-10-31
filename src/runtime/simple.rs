@@ -34,17 +34,16 @@ struct PrepData<T, F> {
     io: HashMap<Fd, F>,
 }
 
-impl<T, E: ?Sized, W> Run<E> for SimpleCommand<W>
-    where T: StringWrapper,
-          E: FileDescEnvironment
-              + FunctionExecutorEnvironment<FnName = T>
+impl<E: ?Sized, W> Run<E> for SimpleCommand<W>
+    where E: FileDescEnvironment
+              + FunctionExecutorEnvironment<FnName = W::EvalResult>
               + IsInteractiveEnvironment
               + LastStatusEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
         let ret = run_simple_command(self, env);
@@ -60,15 +59,14 @@ impl<T, E: ?Sized, W> Run<E> for SimpleCommand<W>
     }
 }
 
-fn run_simple_command<T, W, E>(cmd: &SimpleCommand<W>, env: &mut E) -> Result<ExitStatus>
-    where T: StringWrapper,
-          E: FileDescEnvironment
-              + FunctionExecutorEnvironment<FnName = T>
+fn run_simple_command<W, E>(cmd: &SimpleCommand<W>, env: &mut E) -> Result<ExitStatus>
+    where E: FileDescEnvironment
+              + FunctionExecutorEnvironment<FnName = W::EvalResult>
               + IsInteractiveEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
 {
     // Whether this is a variable assignment, function invocation,
     // or regular command, make sure we open/touch all redirects,

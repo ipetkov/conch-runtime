@@ -8,21 +8,24 @@ use runtime::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig}
 use runtime::io::FileDescWrapper;
 use std::convert::{From, Into};
 use std::iter::{IntoIterator, Iterator};
+use std::rc::Rc;
 use syntax::ast::{ComplexWord, SimpleWord, TopLevelWord, Word};
 
-impl<T, E: ?Sized, W, C> WordEval<T, E> for SimpleWord<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E: ?Sized, W, C> WordEval<E> for SimpleWord<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
               + FileDescEnvironment
               + LastStatusEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+    type EvalResult = W::EvalResult;
+
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
         let ret = match *self {
             SimpleWord::Literal(ref s) |
             SimpleWord::Escaped(ref s) => Fields::Single(s.clone().into()),
@@ -52,19 +55,21 @@ impl<T, E: ?Sized, W, C> WordEval<T, E> for SimpleWord<W, C>
     }
 }
 
-impl<T, E: ?Sized, W, C> WordEval<T, E> for Word<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E: ?Sized, W, C> WordEval<E> for Word<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
               + FileDescEnvironment
               + LastStatusEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+    type EvalResult = W::EvalResult;
+
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
         let ret = match *self {
             Word::Simple(ref s) => try!(s.eval_with_config(env, cfg)),
             Word::SingleQuoted(ref s) => Fields::Single(s.clone().into()),
@@ -133,19 +138,21 @@ impl<T, E: ?Sized, W, C> WordEval<T, E> for Word<W, C>
     }
 }
 
-impl<T, E: ?Sized, W, C> WordEval<T, E> for ComplexWord<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E: ?Sized, W, C> WordEval<E> for ComplexWord<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
               + FileDescEnvironment
               + LastStatusEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+    type EvalResult = W::EvalResult;
+
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
         let ret = match *self {
             ComplexWord::Single(ref w) => try!(w.eval_with_config(env, cfg)),
 
@@ -155,7 +162,7 @@ impl<T, E: ?Sized, W, C> WordEval<T, E> for ComplexWord<W, C>
                     split_fields_further: cfg.split_fields_further,
                 };
 
-                let mut fields: Vec<T> = Vec::new();
+                let mut fields: Vec<W::EvalResult> = Vec::new();
                 for w in v.iter() {
                     let mut iter = try!(w.eval_with_config(env, cfg)).into_iter();
                     match (fields.pop(), iter.next()) {
@@ -180,20 +187,22 @@ impl<T, E: ?Sized, W, C> WordEval<T, E> for ComplexWord<W, C>
     }
 }
 
-impl<T, E: ?Sized> WordEval<T, E> for TopLevelWord
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E: ?Sized> WordEval<E> for TopLevelWord
+    where E: ArgumentsEnvironment<Arg = String>
               + FileDescEnvironment
-              + FunctionExecutorEnvironment<FnName = T>
+              + FunctionExecutorEnvironment<FnName = String>
               + IsInteractiveEnvironment
               + LastStatusEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = String>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
           E::Fn: From<::std::rc::Rc<::runtime::Run<E>>>,
 {
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+    type EvalResult = String;
+
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
         self.0.eval_with_config(env, cfg)
     }
 }

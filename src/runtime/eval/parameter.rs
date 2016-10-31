@@ -86,25 +86,6 @@ mod tests {
         }
     }
 
-    #[derive(Copy, Clone, Debug)]
-    struct MockSubstWord(&'static str);
-
-    impl<T: StringWrapper, E: ?Sized> WordEval<T, E> for MockSubstWord {
-        fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>
-        {
-            // Patterns and other words part of substitutions should never be split
-            // while the substitution is evaluating them. Any splitting should be done
-            // before returning the substitution result to the caller.
-            assert_eq!(cfg.split_fields_further, false);
-            let wrapper: T = self.0.to_owned().into();
-            Ok(wrapper.into())
-        }
-
-        fn eval_as_pattern(&self, _: &mut E) -> Result<glob::Pattern> {
-            Ok(glob::Pattern::new(self.0).unwrap())
-        }
-    }
-
     #[test]
     fn test_eval_parameter_with_set_vars() {
         use runtime::io::getpid;

@@ -163,15 +163,14 @@ impl<E: ?Sized, T: ?Sized> Run<E> for ::std::sync::Arc<T> where T: Run<E> {
     }
 }
 
-impl<T, E: ?Sized> Run<E> for TopLevelCommand
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E: ?Sized> Run<E> for TopLevelCommand
+    where E: ArgumentsEnvironment<Arg = String>
             + FileDescEnvironment
-            + FunctionExecutorEnvironment<FnName = T>
+            + FunctionExecutorEnvironment<FnName = String>
             + IsInteractiveEnvironment
             + LastStatusEnvironment
             + SubEnvironment
-            + VariableEnvironment<Var = T>,
+            + VariableEnvironment<Var = String>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
           E::Fn: From<Rc<Run<E>>>,
@@ -230,20 +229,19 @@ impl<E: ?Sized, C> Run<E> for ListableCommand<C>
     }
 }
 
-impl<T, E: ?Sized, W, C> Run<E> for PipeableCommand<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E: ?Sized, W, C> Run<E> for PipeableCommand<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
             + FileDescEnvironment
-            + FunctionExecutorEnvironment<FnName = T>
+            + FunctionExecutorEnvironment<FnName = W::EvalResult>
             + IsInteractiveEnvironment
             + LastStatusEnvironment
             + SubEnvironment
-            + VariableEnvironment<Var = T>,
+            + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::Fn: From<Rc<Run<E>>>,
           E::VarName: StringWrapper,
           C: Run<E> + 'static,
-          W: WordEval<T, E> + 'static,
+          W: WordEval<E> + 'static,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
         match *self {
@@ -261,17 +259,16 @@ impl<T, E: ?Sized, W, C> Run<E> for PipeableCommand<W, C>
     }
 }
 
-impl<T, E, W, C> Run<E> for CompoundCommand<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E, W, C> Run<E> for CompoundCommand<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
             + FileDescEnvironment
             + IsInteractiveEnvironment
             + LastStatusEnvironment
             + SubEnvironment
-            + VariableEnvironment<Var = T>,
+            + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
@@ -279,15 +276,14 @@ impl<T, E, W, C> Run<E> for CompoundCommand<W, C>
     }
 }
 
-impl<T, E, W, C> Run<E> for CompoundCommandKind<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<E, W, C> Run<E> for CompoundCommandKind<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
             + FileDescEnvironment
             + LastStatusEnvironment
             + SubEnvironment
-            + VariableEnvironment<Var = T>,
+            + VariableEnvironment<Var = W::EvalResult>,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
@@ -455,14 +451,13 @@ pub fn run<I, E: ?Sized>(iter: I, env: &mut E) -> Result<ExitStatus>
 
 /// Adds a number of local redirects to the specified environment, runs the provided closure,
 /// then removes the local redirects and restores the previous file descriptors before returning.
-pub fn run_with_local_redirections<'a, I, F, T, E, W, R>(env: &mut E, redirects: I, closure: F)
+pub fn run_with_local_redirections<'a, I, F, E, W, R>(env: &mut E, redirects: I, closure: F)
     -> Result<R>
     where I: IntoIterator<Item = &'a Redirect<W>>,
           F: FnOnce(&mut E) -> Result<R>,
-          T: StringWrapper,
           E: FileDescEnvironment + IsInteractiveEnvironment,
           E::FileHandle: FileDescWrapper,
-          W: WordEval<T, E> + 'a,
+          W: WordEval<E> + 'a,
 {
     use runtime::env::ReversibleRedirectWrapper;
 
@@ -542,9 +537,10 @@ mod tests {
         Error(Rc<Fn() -> RuntimeError + 'static>),
     }
 
-    impl<E: ?Sized + VariableEnvironment> WordEval<E::Var, E> for MockWord
-        where E::Var: From<String>
+    impl<E: ?Sized + VariableEnvironment> WordEval<E> for MockWord
+        where E::Var: StringWrapper,
     {
+        type EvalResult = E::Var;
         fn eval_with_config(&self, _: &mut E, _: WordEvalConfig) -> Result<Fields<E::Var>> {
             match *self {
                 MockWord::Regular(ref s) => {

@@ -12,24 +12,26 @@ use std::borrow::Borrow;
 use std::io;
 use syntax::ast::{Parameter, ParameterSubstitution};
 
-impl<T, W, C, E: ?Sized> WordEval<T, E> for ParameterSubstitution<W, C>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+impl<W, C, E: ?Sized> WordEval<E> for ParameterSubstitution<W, C>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
               + LastStatusEnvironment
               + FileDescEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
+    type EvalResult = W::EvalResult;
+
     /// Evaluates a parameter subsitution in the context of some environment,
     /// optionally splitting fields.
     ///
     /// Note: even if the caller specifies no splitting should be done,
     /// multiple fields can occur if `$@` or `$*` is evaluated.
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
         eval_inner(self, env, cfg.tilde_expansion).map(|f| {
             if cfg.split_fields_further {
                 split_fields(f, env)
@@ -50,7 +52,7 @@ fn remove_pattern<W, E: ?Sized, F, T>(param: &ParamEval<T, E>,
               + LastStatusEnvironment
               + VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           F: Fn(T, &glob::Pattern) -> T,
 {
     let map = |v: Vec<T>, p| v.into_iter().map(|f| remove(f, &p)).collect();
@@ -72,18 +74,17 @@ fn remove_pattern<W, E: ?Sized, F, T>(param: &ParamEval<T, E>,
 }
 
 /// Evaluates a paarameter substitution without splitting fields further.
-fn eval_inner<W, C, T, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
-                                  env: &mut E,
-                                  tilde_expansion: TildeExpansion) -> Result<Fields<T>>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
+fn eval_inner<W, C, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
+                               env: &mut E,
+                               tilde_expansion: TildeExpansion) -> Result<Fields<W::EvalResult>>
+    where E: ArgumentsEnvironment<Arg = W::EvalResult>
               + LastStatusEnvironment
               + FileDescEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = T>,
+              + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper,
-          W: WordEval<T, E>,
+          W: WordEval<E>,
           C: Run<E>,
 {
     use syntax::ast::ParameterSubstitution::*;
@@ -121,7 +122,7 @@ fn eval_inner<W, C, T, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
     let ret = match *subst {
         Command(ref body) => {
             let output = try!(run_cmd_subst(body, env).map_err(|e| RuntimeError::Io(e, None)));
-            let wrapper: T = output.into();
+            let wrapper: W::EvalResult = output.into();
             wrapper.into()
         },
 
@@ -365,15 +366,16 @@ mod tests {
     #[derive(Copy, Clone, Debug)]
     struct MockSubstWord(&'static str);
 
-    impl<T: StringWrapper, E: ?Sized> WordEval<T, E> for MockSubstWord {
-        fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>
+    impl<E: ?Sized> WordEval<E> for MockSubstWord {
+        type EvalResult = String;
+        fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig)
+            -> Result<Fields<Self::EvalResult>>
         {
             // Patterns and other words part of substitutions should never be split
             // while the substitution is evaluating them. Any splitting should be done
             // before returning the substitution result to the caller.
             assert_eq!(cfg.split_fields_further, false);
-            let wrapper: T = self.0.to_owned().into();
-            Ok(wrapper.into())
+            Ok(self.0.to_owned().into())
         }
 
         fn eval_as_pattern(&self, _: &mut E) -> Result<glob::Pattern> {
@@ -1663,8 +1665,10 @@ mod tests {
         #[derive(Copy, Clone, Debug)]
         struct MockWord(TildeExpansion);
 
-        impl<T, E: ?Sized> WordEval<T, E> for MockWord {
-            fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>
+        impl<E: ?Sized> WordEval<E> for MockWord {
+            type EvalResult = String;
+            fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig)
+                -> Result<Fields<Self::EvalResult>>
             {
                 assert_eq!(self.0, cfg.tilde_expansion);
                 assert_eq!(cfg.split_fields_further, false);

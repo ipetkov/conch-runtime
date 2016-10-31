@@ -159,10 +159,10 @@ pub struct WordEvalConfig {
 }
 
 /// A trait for evaluating shell words with various rules for expansion.
-///
-/// Generic over the representation of an evaluation type (e.g. String, Rc<String>),
-/// and an environment/context type for evaluation.
-pub trait WordEval<T, E: ?Sized> {
+pub trait WordEval<E: ?Sized> {
+    /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
+    type EvalResult: StringWrapper;
+
     /// Evaluates a word in a given environment and performs all expansions.
     ///
     /// Tilde, parameter, command substitution, and arithmetic expansions are
@@ -173,7 +173,7 @@ pub trait WordEval<T, E: ?Sized> {
     /// the field contains a valid pattern. Finally, quotes and escaping
     /// backslashes are removed from the original word (unless they themselves
     /// have been quoted).
-    fn eval(&self, env: &mut E) -> Result<Fields<T>> {
+    fn eval(&self, env: &mut E) -> Result<Fields<Self::EvalResult>> {
         self.eval_with_config(env, WordEvalConfig {
             tilde_expansion: TildeExpansion::First,
             split_fields_further: true,
@@ -185,9 +185,8 @@ pub trait WordEval<T, E: ?Sized> {
     /// Tilde, parameter, command substitution, arithmetic expansions, and quote removals
     /// will be performed, however. In addition, if multiple fields arise as a result
     /// of evaluating `$@` or `$*`, the fields will be joined with a single space.
-    fn eval_as_assignment(&self, env: &mut E) -> Result<T>
-        where T: StringWrapper,
-              E: VariableEnvironment,
+    fn eval_as_assignment(&self, env: &mut E) -> Result<Self::EvalResult>
+        where E: VariableEnvironment,
               E::VarName: Borrow<String>,
               E::Var: StringWrapper,
     {
@@ -206,9 +205,7 @@ pub trait WordEval<T, E: ?Sized> {
     }
 
     /// Evaluates a word just like `eval`, but converts the result into a `glob::Pattern`.
-    fn eval_as_pattern(&self, env: &mut E) -> Result<glob::Pattern>
-        where T: StringWrapper,
-    {
+    fn eval_as_pattern(&self, env: &mut E) -> Result<glob::Pattern> {
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::First,
             split_fields_further: false,
@@ -227,11 +224,14 @@ pub trait WordEval<T, E: ?Sized> {
     /// If `cfg.split_fields_further` is false then all empty fields will be kept.
     ///
     /// The caller is responsible for doing path expansions.
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>>;
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>;
 }
 
-impl<'a, T, E: ?Sized, W: WordEval<T, E>> WordEval<T, E> for &'a W {
-    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<T>> {
+impl<'a, E: ?Sized, W: WordEval<E>> WordEval<E> for &'a W {
+    type EvalResult = W::EvalResult;
+
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
         (**self).eval_with_config(env, cfg)
     }
 }
@@ -468,7 +468,8 @@ mod tests {
     fn test_eval_expands_first_tilde_and_splits_words() {
         struct MockWord;
 
-        impl<E: ?Sized> WordEval<String, E> for MockWord {
+        impl<E: ?Sized> WordEval<E> for MockWord {
+            type EvalResult = String;
             fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig) -> Result<Fields<String>> {
                 assert_eq!(cfg, WordEvalConfig {
                     tilde_expansion: TildeExpansion::First,
@@ -489,7 +490,8 @@ mod tests {
             ($name:ident, $ret:expr) => {
                 struct $name;
 
-                impl<E: ?Sized> WordEval<String, E> for $name {
+                impl<E: ?Sized> WordEval<E> for $name {
+                    type EvalResult = String;
                     fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig)
                         -> Result<Fields<String>>
                     {
@@ -535,8 +537,11 @@ mod tests {
     fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_fields() {
         struct MockWord;
 
-        impl<E: ?Sized> WordEval<String, E> for MockWord {
-            fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig) -> Result<Fields<String>> {
+        impl<E: ?Sized> WordEval<E> for MockWord {
+            type EvalResult = String;
+            fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig)
+                -> Result<Fields<Self::EvalResult>>
+            {
                 assert_eq!(cfg, WordEvalConfig {
                     tilde_expansion: TildeExpansion::First,
                     split_fields_further: false,
