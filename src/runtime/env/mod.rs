@@ -79,7 +79,7 @@ pub trait SubEnvironment: Sized {
 ///
 /// ```
 /// # use std::rc::Rc;
-/// use shell_lang::runtime::env::{ArgsEnv, ArgumentsEnvironment, DefaultEnvConfig, Env, EnvConfig};
+/// use shell_runtime::env::{ArgsEnv, ArgumentsEnvironment, DefaultEnvConfig, Env, EnvConfig};
 /// let env = Env::with_config(EnvConfig {
 ///     args_env: ArgsEnv::with_name(Rc::new(String::from("my_shell"))),
 ///     .. DefaultEnvConfig::default()
@@ -107,7 +107,7 @@ pub struct EnvConfig<A, FD, L, V, N> {
 ///
 /// ```
 /// # use std::rc::Rc;
-/// # use shell_lang::runtime::env::DefaultEnvConfig;
+/// # use shell_runtime::env::DefaultEnvConfig;
 /// // Can be instantiated as follows
 /// let cfg1 = DefaultEnvConfig::<Rc<String>>::new();
 /// let cfg2 = DefaultEnvConfig::<Rc<String>>::default();
@@ -125,7 +125,7 @@ pub type DefaultEnvConfig<T = Rc<String>> =
 ///
 /// ```
 /// # use std::sync::Arc;
-/// # use shell_lang::runtime::env::DefaultAtomicEnvConfig;
+/// # use shell_runtime::env::DefaultAtomicEnvConfig;
 /// // Can be instantiated as follows
 /// let cfg1 = DefaultAtomicEnvConfig::<Arc<String>>::new();
 /// let cfg2 = DefaultAtomicEnvConfig::<Arc<String>>::default();
@@ -482,7 +482,7 @@ impl_env!(
 ///
 /// ```
 /// # use std::rc::Rc;
-/// # use shell_lang::runtime::env::DefaultEnv;
+/// # use shell_runtime::env::DefaultEnv;
 /// // Can be instantiated as follows
 /// let cfg = DefaultEnv::<Rc<String>>::new();
 /// ```
@@ -504,8 +504,7 @@ mod tests {
     use runtime::{EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
     use runtime::{ExitStatus, Result, Run};
     use runtime::io::Permissions;
-    use runtime::tests::word;
-    use runtime::tests::MockFn;
+    use runtime::tests::{MockFn, word};
 
     use self::tempdir::TempDir;
 
@@ -705,7 +704,7 @@ mod tests {
             Ok(EXIT_SUCCESS)
         }));
 
-        let cmd = SimpleCommand {
+        let cmd: SimpleCommand<String, _, _> = SimpleCommand {
             cmd: Some((word(fn_name), vec!(word("foo"), word("bar")))),
             vars: vec!(),
             io: vec!(Redirect::Write(None, word(file_path.display()))),

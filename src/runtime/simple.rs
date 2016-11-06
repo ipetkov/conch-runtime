@@ -7,8 +7,7 @@ use runtime::{EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCC
               ExitStatus, Fd, Result, Run, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
               run_with_local_redirections};
 use runtime::env::{FileDescEnvironment, FunctionEnvironment, FunctionExecutorEnvironment,
-                   IsInteractiveEnvironment, LastStatusEnvironment, StringWrapper, SubEnvironment,
-                   VariableEnvironment};
+                   LastStatusEnvironment, StringWrapper, VariableEnvironment};
 use runtime::errors::{CommandError, RuntimeError};
 use runtime::eval::{RedirectEval, WordEval};
 use runtime::io::FileDescWrapper;
@@ -22,28 +21,28 @@ use std::process::{self, Stdio};
 
 use syntax::ast::SimpleCommand;
 
-enum CommandPrep<T, F> {
+enum CommandPrep<T, V, F> {
     Finished(ExitStatus),
-    Data(PrepData<T, F>),
+    Data(PrepData<T, V, F>),
 }
 
-struct PrepData<T, F> {
+struct PrepData<T, V, F> {
     name: T,
     args: Vec<T>,
-    extra_env_vars: Vec<(String, T)>,
+    extra_env_vars: Vec<(V, T)>,
     io: HashMap<Fd, F>,
 }
 
-impl<E: ?Sized, W> Run<E> for SimpleCommand<W>
-    where E: FileDescEnvironment
+impl<V, W, R, E: ?Sized> Run<E> for SimpleCommand<V, W, R>
+    where V: StringWrapper,
+          W: WordEval<E>,
+          R: RedirectEval<E>,
+          E: FileDescEnvironment
               + FunctionExecutorEnvironment<FnName = W::EvalResult>
-              + IsInteractiveEnvironment
               + LastStatusEnvironment
-              + SubEnvironment
               + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
+          E::VarName: StringWrapper + From<V>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
         let ret = run_simple_command(self, env);
@@ -59,21 +58,21 @@ impl<E: ?Sized, W> Run<E> for SimpleCommand<W>
     }
 }
 
-fn run_simple_command<W, E>(cmd: &SimpleCommand<W>, env: &mut E) -> Result<ExitStatus>
-    where E: FileDescEnvironment
+fn run_simple_command<V, W, R, E: ?Sized>(cmd: &SimpleCommand<V, W, R>, env: &mut E)
+    -> Result<ExitStatus>
+    where V: StringWrapper,
+          W: WordEval<E>,
+          R: RedirectEval<E>,
+          E: FileDescEnvironment
               + FunctionExecutorEnvironment<FnName = W::EvalResult>
-              + IsInteractiveEnvironment
               + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
-          ::syntax::ast::Redirect<W>: RedirectEval<E>,
+          E::VarName: StringWrapper + From<V>,
 {
     // Whether this is a variable assignment, function invocation,
     // or regular command, make sure we open/touch all redirects,
     // as this will have side effects (possibly desired by script).
-    let io = cmd.io.iter().map(|r| r as &RedirectEval<E>);
-    let prep = try!(run_with_local_redirections(env, io, |env| {
+    let prep = try!(run_with_local_redirections(env, &cmd.io, |env| {
         let vars: Vec<_> = try!(cmd.vars.iter()
             .map(|&(ref var, ref val)| val.as_ref()
                  .map_or_else(|| Ok(String::new().into()), |val| val.eval_as_assignment(env))

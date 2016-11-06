@@ -80,7 +80,7 @@ impl<T: StringWrapper> Fields<T> {
     fn join_with_ifs<E: ?Sized>(self, env: &E) -> T
         where E: VariableEnvironment,
               E::VarName: Borrow<String>,
-              E::Var: StringWrapper,
+              E::Var: Borrow<String>,
     {
         match self {
             Fields::Zero => String::new().into(),
@@ -89,7 +89,7 @@ impl<T: StringWrapper> Fields<T> {
             Fields::Star(v) |
             Fields::Split(v) => {
                 let sep = env.var(&IFS)
-                    .map(StringWrapper::as_str)
+                    .map(|s| s.borrow().as_str())
                     .map_or(" ", |s| if s.is_empty() { "" } else { &s[0..1] });
 
                 v.iter()
@@ -236,6 +236,15 @@ impl<'a, E: ?Sized, W: WordEval<E>> WordEval<E> for &'a W {
     }
 }
 
+impl<E: ?Sized, W: ?Sized + WordEval<E>> WordEval<E> for Box<W> {
+    type EvalResult = W::EvalResult;
+
+    fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
+    {
+        (**self).eval_with_config(env, cfg)
+    }
+}
+
 /// Splits a vector of fields further based on the contents of the `IFS`
 /// variable (i.e. as long as it is non-empty). Any empty fields, original
 /// or otherwise created will be discarded.
@@ -243,7 +252,7 @@ fn split_fields<T, E: ?Sized>(fields: Fields<T>, env: &E) -> Fields<T>
     where T: StringWrapper,
           E: VariableEnvironment,
           E::VarName: Borrow<String>,
-          E::Var: StringWrapper,
+          E::Var: Borrow<String>,
 {
     match fields {
         Fields::Zero      => Fields::Zero,
@@ -259,10 +268,10 @@ fn split_fields_internal<T, E: ?Sized>(words: Vec<T>, env: &E) -> Vec<T>
     where T: StringWrapper,
           E: VariableEnvironment,
           E::VarName: Borrow<String>,
-          E::Var: StringWrapper,
+          E::Var: Borrow<String>,
 {
     // If IFS is set but null, there is nothing left to split
-    let ifs = env.var(&IFS).map_or(IFS_DEFAULT, StringWrapper::as_str);
+    let ifs = env.var(&IFS).map_or(IFS_DEFAULT, |s| s.borrow().as_str());
     if ifs.is_empty() {
         return words;
     }

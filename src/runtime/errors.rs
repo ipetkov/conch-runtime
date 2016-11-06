@@ -3,7 +3,6 @@ use std::error::Error;
 use std::fmt::{Display, Formatter, Result};
 use std::io::Error as IoError;
 use super::Fd;
-use syntax::ast::Parameter;
 use runtime::io::Permissions;
 
 /// An error which may arise during parameter expansion.
@@ -14,9 +13,9 @@ pub enum ExpansionError {
     /// Attempted to raise to a negative power in an arithmetic subsitution.
     NegativeExponent,
     /// Attempted to assign a special parameter, e.g. `${!:-value}`.
-    BadAssig(Parameter),
+    BadAssig(String),
     /// Attempted to evaluate a null or unset parameter, i.e. `${var:?msg}`.
-    EmptyParameter(Parameter, String),
+    EmptyParameter(String /* var */, String /* msg */),
 }
 
 impl Error for ExpansionError {

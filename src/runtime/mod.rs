@@ -2,9 +2,9 @@
 
 use glob;
 
-use self::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionExecutorEnvironment,
-                IsInteractiveEnvironment, LastStatusEnvironment, StringWrapper, SubEnvironment,
-                VariableEnvironment};
+use self::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
+                FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
+                StringWrapper, SubEnvironment, VariableEnvironment};
 
 use std::convert::{From, Into};
 use std::fmt;
@@ -14,7 +14,7 @@ use std::rc::Rc;
 use std::result;
 
 use syntax::ast::{AndOr, AndOrList, Command, CompoundCommand, CompoundCommandKind, GuardBodyPair,
-                  ListableCommand, PipeableCommand, Redirect, TopLevelCommand};
+                  ListableCommand, PipeableCommand, TopLevelCommand};
 use runtime::eval::{RedirectEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::FileDescWrapper;
 
@@ -163,16 +163,16 @@ impl<E: ?Sized, T: ?Sized> Run<E> for ::std::sync::Arc<T> where T: Run<E> {
     }
 }
 
-impl<E: ?Sized> Run<E> for TopLevelCommand
-    where E: ArgumentsEnvironment<Arg = String>
+impl<T, E> Run<E> for TopLevelCommand<T>
+    where T: 'static + StringWrapper + ::std::fmt::Display,
+          E: ArgumentsEnvironment<Arg = T>
             + FileDescEnvironment
-            + FunctionExecutorEnvironment<FnName = String>
+            + FunctionExecutorEnvironment<FnName = T>
             + IsInteractiveEnvironment
             + LastStatusEnvironment
             + SubEnvironment
-            + VariableEnvironment<Var = String>,
+            + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
           E::Fn: From<Rc<Run<E>>>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
@@ -229,26 +229,21 @@ impl<E: ?Sized, C> Run<E> for ListableCommand<C>
     }
 }
 
-impl<E: ?Sized, W, C> Run<E> for PipeableCommand<W, C>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-            + FileDescEnvironment
-            + FunctionExecutorEnvironment<FnName = W::EvalResult>
-            + IsInteractiveEnvironment
-            + LastStatusEnvironment
-            + SubEnvironment
-            + VariableEnvironment<Var = W::EvalResult>,
-          E::FileHandle: FileDescWrapper,
+impl<E: ?Sized, N, S, C, F> Run<E> for PipeableCommand<N, S, C, F>
+    where E: FunctionEnvironment + LastStatusEnvironment,
           E::Fn: From<Rc<Run<E>>>,
-          E::VarName: StringWrapper,
-          C: Run<E> + 'static,
-          W: WordEval<E> + 'static,
+          N: Clone + Into<E::FnName>,
+          S: Run<E>,
+          C: Run<E>,
+          F: Clone + Run<E> + 'static,
+
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
         match *self {
             PipeableCommand::Simple(ref cmd) => cmd.run(env),
             PipeableCommand::Compound(ref cmd) => cmd.run(env),
             PipeableCommand::FunctionDef(ref name, ref cmd) => {
-                let cmd: Rc<Run<E>> = cmd.clone();
+                let cmd: Rc<Run<E>> = Rc::new(cmd.clone());
                 env.set_function(name.clone().into(), cmd.into());
 
                 let exit = EXIT_SUCCESS;
@@ -259,31 +254,24 @@ impl<E: ?Sized, W, C> Run<E> for PipeableCommand<W, C>
     }
 }
 
-impl<E, W, C> Run<E> for CompoundCommand<W, C>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-            + FileDescEnvironment
-            + IsInteractiveEnvironment
-            + LastStatusEnvironment
-            + SubEnvironment
-            + VariableEnvironment<Var = W::EvalResult>,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
+impl<E: ?Sized, C, R> Run<E> for CompoundCommand<C, R>
+    where E: FileDescEnvironment,
+          E::FileHandle: Clone,
           C: Run<E>,
+          R: RedirectEval<E>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        let io = self.io.iter().map(|r| r as &RedirectEval<E>);
-        run_with_local_redirections(env, io, |env| self.kind.run(env))
+        run_with_local_redirections(env, &self.io, |env| self.kind.run(env))
     }
 }
 
-impl<E, W, C> Run<E> for CompoundCommandKind<W, C>
+impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
     where E: ArgumentsEnvironment<Arg = W::EvalResult>
             + FileDescEnvironment
             + LastStatusEnvironment
             + SubEnvironment
             + VariableEnvironment<Var = W::EvalResult>,
-          E::VarName: StringWrapper,
+          V: Clone + Into<E::VarName>,
           W: WordEval<E>,
           C: Run<E>,
 {
@@ -452,10 +440,11 @@ pub fn run<I, E: ?Sized>(iter: I, env: &mut E) -> Result<ExitStatus>
 
 /// Adds a number of local redirects to the specified environment, runs the provided closure,
 /// then removes the local redirects and restores the previous file descriptors before returning.
-pub fn run_with_local_redirections<'a, I, F, E: ?Sized, R>(env: &mut E, redirects: I, closure: F)
-    -> Result<R>
-    where I: IntoIterator<Item = &'a RedirectEval<E>>,
-          F: FnOnce(&mut E) -> Result<R>,
+pub fn run_with_local_redirections<'a, I, R: ?Sized, F, E: ?Sized, T>(env: &mut E, redirects: I, closure: F)
+    -> Result<T>
+    where I: IntoIterator<Item = &'a R>,
+          R: 'a + RedirectEval<E>,
+          F: FnOnce(&mut E) -> Result<T>,
           E: 'a + FileDescEnvironment,
           E::FileHandle: Clone,
 {
@@ -495,18 +484,19 @@ mod tests {
     use super::io::{FileDesc, Permissions};
     use super::*;
 
-    use syntax::ast::{CommandList, Parameter, Redirect, SimpleCommand};
+    use syntax::ast::{CommandList, Parameter, Redirect};
     use syntax::ast::Command::*;
     use syntax::ast::CompoundCommandKind::*;
     use syntax::ast::ListableCommand::*;
     use syntax::ast::PipeableCommand::*;
 
     #[derive(Clone)]
-    struct Command(::syntax::ast::Command<::syntax::ast::CommandList<MockWord, Command>>);
+    struct Command(::syntax::ast::Command<::syntax::ast::CommandList<String, MockWord, Command>>);
 
-    type CompoundCommand     = ::syntax::ast::CompoundCommand<MockWord, Command>;
-    type CompoundCommandKind = ::syntax::ast::CompoundCommandKind<MockWord, Command>;
-    type PipeableCommand     = ::syntax::ast::PipeableCommand<MockWord, Command>;
+    type CompoundCommand     = ::syntax::ast::CompoundCommand<CompoundCommandKind, Redirect<MockWord>>;
+    type CompoundCommandKind = ::syntax::ast::CompoundCommandKind<String, MockWord, Command>;
+    type PipeableCommand     = ::syntax::ast::DefaultPipeableCommand<String, MockWord, Command>;
+    type SimpleCommand       = ::syntax::ast::SimpleCommand<String, MockWord, Redirect<MockWord>>;
 
     #[cfg(unix)]
     pub const DEV_NULL: &'static str = "/dev/null";
@@ -632,7 +622,7 @@ mod tests {
     fn true_cmd() -> Command { exit(0) }
     fn false_cmd() -> Command { exit(1) }
 
-    fn cmd_from_simple(cmd: SimpleCommand<MockWord>) -> Command {
+    fn cmd_from_simple(cmd: SimpleCommand) -> Command {
         Command(List(CommandList {
             first: Single(Simple(Box::new(cmd))),
             rest: vec!(),
@@ -662,7 +652,7 @@ mod tests {
     fn test_error_handling_non_fatals<F>(swallow_errors: bool,
                                          test: F,
                                          ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand<MockWord>, DefaultEnv) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnv) -> Result<ExitStatus>
     {
         // We'll be printing a lot of errors, so we'll suppress actually printing
         // to avoid polluting the output of the test runner.
@@ -684,7 +674,7 @@ mod tests {
     fn test_error_handling_fatals<F>(swallow_fatals: bool,
                                      test: F,
                                      ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand<MockWord>, DefaultEnv) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnv) -> Result<ExitStatus>
     {
         use std::error::Error;
         use std::fmt;
@@ -705,12 +695,14 @@ mod tests {
         let mut env = Env::new();
         env.set_file_desc(STDERR_FILENO, Rc::new(dev_null()), Permissions::Write);
 
+        const AT: Parameter = Parameter::At;
+
         // Fatal errors should not be swallowed
         run_test!(swallow_fatals, test, env, ok_status,
             RuntimeError::Expansion(ExpansionError::DivideByZero),
             RuntimeError::Expansion(ExpansionError::NegativeExponent),
-            RuntimeError::Expansion(ExpansionError::BadAssig(Parameter::At)),
-            RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::At, "".to_owned())),
+            RuntimeError::Expansion(ExpansionError::BadAssig(AT.to_string())),
+            RuntimeError::Expansion(ExpansionError::EmptyParameter(AT.to_string(), "".to_owned())),
         );
 
         let custom_err_result = test(
@@ -735,7 +727,7 @@ mod tests {
 
     /// For exhaustively testing against handling of different error types
     pub fn test_error_handling<F>(swallow_errors: bool, test: F, ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand<MockWord>, DefaultEnv) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnv) -> Result<ExitStatus>
     {
         test_error_handling_non_fatals(swallow_errors, &test, ok_status);
         test_error_handling_fatals(false, test, ok_status);
@@ -743,9 +735,10 @@ mod tests {
 
     #[test]
     fn test_run_command_error_handling() {
+        use syntax::ast::CommandList;
         // FIXME: test Job when implemented
         test_error_handling(false, |cmd, mut env| {
-            let command: ::syntax::ast::Command<::syntax::ast::CommandList<MockWord, Command>>
+            let command: ::syntax::ast::Command<CommandList<String, MockWord, Command>>
                 = List(CommandList {
                     first: Single(Simple(Box::new(cmd))),
                     rest: vec!(),
@@ -1120,7 +1113,7 @@ mod tests {
         use syntax::ast::ParameterSubstitution::Assign;
         use syntax::ast::ComplexWord::Single;
         use syntax::ast::SimpleWord::{Literal, Subst};
-        use syntax::ast::{TopLevelWord, TopLevelCommand};
+        use syntax::ast::{CompoundCommand as DefaultCompoundCommand, TopLevelWord};
         use syntax::ast::Word::Simple;
 
         let var = "var";
@@ -1135,21 +1128,21 @@ mod tests {
         let value = value.display().to_string();
         let file = file_path.display().to_string();
 
-        let file = TopLevelWord(Single(Simple(Box::new(Literal(file)))));
-        let var_value = TopLevelWord(Single(Simple(Box::new(Literal(value.to_owned())))));
+        let file = TopLevelWord(Single(Simple(Literal(file))));
+        let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
 
         let mut env = Env::new();
 
-        let compound = ::syntax::ast::CompoundCommand::<TopLevelWord, TopLevelCommand> {
+        let compound: DefaultCompoundCommand = DefaultCompoundCommand {
             kind: Brace(vec!()),
             io: vec!(
                 Redirect::Write(Some(3), file.clone()),
                 Redirect::Write(Some(4), file.clone()),
-                Redirect::Write(Some(5), TopLevelWord(Single(Simple(Box::new(Subst(Box::new(Assign(
+                Redirect::Write(Some(5), TopLevelWord(Single(Simple(Subst(Box::new(Assign(
                     true,
                     Parameter::Var(var.to_string()),
                     Some(var_value),
-                )))))))),
+                ))))))),
             )
         };
 
@@ -1165,7 +1158,7 @@ mod tests {
         use syntax::ast::ParameterSubstitution::Assign;
         use syntax::ast::ComplexWord::Single;
         use syntax::ast::SimpleWord::{Literal, Subst};
-        use syntax::ast::{TopLevelWord, TopLevelCommand};
+        use syntax::ast::{CompoundCommand as DefaultCompoundCommand, TopLevelWord};
         use syntax::ast::Word::Simple;
 
         let var = "var";
@@ -1182,26 +1175,26 @@ mod tests {
         missing_file_path.push(String::from("if_this_file_exists_the_unverse_has_ended"));
 
         let file = file_path.display().to_string();
-        let file = TopLevelWord(Single(Simple(Box::new(Literal(file)))));
+        let file = TopLevelWord(Single(Simple(Literal(file))));
 
         let missing = missing_file_path.display().to_string();
-        let missing = TopLevelWord(Single(Simple(Box::new(Literal(missing)))));
+        let missing = TopLevelWord(Single(Simple(Literal(missing))));
 
         let value = value.display().to_string();
-        let var_value = TopLevelWord(Single(Simple(Box::new(Literal(value.to_owned())))));
+        let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
 
         let mut env = Env::new();
 
-        let compound = ::syntax::ast::CompoundCommand::<TopLevelWord, TopLevelCommand> {
+        let compound: DefaultCompoundCommand = DefaultCompoundCommand {
             kind: Brace(vec!()),
             io: vec!(
                 Redirect::Write(Some(3), file.clone()),
                 Redirect::Write(Some(4), file.clone()),
-                Redirect::Write(Some(5), TopLevelWord(Single(Simple(Box::new(Subst(Box::new(Assign(
+                Redirect::Write(Some(5), TopLevelWord(Single(Simple(Subst(Box::new(Assign(
                     true,
                     Parameter::Var(var.to_string()),
                     Some(var_value),
-                )))))))),
+                ))))))),
                 Redirect::Read(Some(6), missing)
             )
         };

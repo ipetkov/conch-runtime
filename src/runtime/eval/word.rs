@@ -6,28 +6,26 @@ use runtime::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionExecutorEn
                    StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::FileDescWrapper;
+use std::borrow::Borrow;
 use std::convert::{From, Into};
 use std::iter::{IntoIterator, Iterator};
+use std::rc::Rc;
 use syntax::ast::{ComplexWord, SimpleWord, TopLevelWord, Word};
 
-impl<E: ?Sized, W, C> WordEval<E> for SimpleWord<W, C>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-              + FileDescEnvironment
-              + LastStatusEnvironment
-              + SubEnvironment
-              + VariableEnvironment<Var = W::EvalResult>,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
-          C: Run<E>,
+impl<T, P, S, E: ?Sized> WordEval<E> for SimpleWord<T, P, S>
+    where T: StringWrapper,
+          P: ParamEval<E, EvalResult = T>,
+          S: WordEval<E, EvalResult = T>,
+          E: VariableEnvironment<Var = T>,
+          E::VarName: Borrow<String>,
 {
-    type EvalResult = W::EvalResult;
+    type EvalResult = T;
 
     fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
     {
         let ret = match *self {
             SimpleWord::Literal(ref s) |
-            SimpleWord::Escaped(ref s) => Fields::Single(s.clone().into()),
+            SimpleWord::Escaped(ref s) => Fields::Single(s.clone()),
 
             SimpleWord::Star        => Fields::Single(String::from("*").into()),
             SimpleWord::Question    => Fields::Single(String::from("?").into()),
@@ -54,18 +52,13 @@ impl<E: ?Sized, W, C> WordEval<E> for SimpleWord<W, C>
     }
 }
 
-impl<E: ?Sized, W, C> WordEval<E> for Word<W, C>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-              + FileDescEnvironment
-              + LastStatusEnvironment
-              + SubEnvironment
-              + VariableEnvironment<Var = W::EvalResult>,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
-          C: Run<E>,
+impl<T, W, E: ?Sized> WordEval<E> for Word<T, W>
+    where T: StringWrapper,
+          W: WordEval<E, EvalResult = T>,
+          E: VariableEnvironment<Var = T>,
+          E::VarName: Borrow<String>,
 {
-    type EvalResult = W::EvalResult;
+    type EvalResult = T;
 
     fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
     {
@@ -137,16 +130,8 @@ impl<E: ?Sized, W, C> WordEval<E> for Word<W, C>
     }
 }
 
-impl<E: ?Sized, W, C> WordEval<E> for ComplexWord<W, C>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-              + FileDescEnvironment
-              + LastStatusEnvironment
-              + SubEnvironment
-              + VariableEnvironment<Var = W::EvalResult>,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
-          C: Run<E>,
+impl<W, E: ?Sized> WordEval<E> for ComplexWord<W>
+    where W: WordEval<E>,
 {
     type EvalResult = W::EvalResult;
 
@@ -186,19 +171,19 @@ impl<E: ?Sized, W, C> WordEval<E> for ComplexWord<W, C>
     }
 }
 
-impl<E: ?Sized> WordEval<E> for TopLevelWord
-    where E: ArgumentsEnvironment<Arg = String>
-              + FileDescEnvironment
-              + FunctionExecutorEnvironment<FnName = String>
-              + IsInteractiveEnvironment
-              + LastStatusEnvironment
-              + SubEnvironment
-              + VariableEnvironment<Var = String>,
+impl<T, E> WordEval<E> for TopLevelWord<T>
+    where T: 'static + StringWrapper + ::std::fmt::Display,
+          E: ArgumentsEnvironment<Arg = T>
+            + FileDescEnvironment
+            + FunctionExecutorEnvironment<FnName = T>
+            + IsInteractiveEnvironment
+            + LastStatusEnvironment
+            + SubEnvironment
+            + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          E::Fn: From<::std::rc::Rc<::runtime::Run<E>>>,
+          E::Fn: From<Rc<Run<E>>>,
 {
-    type EvalResult = String;
+    type EvalResult = T;
 
     fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
     {
@@ -213,15 +198,14 @@ mod tests {
     use runtime::ExpansionError::DivideByZero;
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
+    use syntax::ast::{ComplexWord, SimpleWord, Word};
     use syntax::ast::ComplexWord::*;
     use syntax::ast::SimpleWord::*;
     use syntax::ast::Word::*;
-    use syntax::parse::test::lit;
 
-    type SimpleWord  = ::syntax::ast::SimpleWord<TopLevelWord, MockCmd>;
-    type ParamSubst  = ::syntax::ast::SimpleWord<TopLevelWord, MockCmd>;
-    type Word        = ::syntax::ast::Word<SimpleWord, MockCmd>;
-    type ComplexWord = ::syntax::ast::ComplexWord<Word, MockCmd>;
+    fn lit(s: &str) -> Word {
+        Simple(Literal(String::from(s)))
+    }
 
     #[derive(Copy, Clone, Debug)]
     struct MockCmd;
@@ -294,7 +278,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var("HOME".to_owned(), home_value.clone());
 
-        let word: Word = Simple(Box::new(Tilde));
+        let word: Word = Simple(Tilde);
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(home_value)));
     }
 
@@ -313,7 +297,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: ParamSubst =
+        let simple: SimpleWord =
             Subst(Box::new(ParameterSubstitution::Len(Parameter::Var(var_name))));
         let correct = Fields::Single("3".to_owned());
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(correct));
@@ -335,7 +319,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: ParamSubst = Subst(Box::new(ParameterSubstitution::Arith(Some(Arithmetic::Div(
+        let simple: SimpleWord = Subst(Box::new(ParameterSubstitution::Arith(Some(Arithmetic::Div(
             Box::new(Arithmetic::Literal(1)),
             Box::new(Arithmetic::Literal(0))
         )))));
@@ -406,12 +390,12 @@ mod tests {
         let word: Word = lit(&value);
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let word: Word = Simple(Box::new(Subst(Box::new(ParameterSubstitution::Arith(Some(
+        let word: Word = Simple(Subst(Box::new(ParameterSubstitution::Arith(Some(
             Arithmetic::Div(
                 Box::new(Arithmetic::Literal(1)),
                 Box::new(Arithmetic::Literal(0))
             )
-        ))))));
+        )))));
         assert_eq!(word.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 
@@ -624,15 +608,15 @@ mod tests {
 
         let mut env = Env::new();
         let value = "foo".to_owned();
-        let complex: ComplexWord = Single(Simple(Box::new(Literal(value.clone()))));
+        let complex: ComplexWord = Single(Simple(Literal(value.clone())));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let complex: ComplexWord = Single(Simple(Box::new(Subst(Box::new(ParameterSubstitution::Arith(
+        let complex: ComplexWord = Single(Simple(Subst(Box::new(ParameterSubstitution::Arith(
             Some(Arithmetic::Div(
                 Box::new(Arithmetic::Literal(1)),
                 Box::new(Arithmetic::Literal(0))
             ))
-        ))))));
+        )))));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 
@@ -647,16 +631,16 @@ mod tests {
 
         let mut env = Env::new();
         let value = "foo".to_owned();
-        let complex: ComplexWord = Single(Simple(Box::new(Literal(value.clone()))));
+        let complex: ComplexWord = Single(Simple(Literal(value.clone())));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
         let complex: ComplexWord = Concat(vec!(
-            Simple(Box::new(Subst(Box::new(ParameterSubstitution::Arith(
+            Simple(Subst(Box::new(ParameterSubstitution::Arith(
                 Some(Arithmetic::Div(
                     Box::new(Arithmetic::Literal(1)),
                     Box::new(Arithmetic::Literal(0))
                 ))
-            )))))
+            ))))
         ));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
@@ -677,7 +661,7 @@ mod tests {
 
         let complex: ComplexWord = Concat(vec!(
             lit("hello"),
-            Simple(Box::new(Param(Parameter::Var("var".to_owned())))),
+            Simple(Param(Parameter::Var("var".to_owned()))),
             lit("world"),
         ));
         let correct = Fields::Single("hellofoobarworld".to_owned());
@@ -696,7 +680,7 @@ mod tests {
 
         let complex: ComplexWord = Concat(vec!(
             lit("hello"),
-            Simple(Box::new(Param(Parameter::Var("var".to_owned())))),
+            Simple(Param(Parameter::Var("var".to_owned()))),
             lit("world"),
         ));
 
@@ -717,7 +701,7 @@ mod tests {
         let mut env = Env::new();
         let complex: ComplexWord = Concat(vec!(
             lit("foo"),
-            Simple(Box::new(Tilde)),
+            Simple(Tilde),
             lit("bar"),
         ));
         let correct = Fields::Single("foo~bar".to_owned());
@@ -725,7 +709,7 @@ mod tests {
 
         let complex: ComplexWord = Concat(vec!(
             lit("foo"),
-            Simple(Box::new(Tilde)),
+            Simple(Tilde),
         ));
         let correct = Fields::Single("foo~".to_owned());
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(correct));
@@ -742,7 +726,7 @@ mod tests {
         let complex: ComplexWord = Concat(vec!());
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
-        let var = Simple(Box::new(Param(Parameter::Var("var".to_owned()))));
+        let var = Simple(Param(Parameter::Var("var".to_owned())));
 
         let complex: ComplexWord = Concat(vec!(var.clone()));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
@@ -767,7 +751,7 @@ mod tests {
             .. Default::default()
         });
 
-        let complex: ComplexWord = Concat(vec!(Simple(Box::new(Param(Parameter::At)))));
+        let complex: ComplexWord = Concat(vec!(Simple(Param(Parameter::At))));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Split(vec!(
             "one".to_owned(),
             "two".to_owned(),
@@ -794,7 +778,7 @@ mod tests {
 
         let complex: ComplexWord = Concat(vec!(
             lit("foo"),
-            Simple(Box::new(Param(Parameter::At))),
+            Simple(Param(Parameter::At)),
             lit("bar"),
         ));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Split(vec!(
@@ -815,7 +799,7 @@ mod tests {
         let mut env = Env::new();
         let complex: ComplexWord = Concat(vec!(
             lit("foo"),
-            Simple(Box::new(Param(Parameter::At))),
+            Simple(Param(Parameter::At)),
             lit("bar"),
         ));
 
@@ -833,8 +817,8 @@ mod tests {
         let mut env = Env::new();
         let complex: ComplexWord = Concat(vec!(
             lit("foo"),
-            Simple(Box::new(Colon)),
-            Simple(Box::new(Tilde)),
+            Simple(Colon),
+            Simple(Tilde),
             lit("bar"),
         ));
 
@@ -853,15 +837,15 @@ mod tests {
 
         let mut env = Env::new();
         let value = "foo".to_owned();
-        let top_level_word = TopLevelWord(Single(Simple(Box::new(Literal(value.clone())))));
+        let top_level_word = TopLevelWord(Single(Simple(Literal(value.clone()))));
         assert_eq!(top_level_word.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let top_level_word = TopLevelWord(Single(Simple(Box::new(Subst(Box::new(
+        let top_level_word = TopLevelWord(Single(Simple(Subst(Box::new(
             ParameterSubstitution::Arith(Some(Arithmetic::Div(
                 Box::new(Arithmetic::Literal(1)),
                 Box::new(Arithmetic::Literal(0))
             )))
-        ))))));
+        )))));
         assert_eq!(top_level_word.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 }

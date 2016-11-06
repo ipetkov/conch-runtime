@@ -3,25 +3,25 @@
 use glob;
 
 use runtime::{ExpansionError, Result, Run, RuntimeError};
-use runtime::env::{ArgumentsEnvironment, FileDescEnvironment, LastStatusEnvironment,
+use runtime::env::{FileDescEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::eval::split_fields;
 use runtime::io::FileDescWrapper;
-use std::borrow::Borrow;
+use std::fmt::Display;
 use std::io;
-use syntax::ast::{Parameter, ParameterSubstitution};
+use syntax::ast::ParameterSubstitution;
 
-impl<W, C, E: ?Sized> WordEval<E> for ParameterSubstitution<W, C>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-              + LastStatusEnvironment
+impl<P, W, C, A, E: ?Sized> WordEval<E> for ParameterSubstitution<P, W, C, A>
+    where P: ParamEval<E> + Display,
+          W: WordEval<E, EvalResult = P::EvalResult>,
+          C: Run<E>,
+          A: ArithEval<E>,
+          E: LastStatusEnvironment
               + FileDescEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = W::EvalResult>,
+              + VariableEnvironment<VarName = P::EvalResult, Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
-          C: Run<E>,
 {
     type EvalResult = W::EvalResult;
 
@@ -43,19 +43,15 @@ impl<W, C, E: ?Sized> WordEval<E> for ParameterSubstitution<W, C>
 }
 
 /// Evaluate a parameter and remove a pattern from it.
-fn remove_pattern<W, E: ?Sized, F, T>(param: &ParamEval<T, E>,
-                                      pat: &Option<W>,
-                                      env: &mut E,
-                                      remove: F) -> Result<Option<Fields<T>>>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T>
-              + LastStatusEnvironment
-              + VariableEnvironment<Var = T>,
-          E::VarName: Borrow<String>,
+fn remove_pattern<P: ?Sized, W, E: ?Sized, F>(param: &P,
+                                              pat: &Option<W>,
+                                              env: &mut E,
+                                              remove: F) -> Result<Option<Fields<P::EvalResult>>>
+    where P: ParamEval<E>,
           W: WordEval<E>,
-          F: Fn(T, &glob::Pattern) -> T,
+          F: Fn(P::EvalResult, &glob::Pattern) -> P::EvalResult,
 {
-    let map = |v: Vec<T>, p| v.into_iter().map(|f| remove(f, &p)).collect();
+    let map = |v: Vec<_>, p| v.into_iter().map(|f| remove(f, &p)).collect();
     let param = param.eval(false, env);
 
     match *pat {
@@ -74,18 +70,18 @@ fn remove_pattern<W, E: ?Sized, F, T>(param: &ParamEval<T, E>,
 }
 
 /// Evaluates a paarameter substitution without splitting fields further.
-fn eval_inner<W, C, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
-                               env: &mut E,
-                               tilde_expansion: TildeExpansion) -> Result<Fields<W::EvalResult>>
-    where E: ArgumentsEnvironment<Arg = W::EvalResult>
-              + LastStatusEnvironment
+fn eval_inner<P, W, C, A, E>(subst: &ParameterSubstitution<P, W, C, A>,
+                             env: &mut E,
+                             tilde_expansion: TildeExpansion) -> Result<Fields<P::EvalResult>>
+    where P: ParamEval<E> + Display,
+          W: WordEval<E, EvalResult = P::EvalResult>,
+          C: Run<E>,
+          A: ArithEval<E>,
+          E: LastStatusEnvironment
               + FileDescEnvironment
               + SubEnvironment
-              + VariableEnvironment<Var = W::EvalResult>,
+              + VariableEnvironment<VarName = P::EvalResult, Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
-          E::VarName: StringWrapper,
-          W: WordEval<E>,
-          C: Run<E>,
 {
     use syntax::ast::ParameterSubstitution::*;
 
@@ -163,27 +159,18 @@ fn eval_inner<W, C, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
 
         Assign(strict, ref p, ref assig) => {
             check_param_subst!(p, env, strict);
-            match p {
-                p@&Parameter::At       |
-                p@&Parameter::Star     |
-                p@&Parameter::Pound    |
-                p@&Parameter::Question |
-                p@&Parameter::Dash     |
-                p@&Parameter::Dollar   |
-                p@&Parameter::Bang     |
-                p@&Parameter::Positional(_) => {
-                    return Err(ExpansionError::BadAssig(p.clone()).into());
-                },
-
-                &Parameter::Var(ref name) => {
+            match p.assig_name() {
+                Some(name) => {
                     let val = match *assig {
                         Some(ref w) => try!(w.eval_with_config(env, cfg)),
                         None => Fields::Zero,
                     };
 
-                    env.set_var(name.clone().into(), val.clone().join());
+                    env.set_var(name, val.clone().join());
                     val
                 },
+
+                None => return Err(ExpansionError::BadAssig(p.to_string()).into()),
             }
         },
 
@@ -194,7 +181,7 @@ fn eval_inner<W, C, E: ?Sized>(subst: &ParameterSubstitution<W, C>,
                 Some(ref w) => try!(w.eval_with_config(env, cfg)).join().into_owned(),
             };
 
-            return Err(ExpansionError::EmptyParameter(p.clone(), msg).into());
+            return Err(ExpansionError::EmptyParameter(p.to_string(), msg).into());
         },
 
         Alternative(strict, ref p, ref alt) => {
@@ -351,7 +338,7 @@ mod tests {
     use glob;
     use runtime::{ExitStatus, EXIT_SUCCESS, ExpansionError, Result, Run, RuntimeError};
     use runtime::env::{ArgsEnv, DefaultEnv, Env, EnvConfig,
-                       LastStatusEnvironment, StringWrapper, VariableEnvironment};
+                       LastStatusEnvironment, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Arithmetic, Parameter, ParameterSubstitution};
 
@@ -383,13 +370,32 @@ mod tests {
         }
     }
 
-    type ParamSubst = ParameterSubstitution<MockSubstWord, MockCmd>;
+    type ParamSubst = ParameterSubstitution<Parameter, MockSubstWord, MockCmd, Arithmetic>;
 
     #[test]
     fn test_eval_parameter_substitution_command() {
+        use runtime::STDOUT_FILENO;
+        use runtime::env::FileDescEnvironment;
+        use runtime::io::FileDescWrapper;
+        use runtime::tests::MockWord;
+        use std::borrow::Borrow;
+        use std::io::Write;
         use syntax::ast::ParameterSubstitution::Command;
-        use syntax::ast::{TopLevelWord, TopLevelCommand};
-        use syntax::parse::test::cmd_args;
+
+        type ParamSubst = ParameterSubstitution<Parameter, MockWord, MockSubstCmd, Arithmetic>;
+
+        struct MockSubstCmd(&'static str);
+        impl<E: FileDescEnvironment> Run<E> for MockSubstCmd
+            where E::FileHandle: FileDescWrapper,
+        {
+            fn run(&self, env: &mut E) -> Result<ExitStatus> {
+                let handle = env.file_desc(STDOUT_FILENO).unwrap().0;
+                let mut fd = handle.borrow().duplicate().unwrap();
+                fd.write_all(self.0.as_bytes()).unwrap();
+                fd.flush().unwrap();
+                Ok(EXIT_SUCCESS)
+            }
+        }
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -397,9 +403,12 @@ mod tests {
         };
 
         let mut env = Env::new();
-        let cmd_subst: ParameterSubstitution<TopLevelWord, TopLevelCommand>
-            = Command(vec!(cmd_args("echo", &["hello\n\n\n ~ * world\n\n\n\n"])));
-        assert_eq!(cmd_subst.eval_with_config(&mut env, cfg), Ok(Fields::Single("hello\n\n\n ~ * world".to_owned())));
+        let cmd_subst: ParamSubst = Command(vec!(MockSubstCmd("hello\n\n\n ~ * world\n\n\n\n")));
+
+        assert_eq!(
+            cmd_subst.eval_with_config(&mut env, cfg),
+            Ok(Fields::Single("hello\n\n\n ~ * world".to_owned()))
+        );
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -754,15 +763,16 @@ mod tests {
         );
 
         for param in unassignable_params {
-            let err = ExpansionError::BadAssig(param.clone());
+            let err = ExpansionError::BadAssig(param.to_string());
             let subst: ParamSubst = Assign(true, param.clone(), Some(assig));
-            assert_eq!(subst.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(err.clone())));
+            assert_eq!(subst.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(err)));
         }
     }
 
     #[test]
     fn test_eval_parameter_substitution_error() {
         use syntax::ast::ParameterSubstitution::Error;
+        use runtime::ExpansionError::EmptyParameter;
 
         const ERR_MSG: &'static str = "this variable is not set!";
 
@@ -785,14 +795,15 @@ mod tests {
 
         let var_value = Fields::Single(var_value);
 
+        let at: Parameter = Parameter::At;
+        let star: Parameter = Parameter::Star;
+
         let err_null  = RuntimeError::Expansion(
-            ExpansionError::EmptyParameter(Parameter::Var(var_null.clone()),  err_msg.clone()));
+            EmptyParameter(Parameter::Var(var_null.clone()).to_string(),  err_msg.clone()));
         let err_unset = RuntimeError::Expansion(
-            ExpansionError::EmptyParameter(Parameter::Var(var_unset.clone()), err_msg.clone()));
-        let err_at    = RuntimeError::Expansion(
-            ExpansionError::EmptyParameter(Parameter::At,                     err_msg.clone()));
-        let err_star  = RuntimeError::Expansion(
-            ExpansionError::EmptyParameter(Parameter::Star,                   err_msg.clone()));
+            EmptyParameter(Parameter::Var(var_unset.clone()).to_string(), err_msg.clone()));
+        let err_at    = RuntimeError::Expansion(EmptyParameter(at.to_string(), err_msg.clone()));
+        let err_star  = RuntimeError::Expansion(EmptyParameter(star.to_string(), err_msg.clone()));
 
         let err_msg = MockSubstWord(ERR_MSG);
 
@@ -813,16 +824,16 @@ mod tests {
 
         let subst: ParamSubst = Error(true, Parameter::Var(var_null.clone()), None);
         let eval = subst.eval_with_config(&mut env, cfg);
-        if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(param, _))) = eval {
-            assert_eq!(param, Parameter::Var(var_null.clone()));
+        if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+            assert_eq!(param, Parameter::Var(var_null.clone()).to_string());
         } else {
             panic!("Unexpected evaluation: {:?}", eval);
         }
 
         let subst: ParamSubst = Error(true, Parameter::Var(var_unset.clone()), None);
         let eval = subst.eval_with_config(&mut env, cfg);
-        if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(param, _))) = eval {
-            assert_eq!(param, Parameter::Var(var_unset.clone()));
+        if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+            assert_eq!(param, Parameter::Var(var_unset.clone()).to_string());
         } else {
             panic!("Unexpected evaluation: {:?}", eval);
         }
@@ -848,8 +859,8 @@ mod tests {
 
         let subst: ParamSubst = Error(false, Parameter::Var(var_unset.clone()), None);
         let eval = subst.eval_with_config(&mut env, cfg);
-        if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(param, _))) = eval {
-            assert_eq!(param, Parameter::Var(var_unset.clone()));
+        if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+            assert_eq!(param, Parameter::Var(var_unset.clone()).to_string());
         } else {
             panic!("Unexpected evaluation: {:?}", eval);
         }
@@ -904,8 +915,8 @@ mod tests {
 
             let subst: ParamSubst = Error(true, Parameter::At, None);
             let eval = subst.eval_with_config(&mut env, cfg);
-            if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::At, _))) = eval {
-                // Nothing
+            if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+                assert_eq!(at.to_string(), param);
             } else {
                 panic!("Unexpected evaluation: {:?}", eval);
             }
@@ -915,7 +926,8 @@ mod tests {
 
             let subst: ParamSubst = Error(true, Parameter::Star, None);
             let eval = subst.eval_with_config(&mut env, cfg);
-            if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::Star, _))) = eval {
+            if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+                assert_eq!(star.to_string(), param);
             } else {
                 panic!("Unexpected evaluation: {:?}", eval);
             }
@@ -940,7 +952,8 @@ mod tests {
 
             let subst: ParamSubst = Error(true, Parameter::At, None);
             let eval = subst.eval_with_config(&mut env, cfg);
-            if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::At, _))) = eval {
+            if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+                assert_eq!(at.to_string(), param);
             } else {
                 panic!("Unexpected evaluation: {:?}", eval);
             }
@@ -950,8 +963,8 @@ mod tests {
 
             let subst: ParamSubst = Error(true, Parameter::Star, None);
             let eval = subst.eval_with_config(&mut env, cfg);
-            if let Err(RuntimeError::Expansion(ExpansionError::EmptyParameter(Parameter::Star, _))) = eval {
-                // Nothing
+            if let Err(RuntimeError::Expansion(EmptyParameter(param, _))) = eval {
+                assert_eq!(star.to_string(), param);
             } else {
                 panic!("Unexpected evaluation: {:?}", eval);
             }
@@ -1676,7 +1689,7 @@ mod tests {
             }
         }
 
-        type ParamSubst = ParameterSubstitution<MockWord, MockCmd>;
+        type ParamSubst = ParameterSubstitution<Parameter, MockWord, MockCmd, Arithmetic>;
 
         let name = "var";
         let var = Parameter::Var(name.to_owned());

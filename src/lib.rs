@@ -1,5 +1,4 @@
-//! A library for parsing, executing, and analyzing programs
-//! written in the shell programming language.
+//! A library for executing programs written in the shell programming language.
 #![cfg_attr(feature = "clippy", feature(plugin))]
 #![cfg_attr(feature = "clippy", plugin(clippy))]
 
@@ -9,22 +8,22 @@
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
-#![warn(trivial_casts)]
+#![deny(trivial_casts)]
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]
 
-#![cfg_attr(all(windows, feature = "runtime"), feature(unique))]
+#![cfg_attr(windows, feature(unique))]
 
 // Unix only libs
-#[cfg(all(unix, feature = "runtime"))] extern crate libc;
+#[cfg(unix)] extern crate libc;
 
 // Windows only libs
-#[cfg(all(windows, feature = "runtime"))] extern crate kernel32;
-#[cfg(all(windows, feature = "runtime"))] extern crate winapi;
+#[cfg(windows)] extern crate kernel32;
+#[cfg(windows)] extern crate winapi;
 
-#[cfg(feature = "runtime")] extern crate glob;
-#[cfg(feature = "runtime")] #[macro_use] extern crate lazy_static;
-#[cfg(feature = "runtime")] extern crate void;
+extern crate glob;
+#[macro_use] extern crate lazy_static;
+extern crate shell_lang as syntax;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[cfg(test)]
@@ -39,6 +38,6 @@ macro_rules! mktmp {
     }};
 }
 
-#[cfg(feature = "runtime")]
-pub mod runtime;
-pub mod syntax;
+mod runtime;
+
+pub use self::runtime::*;

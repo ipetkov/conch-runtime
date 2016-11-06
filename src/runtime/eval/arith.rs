@@ -1,7 +1,8 @@
 //! A module that defines evaluating parameters and parameter subsitutions.
 
 use runtime::ExpansionError;
-use runtime::env::{StringWrapper, VariableEnvironment};
+use runtime::env::VariableEnvironment;
+use std::borrow::Borrow;
 use syntax::ast::Arithmetic;
 use syntax::ast::Arithmetic::*;
 
@@ -20,15 +21,16 @@ impl<'a, T: ArithEval<E>, E: ?Sized> ArithEval<E> for &'a T {
     }
 }
 
-impl<E: ?Sized> ArithEval<E> for Arithmetic
-    where E: VariableEnvironment,
-          E::VarName: StringWrapper,
-          E::Var: StringWrapper,
+impl<T, E: ?Sized> ArithEval<E> for Arithmetic<T>
+    where T: Clone + ::std::hash::Hash + ::std::cmp::Eq,
+          E: VariableEnvironment,
+          E::VarName: Borrow<T> + From<T>,
+          E::Var: Borrow<String> + From<String>,
 {
     fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
         let get_var = |env: &E, var| {
             env.var(var)
-                .and_then(|s| s.as_str().parse().ok())
+                .and_then(|s| s.borrow().as_str().parse().ok())
                 .unwrap_or(0)
         };
 
@@ -157,7 +159,7 @@ mod tests {
         use ::std::isize::MAX;
         use syntax::ast::Arithmetic::*;
 
-        fn lit(i: isize) -> Box<Arithmetic> {
+        fn lit(i: isize) -> Box<Arithmetic<String>> {
             Box::new(Literal(i))
         }
 
@@ -171,7 +173,7 @@ mod tests {
         env.set_var(var.clone(),        var_value.to_string());
         env.set_var(var_string.clone(), var_string_value.to_owned());
 
-        assert_eq!(Literal(5).eval(env), Ok(5));
+        assert_eq!(lit(5).eval(env), Ok(5));
 
         assert_eq!(Var(var.clone()).eval(env), Ok(var_value));
         assert_eq!(Var(var_string.clone()).eval(env), Ok(0));

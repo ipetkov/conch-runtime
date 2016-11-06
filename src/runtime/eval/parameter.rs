@@ -10,26 +10,40 @@ use syntax::ast::Parameter;
 const EXIT_SIGNAL_OFFSET: u32 = 128;
 
 /// A trait for evaluating parameters.
-pub trait ParamEval<T, E: ?Sized> {
+pub trait ParamEval<E: ?Sized> {
+    /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
+    type EvalResult: StringWrapper;
+
     /// Evaluates a parameter in the context of some environment,
     /// optionally splitting fields.
     ///
     /// A `None` value indicates that the parameter is unset.
-    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>>;
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>>;
+
+    /// Returns the (variable) name of the parameter to be used for assignments, if applicable.
+    fn assig_name(&self) -> Option<Self::EvalResult>;
 }
 
-impl<'a, T, E: ?Sized, P: ParamEval<T, E>> ParamEval<T, E> for &'a P {
-    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>> {
+impl<'a, E: ?Sized, P: ParamEval<E>> ParamEval<E> for &'a P {
+    type EvalResult = P::EvalResult;
+
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
         (**self).eval(split_fields_further, env)
+    }
+
+    fn assig_name(&self) -> Option<Self::EvalResult> {
+        (**self).assig_name()
     }
 }
 
-impl<T, E: ?Sized> ParamEval<T, E> for Parameter
+impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
     where T: StringWrapper,
           E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
 {
-    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<T>> {
+    type EvalResult = T;
+
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
         let get_args = || {
             let args = env.args();
             if args.is_empty() {
@@ -55,7 +69,7 @@ impl<T, E: ?Sized> ParamEval<T, E> for Parameter
 
             Parameter::Positional(0) => Some(Fields::Single(env.name().clone())),
             Parameter::Positional(p) => env.arg(p as usize).cloned().map(Fields::Single),
-            Parameter::Var(ref var)  => env.var(var).cloned().map(Fields::Single),
+            Parameter::Var(ref var)  => env.var(var.borrow()).cloned().map(Fields::Single),
         };
 
         ret.map(|f| {
@@ -66,15 +80,28 @@ impl<T, E: ?Sized> ParamEval<T, E> for Parameter
             }
         })
     }
+
+    fn assig_name(&self) -> Option<Self::EvalResult> {
+        match *self {
+            Parameter::At            |
+            Parameter::Star          |
+            Parameter::Pound         |
+            Parameter::Dollar        |
+            Parameter::Dash          |
+            Parameter::Bang          |
+            Parameter::Question      |
+            Parameter::Positional(_) => None,
+            Parameter::Var(ref var)  => Some(var.clone()),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use glob;
     use runtime::{ExitStatus, EXIT_SUCCESS, Result, Run};
     use runtime::env::{ArgsEnv, ArgumentsEnvironment, Env, EnvConfig,
-                       LastStatusEnvironment, StringWrapper, VariableEnvironment};
-    use runtime::eval::{Fields, WordEval, WordEvalConfig};
+                       LastStatusEnvironment, VariableEnvironment};
+    use runtime::eval::Fields;
     use super::*;
     use syntax::ast::Parameter;
 
