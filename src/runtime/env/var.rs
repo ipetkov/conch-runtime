@@ -233,12 +233,12 @@ mod tests {
 
         let mut env = env.sub_env();
         env.set_var(name.to_owned(), value.to_owned());
-        if let Some(_) = env.vars.get_mut() {
+        if env.vars.get_mut().is_some() {
             panic!("needles clone!");
         }
 
         env.unset_var(not_set);
-        if let Some(_) = env.vars.get_mut() {
+        if env.vars.get_mut().is_some() {
             panic!("needles clone!");
         }
     }

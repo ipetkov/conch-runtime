@@ -187,7 +187,7 @@ mod tests {
         let mut env = env.sub_env();
 
         env.unset_function(&not_set);
-        if let Some(_) = env.functions.get_mut() {
+        if env.functions.get_mut().is_some() {
             panic!("needles clone!");
         }
     }

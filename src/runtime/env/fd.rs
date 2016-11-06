@@ -231,13 +231,13 @@ mod tests {
 
         let mut env = env.sub_env();
         env.set_file_desc(fd, file_desc.clone(), perms);
-        if let Some(_) = env.fds.get_mut() {
+        if env.fds.get_mut().is_some() {
             panic!("needles clone!");
         }
 
         assert_eq!(env.file_desc(fd_not_set), None);
         env.close_file_desc(fd_not_set);
-        if let Some(_) = env.fds.get_mut() {
+        if env.fds.get_mut().is_some() {
             panic!("needles clone!");
         }
     }
