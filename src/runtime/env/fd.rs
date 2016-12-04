@@ -49,7 +49,7 @@ macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
         $(#[$attr])*
         #[derive(PartialEq, Eq)]
-        pub struct $Env<T = $Rc<FileDesc>> {
+        pub struct $Env<T> {
             fds: $Rc<HashMap<Fd, (T, Permissions)>>,
         }
 

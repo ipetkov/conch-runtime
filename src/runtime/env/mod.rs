@@ -2,7 +2,7 @@
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
 use runtime::{ExitStatus, Fd, Result, Run};
-use runtime::io::Permissions;
+use runtime::io::{FileDesc, Permissions};
 
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
@@ -105,6 +105,8 @@ pub struct EnvConfig<A, FD, L, V, N> {
 
 /// A default environment configuration using provided (non-atomic) implementations.
 ///
+/// Generic over the representation of shell words, variables, function names, etc.
+///
 /// ```
 /// # use std::rc::Rc;
 /// # use shell_runtime::env::DefaultEnvConfig;
@@ -112,16 +114,22 @@ pub struct EnvConfig<A, FD, L, V, N> {
 /// let cfg1 = DefaultEnvConfig::<Rc<String>>::new();
 /// let cfg2 = DefaultEnvConfig::<Rc<String>>::default();
 /// ```
-pub type DefaultEnvConfig<T = Rc<String>> =
+pub type DefaultEnvConfig<T> =
     EnvConfig<
         ArgsEnv<T>,
-        FileDescEnv,
+        FileDescEnv<Rc<FileDesc>>,
         LastStatusEnv,
         VarEnv<T, T>,
         T
     >;
 
+/// A default environment configuration using provided (non-atomic) implementations.
+/// and `Rc<String>` to represent shell values.
+pub type DefaultEnvConfigRc = DefaultEnvConfig<Rc<String>>;
+
 /// A default environment configuration using provided (atomic) implementations.
+///
+/// Generic over the representation of shell words, variables, function names, etc.
 ///
 /// ```
 /// # use std::sync::Arc;
@@ -130,14 +138,18 @@ pub type DefaultEnvConfig<T = Rc<String>> =
 /// let cfg1 = DefaultAtomicEnvConfig::<Arc<String>>::new();
 /// let cfg2 = DefaultAtomicEnvConfig::<Arc<String>>::default();
 /// ```
-pub type DefaultAtomicEnvConfig<T = Rc<String>> =
+pub type DefaultAtomicEnvConfig<T> =
     EnvConfig<
         AtomicArgsEnv<T>,
-        AtomicFileDescEnv,
+        AtomicFileDescEnv<Arc<FileDesc>>,
         LastStatusEnv,
-        AtomicVarEnv<T>,
+        AtomicVarEnv<T, T>,
         T
     >;
+
+/// A default environment configuration using provided (atomic) implementations.
+/// and `Arc<String>` to represent shell values.
+pub type DefaultAtomicEnvConfigArc = DefaultAtomicEnvConfig<Arc<String>>;
 
 impl<T> DefaultEnvConfig<T>
     where T: Default + Eq + Hash + From<String>,
@@ -480,13 +492,49 @@ impl_env!(
 
 /// A default environment configured with provided (non-atomic) implementations.
 ///
+/// Generic over the representation of shell words, variables, function names, etc.
+///
 /// ```
 /// # use std::rc::Rc;
 /// # use shell_runtime::env::DefaultEnv;
 /// // Can be instantiated as follows
 /// let cfg = DefaultEnv::<Rc<String>>::new();
 /// ```
-pub type DefaultEnv<T = Rc<String>> = Env<ArgsEnv<T>, FileDescEnv, LastStatusEnv, VarEnv<T, T>, T>;
+pub type DefaultEnv<T> =
+    Env<
+        ArgsEnv<T>,
+        FileDescEnv<Rc<FileDesc>>,
+        LastStatusEnv,
+        VarEnv<T, T>,
+        T
+    >;
+
+/// A default environment configured with provided (non-atomic) implementations,
+/// and `Rc<String>` to represent shell values.
+pub type DefaultEnvRc = DefaultEnv<Rc<String>>;
+
+/// A default environment configured with provided (non-atomic) implementations.
+///
+/// Generic over the representation of shell words, variables, function names, etc.
+///
+/// ```
+/// # use std::sync::Arc;
+/// # use shell_runtime::env::DefaultEnv;
+/// // Can be instantiated as follows
+/// let cfg = DefaultEnv::<Arc<String>>::new();
+/// ```
+pub type DefaultAtomicEnv<T> =
+    AtomicEnv<
+        AtomicArgsEnv<T>,
+        AtomicFileDescEnv<Arc<FileDesc>>,
+        LastStatusEnv,
+        AtomicVarEnv<T, T>,
+        T
+    >;
+
+/// A default environment configured with provided (atomic) implementations,
+/// and uses `Arc<String>` to represent shell values.
+pub type DefaultAtomicEnvArc = DefaultAtomicEnv<Arc<String>>;
 
 impl<T> DefaultEnv<T> where T: Default + Eq + Hash + From<String> {
     /// Creates a new default environment.

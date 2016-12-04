@@ -64,7 +64,7 @@ macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
         $(#[$attr])*
         #[derive(PartialEq, Eq)]
-        pub struct $Env<N: Eq + Hash = $Rc<String>, V = $Rc<String>> {
+        pub struct $Env<N: Eq + Hash, V> {
             /// A mapping of variable names to their values.
             ///
             /// The tupled boolean indicates if a variable should be exported to other commands.

@@ -575,8 +575,8 @@ mod tests {
         }
     }
 
-    impl Run<DefaultEnv> for Command {
-        fn run(&self, env: &mut DefaultEnv) -> Result<ExitStatus> {
+    impl Run<DefaultEnvRc> for Command {
+        fn run(&self, env: &mut DefaultEnvRc) -> Result<ExitStatus> {
             self.0.run(env)
         }
     }
@@ -652,7 +652,7 @@ mod tests {
     fn test_error_handling_non_fatals<F>(swallow_errors: bool,
                                          test: F,
                                          ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand, DefaultEnv) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
     {
         // We'll be printing a lot of errors, so we'll suppress actually printing
         // to avoid polluting the output of the test runner.
@@ -674,7 +674,7 @@ mod tests {
     fn test_error_handling_fatals<F>(swallow_fatals: bool,
                                      test: F,
                                      ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand, DefaultEnv) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
     {
         use std::error::Error;
         use std::fmt;
@@ -727,7 +727,7 @@ mod tests {
 
     /// For exhaustively testing against handling of different error types
     pub fn test_error_handling<F>(swallow_errors: bool, test: F, ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand, DefaultEnv) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
     {
         test_error_handling_non_fatals(swallow_errors, &test, ok_status);
         test_error_handling_fatals(false, test, ok_status);
@@ -1404,7 +1404,7 @@ mod tests {
         {
             let var = var.clone();
             let result_var = result_var.clone();
-            env.set_function(fn_body.to_owned().into(), MockFn::new::<DefaultEnv>(move |mut env| {
+            env.set_function(fn_body.to_owned().into(), MockFn::new::<DefaultEnvRc>(move |mut env| {
                 let mut result = env.var(&result_var).unwrap().clone();
                 result.make_mut().push_str(env.var(&var).unwrap().as_str());
                 env.set_var(result_var.clone(), result.into());
@@ -1443,7 +1443,7 @@ mod tests {
             let compound: CompoundCommandKind = For {
                 var: "var".to_owned(),
                 words: Some(vec!(MockWord::Error(Rc::new(move || {
-                    let mut env = DefaultEnv::<Rc<String>>::new(); // Env not important here
+                    let mut env = DefaultEnvRc::new(); // Env not important here
                     cmd.run(&mut env).unwrap_err()
                 })))),
                 body: vec!(),
@@ -1890,7 +1890,7 @@ mod tests {
         test_error_handling(false, |cmd, mut env| {
             let compound: CompoundCommandKind = Case {
                 word: MockWord::Error(Rc::new(move || {
-                    let mut env = DefaultEnv::<Rc<String>>::new(); // Env not important here
+                    let mut env = DefaultEnvRc::new(); // Env not important here
                     cmd.run(&mut env).unwrap_err()
                 })),
                 arms: vec!(),

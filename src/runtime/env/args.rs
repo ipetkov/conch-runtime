@@ -60,7 +60,7 @@ macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
         $(#[$attr])*
         #[derive(Debug, PartialEq, Eq)]
-        pub struct $Env<T = $Rc<String>> {
+        pub struct $Env<T> {
             name: $Rc<T>,
             args: $Rc<Vec<T>>,
         }
