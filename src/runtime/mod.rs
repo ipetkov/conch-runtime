@@ -1113,7 +1113,7 @@ mod tests {
         use syntax::ast::ParameterSubstitution::Assign;
         use syntax::ast::ComplexWord::Single;
         use syntax::ast::SimpleWord::{Literal, Subst};
-        use syntax::ast::{CompoundCommand as DefaultCompoundCommand, TopLevelWord};
+        use syntax::ast::{DefaultCompoundCommand, TopLevelWord};
         use syntax::ast::Word::Simple;
 
         let var = "var";
@@ -1133,7 +1133,7 @@ mod tests {
 
         let mut env = Env::new();
 
-        let compound: DefaultCompoundCommand = DefaultCompoundCommand {
+        let compound = DefaultCompoundCommand {
             kind: Brace(vec!()),
             io: vec!(
                 Redirect::Write(Some(3), file.clone()),
@@ -1158,7 +1158,7 @@ mod tests {
         use syntax::ast::ParameterSubstitution::Assign;
         use syntax::ast::ComplexWord::Single;
         use syntax::ast::SimpleWord::{Literal, Subst};
-        use syntax::ast::{CompoundCommand as DefaultCompoundCommand, TopLevelWord};
+        use syntax::ast::{DefaultCompoundCommand, TopLevelWord};
         use syntax::ast::Word::Simple;
 
         let var = "var";
@@ -1185,7 +1185,7 @@ mod tests {
 
         let mut env = Env::new();
 
-        let compound: DefaultCompoundCommand = DefaultCompoundCommand {
+        let compound = DefaultCompoundCommand {
             kind: Brace(vec!()),
             io: vec!(
                 Redirect::Write(Some(3), file.clone()),
