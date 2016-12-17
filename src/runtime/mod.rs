@@ -678,6 +678,7 @@ mod tests {
     {
         use std::error::Error;
         use std::fmt;
+        use syntax::ast::DefaultParameter;
 
         // Custom errors might not be Eq so we have to be more creative to check them.
         #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -695,7 +696,7 @@ mod tests {
         let mut env = Env::new();
         env.set_file_desc(STDERR_FILENO, Rc::new(dev_null()), Permissions::Write);
 
-        const AT: Parameter = Parameter::At;
+        const AT: DefaultParameter = Parameter::At;
 
         // Fatal errors should not be swallowed
         run_test!(swallow_fatals, test, env, ok_status,
