@@ -198,7 +198,7 @@ mod tests {
     use runtime::ExpansionError::DivideByZero;
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
-    use syntax::ast::{ComplexWord, SimpleWord, Word};
+    use syntax::ast::{DefaultComplexWord, SimpleWord, Word};
     use syntax::ast::ComplexWord::*;
     use syntax::ast::SimpleWord::*;
     use syntax::ast::Word::*;
@@ -608,10 +608,10 @@ mod tests {
 
         let mut env = Env::new();
         let value = "foo".to_owned();
-        let complex: ComplexWord = Single(Simple(Literal(value.clone())));
+        let complex: DefaultComplexWord = Single(Simple(Literal(value.clone())));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let complex: ComplexWord = Single(Simple(Subst(Box::new(ParameterSubstitution::Arith(
+        let complex: DefaultComplexWord = Single(Simple(Subst(Box::new(ParameterSubstitution::Arith(
             Some(Arithmetic::Div(
                 Box::new(Arithmetic::Literal(1)),
                 Box::new(Arithmetic::Literal(0))
@@ -631,10 +631,10 @@ mod tests {
 
         let mut env = Env::new();
         let value = "foo".to_owned();
-        let complex: ComplexWord = Single(Simple(Literal(value.clone())));
+        let complex: DefaultComplexWord = Single(Simple(Literal(value.clone())));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             Simple(Subst(Box::new(ParameterSubstitution::Arith(
                 Some(Arithmetic::Div(
                     Box::new(Arithmetic::Literal(1)),
@@ -655,11 +655,11 @@ mod tests {
         let mut env = Env::new();
         env.set_var("var".to_owned(), "foobar".to_owned());
 
-        let complex: ComplexWord = Concat(vec!(lit("hello")));
+        let complex: DefaultComplexWord = Concat(vec!(lit("hello")));
         let correct = Fields::Single("hello".to_owned());
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(correct));
 
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("hello"),
             Simple(Param(Parameter::Var("var".to_owned()))),
             lit("world"),
@@ -678,7 +678,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var("var".to_owned(), "foo bar baz".to_owned());
 
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("hello"),
             Simple(Param(Parameter::Var("var".to_owned()))),
             lit("world"),
@@ -699,7 +699,7 @@ mod tests {
         };
 
         let mut env = Env::new();
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("foo"),
             Simple(Tilde),
             lit("bar"),
@@ -707,7 +707,7 @@ mod tests {
         let correct = Fields::Single("foo~bar".to_owned());
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(correct));
 
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("foo"),
             Simple(Tilde),
         ));
@@ -723,15 +723,15 @@ mod tests {
         };
 
         let mut env = DefaultEnv::<String>::new();
-        let complex: ComplexWord = Concat(vec!());
+        let complex: DefaultComplexWord = Concat(vec!());
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
         let var = Simple(Param(Parameter::Var("var".to_owned())));
 
-        let complex: ComplexWord = Concat(vec!(var.clone()));
+        let complex: DefaultComplexWord = Concat(vec!(var.clone()));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
-        let complex: ComplexWord = Concat(vec!(var.clone(), var.clone()));
+        let complex: DefaultComplexWord = Concat(vec!(var.clone(), var.clone()));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
     }
 
@@ -751,7 +751,7 @@ mod tests {
             .. Default::default()
         });
 
-        let complex: ComplexWord = Concat(vec!(Simple(Param(Parameter::At))));
+        let complex: DefaultComplexWord = Concat(vec!(Simple(Param(Parameter::At))));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Split(vec!(
             "one".to_owned(),
             "two".to_owned(),
@@ -776,7 +776,7 @@ mod tests {
             .. Default::default()
         });
 
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("foo"),
             Simple(Param(Parameter::At)),
             lit("bar"),
@@ -797,7 +797,7 @@ mod tests {
         };
 
         let mut env = Env::new();
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("foo"),
             Simple(Param(Parameter::At)),
             lit("bar"),
@@ -815,7 +815,7 @@ mod tests {
         };
 
         let mut env = Env::new();
-        let complex: ComplexWord = Concat(vec!(
+        let complex: DefaultComplexWord = Concat(vec!(
             lit("foo"),
             Simple(Colon),
             Simple(Tilde),
