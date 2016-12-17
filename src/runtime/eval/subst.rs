@@ -340,7 +340,7 @@ mod tests {
     use runtime::env::{ArgsEnv, DefaultEnv, Env, EnvConfig,
                        LastStatusEnvironment, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
-    use syntax::ast::{Arithmetic, Parameter, ParameterSubstitution};
+    use syntax::ast::{Arithmetic, DefaultArithmetic, Parameter, ParameterSubstitution};
 
     #[derive(Copy, Clone, Debug)]
     struct MockCmd;
@@ -370,7 +370,7 @@ mod tests {
         }
     }
 
-    type ParamSubst = ParameterSubstitution<Parameter, MockSubstWord, MockCmd, Arithmetic>;
+    type ParamSubst = ParameterSubstitution<Parameter, MockSubstWord, MockCmd, DefaultArithmetic>;
 
     #[test]
     fn test_eval_parameter_substitution_command() {
@@ -382,7 +382,7 @@ mod tests {
         use std::io::Write;
         use syntax::ast::ParameterSubstitution::Command;
 
-        type ParamSubst = ParameterSubstitution<Parameter, MockWord, MockSubstCmd, Arithmetic>;
+        type ParamSubst = ParameterSubstitution<Parameter, MockWord, MockSubstCmd, DefaultArithmetic>;
 
         struct MockSubstCmd(&'static str);
         impl<E: FileDescEnvironment> Run<E> for MockSubstCmd
@@ -1689,7 +1689,7 @@ mod tests {
             }
         }
 
-        type ParamSubst = ParameterSubstitution<Parameter, MockWord, MockCmd, Arithmetic>;
+        type ParamSubst = ParameterSubstitution<Parameter, MockWord, MockCmd, DefaultArithmetic>;
 
         let name = "var";
         let var = Parameter::Var(name.to_owned());
