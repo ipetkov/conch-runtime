@@ -198,12 +198,12 @@ mod tests {
     use runtime::ExpansionError::DivideByZero;
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
-    use syntax::ast::{DefaultComplexWord, SimpleWord, Word};
+    use syntax::ast::{DefaultComplexWord, DefaultWord, SimpleWord, Word};
     use syntax::ast::ComplexWord::*;
     use syntax::ast::SimpleWord::*;
     use syntax::ast::Word::*;
 
-    fn lit(s: &str) -> Word {
+    fn lit(s: &str) -> DefaultWord {
         Simple(Literal(String::from(s)))
     }
 
@@ -278,7 +278,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var("HOME".to_owned(), home_value.clone());
 
-        let word: Word = Simple(Tilde);
+        let word: DefaultWord = Simple(Tilde);
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(home_value)));
     }
 
@@ -387,10 +387,10 @@ mod tests {
 
         let mut env = Env::new();
         let value = "foo".to_owned();
-        let word: Word = lit(&value);
+        let word = lit(&value);
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let word: Word = Simple(Subst(Box::new(ParameterSubstitution::Arith(Some(
+        let word: DefaultWord = Simple(Subst(Box::new(ParameterSubstitution::Arith(Some(
             Arithmetic::Div(
                 Box::new(Arithmetic::Literal(1)),
                 Box::new(Arithmetic::Literal(0))
@@ -408,7 +408,7 @@ mod tests {
 
         let mut env = Env::new();
         let value = "~/hello world\nfoo\tbar *".to_owned();
-        let word: Word = SingleQuoted(value.clone());
+        let word: DefaultWord = SingleQuoted(value.clone());
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
     }
 
@@ -424,7 +424,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var.clone(), "hello world".to_owned());
 
-        let word: Word = DoubleQuoted(vec!(
+        let word: DefaultWord = DoubleQuoted(vec!(
             Literal("foo".to_owned()),
             Param(Parameter::Var(var)),
             Literal("bar".to_owned()),
@@ -442,15 +442,15 @@ mod tests {
         };
 
         let mut env = Env::new();
-        let word: Word = DoubleQuoted(vec!(Tilde));
+        let word: DefaultWord = DoubleQuoted(vec!(Tilde));
         let correct = Fields::Single("~".to_owned());
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
 
-        let word: Word = DoubleQuoted(vec!(Tilde, Literal("root".to_owned())));
+        let word: DefaultWord = DoubleQuoted(vec!(Tilde, Literal("root".to_owned())));
         let correct = Fields::Single("~root".to_owned());
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
 
-        let word: Word = DoubleQuoted(vec!(Tilde, Literal("/root".to_owned())));
+        let word: DefaultWord = DoubleQuoted(vec!(Tilde, Literal("/root".to_owned())));
         let correct = Fields::Single("~/root".to_owned());
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
     }
@@ -464,7 +464,7 @@ mod tests {
         };
 
         let mut env = DefaultEnv::<String>::new();
-        let word: Word = DoubleQuoted(vec!(Param(Parameter::Star)));
+        let word: DefaultWord = DoubleQuoted(vec!(Param(Parameter::Star)));
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
     }
 
@@ -485,7 +485,7 @@ mod tests {
             .. Default::default()
         });
 
-        let word: Word = DoubleQuoted(vec!(
+        let word: DefaultWord = DoubleQuoted(vec!(
             Literal("foo".to_owned()),
             Param(Parameter::At),
             Literal("bar".to_owned()),
@@ -507,10 +507,10 @@ mod tests {
         };
 
         let mut env = Env::new();
-        let word: Word = DoubleQuoted(vec!(Param(Parameter::At)));
+        let word: DefaultWord = DoubleQuoted(vec!(Param(Parameter::At)));
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
 
-        let word: Word = DoubleQuoted(vec!(
+        let word: DefaultWord = DoubleQuoted(vec!(
             Literal("foo".to_owned()),
             Param(Parameter::At),
             Literal("bar".to_owned()),
@@ -537,7 +537,7 @@ mod tests {
             .. Default::default()
         });
 
-        let word: Word = DoubleQuoted(vec!(
+        let word: DefaultWord = DoubleQuoted(vec!(
             Literal("foo".to_owned()),
             Param(Parameter::Star),
             Literal("bar".to_owned()),
@@ -569,7 +569,7 @@ mod tests {
         };
 
         let mut env = DefaultEnv::<String>::new();
-        let word: Word = DoubleQuoted(vec!(Param(Parameter::At)));
+        let word: DefaultWord = DoubleQuoted(vec!(Param(Parameter::At)));
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
     }
 
@@ -586,11 +586,11 @@ mod tests {
 
         let var = Parameter::Var("var".to_owned());
 
-        let word: Word = DoubleQuoted(vec!(Param(var.clone())));
+        let word: DefaultWord = DoubleQuoted(vec!(Param(var.clone())));
         let correct = Fields::Single("foo bar".to_owned());
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
 
-        let word: Word = DoubleQuoted(vec!(
+        let word: DefaultWord = DoubleQuoted(vec!(
             Subst(Box::new(ParameterSubstitution::Default(false, var, None)))
         ));
         let correct = Fields::Single("foo bar".to_owned());
