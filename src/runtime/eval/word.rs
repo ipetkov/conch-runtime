@@ -198,7 +198,7 @@ mod tests {
     use runtime::ExpansionError::DivideByZero;
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
-    use syntax::ast::{DefaultComplexWord, DefaultWord, SimpleWord, Word};
+    use syntax::ast::{DefaultComplexWord, DefaultWord, DefaultSimpleWord, Word};
     use syntax::ast::ComplexWord::*;
     use syntax::ast::SimpleWord::*;
     use syntax::ast::Word::*;
@@ -225,7 +225,7 @@ mod tests {
 
         let mut env = DefaultEnv::<String>::new();
         let value = "foobar".to_owned();
-        let simple: SimpleWord = Literal(value.clone());
+        let simple: DefaultSimpleWord = Literal(value.clone());
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
     }
 
@@ -239,7 +239,7 @@ mod tests {
 
         let mut env = Env::new();
         let value = "&& $@".to_owned();
-        let simple: SimpleWord = Literal(value.clone());
+        let simple: DefaultSimpleWord = Literal(value.clone());
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
     }
 
@@ -251,7 +251,7 @@ mod tests {
             split_fields_further: true,
         };
 
-        let cases: Vec<(SimpleWord, &'static str)> = vec!(
+        let cases: Vec<(DefaultSimpleWord, &'static str)> = vec!(
             (Star,        "*"),
             (Question,    "?"),
             (SquareOpen,  "["),
@@ -297,7 +297,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: SimpleWord =
+        let simple: DefaultSimpleWord =
             Subst(Box::new(ParameterSubstitution::Len(Parameter::Var(var_name))));
         let correct = Fields::Single("3".to_owned());
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(correct));
@@ -319,7 +319,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: SimpleWord = Subst(Box::new(ParameterSubstitution::Arith(Some(Arithmetic::Div(
+        let simple: DefaultSimpleWord = Subst(Box::new(ParameterSubstitution::Arith(Some(Arithmetic::Div(
             Box::new(Arithmetic::Literal(1)),
             Box::new(Arithmetic::Literal(0))
         )))));
@@ -341,7 +341,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: SimpleWord = Param(Parameter::Var(var_name));
+        let simple: DefaultSimpleWord = Param(Parameter::Var(var_name));
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(Fields::Single(var_value)));
     }
 
@@ -354,7 +354,7 @@ mod tests {
         };
 
         let mut env = DefaultEnv::<String>::new();
-        let simple: SimpleWord = Param(Parameter::Var("var".to_owned()));
+        let simple: DefaultSimpleWord = Param(Parameter::Var("var".to_owned()));
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
     }
 
@@ -371,7 +371,7 @@ mod tests {
         let mut env = Env::new();
         env.set_var(var_name.clone(), var_value);
 
-        let simple: SimpleWord = Param(Parameter::Var(var_name));
+        let simple: DefaultSimpleWord = Param(Parameter::Var(var_name));
         let correct = Fields::Split(vec!("~".to_owned(), "foo".to_owned()));
         assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(correct));
     }
