@@ -491,7 +491,7 @@ mod tests {
     use syntax::ast::PipeableCommand::*;
 
     #[derive(Clone)]
-    struct Command(::syntax::ast::Command<::syntax::ast::CommandList<String, MockWord, Command>>);
+    struct Command(::syntax::ast::Command<CommandList<String, MockWord, Command>>);
 
     type CompoundCommand     = ::syntax::ast::CompoundCommand<CompoundCommandKind, Redirect<MockWord>>;
     type CompoundCommandKind = ::syntax::ast::CompoundCommandKind<String, MockWord, Command>;
@@ -884,7 +884,7 @@ mod tests {
     fn test_run_listable_command_error_handling() {
         // FIXME: test Pipe when implemented
         test_error_handling(false, |cmd, mut env| {
-            let listable: ::syntax::ast::ListableCommand<PipeableCommand>
+            let listable: ListableCommand<PipeableCommand>
                 = Single(Simple(Box::new(cmd)));
             listable.run(&mut env)
         }, None);
