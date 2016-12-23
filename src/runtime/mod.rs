@@ -495,7 +495,7 @@ mod tests {
 
     type CompoundCommand     = ::syntax::ast::CompoundCommand<CompoundCommandKind, Redirect<MockWord>>;
     type CompoundCommandKind = ::syntax::ast::CompoundCommandKind<String, MockWord, Command>;
-    type PipeableCommand     = ::syntax::ast::DefaultPipeableCommand<String, MockWord, Command>;
+    type PipeableCommand     = ::syntax::ast::ShellPipeableCommand<String, MockWord, Command>;
     type SimpleCommand       = ::syntax::ast::SimpleCommand<String, MockWord, Redirect<MockWord>>;
 
     #[cfg(unix)]
