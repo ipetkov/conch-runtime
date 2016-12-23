@@ -7,7 +7,7 @@ authors = ["Ivan Petkov <ivanppetkov@gmail.com>"]
 clippy      = { version = "~0.0.80", optional = true }
 glob        = "0.2"
 lazy_static = "0.2"
-shell_lang  = { path = "../shell_lang" }
+conch-parser = { path = "../conch-parser" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

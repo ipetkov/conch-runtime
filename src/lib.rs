@@ -21,9 +21,9 @@
 #[cfg(windows)] extern crate kernel32;
 #[cfg(windows)] extern crate winapi;
 
+extern crate conch_parser as syntax;
 extern crate glob;
 #[macro_use] extern crate lazy_static;
-extern crate shell_lang as syntax;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[cfg(test)]
