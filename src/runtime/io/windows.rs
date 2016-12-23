@@ -14,14 +14,6 @@ use std::ptr;
 use std::ptr::Unique as StdUnique;
 use super::FileDesc;
 
-/// Return value used by `GetExitCodeProcess` to denote if a process
-/// is still running.
-/// Definition comes from
-/// https://msdn.microsoft.com/en-us/library/windows/desktop/ms683189(v=vs.85).aspx
-// FIXME: Did not see this defined by the winapi crate, would be useful upstream
-// see https://github.com/retep998/winapi-rs/issues/309
-const STILL_ACTIVE: winapi::DWORD = 259;
-
 // A Debug wrapper around `std::ptr::Unique`
 struct Unique<T>(StdUnique<T>);
 
@@ -274,28 +266,4 @@ pub fn getpid() -> winapi::DWORD {
     unsafe {
         kernel32::GetCurrentProcessId()
     }
-}
-
-/// Safe wrapper around `is_child_process_running`. See docs for more info.
-pub fn is_child_running(child: &::std::process::Child) -> Result<bool> {
-    use std::os::windows::io::AsRawHandle;
-    unsafe {
-        is_child_process_running(child.as_raw_handle())
-    }
-}
-
-/// Checks if a given process handle is still running.
-///
-/// Note: this function has Windows specific behavior. Check the documentation of
-/// its Unix counterpart if caller supports both platforms.
-///
-/// Warning: Windows uses a `STILL_ACTIVE` constant to denote if a process
-/// is running, however, it is possible that the process can exit with that.
-/// In this situation, this function will treat the process as still running.
-/// It is up to the caller to perform any additional checks to avoid getting
-/// stuck in a loop.
-pub unsafe fn is_child_process_running(handle: RawHandle) -> Result<bool> {
-    let mut status = 0;
-    try!(cvt(kernel32::GetExitCodeProcess(handle, &mut status)));
-    Ok(status == STILL_ACTIVE)
 }
