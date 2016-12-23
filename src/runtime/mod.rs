@@ -66,7 +66,6 @@ fn try_and_swallow_non_fatal_impl<E: ?Sized>(result: Result<ExitStatus>, env: &m
     where E: LastStatusEnvironment + FileDescEnvironment,
 {
     result.or_else(|err| match err {
-        RuntimeError::Custom(..) |
         RuntimeError::Expansion(..) => Err(err),
 
         RuntimeError::Io(..)            |
@@ -676,19 +675,7 @@ mod tests {
                                      ok_status: Option<ExitStatus>)
         where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
     {
-        use std::error::Error;
-        use std::fmt;
         use syntax::ast::DefaultParameter;
-
-        // Custom errors might not be Eq so we have to be more creative to check them.
-        #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-        struct MockErr(isize);
-        impl Error for MockErr {
-            fn description(&self) -> &str { "" }
-        }
-        impl fmt::Display for MockErr {
-            fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result { Ok(()) }
-        }
 
         // We'll be printing a lot of errors, so we'll suppress actually printing
         // to avoid polluting the output of the test runner.
@@ -698,32 +685,12 @@ mod tests {
 
         const AT: DefaultParameter = Parameter::At;
 
-        // Fatal errors should not be swallowed
         run_test!(swallow_fatals, test, env, ok_status,
             RuntimeError::Expansion(ExpansionError::DivideByZero),
             RuntimeError::Expansion(ExpansionError::NegativeExponent),
             RuntimeError::Expansion(ExpansionError::BadAssig(AT.to_string())),
             RuntimeError::Expansion(ExpansionError::EmptyParameter(AT.to_string(), "".to_owned())),
         );
-
-        let custom_err_result = test(
-            cmd_simple!(move || { RuntimeError::Custom(Box::new(MockErr(42))) }),
-            env.sub_env()
-        );
-
-        if swallow_fatals {
-            match (ok_status, custom_err_result) {
-                (Some(status), result) => assert_eq!(Ok(status), result),
-                (None, Ok(status)) => {
-                    assert!(!status.success(), "{:#?} was unexpectedly successful", status)
-                },
-                (None, err) => panic!("Unexpected err result: {:#?}", err),
-            }
-        } else if let RuntimeError::Custom(err) = custom_err_result.unwrap_err() {
-            assert_eq!(*err.downcast::<MockErr>().unwrap(), MockErr(42));
-        } else {
-            panic!("Did not get the expected Custom error");
-        }
     }
 
     /// For exhaustively testing against handling of different error types
