@@ -5,6 +5,27 @@ use std::io::Error as IoError;
 use super::Fd;
 use runtime::io::Permissions;
 
+/// Determines whether an error should be treated as "fatal".
+///
+/// Typically, "fatal" errors will abort any currently running commands
+/// (e.g. loops, compound commands, pipelines, etc.) all the way
+/// to a top level command, and consider it unsuccessful. On the other hand,
+/// non-fatal errors are usually swallowed by intermediate commands, and the
+/// execution is allowed to continue.
+///
+/// Ultimately it is up to the caller to decide how to handle fatal vs non-fatal
+/// errors.
+pub trait IsFatalError {
+    /// Checks whether the error should be considered a "fatal" error.
+    fn is_fatal(&self) -> bool;
+}
+
+impl<'a, T: IsFatalError> IsFatalError for &'a T {
+    fn is_fatal(&self) -> bool {
+        (**self).is_fatal()
+    }
+}
+
 /// An error which may arise during parameter expansion.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum ExpansionError {
@@ -36,6 +57,18 @@ impl Display for ExpansionError {
             ExpansionError::NegativeExponent               => write!(fmt, "{}", self.description()),
             ExpansionError::BadAssig(ref p)                => write!(fmt, "{}: cannot assign in this way", p),
             ExpansionError::EmptyParameter(ref p, ref msg) => write!(fmt, "{}: {}", p, msg),
+        }
+    }
+}
+
+impl IsFatalError for ExpansionError {
+    fn is_fatal(&self) -> bool {
+        // According to POSIX expansion errors should always be considered fatal
+        match *self {
+            ExpansionError::DivideByZero |
+            ExpansionError::NegativeExponent |
+            ExpansionError::BadAssig(_) |
+            ExpansionError::EmptyParameter(_, _) => true,
         }
     }
 }
@@ -81,6 +114,16 @@ impl Display for RedirectionError {
     }
 }
 
+impl IsFatalError for RedirectionError {
+    fn is_fatal(&self) -> bool {
+        match *self {
+            RedirectionError::Ambiguous(_) |
+            RedirectionError::BadFdSrc(_) |
+            RedirectionError::BadFdPerms(_, _) => false,
+        }
+    }
+}
+
 /// An error which may arise when spawning a command process.
 #[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "clippy", allow(enum_variant_names))]
@@ -105,6 +148,15 @@ impl Display for CommandError {
         match *self {
             CommandError::NotFound(ref c)      |
             CommandError::NotExecutable(ref c) => write!(fmt, "{}: {}", c, self.description()),
+        }
+    }
+}
+
+impl IsFatalError for CommandError {
+    fn is_fatal(&self) -> bool {
+        match *self {
+            CommandError::NotFound(_) |
+            CommandError::NotExecutable(_) => false,
         }
     }
 }
@@ -172,6 +224,18 @@ impl Display for RuntimeError {
             RuntimeError::Unimplemented(e)    => write!(fmt, "{}", e),
             RuntimeError::Io(ref e, None)     => write!(fmt, "{}", e),
             RuntimeError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
+        }
+    }
+}
+
+impl IsFatalError for RuntimeError {
+    fn is_fatal(&self) -> bool {
+        match *self {
+            RuntimeError::Expansion(ref e)   => e.is_fatal(),
+            RuntimeError::Redirection(ref e) => e.is_fatal(),
+            RuntimeError::Command(ref e)     => e.is_fatal(),
+            RuntimeError::Io(_, _) |
+            RuntimeError::Unimplemented(_) => false,
         }
     }
 }

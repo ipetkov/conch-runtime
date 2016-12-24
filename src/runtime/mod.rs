@@ -52,8 +52,8 @@ pub const STDERR_FILENO: Fd = 2;
 /// A macro that accepts a `Result<ExitStatus, RuntimeError>` and attempts
 /// to unwrap it much like `try!`. If the result is a "fatal" error the macro
 /// immediately returns from the enclosing function. Otherwise, the error is
-/// reported via `Environment::report_error`, and the environment's last status
-/// is returned.
+/// reported via `FileDescEnvironment::report_error`, and the environment's
+/// last status is returned.
 ///
 /// A `RuntimeError::Expansion` is considered fatal, since expansion errors should
 /// result in the exit of a non-interactive shell according to the POSIX standard.
@@ -61,24 +61,20 @@ macro_rules! try_and_swallow_non_fatal {
     ($result:expr, $env:expr) => { try!(try_and_swallow_non_fatal_impl($result, $env)) }
 }
 
-fn try_and_swallow_non_fatal_impl<E: ?Sized>(result: Result<ExitStatus>, env: &mut E)
-    -> Result<ExitStatus>
+fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: result::Result<ExitStatus, ER>, env: &mut E)
+    -> result::Result<ExitStatus, ER>
     where E: LastStatusEnvironment + FileDescEnvironment,
+          ER: ::std::error::Error + IsFatalError,
 {
-    result.or_else(|err| match err {
-        RuntimeError::Expansion(..) => Err(err),
-
-        RuntimeError::Io(..)            |
-        RuntimeError::Redirection(..)   |
-        RuntimeError::Command(..)       |
-        RuntimeError::Unimplemented(..) => {
-            // Whoever returned the error should have been responsible
-            // enough to set the last status as appropriate.
-            env.report_error(&err);
-            let exit = env.last_status();
-            debug_assert_eq!(exit.success(), false);
-            Ok(exit)
-        },
+    result.or_else(|err| if err.is_fatal() {
+        Err(err)
+    } else {
+        // Whoever returned the error should have been responsible
+        // enough to set the last status as appropriate.
+        env.report_error(&err);
+        let exit = env.last_status();
+        debug_assert_eq!(exit.success(), false);
+        Ok(exit)
     })
 }
 
