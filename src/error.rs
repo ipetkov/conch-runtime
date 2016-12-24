@@ -22,7 +22,7 @@ use super::Fd;
 #[macro_export]
 macro_rules! try_and_swallow_non_fatal {
     ($result:expr, $env:expr) => {
-        try!($crate::errors::try_and_swallow_non_fatal_impl($result, $env))
+        try!($crate::error::try_and_swallow_non_fatal_impl($result, $env))
     }
 }
 

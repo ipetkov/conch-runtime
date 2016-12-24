@@ -1,6 +1,6 @@
 //! A module that defines evaluating parameters and parameter subsitutions.
 
-use runtime::ExpansionError;
+use error::ExpansionError;
 use runtime::env::VariableEnvironment;
 use std::borrow::Borrow;
 use syntax::ast::Arithmetic;
@@ -149,7 +149,7 @@ impl<T, E: ?Sized> ArithEval<E> for Arithmetic<T>
 
 #[cfg(test)]
 mod tests {
-    use runtime::ExpansionError;
+    use error::ExpansionError;
     use runtime::env::{Env, VariableEnvironment};
     use super::*;
     use syntax::ast::Arithmetic;

@@ -1,8 +1,9 @@
 //! A module which defines evaluating any kind of redirection.
 
+use error::{RedirectionError, RuntimeError};
 use std::fs::OpenOptions;
 use syntax::ast::Redirect;
-use runtime::{Fd, RedirectionError, Result, RuntimeError};
+use runtime::{Fd, Result};
 use runtime::{STDIN_FILENO, STDOUT_FILENO};
 use runtime::env::{FileDescEnvironment, IsInteractiveEnvironment, StringWrapper};
 use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
@@ -396,8 +397,8 @@ mod tests {
 
     #[test]
     fn test_eval_dup_not_numeric() {
-        use runtime::RedirectionError::BadFdSrc;
-        use runtime::RuntimeError::Redirection;
+        use error::RedirectionError::BadFdSrc;
+        use error::RuntimeError::Redirection;
 
         let mut env = Env::with_config(EnvConfig {
             file_desc_env: FileDescEnv::with_process_fds().unwrap(),
@@ -413,8 +414,8 @@ mod tests {
 
     #[test]
     fn test_eval_dup_src_not_open() {
-        use runtime::RedirectionError::BadFdSrc;
-        use runtime::RuntimeError::Redirection;
+        use error::RedirectionError::BadFdSrc;
+        use error::RuntimeError::Redirection;
 
         let mut env = Env::with_config(EnvConfig {
             file_desc_env: FileDescEnv::with_process_fds().unwrap(),
@@ -430,8 +431,8 @@ mod tests {
 
     #[test]
     fn test_eval_dup_bad_perms() {
-        use runtime::RedirectionError::BadFdPerms;
-        use runtime::RuntimeError::Redirection;
+        use error::RedirectionError::BadFdPerms;
+        use error::RuntimeError::Redirection;
 
         let mut env = Env::with_config(EnvConfig {
             file_desc_env: FileDescEnv::with_process_fds().unwrap(),
@@ -472,12 +473,12 @@ mod tests {
 
     #[test]
     fn test_eval_ambiguous_path() {
+        use error::RedirectionError::Ambiguous;
+        use error::RuntimeError::Redirection;
         use runtime::Result;
         use runtime::eval::{Fields, WordEval, WordEvalConfig};
         use runtime::eval::Fields::*;
         use runtime::tests::DEV_NULL;
-        use runtime::RedirectionError::Ambiguous;
-        use runtime::RuntimeError::Redirection;
 
         type Redirect = ::syntax::ast::Redirect<MockWord>;
 

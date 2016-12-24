@@ -193,9 +193,10 @@ impl<T, E> WordEval<E> for TopLevelWord<T>
 
 #[cfg(test)]
 mod tests {
-    use runtime::{Result, RuntimeError};
+    use error::RuntimeError;
+    use error::ExpansionError::DivideByZero;
+    use runtime::Result;
     use runtime::env::{ArgsEnv, DefaultEnv, Env, EnvConfig, VariableEnvironment};
-    use runtime::ExpansionError::DivideByZero;
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
     use syntax::ast::{DefaultComplexWord, DefaultWord, DefaultSimpleWord, Word};

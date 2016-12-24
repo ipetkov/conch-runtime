@@ -38,6 +38,8 @@ macro_rules! mktmp {
     }};
 }
 
-mod runtime;
+#[macro_use]
+pub mod error;
 
+mod runtime;
 pub use self::runtime::*;

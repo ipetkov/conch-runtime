@@ -2,7 +2,8 @@
 
 use glob;
 
-use runtime::{ExpansionError, Result, Run, RuntimeError};
+use error::{ExpansionError, RuntimeError};
+use runtime::{Result, Run};
 use runtime::env::{FileDescEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
@@ -336,7 +337,8 @@ fn run_cmd_subst<I, E>(body: I, env: &E) -> io::Result<String>
 #[cfg(test)]
 mod tests {
     use glob;
-    use runtime::{ExitStatus, EXIT_SUCCESS, ExpansionError, Result, Run, RuntimeError};
+    use error::{ExpansionError, RuntimeError};
+    use runtime::{ExitStatus, EXIT_SUCCESS, Result, Run};
     use runtime::env::{ArgsEnv, DefaultEnv, Env, EnvConfig,
                        LastStatusEnvironment, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
@@ -782,8 +784,8 @@ mod tests {
 
     #[test]
     fn test_eval_parameter_substitution_error() {
+        use error::ExpansionError::EmptyParameter;
         use syntax::ast::ParameterSubstitution::Error;
-        use runtime::ExpansionError::EmptyParameter;
 
         const ERR_MSG: &'static str = "this variable is not set!";
 

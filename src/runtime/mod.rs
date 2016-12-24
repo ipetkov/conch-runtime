@@ -2,6 +2,7 @@
 
 use glob;
 
+use error::RuntimeError;
 use self::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
                 FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
                 StringWrapper, SubEnvironment, VariableEnvironment};
@@ -22,12 +23,9 @@ mod ref_counted;
 mod simple;
 
 pub mod env;
-#[macro_use]
-pub mod errors;
 pub mod eval;
 pub mod io;
 
-pub use self::errors::*;
 pub use self::ref_counted::*;
 
 lazy_static! {
@@ -438,6 +436,8 @@ mod tests {
     extern crate tempdir;
 
     use glob;
+
+    use error::*;
 
     use self::tempdir::TempDir;
     use std::cell::RefCell;
