@@ -1,9 +1,48 @@
+//! A module defining the various kinds of errors that may arise
+//! while executing commands.
+
+use runtime::ExitStatus;
+use runtime::env::{FileDescEnvironment, LastStatusEnvironment};
+use runtime::io::Permissions;
+
 use std::convert::From;
 use std::error::Error;
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use super::Fd;
-use runtime::io::Permissions;
+
+/// A macro that accepts a `Result<ExitStatus, _>` and attempts
+/// to unwrap it much like `try!`. If the result is a "fatal" error the macro
+/// immediately returns from the enclosing function. Otherwise, the error is
+/// reported via `FileDescEnvironment::report_error`, and the environment's
+/// last status is returned.
+///
+/// A `RuntimeError::Expansion` is considered fatal, since expansion errors should
+/// result in the exit of a non-interactive shell according to the POSIX standard.
+#[macro_export]
+macro_rules! try_and_swallow_non_fatal {
+    ($result:expr, $env:expr) => {
+        try!($crate::errors::try_and_swallow_non_fatal_impl($result, $env))
+    }
+}
+
+#[doc(hidden)]
+pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, ER>, env: &mut E)
+    -> Result<ExitStatus, ER>
+    where E: LastStatusEnvironment + FileDescEnvironment,
+          ER: Error + IsFatalError,
+{
+    result.or_else(|err| if err.is_fatal() {
+        Err(err)
+    } else {
+        // Whoever returned the error should have been responsible
+        // enough to set the last status as appropriate.
+        env.report_error(&err);
+        let exit = env.last_status();
+        debug_assert_eq!(exit.success(), false);
+        Ok(exit)
+    })
+}
 
 /// Determines whether an error should be treated as "fatal".
 ///
@@ -51,7 +90,7 @@ impl Error for ExpansionError {
 }
 
 impl Display for ExpansionError {
-    fn fmt(&self, fmt: &mut Formatter) -> Result {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
             ExpansionError::DivideByZero                   => write!(fmt, "{}", self.description()),
             ExpansionError::NegativeExponent               => write!(fmt, "{}", self.description()),
@@ -97,7 +136,7 @@ impl Error for RedirectionError {
 }
 
 impl Display for RedirectionError {
-    fn fmt(&self, fmt: &mut Formatter) -> Result {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
             RedirectionError::Ambiguous(ref v) => {
                 try!(write!(fmt, "{}: ", self.description()));
@@ -144,7 +183,7 @@ impl Error for CommandError {
 }
 
 impl Display for CommandError {
-    fn fmt(&self, fmt: &mut Formatter) -> Result {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
             CommandError::NotFound(ref c)      |
             CommandError::NotExecutable(ref c) => write!(fmt, "{}: {}", c, self.description()),
@@ -216,7 +255,7 @@ impl Error for RuntimeError {
 }
 
 impl Display for RuntimeError {
-    fn fmt(&self, fmt: &mut Formatter) -> Result {
+    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
             RuntimeError::Expansion(ref e)    => write!(fmt, "{}", e),
             RuntimeError::Redirection(ref e)  => write!(fmt, "{}", e),

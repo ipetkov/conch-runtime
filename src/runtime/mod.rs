@@ -18,13 +18,15 @@ use syntax::ast::{AndOr, AndOrList, Command, CompoundCommand, CompoundCommandKin
 use runtime::eval::{RedirectEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::FileDescWrapper;
 
-mod errors;
 mod ref_counted;
 mod simple;
 
 pub mod env;
+#[macro_use]
+pub mod errors;
 pub mod eval;
 pub mod io;
+
 pub use self::errors::*;
 pub use self::ref_counted::*;
 
@@ -48,35 +50,6 @@ pub const STDIN_FILENO: Fd = 0;
 pub const STDOUT_FILENO: Fd = 1;
 /// File descriptor for standard error.
 pub const STDERR_FILENO: Fd = 2;
-
-/// A macro that accepts a `Result<ExitStatus, RuntimeError>` and attempts
-/// to unwrap it much like `try!`. If the result is a "fatal" error the macro
-/// immediately returns from the enclosing function. Otherwise, the error is
-/// reported via `FileDescEnvironment::report_error`, and the environment's
-/// last status is returned.
-///
-/// A `RuntimeError::Expansion` is considered fatal, since expansion errors should
-/// result in the exit of a non-interactive shell according to the POSIX standard.
-macro_rules! try_and_swallow_non_fatal {
-    ($result:expr, $env:expr) => { try!(try_and_swallow_non_fatal_impl($result, $env)) }
-}
-
-fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: result::Result<ExitStatus, ER>, env: &mut E)
-    -> result::Result<ExitStatus, ER>
-    where E: LastStatusEnvironment + FileDescEnvironment,
-          ER: ::std::error::Error + IsFatalError,
-{
-    result.or_else(|err| if err.is_fatal() {
-        Err(err)
-    } else {
-        // Whoever returned the error should have been responsible
-        // enough to set the last status as appropriate.
-        env.report_error(&err);
-        let exit = env.last_status();
-        debug_assert_eq!(exit.success(), false);
-        Ok(exit)
-    })
-}
 
 /// A specialized `Result` type for shell runtime operations.
 pub type Result<T> = result::Result<T, RuntimeError>;
