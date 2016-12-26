@@ -22,6 +22,7 @@
 #[cfg(windows)] extern crate winapi;
 
 extern crate conch_parser as syntax;
+#[macro_use] extern crate futures;
 extern crate glob;
 #[macro_use] extern crate lazy_static;
 
@@ -40,6 +41,7 @@ macro_rules! mktmp {
 
 #[macro_use]
 pub mod error;
+pub mod future;
 
 mod runtime;
 pub use self::runtime::*;

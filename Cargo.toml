@@ -5,6 +5,7 @@ authors = ["Ivan Petkov <ivanppetkov@gmail.com>"]
 
 [dependencies]
 clippy      = { version = "~0.0.80", optional = true }
+futures     = "^0.1.7"
 glob        = "0.2"
 lazy_static = "0.2"
 conch-parser = { path = "../conch-parser" }
