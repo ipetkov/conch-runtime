@@ -200,14 +200,14 @@ impl<T> Default for DefaultAtomicEnvConfig<T>
 }
 
 macro_rules! impl_env {
-    ($(#[$attr:meta])* pub struct $Env:ident, $FnEnv:ident, $Rc:ident) => {
+    ($(#[$attr:meta])* pub struct $Env:ident, $FnEnv:ident, $Rc:ident, $($extra:tt)*) => {
         $(#[$attr])*
         pub struct $Env<A, FD, L, V, N: Eq + Hash> {
             /// If the shell is running in interactive mode
             interactive: bool,
             args_env: A,
             file_desc_env: FD,
-            fn_env: $FnEnv<N, $Rc<Run<$Env<A, FD, L, V, N>>>>,
+            fn_env: $FnEnv<N, $Rc<Run<$Env<A, FD, L, V, N>> $($extra)*>>,
             last_status_env: L,
             var_env: V,
         }
@@ -381,7 +381,7 @@ macro_rules! impl_env {
             where N: Hash + Eq + Clone,
         {
             type FnName = N;
-            type Fn = $Rc<Run<Self>>;
+            type Fn = $Rc<Run<Self> $($extra)*>;
 
             fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
                 self.fn_env.function(name)
@@ -477,7 +477,7 @@ impl_env!(
     /// see `AtomicEnv`.
     pub struct Env,
     FnEnv,
-    Rc
+    Rc,
 );
 
 impl_env!(
@@ -487,7 +487,8 @@ impl_env!(
     /// see `Env` as a cheaper alternative.
     pub struct AtomicEnv,
     AtomicFnEnv,
-    Arc
+    Arc,
+    + Send + Sync
 );
 
 /// A default environment configured with provided (non-atomic) implementations.
