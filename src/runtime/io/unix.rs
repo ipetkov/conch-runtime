@@ -2,7 +2,7 @@
 
 use libc::{self, c_void, size_t};
 use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Result, SeekFrom, Write};
+use std::io::{Error, ErrorKind, Result, SeekFrom};
 use std::os::unix::io::{RawFd, AsRawFd, FromRawFd, IntoRawFd};
 use std::process::Stdio;
 use super::FileDesc;
@@ -100,6 +100,10 @@ impl RawIo {
         Ok(ret as usize)
     }
 
+    pub fn flush_inner(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Seeks the underlying file descriptor.
     // Adapted from rust: libstd/sys/unix/fs.rs
     pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -124,20 +128,6 @@ impl RawIo {
             cvt_r(|| libc::fcntl(self.fd, libc::F_SETFD, new_flags)).map(|_| ())
         }
     }
-}
-
-impl Read for RawIo {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.read_inner(buf)
-    }
-}
-
-impl Write for RawIo {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.write_inner(buf)
-    }
-
-    fn flush(&mut self) -> Result<()> { Ok(()) }
 }
 
 impl Drop for RawIo {

@@ -737,6 +737,8 @@ mod tests {
 
     #[test]
     fn test_env_run_function_redirections_should_work() {
+        use std::io::Write;
+
         let fn_name = "fn name";
         let tempdir = mktmp!();
 

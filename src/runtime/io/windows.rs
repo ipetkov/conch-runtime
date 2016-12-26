@@ -5,7 +5,7 @@ use winapi;
 
 use std::fmt;
 use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Result, SeekFrom, Write};
+use std::io::{Error, ErrorKind, Result, SeekFrom};
 use std::ops::{Deref, DerefMut};
 use std::os::raw::c_void as HANDLE;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
@@ -155,6 +155,10 @@ impl RawIo {
         Ok(amt as usize)
     }
 
+    pub fn flush_inner(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Seeks the underlying HANDLE.
     // Taken from rust: libstd/sys/windows/fs.rs
     pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
@@ -170,20 +174,6 @@ impl RawIo {
         }));
         Ok(newpos as u64)
     }
-}
-
-impl Read for RawIo {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.read_inner(buf)
-    }
-}
-
-impl Write for RawIo {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.write_inner(buf)
-    }
-
-    fn flush(&mut self) -> Result<()> { Ok(()) }
 }
 
 impl Drop for RawIo {

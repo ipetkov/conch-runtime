@@ -6,7 +6,6 @@ mod file_desc_wrapper;
 #[cfg(windows)]
 #[path = "windows.rs"] mod os;
 
-use std::cell::UnsafeCell;
 use std::fmt;
 use std::fs;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
@@ -74,7 +73,7 @@ impl fmt::Display for Permissions {
 /// A wrapper around an owned OS file primitive. The wrapper
 /// allows reading from or writing to the OS file primitive, and
 /// will close it once it goes out of scope.
-pub struct FileDesc(UnsafeCell<os::RawIo>);
+pub struct FileDesc(os::RawIo);
 
 impl Eq for FileDesc {}
 impl PartialEq<FileDesc> for FileDesc {
@@ -88,6 +87,40 @@ impl fmt::Debug for FileDesc {
         fmt.debug_tuple("FileDesc")
             .field(self.inner())
             .finish()
+    }
+}
+
+/// An adapter writing to a `&FileDesc`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnsafeWriter<'a> {
+    // NB: We store the FileDesc here instead of its inner `RawIo` so
+    // that this adapter can inherit any markers/bounds (e.g. Send/Sync)
+    // of the public wrapper, and not of the inner type.
+    fd: &'a FileDesc,
+}
+
+impl<'a> Read for UnsafeReader<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.fd.0.read_inner(buf)
+    }
+}
+
+/// An adapter reading from a `&FileDesc`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnsafeReader<'a> {
+    // NB: We store the FileDesc here instead of its inner `RawIo` so
+    // that this adapter can inherit any markers/bounds (e.g. Send/Sync)
+    // of the public wrapper, and not of the inner type.
+    fd: &'a FileDesc,
+}
+
+impl<'a> Write for UnsafeWriter<'a> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        self.fd.0.write_inner(buf)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        self.fd.0.flush_inner()
     }
 }
 
@@ -111,30 +144,30 @@ impl FileDesc {
 
     /// Allows for performing read operations on the underlying OS file
     /// handle without requiring unique access to the handle.
-    pub unsafe fn unsafe_read(&self) -> &mut Read {
-        self.inner_mut()
+    pub unsafe fn unsafe_read(&self) -> UnsafeReader {
+        UnsafeReader {
+            fd: &self,
+        }
     }
 
     /// Allows for performing write operations on the underlying OS file
     /// handle without requiring unique access to the handle.
-    pub unsafe fn unsafe_write(&self) -> &mut Write {
-        self.inner_mut()
+    pub unsafe fn unsafe_write(&self) -> UnsafeWriter {
+        UnsafeWriter {
+            fd: &self,
+        }
     }
 
     fn inner(&self) -> &os::RawIo {
-        unsafe { &*self.0.get() }
-    }
-
-    fn inner_mut(&self) -> &mut os::RawIo {
-        unsafe { &mut *self.0.get() }
+        &self.0
     }
 
     fn into_inner(self) -> os::RawIo {
-        unsafe { self.0.into_inner() }
+        self.0
     }
 
     fn from_inner(inner: os::RawIo) -> Self {
-        FileDesc(UnsafeCell::new(inner))
+        FileDesc(inner)
     }
 }
 
@@ -144,23 +177,23 @@ impl Into<Stdio> for FileDesc {
 
 impl Read for FileDesc {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.inner_mut().read(buf)
+        self.0.read_inner(buf)
     }
 }
 
 impl Write for FileDesc {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.inner_mut().write(buf)
+        self.0.write_inner(buf)
     }
 
     fn flush(&mut self) -> Result<()> {
-        self.inner_mut().flush()
+        self.0.flush_inner()
     }
 }
 
 impl Seek for FileDesc {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.inner_mut().seek(pos)
+        self.0.seek(pos)
     }
 }
 

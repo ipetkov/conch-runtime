@@ -153,6 +153,8 @@ macro_rules! impl_env {
             }
 
             fn report_error(&mut self, err: &Error) {
+                use std::io::Write;
+
                 // We *could* duplicate the handle here and ensure that we are the only
                 // owners of that *copy*, but it won't make much difference. On Unix
                 // sytems file descriptor duplication is effectively just an alias, and
