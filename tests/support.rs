@@ -6,6 +6,7 @@ use self::futures::{Async, Future, Poll};
 // Convenience re-exports
 pub use self::runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
 pub use self::runtime::env::*;
+pub use self::runtime::error::*;
 pub use self::runtime::future::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -26,6 +27,12 @@ impl ::std::error::Error for MockErr {
 impl ::std::fmt::Display for MockErr {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(fmt, "mock {}fatal error", if self.0 { "non-" } else { "" })
+    }
+}
+
+impl From<RuntimeError> for MockErr {
+    fn from(err: RuntimeError) -> Self {
+        MockErr(err.is_fatal())
     }
 }
 

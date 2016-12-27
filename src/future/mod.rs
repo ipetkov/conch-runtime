@@ -4,9 +4,11 @@
 use futures::Future;
 
 mod and_or;
+mod command;
 
 pub use futures::{Async, Poll};
 pub use self::and_or::*;
+pub use self::command::*;
 
 /// A trait for objects that behave exactly like the `Future` trait from the
 /// `futures` crate, however, each object must be polled in the context of some
