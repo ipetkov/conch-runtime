@@ -45,3 +45,31 @@ pub mod future;
 
 mod runtime;
 pub use self::runtime::*;
+
+/// A trait for spawning commands into an `EnvFuture` which can be
+/// polled to completion.
+pub trait Spawn<E: ?Sized> {
+    /// The future that represents the spawned command.
+    type Future: future::EnvFuture<E, Item = ExitStatus, Error = Self::Error>;
+    /// The type of error that this future will resolve with if it fails in a
+    /// normal fashion.
+    type Error;
+
+    /// Spawn the command as a future.
+    ///
+    /// Although the implementation is free to make any optimizations or
+    /// pre-computations, there should be no observable side-effects until the
+    /// very first call to `poll` on the future. That way a constructed future
+    /// that was never `poll`ed could be dropped without the risk of unintended
+    /// side effects.
+    fn spawn(self) -> Self::Future;
+}
+
+impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
+    type Future = T::Future;
+    type Error = T::Error;
+
+    fn spawn(self) -> Self::Future {
+        (*self).spawn()
+    }
+}

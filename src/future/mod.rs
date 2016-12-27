@@ -1,7 +1,12 @@
 //! This module defines various traits and adapters for bridging command
 //! execution with futures.
 
-use futures::{Future, Poll};
+use futures::Future;
+
+mod and_or;
+
+pub use futures::{Async, Poll};
+pub use self::and_or::*;
 
 /// A trait for objects that behave exactly like the `Future` trait from the
 /// `futures` crate, however, each object must be polled in the context of some
@@ -27,7 +32,7 @@ impl<'a, T, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> {
     }
 }
 
-/// Class of types which can be converted themselves into an `EnvFuture`
+/// Class of types which can be converted into an `EnvFuture`
 ///
 /// This trait is very similar to the `IntoFuture` trait and is intended to be
 /// used in a very similar fashion.

@@ -20,6 +20,7 @@ use super::Fd;
 /// A `RuntimeError::Expansion` is considered fatal, since expansion errors should
 /// result in the exit of a non-interactive shell according to the POSIX standard.
 #[macro_export]
+#[deprecated]
 macro_rules! try_and_swallow_non_fatal {
     ($result:expr, $env:expr) => {
         try!($crate::error::try_and_swallow_non_fatal_impl($result, $env))
@@ -27,12 +28,40 @@ macro_rules! try_and_swallow_non_fatal {
 }
 
 #[doc(hidden)]
+#[deprecated]
 pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, ER>, env: &mut E)
     -> Result<ExitStatus, ER>
     where E: LastStatusEnvironment + FileDescEnvironment,
           ER: Error + IsFatalError,
 {
-    result.or_else(|err| if err.is_fatal() {
+    result.or_else(|err| try_ready_swallow_non_fatal_impl(err, env))
+}
+
+/// A macro that accepts a `Poll<ExitStatus, _>` and attempts
+/// to unwrap it much like `try_ready!`. If the result is a "fatal" error the macro
+/// immediately returns from the enclosing function. Otherwise, the error is
+/// reported via `FileDescEnvironment::report_error`, and the environment's
+/// last status is returned.
+#[macro_export]
+macro_rules! try_ready_swallow_non_fatal {
+    ($result:expr, $env:expr) => {
+        match $result {
+            Ok($crate::future::Async::Ready(status)) => status,
+            ret@Ok($crate::futures::Async::NotReady) => return ret,
+            Err(e) => match $crate::error::try_ready_swallow_non_fatal_impl(e, $env) {
+                Ok(status) => status,
+                Err(e) => return Err(From::from(e)),
+            },
+        }
+    }
+}
+
+#[doc(hidden)]
+pub fn try_ready_swallow_non_fatal_impl<T, E: ?Sized>(err: T, env: &mut E) -> Result<ExitStatus, T>
+    where E: LastStatusEnvironment + FileDescEnvironment,
+          T: Error + IsFatalError,
+{
+    if err.is_fatal() {
         Err(err)
     } else {
         // Whoever returned the error should have been responsible
@@ -41,7 +70,7 @@ pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, 
         let exit = env.last_status();
         debug_assert_eq!(exit.success(), false);
         Ok(exit)
-    })
+    }
 }
 
 /// Determines whether an error should be treated as "fatal".

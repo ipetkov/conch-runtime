@@ -1,5 +1,7 @@
 //! This module defines a runtime environment capable of executing parsed shell commands.
 
+#![allow(deprecated)]
+
 use glob;
 
 use error::RuntimeError;
