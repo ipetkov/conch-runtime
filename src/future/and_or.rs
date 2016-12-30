@@ -6,6 +6,7 @@ use std::error::Error;
 use syntax::ast::{AndOr, AndOrList};
 
 /// A future representing the execution of a list of `And`/`Or` commands.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 pub struct AndOrListEnvFuture<F, T> {
     last_status: ExitStatus,

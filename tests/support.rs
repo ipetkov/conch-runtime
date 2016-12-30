@@ -36,6 +36,7 @@ impl From<RuntimeError> for MockErr {
     }
 }
 
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MockCmd {
     Status(ExitStatus),

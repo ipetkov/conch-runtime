@@ -5,11 +5,13 @@ use future::{EnvFuture, Poll};
 use syntax::ast::Command;
 
 /// A future representing the execution of a `Command`.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 pub struct CommandEnvFuture<F> {
     inner: Inner<F>,
 }
 
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 enum Inner<F> {
     Pending(F),

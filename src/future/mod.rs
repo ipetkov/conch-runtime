@@ -69,6 +69,7 @@ impl<E: ?Sized, F: EnvFuture<E>> IntoEnvFuture<E> for F {
 ///
 /// It can bundle an (owned) environment and an `EnvFuture`, so that when polled,
 /// it will poll the inner future with the given environment.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 pub struct EnvScopedFuture<E, F> {
     env: E,
