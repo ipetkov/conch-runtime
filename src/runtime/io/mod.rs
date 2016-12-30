@@ -146,7 +146,7 @@ impl FileDesc {
     /// handle without requiring unique access to the handle.
     pub unsafe fn unsafe_read(&self) -> UnsafeReader {
         UnsafeReader {
-            fd: &self,
+            fd: self,
         }
     }
 

@@ -199,7 +199,7 @@ mod tests {
     use runtime::env::{ArgsEnv, DefaultEnv, Env, EnvConfig, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
-    use syntax::ast::{DefaultComplexWord, DefaultWord, DefaultSimpleWord, Word};
+    use syntax::ast::{DefaultComplexWord, DefaultWord, DefaultSimpleWord};
     use syntax::ast::ComplexWord::*;
     use syntax::ast::SimpleWord::*;
     use syntax::ast::Word::*;

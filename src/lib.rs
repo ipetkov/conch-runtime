@@ -86,6 +86,7 @@ pub trait Spawn<E: ?Sized> {
     fn spawn(self, env: &E) -> Self::EnvFuture;
 }
 
+#[cfg_attr(feature = "clippy", allow(boxed_local))]
 impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     type EnvFuture = T::EnvFuture;
     type Future = T::Future;
