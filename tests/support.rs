@@ -84,6 +84,6 @@ impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
 pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
     let env = DefaultEnvRc::new();
     cmd.spawn(&env)
-        .into_future(env)
+        .pin_env(env)
         .wait()
 }

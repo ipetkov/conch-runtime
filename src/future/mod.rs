@@ -27,6 +27,15 @@ pub trait EnvFuture<E: ?Sized> {
     /// An implementation may panic or yield incorrect results if it is polled with
     /// different environments.
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error>;
+
+    /// Pin an environment to this future, allowing the resulting future to be
+    /// polled from anywhere without needing the caller to specify an environment.
+    fn pin_env(self, env: E) -> Pinned<E, Self> where E: Sized, Self: Sized {
+        Pinned {
+            env: env,
+            future: self,
+        }
+    }
 }
 
 impl<'a, T, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> {
@@ -40,33 +49,25 @@ impl<'a, T, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> {
 
 /// A future which bridges the gap between `Future` and `EnvFuture`.
 ///
-/// It can bundle an (owned) environment and an `EnvFuture`, so that when polled,
+/// It can pin an  environment to an `EnvFuture`, so that when polled,
 /// it will poll the inner future with the given environment.
+///
+/// Created by the `EnvFuture::pin_env` method.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EnvScopedFuture<E, F> {
+pub struct Pinned<E, F> {
     env: E,
     future: F,
 }
 
-impl<E, F> EnvScopedFuture<E, F> {
-    /// Pairs an environment with a given future.
-    ///
-    /// This wrapper can also be instantiated via `IntoEnvScopedFuture::into_future`.
-    pub fn new(env: E, future: F) -> Self {
-        EnvScopedFuture {
-            env: env,
-            future: future,
-        }
-    }
-
+impl<E, F> Pinned<E, F> {
     /// Unwraps the underlying environment/future pair.
     pub fn unwrap(self) -> (E, F) {
         (self.env, self.future)
     }
 }
 
-impl<E, F> Future for EnvScopedFuture<E, F> where F: EnvFuture<E> {
+impl<E, F> Future for Pinned<E, F> where F: EnvFuture<E> {
     type Item = F::Item;
     type Error = F::Error;
 
@@ -74,16 +75,6 @@ impl<E, F> Future for EnvScopedFuture<E, F> where F: EnvFuture<E> {
         self.future.poll(&mut self.env)
     }
 }
-
-/// A convenience trait for converting an `EnvFuture` to a regular `Future`.
-pub trait IntoEnvScopedFuture<E> {
-    /// Do the conversion to a `Future` with a given environment.
-    fn into_future(self, env: E) -> EnvScopedFuture<E, Self> where Self: Sized {
-        EnvScopedFuture::new(env, self)
-    }
-}
-
-impl<E, T: EnvFuture<E>> IntoEnvScopedFuture<E> for T {}
 
 #[cfg(test)]
 mod tests {
@@ -103,7 +94,7 @@ mod tests {
     #[test]
     fn smoke() {
         let env = 42;
-        let future = MockEnvFuture.into_future(env);
+        let future = MockEnvFuture.pin_env(env);
         assert_eq!(future.wait(), Ok(env));
     }
 
@@ -111,7 +102,7 @@ mod tests {
     fn smoke_borrowed() {
         let env = 42;
         let borrowed = &mut MockEnvFuture;
-        let future = borrowed.into_future(env);
+        let future = borrowed.pin_env(env);
         assert_eq!(future.wait(), Ok(env));
     }
 }
