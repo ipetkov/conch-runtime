@@ -1,4 +1,4 @@
-use {ExitStatus, EXIT_ERROR, Spawn};
+use {EXIT_ERROR, Spawn};
 use error::RuntimeError;
 use env::LastStatusEnvironment;
 use future::{EnvFuture, Poll};
@@ -24,9 +24,10 @@ impl<E: ?Sized, T> Spawn<E> for Command<T>
           T::Error: From<RuntimeError>,
 {
     type Error = T::Error;
-    type Future = CommandEnvFuture<T::Future>;
+    type EnvFuture = CommandEnvFuture<T::EnvFuture>;
+    type Future = T::Future;
 
-    fn spawn(self, env: &E) -> Self::Future {
+    fn spawn(self, env: &E) -> Self::EnvFuture {
         let inner = match self {
             Command::Job(_) => Inner::Unimplemented,
             Command::List(cmd) => Inner::Pending(cmd.spawn(env)),
@@ -39,11 +40,11 @@ impl<E: ?Sized, T> Spawn<E> for Command<T>
 }
 
 impl<E: ?Sized, F> EnvFuture<E> for CommandEnvFuture<F>
-    where F: EnvFuture<E, Item = ExitStatus>,
+    where F: EnvFuture<E>,
           F::Error: From<RuntimeError>,
           E: LastStatusEnvironment,
 {
-    type Item = ExitStatus;
+    type Item = F::Item;
     type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {

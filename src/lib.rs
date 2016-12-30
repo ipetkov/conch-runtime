@@ -48,9 +48,25 @@ pub use self::runtime::*;
 
 /// A trait for spawning commands into an `EnvFuture` which can be
 /// polled to completion.
+///
+/// Spawning a command is separated into two distinct parts: a future
+/// that requires a mutable environment to make progress, and a future
+/// which no longer needs any context and can make progress on its own.
+///
+/// This distinction allows a caller to drop an environment as soon as
+/// it is no longer needed, which will free up resources, and especially
+/// important in preventing deadlocks between pipelines (since the parent
+/// process will contain extra reader/writer ends of a pipe and may prevent
+/// processes from exiting).
 pub trait Spawn<E: ?Sized> {
-    /// The future that represents the spawned command.
-    type Future: future::EnvFuture<E, Item = ExitStatus, Error = Self::Error>;
+    /// The future that represents spawning the command.
+    ///
+    /// It represents all computations that may need an environment to
+    /// progress further.
+    type EnvFuture: future::EnvFuture<E, Item = Self::Future, Error = Self::Error>;
+    /// The future that represents the exit status of a fully bootstrapped
+    /// command, which no longer requires an environment to be driven to completion.
+    type Future: futures::Future<Item = ExitStatus, Error = Self::Error>;
     /// The type of error that this future will resolve with if it fails in a
     /// normal fashion.
     type Error;
@@ -67,15 +83,15 @@ pub trait Spawn<E: ?Sized> {
     /// between the `spawn` invocation and the first call to `poll()` on the
     /// future. Thus any optimizations the implementation may decide to make
     /// based on the environment should be done with care.
-    //fn spawn(self, env: &mut E) -> Self::EnvFuture; // FIXME: make env immutable here
-    fn spawn(self, env: &E) -> Self::Future;
+    fn spawn(self, env: &E) -> Self::EnvFuture;
 }
 
 impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
+    type EnvFuture = T::EnvFuture;
     type Future = T::Future;
     type Error = T::Error;
 
-    fn spawn(self, env: &E) -> Self::Future {
+    fn spawn(self, env: &E) -> Self::EnvFuture {
         (*self).spawn(env)
     }
 }

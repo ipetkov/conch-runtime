@@ -2,6 +2,8 @@ extern crate futures;
 extern crate conch_runtime as runtime;
 
 use self::futures::{Async, Future, Poll};
+use self::futures::future::FutureResult;
+use self::futures::future::result as future_result;
 
 // Convenience re-exports
 pub use self::runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
@@ -58,20 +60,21 @@ pub fn mock_panic(msg: &'static str) -> MockCmd {
 
 impl<E: ?Sized + LastStatusEnvironment> Spawn<E> for MockCmd {
     type Error = MockErr;
-    type Future = Self;
+    type EnvFuture = Self;
+    type Future = FutureResult<ExitStatus, Self::Error>;
 
-    fn spawn(self, _: &E) -> Self::Future {
+    fn spawn(self, _: &E) -> Self::EnvFuture {
         self
     }
 }
 
 impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
-    type Item = ExitStatus;
+    type Item = FutureResult<ExitStatus, Self::Error>;
     type Error = MockErr;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         match *self {
-            MockCmd::Status(s) => Ok(Async::Ready(s)),
+            MockCmd::Status(s) => Ok(Async::Ready(future_result(Ok(s)))),
             MockCmd::Error(e) => {
                 env.set_last_status(EXIT_ERROR);
                 Err(e)
@@ -85,5 +88,6 @@ pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
     let env = DefaultEnvRc::new();
     cmd.spawn(&env)
         .pin_env(env)
+        .flatten()
         .wait()
 }
