@@ -154,7 +154,7 @@ impl FileDesc {
     /// handle without requiring unique access to the handle.
     pub unsafe fn unsafe_write(&self) -> UnsafeWriter {
         UnsafeWriter {
-            fd: &self,
+            fd: self,
         }
     }
 
