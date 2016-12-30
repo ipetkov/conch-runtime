@@ -81,7 +81,11 @@ impl<E: ?Sized, T, EF, F> EnvFuture<E> for AndOrListEnvFuture<T, EF, F>
             };
 
             self.last_status = match poll_result {
-                PollKind::Status(status) => status,
+                PollKind::Status(status) => {
+                    env.set_last_status(status);
+                    status
+                },
+
                 PollKind::Future(f) => if self.rest_stack.is_empty() {
                     // If we have no further commands to process, we can return the
                     // current command's future (so the caller may drop the environment)
