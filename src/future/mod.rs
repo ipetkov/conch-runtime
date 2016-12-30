@@ -38,33 +38,6 @@ impl<'a, T, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> {
     }
 }
 
-/// Class of types which can be converted into an `EnvFuture`
-///
-/// This trait is very similar to the `IntoFuture` trait and is intended to be
-/// used in a very similar fashion.
-pub trait IntoEnvFuture<E: ?Sized> {
-    /// The future that this type can be converted into.
-    type Future: EnvFuture<E, Item = Self::Item, Error = Self::Error>;
-
-    /// The item that the future may resolve with.
-    type Item;
-    /// The error that the future may resolve with.
-    type Error;
-
-    /// Consumes this object and produces a future.
-    fn into_env_future(self) -> Self::Future where Self: Sized;
-}
-
-impl<E: ?Sized, F: EnvFuture<E>> IntoEnvFuture<E> for F {
-    type Future = F;
-    type Item = F::Item;
-    type Error = F::Error;
-
-    fn into_env_future(self) -> Self::Future {
-        self
-    }
-}
-
 /// A future which bridges the gap between `Future` and `EnvFuture`.
 ///
 /// It can bundle an (owned) environment and an `EnvFuture`, so that when polled,
