@@ -24,10 +24,10 @@ impl<E: ?Sized, T> Spawn<E> for Command<T>
     type Error = T::Error;
     type Future = CommandEnvFuture<T::Future>;
 
-    fn spawn(self) -> Self::Future {
+    fn spawn(self, env: &E) -> Self::Future {
         let inner = match self {
             Command::Job(_) => Inner::Unimplemented,
-            Command::List(cmd) => Inner::Pending(cmd.spawn()),
+            Command::List(cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
         CommandEnvFuture {

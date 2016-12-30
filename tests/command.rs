@@ -1,4 +1,3 @@
-extern crate futures;
 extern crate conch_parser as syntax;
 
 use syntax::ast::Command::*;

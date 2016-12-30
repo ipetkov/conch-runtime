@@ -62,14 +62,20 @@ pub trait Spawn<E: ?Sized> {
     /// very first call to `poll` on the future. That way a constructed future
     /// that was never `poll`ed could be dropped without the risk of unintended
     /// side effects.
-    fn spawn(self) -> Self::Future;
+    ///
+    /// **Note**: There are no guarantees that the environment will not change
+    /// between the `spawn` invocation and the first call to `poll()` on the
+    /// future. Thus any optimizations the implementation may decide to make
+    /// based on the environment should be done with care.
+    //fn spawn(self, env: &mut E) -> Self::EnvFuture; // FIXME: make env immutable here
+    fn spawn(self, env: &E) -> Self::Future;
 }
 
 impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     type Future = T::Future;
     type Error = T::Error;
 
-    fn spawn(self) -> Self::Future {
-        (*self).spawn()
+    fn spawn(self, env: &E) -> Self::Future {
+        (*self).spawn(env)
     }
 }

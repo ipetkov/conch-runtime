@@ -22,6 +22,10 @@ pub trait EnvFuture<E: ?Sized> {
     type Error;
 
     /// Behaves identical to `Future::poll` when polled with a provided environment.
+    ///
+    /// Caller should take care to always poll this future with the same environment.
+    /// An implementation may panic or yield incorrect results if it is polled with
+    /// different environments.
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error>;
 }
 

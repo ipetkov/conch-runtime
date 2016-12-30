@@ -59,7 +59,7 @@ impl<E: ?Sized + LastStatusEnvironment> Spawn<E> for MockCmd {
     type Error = MockErr;
     type Future = Self;
 
-    fn spawn(self) -> Self::Future {
+    fn spawn(self, _: &E) -> Self::Future {
         self
     }
 }
@@ -81,5 +81,8 @@ impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
 }
 
 pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
-    cmd.spawn().into_future(DefaultEnvRc::new()).wait()
+    let env = DefaultEnvRc::new();
+    cmd.spawn(&env)
+        .into_future(env)
+        .wait()
 }

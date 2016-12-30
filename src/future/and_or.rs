@@ -21,10 +21,10 @@ impl<E: ?Sized, C> Spawn<E> for AndOrList<C>
     type Error = C::Error;
     type Future = AndOrListEnvFuture<C::Future, C>;
 
-    fn spawn(self) -> Self::Future {
+    fn spawn(self, env: &E) -> Self::Future {
         AndOrListEnvFuture {
             last_status: EXIT_SUCCESS,
-            current: self.first.spawn(),
+            current: self.first.spawn(env),
             rest: self.rest.into_iter(),
         }
     }
@@ -48,7 +48,7 @@ impl<F, T, E: ?Sized> EnvFuture<E> for AndOrListEnvFuture<F, T>
                     (None, _) => return Ok(Async::Ready(self.last_status)),
                     (Some(AndOr::And(next)), true) |
                     (Some(AndOr::Or(next)), false) => {
-                        self.current = next.spawn();
+                        self.current = next.spawn(env);
                         break 'find_next;
                     },
 
