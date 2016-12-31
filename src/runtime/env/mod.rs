@@ -184,7 +184,7 @@ impl<T> DefaultAtomicEnvConfig<T>
 }
 
 impl<T> Default for DefaultEnvConfig<T>
-    where T: Default + Eq + ::std::hash::Hash + From<String>,
+    where T: Default + Eq + Hash + From<String>,
 {
     fn default() -> Self {
         Self::new()
@@ -192,7 +192,7 @@ impl<T> Default for DefaultEnvConfig<T>
 }
 
 impl<T> Default for DefaultAtomicEnvConfig<T>
-    where T: Default + Eq + ::std::hash::Hash + From<String>,
+    where T: Default + Eq + Hash + From<String>,
 {
     fn default() -> Self {
         Self::new()
