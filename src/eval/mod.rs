@@ -2,5 +2,7 @@
 //! parameter subsitutions, redirections, and others.
 
 mod fields;
+mod parameter;
 
 pub use self::fields::*;
+pub use self::parameter::*;

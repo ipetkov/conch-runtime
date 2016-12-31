@@ -2,7 +2,6 @@
 //! parameter subsitutions, redirections, and others.
 
 mod arith;
-mod parameter;
 mod redirect;
 mod subst;
 mod word;
@@ -13,7 +12,6 @@ use runtime::env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 
 pub use self::arith::*;
-pub use self::parameter::*;
 pub use self::redirect::*;
 pub use new_eval::*;
 
