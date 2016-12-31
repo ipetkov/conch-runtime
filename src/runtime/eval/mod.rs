@@ -1,7 +1,6 @@
 //! A module for evaluating arbitrary shell components such as words,
 //! parameter subsitutions, redirections, and others.
 
-mod arith;
 mod redirect;
 mod subst;
 mod word;
@@ -11,7 +10,6 @@ use runtime::Result;
 use runtime::env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 
-pub use self::arith::*;
 pub use self::redirect::*;
 pub use new_eval::*;
 
