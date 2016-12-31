@@ -1,5 +1,5 @@
+use RefCounted;
 use runtime::env::SubEnvironment;
-use runtime::ref_counted::RefCounted;
 
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
@@ -207,8 +207,8 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
+    use RefCounted;
     use runtime::env::SubEnvironment;
-    use runtime::ref_counted::RefCounted;
     use super::*;
 
     #[test]

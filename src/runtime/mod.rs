@@ -21,14 +21,11 @@ use syntax::ast::{AndOr, AndOrList, Command, CompoundCommand, CompoundCommandKin
 use runtime::eval::{RedirectEval, TildeExpansion, WordEval, WordEvalConfig};
 use runtime::io::FileDescWrapper;
 
-mod ref_counted;
 mod simple;
 
 pub mod env;
 pub mod eval;
 pub mod io;
-
-pub use self::ref_counted::*;
 
 lazy_static! {
     static ref HOME: String = { String::from("HOME") };
@@ -1327,6 +1324,8 @@ mod tests {
 
     #[test]
     fn test_run_command_compound_kind_for() {
+        use RefCounted;
+
         let fn_body = "fn_body";
         let var = "var".to_owned();
         let result_var = Rc::new("result_var".to_owned());

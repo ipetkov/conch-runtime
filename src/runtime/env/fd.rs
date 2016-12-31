@@ -1,7 +1,7 @@
+use RefCounted;
 use runtime::{Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use runtime::env::SubEnvironment;
 use runtime::io::{dup_stdio, FileDesc, Permissions};
-use runtime::ref_counted::RefCounted;
 
 use std::borrow::Borrow;
 use std::collections::HashMap;

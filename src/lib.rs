@@ -45,7 +45,9 @@ pub mod error;
 pub mod new_eval; // FIXME: rename to `eval` when `runtime::eval` fully deprecated
 pub mod future;
 
+mod ref_counted;
 mod runtime;
+pub use self::ref_counted::*;
 pub use self::runtime::*;
 
 /// A trait for spawning commands into an `EnvFuture` which can be

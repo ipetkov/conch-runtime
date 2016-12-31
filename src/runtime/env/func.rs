@@ -1,5 +1,5 @@
+use RefCounted;
 use runtime::env::SubEnvironment;
-use runtime::ref_counted::RefCounted;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -160,8 +160,8 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
+    use RefCounted;
     use runtime::env::SubEnvironment;
-    use runtime::ref_counted::RefCounted;
     use super::*;
 
     #[test]
