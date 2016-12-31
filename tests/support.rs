@@ -38,6 +38,12 @@ impl From<RuntimeError> for MockErr {
     }
 }
 
+impl From<::std::io::Error> for MockErr {
+    fn from(_: ::std::io::Error) -> Self {
+        MockErr(false)
+    }
+}
+
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MockCmd {

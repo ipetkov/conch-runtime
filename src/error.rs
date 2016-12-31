@@ -245,8 +245,8 @@ pub enum RuntimeError {
     Unimplemented(&'static str),
 }
 
-impl ::std::cmp::Eq for RuntimeError {}
-impl ::std::cmp::PartialEq for RuntimeError {
+impl Eq for RuntimeError {}
+impl PartialEq for RuntimeError {
     fn eq(&self, other: &Self) -> bool {
         use self::RuntimeError::*;
 
@@ -305,6 +305,12 @@ impl IsFatalError for RuntimeError {
             RuntimeError::Io(_, _) |
             RuntimeError::Unimplemented(_) => false,
         }
+    }
+}
+
+impl From<IoError> for RuntimeError {
+    fn from(err: IoError) -> Self {
+        RuntimeError::Io(err, None)
     }
 }
 

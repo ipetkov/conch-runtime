@@ -191,7 +191,7 @@ impl<E: ?Sized, C> Run<E> for ListableCommand<C>
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
         match *self {
-            ListableCommand::Pipe(invert, ref cmds) => unimplemented!(), // FIXME
+            ListableCommand::Pipe(_, _) => unimplemented!(), // FIXME
             ListableCommand::Single(ref cmd) => cmd.run(env),
         }
     }
