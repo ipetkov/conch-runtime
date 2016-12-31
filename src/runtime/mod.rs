@@ -32,7 +32,6 @@ pub use self::ref_counted::*;
 
 lazy_static! {
     static ref HOME: String = { String::from("HOME") };
-    static ref IFS: String = { String::from("IFS") };
 }
 
 /// Exit code for commands that exited successfully.

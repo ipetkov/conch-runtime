@@ -2,7 +2,7 @@
 
 use runtime::ExitStatus;
 use runtime::env::{ArgumentsEnvironment, LastStatusEnvironment, StringWrapper, VariableEnvironment};
-use runtime::eval::{Fields, split_fields};
+use runtime::eval::Fields;
 use runtime::io::getpid;
 use std::borrow::Borrow;
 use syntax::ast::Parameter;
@@ -74,7 +74,7 @@ impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
 
         ret.map(|f| {
             if split_fields_further {
-                split_fields(f, env)
+                f.split(env)
             } else {
                 f
             }

@@ -1,7 +1,7 @@
 extern crate conch_runtime as runtime;
 
 use runtime::new_eval::Fields::*;
-use runtime::env::DefaultEnv;
+use runtime::env::{DefaultEnv, VariableEnvironment, UnsetVariableEnvironment};
 
 #[test]
 fn test_fields_is_null() {
@@ -118,4 +118,52 @@ fn test_fields_into_iter() {
     assert_eq!(strs.clone(), At(strs.clone()).into_iter().collect::<Vec<_>>());
     assert_eq!(strs.clone(), Star(strs.clone()).into_iter().collect::<Vec<_>>());
     assert_eq!(strs.clone(), Split(strs.clone()).into_iter().collect::<Vec<_>>());
+}
+
+#[test]
+fn test_eval_parameter_substitution_splitting_default_ifs() {
+    let mut env = DefaultEnv::<String>::new();
+    env.unset_var("IFS");
+
+    // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
+    assert_eq!(Single(" \t\nfoo \t\nbar \t\n".to_owned()).split(&env), Split(vec!(
+        "foo".to_owned(),
+        "bar".to_owned(),
+    )));
+
+    assert_eq!(Single("".to_owned()).split(&env), Zero);
+}
+
+#[test]
+fn test_splitting_with_custom_ifs() {
+    let mut env = DefaultEnv::new();
+    env.set_var("IFS".to_owned(), "0 ".to_owned());
+
+    // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
+    assert_eq!(Single("   foo000bar   ".to_owned()).split(&env), Split(vec!(
+        "foo".to_owned(),
+        "".to_owned(),
+        "".to_owned(),
+        "bar".to_owned(),
+    )));
+
+    assert_eq!(Single("  00 0 00  0 ".to_owned()).split(&env), Split(vec!(
+        "".to_owned(),
+        "".to_owned(),
+        "".to_owned(),
+        "".to_owned(),
+        "".to_owned(),
+        "".to_owned(),
+    )));
+
+    assert_eq!(Single("".to_owned()).split(&env), Zero);
+}
+
+#[test]
+fn test_no_splitting_if_ifs_blank() {
+    let mut env = DefaultEnv::new();
+    env.set_var("IFS".to_owned(), "".to_owned());
+
+    let fields = Single(" \t\nfoo \t\nbar \t\n".to_owned());
+    assert_eq!(fields.clone().split(&env), fields);
 }

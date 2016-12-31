@@ -7,7 +7,6 @@ use runtime::{Result, Run};
 use runtime::env::{FileDescEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use runtime::eval::split_fields;
 use runtime::io::FileDescWrapper;
 use std::fmt::Display;
 use std::io;
@@ -35,7 +34,7 @@ impl<P, W, C, A, E: ?Sized> WordEval<E> for ParameterSubstitution<P, W, C, A>
     {
         eval_inner(self, env, cfg.tilde_expansion).map(|f| {
             if cfg.split_fields_further {
-                split_fields(f, env)
+                f.split(env)
             } else {
                 f
             }
