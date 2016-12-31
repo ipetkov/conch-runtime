@@ -3,11 +3,11 @@
 use glob;
 
 use error::{ExpansionError, RuntimeError};
+use io::FileDescWrapper;
 use runtime::{Result, Run};
 use runtime::env::{FileDescEnvironment, LastStatusEnvironment,
                    StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use runtime::io::FileDescWrapper;
 use std::fmt::Display;
 use std::io;
 use syntax::ast::ParameterSubstitution;
@@ -285,8 +285,8 @@ fn run_cmd_subst<I, E>(body: I, env: &E) -> io::Result<String>
           E: FileDescEnvironment + LastStatusEnvironment + SubEnvironment,
           E::FileHandle: FileDescWrapper,
 {
+    use io::{Permissions, Pipe};
     use runtime::{run_as_subshell, STDOUT_FILENO};
-    use runtime::io::{Permissions, Pipe};
     use std::thread;
 
     let Pipe { reader: mut cmd_output, writer: cmd_stdout_fd } = try!(Pipe::new());
@@ -381,9 +381,9 @@ mod tests {
 
     #[test]
     fn test_eval_parameter_substitution_command() {
+        use io::FileDescWrapper;
         use runtime::STDOUT_FILENO;
         use runtime::env::FileDescEnvironment;
-        use runtime::io::FileDescWrapper;
         use runtime::tests::MockWord;
         use std::borrow::Borrow;
         use std::io::Write;
@@ -443,6 +443,7 @@ mod tests {
 
     #[test]
     fn test_eval_parameter_substitution_len() {
+        use io::getpid;
         use syntax::ast::ParameterSubstitution::Len;
 
         let name  = "shell name".to_owned();
@@ -464,7 +465,7 @@ mod tests {
             (Parameter::At,    3),
             (Parameter::Star,  3),
             (Parameter::Pound, 1),
-            (Parameter::Dollar, ::runtime::io::getpid().to_string().len()),
+            (Parameter::Dollar, getpid().to_string().len()),
 
             // FIXME: test these as well
             //Parameter::Dash,

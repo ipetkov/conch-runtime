@@ -1,8 +1,8 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
+use io::{FileDesc, Permissions};
 use runtime::{ExitStatus, Fd, Result, Run};
-use runtime::io::{FileDesc, Permissions};
 
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
@@ -550,9 +550,9 @@ impl<T> DefaultEnv<T> where T: Default + Eq + Hash + From<String> {
 mod tests {
     extern crate tempdir;
 
+    use io::Permissions;
     use runtime::{EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
     use runtime::{ExitStatus, Result, Run};
-    use runtime::io::Permissions;
     use runtime::tests::{MockFn, word};
 
     use self::tempdir::TempDir;

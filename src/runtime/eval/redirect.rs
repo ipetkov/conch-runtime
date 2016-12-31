@@ -1,13 +1,13 @@
 //! A module which defines evaluating any kind of redirection.
 
 use error::{RedirectionError, RuntimeError};
+use io::{FileDesc, Permissions};
 use std::fs::OpenOptions;
 use syntax::ast::Redirect;
 use runtime::{Fd, Result};
 use runtime::{STDIN_FILENO, STDOUT_FILENO};
 use runtime::env::{FileDescEnvironment, IsInteractiveEnvironment, StringWrapper};
 use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
-use runtime::io::{FileDesc, Permissions};
 
 /// Indicates what changes should be made to the environment as a result
 /// of a successful `Redirect` evaluation.
@@ -161,10 +161,10 @@ fn dup_fd<E: ?Sized, W: ?Sized>(dst_fd: Fd, src_fd: &W, readable: bool, env: &mu
 mod tests {
     extern crate tempdir;
 
+    use io::{FileDesc, Permissions};
     use runtime::{Fd, STDIN_FILENO, STDOUT_FILENO};
     use runtime::env::{DefaultEnvConfig, Env, EnvConfig, FileDescEnv, FileDescEnvironment,
                        IsInteractiveEnvironment};
-    use runtime::io::{FileDesc, Permissions};
     use runtime::tests::{MockWord, word};
     use self::tempdir::TempDir;
     use std::fs::File;

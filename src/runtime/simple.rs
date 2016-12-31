@@ -4,13 +4,13 @@
 use libc;
 
 use error::{CommandError, RuntimeError};
+use io::FileDescWrapper;
 use runtime::{EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
               ExitStatus, Fd, Result, Run, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
               run_with_local_redirections};
 use runtime::env::{FileDescEnvironment, FunctionEnvironment, FunctionExecutorEnvironment,
                    LastStatusEnvironment, StringWrapper, VariableEnvironment};
 use runtime::eval::{RedirectEval, WordEval};
-use runtime::io::FileDescWrapper;
 
 use std::borrow::Borrow;
 use std::collections::HashMap;

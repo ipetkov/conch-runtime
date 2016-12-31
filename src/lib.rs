@@ -44,6 +44,7 @@ pub mod error;
 #[path="eval/mod.rs"]
 pub mod new_eval; // FIXME: rename to `eval` when `runtime::eval` fully deprecated
 pub mod future;
+pub mod io;
 
 mod ref_counted;
 mod runtime;

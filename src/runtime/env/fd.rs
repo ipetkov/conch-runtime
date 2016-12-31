@@ -1,7 +1,7 @@
 use RefCounted;
+use io::{dup_stdio, FileDesc, Permissions};
 use runtime::{Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use runtime::env::SubEnvironment;
-use runtime::io::{dup_stdio, FileDesc, Permissions};
 
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -193,10 +193,10 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
+    use RefCounted;
+    use io::{Permissions, Pipe};
     use runtime::{STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
     use runtime::env::SubEnvironment;
-    use runtime::io::{Permissions, Pipe};
-    use runtime::ref_counted::RefCounted;
     use runtime::tests::dev_null;
     use std::thread;
     use std::rc::Rc;

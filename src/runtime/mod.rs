@@ -5,6 +5,7 @@
 use glob;
 
 use error::RuntimeError;
+use io::FileDescWrapper;
 use self::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
                 FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
                 StringWrapper, SubEnvironment, VariableEnvironment};
@@ -19,13 +20,11 @@ use std::result;
 use syntax::ast::{AndOr, AndOrList, Command, CompoundCommand, CompoundCommandKind, GuardBodyPair,
                   ListableCommand, PipeableCommand, TopLevelCommand};
 use runtime::eval::{RedirectEval, TildeExpansion, WordEval, WordEvalConfig};
-use runtime::io::FileDescWrapper;
 
 mod simple;
 
 pub mod env;
 pub mod eval;
-pub mod io;
 
 lazy_static! {
     static ref HOME: String = { String::from("HOME") };
@@ -436,6 +435,10 @@ mod tests {
     use glob;
 
     use error::*;
+    use io::{FileDesc, Permissions, Pipe};
+    use runtime::env::*;
+    use runtime::eval::{Fields, WordEval, WordEvalConfig};
+    use runtime::*;
 
     use self::tempdir::TempDir;
     use std::cell::RefCell;
@@ -444,11 +447,6 @@ mod tests {
     use std::path::PathBuf;
     use std::rc::Rc;
     use std::thread;
-
-    use super::env::*;
-    use super::eval::{Fields, WordEval, WordEvalConfig};
-    use super::io::{FileDesc, Permissions};
-    use super::*;
 
     use syntax::ast::{CommandList, Parameter, Redirect};
     use syntax::ast::Command::*;
@@ -1651,7 +1649,7 @@ mod tests {
     #[test]
     fn test_run_compound_command_kind_subshell_child_inherits_file_descriptors() {
         let msg = "some secret message";
-        let io::Pipe { mut reader, writer } = io::Pipe::new().unwrap();
+        let Pipe { mut reader, writer } = Pipe::new().unwrap();
 
         let guard = thread::spawn(move || {
             let target_fd = 5;
@@ -1687,9 +1685,9 @@ mod tests {
         let new_msg = "some new secret message";
         let change_msg = "some change secret message";
         let parent_msg = "parent post msg";
-        let io::Pipe { reader: mut new_reader,    writer: new_writer    } = io::Pipe::new().unwrap();
-        let io::Pipe { reader: mut change_reader, writer: change_writer } = io::Pipe::new().unwrap();
-        let io::Pipe { reader: mut parent_reader, writer: parent_writer } = io::Pipe::new().unwrap();
+        let Pipe { reader: mut new_reader,    writer: new_writer    } = Pipe::new().unwrap();
+        let Pipe { reader: mut change_reader, writer: change_writer } = Pipe::new().unwrap();
+        let Pipe { reader: mut parent_reader, writer: parent_writer } = Pipe::new().unwrap();
 
         let guard = thread::spawn(move || {
             let exec = "exec_fn";

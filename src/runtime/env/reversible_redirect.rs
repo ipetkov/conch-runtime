@@ -1,6 +1,6 @@
+use io::Permissions;
 use runtime::Fd;
 use runtime::env::FileDescEnvironment;
-use runtime::io::Permissions;
 
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
@@ -256,9 +256,9 @@ impl<E> FileDescEnvironment for ReversibleRedirectWrapper<E>
 
 #[cfg(test)]
 mod tests {
+    use io::Permissions;
     use runtime::Fd;
     use runtime::env::FileDescEnvironment;
-    use runtime::io::Permissions;
     use std::borrow::Borrow;
     use std::collections::HashMap;
     use std::error::Error;

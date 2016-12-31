@@ -1,9 +1,9 @@
 //! A module defining the various kinds of errors that may arise
 //! while executing commands.
 
+use io::Permissions;
 use runtime::ExitStatus;
 use runtime::env::{FileDescEnvironment, LastStatusEnvironment};
-use runtime::io::Permissions;
 
 use std::convert::From;
 use std::error::Error;
