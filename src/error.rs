@@ -47,7 +47,7 @@ macro_rules! try_ready_swallow_non_fatal {
     ($result:expr, $env:expr) => {
         match $result {
             Ok($crate::future::Async::Ready(status)) => status,
-            ret@Ok($crate::futures::Async::NotReady) => return ret,
+            Ok($crate::futures::Async::NotReady) => return Ok($crate::futures::Async::NotReady),
             Err(e) => match $crate::error::try_ready_swallow_non_fatal_impl(e, $env) {
                 Ok(status) => status,
                 Err(e) => return Err(From::from(e)),
