@@ -1,11 +1,9 @@
 //! This module defines various traits and adapters for bridging command
 //! execution with futures.
 
-mod and_or;
 mod combinators;
 
 pub use futures::{Async, Poll};
-pub use self::and_or::*;
 pub use self::combinators::*;
 
 /// A trait for objects that behave exactly like the `Future` trait from the
