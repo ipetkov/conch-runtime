@@ -4,8 +4,10 @@ use ExitStatus;
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
 
+mod listable;
 mod sequence;
 
+pub use self::listable::*;
 pub use self::sequence::*;
 
 /// A trait for spawning commands into an `EnvFuture` which can be
