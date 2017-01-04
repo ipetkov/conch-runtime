@@ -32,7 +32,7 @@ macro_rules! try_and_swallow_non_fatal {
 pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, ER>, env: &mut E)
     -> Result<ExitStatus, ER>
     where E: LastStatusEnvironment + FileDescEnvironment,
-          ER: Error + IsFatalError,
+          ER: IsFatalError,
 {
     result.or_else(|err| try_ready_swallow_non_fatal_impl(err, env))
 }
@@ -59,7 +59,7 @@ macro_rules! try_ready_swallow_non_fatal {
 #[doc(hidden)]
 pub fn try_ready_swallow_non_fatal_impl<T, E: ?Sized>(err: T, env: &mut E) -> Result<ExitStatus, T>
     where E: LastStatusEnvironment + FileDescEnvironment,
-          T: Error + IsFatalError,
+          T: IsFatalError,
 {
     if err.is_fatal() {
         Err(err)
@@ -83,15 +83,9 @@ pub fn try_ready_swallow_non_fatal_impl<T, E: ?Sized>(err: T, env: &mut E) -> Re
 ///
 /// Ultimately it is up to the caller to decide how to handle fatal vs non-fatal
 /// errors.
-pub trait IsFatalError {
+pub trait IsFatalError: Error {
     /// Checks whether the error should be considered a "fatal" error.
     fn is_fatal(&self) -> bool;
-}
-
-impl<'a, T: IsFatalError> IsFatalError for &'a T {
-    fn is_fatal(&self) -> bool {
-        (**self).is_fatal()
-    }
 }
 
 /// An error which may arise during parameter expansion.

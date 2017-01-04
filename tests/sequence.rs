@@ -12,7 +12,7 @@ pub use self::support::*;
 fn run_series<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc>>::Error>
     where I: IntoIterator,
           I::Item: Spawn<DefaultEnvRc>,
-          <I::Item as Spawn<DefaultEnvRc>>::Error: Error + IsFatalError,
+          <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
     let env = DefaultEnvRc::new();
     sequence(cmds)

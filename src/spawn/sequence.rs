@@ -4,7 +4,6 @@ use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, FutureResult, ok};
 use spawn::{EnvFutureExt, FlattenedEnvFuture};
-use std::error::Error;
 use std::fmt;
 use std::iter::Peekable;
 
@@ -49,7 +48,7 @@ impl<E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
     where E: FileDescEnvironment + LastStatusEnvironment,
           I: Iterator,
           I::Item: Spawn<E>,
-          <I::Item as Spawn<E>>::Error: Error + IsFatalError,
+          <I::Item as Spawn<E>>::Error: IsFatalError,
 {
     type Item = Either<<I::Item as Spawn<E>>::Future, FutureResult<ExitStatus, Self::Error>>;
     type Error = <I::Item as Spawn<E>>::Error;

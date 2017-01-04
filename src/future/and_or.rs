@@ -3,7 +3,6 @@ use error::IsFatalError;
 use env::{FileDescEnvironment, LastStatusEnvironment};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future, FutureResult, ok as future_ok};
-use std::error::Error;
 use syntax::ast::{AndOr, AndOrList};
 
 /// A future representing the execution of a list of `And`/`Or` commands.
@@ -30,7 +29,7 @@ enum PollKind<F> {
 impl<E: ?Sized, C> Spawn<E> for AndOrList<C>
     where E: FileDescEnvironment + LastStatusEnvironment,
           C: Spawn<E>,
-          C::Error: Error + IsFatalError,
+          C::Error: IsFatalError,
 {
     type Error = C::Error;
     type EnvFuture = AndOrListEnvFuture<C, C::EnvFuture, C::Future>;
@@ -68,7 +67,7 @@ impl<E: ?Sized, T, EF, F> EnvFuture<E> for AndOrListEnvFuture<T, EF, F>
           T: Spawn<E, EnvFuture = EF, Future = F, Error = F::Error>,
           EF: EnvFuture<E, Item = F, Error = F::Error>,
           F: Future<Item = ExitStatus>,
-          F::Error: Error + IsFatalError,
+          F::Error: IsFatalError,
 {
     type Item = Either<FutureResult<ExitStatus, Self::Error>, F>;
     type Error = F::Error;
