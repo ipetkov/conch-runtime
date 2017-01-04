@@ -91,6 +91,7 @@ impl<E: ?Sized, T> EnvFutureExt<E> for T where T: EnvFuture<E> {}
 
 /// Flattens an `EnvFuture` which resolves to a `Future`, treating them both
 /// as an `EnvFuture`.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 enum FlattenedEnvFuture<E, F> {
     EnvFuture(E),

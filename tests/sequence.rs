@@ -4,7 +4,6 @@ extern crate conch_runtime as runtime;
 use futures::Future;
 use runtime::error::IsFatalError;
 use runtime::spawn::sequence;
-use std::error::Error;
 
 mod support;
 pub use self::support::*;

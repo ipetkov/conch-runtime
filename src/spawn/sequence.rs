@@ -19,6 +19,7 @@ enum State<C, L> {
 /// Commands are sequentially executed regardless of the exit status of
 /// previous commands. All non-fatal errors are reported and swallowed,
 /// however, "fatal" errors are bubbled up and the sequence terminated.
+#[must_use = "futures do nothing unless polled"]
 pub struct Sequence<E: ?Sized, I>
     where I: Iterator,
           I::Item: Spawn<E>,
