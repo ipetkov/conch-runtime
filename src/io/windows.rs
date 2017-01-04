@@ -6,6 +6,7 @@ use winapi;
 use std::fmt;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result, SeekFrom};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::os::raw::c_void as HANDLE;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
@@ -39,9 +40,6 @@ impl fmt::Debug for Unique<HANDLE> {
 pub struct RawIo {
     /// The underlying HANDLE.
     handle: Unique<HANDLE>,
-    /// Indicates whether the HANDLE has been extracted and
-    /// transferred ownership or whether we should close it.
-    must_close: bool,
 }
 
 impl PartialEq<RawIo> for RawIo {
@@ -81,16 +79,16 @@ impl RawIo {
     pub unsafe fn new(handle: RawHandle) -> Self {
         RawIo {
             handle: Unique(StdUnique::new(handle)),
-            must_close: true,
         }
     }
 
     /// Unwraps the underlying HANDLE and transfers ownership to the caller.
-    pub unsafe fn into_inner(mut self) -> RawHandle {
+    pub unsafe fn into_inner(self) -> RawHandle {
         // Make sure our desctructor doesn't actually close
         // the handle we just transfered to the caller.
-        self.must_close = false;
-        **self.handle
+        let handle = **self.handle;
+        mem::forget(self);
+        handle
     }
 
     /// Returns the underlying HANDLE without transfering ownership.
@@ -179,9 +177,7 @@ impl RawIo {
 impl Drop for RawIo {
     // Adapted from rust: src/libstd/sys/windows/handle.rs
     fn drop(&mut self) {
-        if self.must_close {
-            unsafe { let _ = kernel32::CloseHandle(**self.handle); }
-        }
+        unsafe { let _ = kernel32::CloseHandle(**self.handle); }
     }
 }
 

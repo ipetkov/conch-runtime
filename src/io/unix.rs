@@ -3,6 +3,7 @@
 use libc::{self, c_void, size_t};
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result, SeekFrom};
+use std::mem;
 use std::os::unix::io::{RawFd, AsRawFd, FromRawFd, IntoRawFd};
 use std::process::Stdio;
 use super::FileDesc;
@@ -14,9 +15,6 @@ use super::FileDesc;
 pub struct RawIo {
     /// The underlying descriptor.
     fd: RawFd,
-    /// Indicates whether the fd has been extracted and
-    /// transferred ownership or whether we should close it.
-    must_close: bool,
 }
 
 impl PartialEq<RawIo> for RawIo {
@@ -56,16 +54,16 @@ impl RawIo {
     pub unsafe fn new(fd: RawFd) -> Self {
         RawIo {
             fd: fd,
-            must_close: true,
         }
     }
 
     /// Unwraps the underlying file descriptor and transfers ownership to the caller.
-    pub unsafe fn into_inner(mut self) -> RawFd {
+    pub unsafe fn into_inner(self) -> RawFd {
         // Make sure our desctructor doesn't actually close
         // the fd we just transfered to the caller.
-        self.must_close = false;
-        self.fd
+        let fd = self.fd;
+        mem::forget(self);
+        fd
     }
 
     /// Returns the underlying file descriptor without transfering ownership.
@@ -138,9 +136,7 @@ impl Drop for RawIo {
         // the file descriptor was closed or not, and if we retried (for
         // something like EINTR), we might close another valid file descriptor
         // (opened after we closed ours).
-        if self.must_close {
-            let _ = unsafe { libc::close(self.fd) };
-        }
+        let _ = unsafe { libc::close(self.fd) };
     }
 }
 
