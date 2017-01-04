@@ -3,11 +3,9 @@
 
 mod and_or;
 mod combinators;
-mod command;
 
 pub use futures::{Async, Poll};
 pub use self::and_or::*;
-pub use self::command::*;
 pub use self::combinators::*;
 
 /// A trait for objects that behave exactly like the `Future` trait from the

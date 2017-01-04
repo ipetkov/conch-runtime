@@ -4,9 +4,11 @@ use ExitStatus;
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
 
+mod command;
 mod listable;
 mod sequence;
 
+pub use self::command::*;
 pub use self::listable::*;
 pub use self::sequence::*;
 
