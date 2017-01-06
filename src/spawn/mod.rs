@@ -96,6 +96,20 @@ impl<E: ?Sized, T> EnvFutureExt<E> for T where T: EnvFuture<E> {}
 enum FlattenedEnvFuture<E, F> {
     EnvFuture(E),
     Future(F),
+    Done,
+}
+
+impl<E, F> FlattenedEnvFuture<E, F> {
+    /// Unwraps the underlying future if `self` is `Future(_)` and replaces
+    /// it with `Done`. Panics otherwise.
+    fn take_future(&mut self) -> F {
+        use std::mem;
+
+        match mem::replace(self, FlattenedEnvFuture::Done) {
+            FlattenedEnvFuture::Future(f) => f,
+            _ => panic!("can only unwrap `Future` variant"),
+        }
+    }
 }
 
 impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
@@ -110,6 +124,7 @@ impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
         let mut f = match *self {
             FlattenedEnvFuture::EnvFuture(ref mut e) => try_ready!(e.poll(env)),
             FlattenedEnvFuture::Future(ref mut f) => return Ok(Async::Ready(try_ready!(f.poll()))),
+            FlattenedEnvFuture::Done => panic!("invalid state"),
         };
 
         let ret = f.poll();

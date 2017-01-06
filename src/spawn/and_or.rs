@@ -3,6 +3,7 @@ use error::IsFatalError;
 use env::{FileDescEnvironment, LastStatusEnvironment};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future, FutureResult, ok as future_ok};
+use spawn::{EnvFutureExt, FlattenedEnvFuture};
 use syntax::ast::{AndOr, AndOrList};
 
 /// A future representing the execution of a list of `And`/`Or` commands.
@@ -10,20 +11,8 @@ use syntax::ast::{AndOr, AndOrList};
 #[derive(Debug)]
 pub struct AndOrListEnvFuture<T, E, F> {
     last_status: ExitStatus,
-    current: State<E, F>,
+    current: FlattenedEnvFuture<E, F>,
     rest_stack: Vec<AndOr<T>>,
-}
-
-#[derive(Debug)]
-enum State<E, F> {
-    EnvFuture(E),
-    Future(F),
-}
-
-#[derive(Debug)]
-enum PollKind<F> {
-    Status(ExitStatus),
-    Future(F),
 }
 
 impl<E: ?Sized, C> Spawn<E> for AndOrList<C>
@@ -41,7 +30,7 @@ impl<E: ?Sized, C> Spawn<E> for AndOrList<C>
 
         AndOrListEnvFuture {
             last_status: EXIT_SUCCESS,
-            current: State::EnvFuture(self.first.spawn(env)),
+            current: self.first.spawn(env).flatten_future(),
             rest_stack: rest_stack,
         }
     }
@@ -73,30 +62,26 @@ impl<E: ?Sized, T, EF, F> EnvFuture<E> for AndOrListEnvFuture<T, EF, F>
     type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        'poll_current: loop {
-            let poll_result = match self.current {
-                State::EnvFuture(ref mut e) => try_poll!(e.poll(env), env, PollKind::Future),
-                State::Future(ref mut f) => try_poll!(f.poll(), env, PollKind::Status),
-            };
+        loop {
+            // If we have no further commands to process, we can return the
+            // current command's future (so the caller may drop the environment)
+            if self.rest_stack.is_empty() {
+                if let FlattenedEnvFuture::Future(_) = self.current {
+                    return Ok(Async::Ready(Either::B(self.current.take_future())));
+                }
+            }
 
-            self.last_status = match poll_result {
-                PollKind::Status(status) => {
-                    env.set_last_status(status);
-                    status
-                },
-
-                PollKind::Future(f) => if self.rest_stack.is_empty() {
-                    // If we have no further commands to process, we can return the
-                    // current command's future (so the caller may drop the environment)
-                    return Ok(Async::Ready(Either::B(f)));
+            self.last_status = match self.current.poll(env) {
+                Ok(Async::Ready(status)) => status,
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(e) => if e.is_fatal() {
+                    return Err(e);
                 } else {
-                    // Alternatively, if we have more potential commands to process
-                    // we have to keep getting an environment reference, and so we
-                    // simply update our internal state.
-                    self.current = State::Future(f);
-                    continue 'poll_current;
+                    env.report_error(&e);
+                    EXIT_ERROR
                 },
             };
+            env.set_last_status(self.last_status);
 
             'find_next: loop {
                 match (self.rest_stack.pop(), self.last_status.success()) {
@@ -104,7 +89,7 @@ impl<E: ?Sized, T, EF, F> EnvFuture<E> for AndOrListEnvFuture<T, EF, F>
 
                     (Some(AndOr::And(next)), true) |
                     (Some(AndOr::Or(next)), false) => {
-                        self.current = State::EnvFuture(next.spawn(env));
+                        self.current = next.spawn(env).flatten_future();
                         // Break the inner loop, outer loop will ensure we poll
                         // the newly spawned future
                         break 'find_next;
