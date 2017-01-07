@@ -34,34 +34,7 @@ pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, 
     where E: LastStatusEnvironment + FileDescEnvironment,
           ER: IsFatalError,
 {
-    result.or_else(|err| try_ready_swallow_non_fatal_impl(err, env))
-}
-
-/// A macro that accepts a `Poll<ExitStatus, _>` and attempts
-/// to unwrap it much like `try_ready!`. If the result is a "fatal" error the macro
-/// immediately returns from the enclosing function. Otherwise, the error is
-/// reported via `FileDescEnvironment::report_error`, and the environment's
-/// last status is returned.
-#[macro_export]
-macro_rules! try_ready_swallow_non_fatal {
-    ($result:expr, $env:expr) => {
-        match $result {
-            Ok($crate::future::Async::Ready(status)) => status,
-            Ok($crate::futures::Async::NotReady) => return Ok($crate::futures::Async::NotReady),
-            Err(e) => match $crate::error::try_ready_swallow_non_fatal_impl(e, $env) {
-                Ok(status) => status,
-                Err(e) => return Err(From::from(e)),
-            },
-        }
-    }
-}
-
-#[doc(hidden)]
-pub fn try_ready_swallow_non_fatal_impl<T, E: ?Sized>(err: T, env: &mut E) -> Result<ExitStatus, T>
-    where E: LastStatusEnvironment + FileDescEnvironment,
-          T: IsFatalError,
-{
-    if err.is_fatal() {
+    result.or_else(|err| if err.is_fatal() {
         Err(err)
     } else {
         // Whoever returned the error should have been responsible
@@ -70,7 +43,7 @@ pub fn try_ready_swallow_non_fatal_impl<T, E: ?Sized>(err: T, env: &mut E) -> Re
         let exit = env.last_status();
         debug_assert_eq!(exit.success(), false);
         Ok(exit)
-    }
+    })
 }
 
 /// Determines whether an error should be treated as "fatal".

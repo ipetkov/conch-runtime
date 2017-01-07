@@ -1,4 +1,4 @@
-use {ExitStatus, EXIT_SUCCESS, Spawn};
+use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use env::{FileDescEnvironment, LastStatusEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
@@ -58,7 +58,16 @@ impl<E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
             match self.state {
                 State::None => {},
                 State::Current(ref mut e) => {
-                    let exit = try_ready_swallow_non_fatal!(e.poll(env), env);
+                    let exit = match e.poll(env) {
+                        Ok(Async::Ready(exit)) => exit,
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(e) => if e.is_fatal() {
+                            return Err(e);
+                        } else {
+                            env.report_error(&e);
+                            EXIT_ERROR
+                        },
+                    };
                     env.set_last_status(exit);
                 },
                 State::Last(ref mut e) =>
