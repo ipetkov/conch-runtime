@@ -14,6 +14,8 @@ enum State<C, L> {
     None,
 }
 
+type FlattenedState<E, F> = State<FlattenedEnvFuture<E, F>, E>;
+
 /// A future that represents the sequential execution of commands.
 ///
 /// Commands are sequentially executed regardless of the exit status of
@@ -24,10 +26,7 @@ pub struct Sequence<E: ?Sized, I>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
-    state: State<
-        FlattenedEnvFuture<<I::Item as Spawn<E>>::EnvFuture, <I::Item as Spawn<E>>::Future>,
-        <I::Item as Spawn<E>>::EnvFuture
-    >,
+    state: FlattenedState<<I::Item as Spawn<E>>::EnvFuture, <I::Item as Spawn<E>>::Future>,
     iter: Peekable<I>,
 }
 
