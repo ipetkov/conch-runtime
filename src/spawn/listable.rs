@@ -2,7 +2,6 @@ use {ExitStatus, EXIT_SUCCESS, STDIN_FILENO, STDOUT_FILENO, Spawn};
 use env::{FileDescEnvironment, SubEnvironment};
 use future::{Async, EnvFuture, InvertStatus, Pinned, Poll};
 use futures::future::{Either, Flatten, Future, FutureResult, err, ok};
-use futures::task;
 use io::{FileDesc, Permissions, Pipe};
 use std::io;
 use std::mem;
@@ -95,50 +94,51 @@ impl<E: ?Sized, T> EnvFuture<E> for ListableCommandEnvFuture<T, T::EnvFuture>
     type Error = T::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let state = match self.pipeline_state {
-            PipelineState::Single(ref mut f) => {
-                let future = match f.poll(env) {
-                    Ok(Async::Ready(future)) => Either::A(future),
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(e) => Either::B(err(e)),
-                };
+        loop {
+            let state = match self.pipeline_state {
+                PipelineState::Single(ref mut f) => {
+                    let future = match f.poll(env) {
+                        Ok(Async::Ready(future)) => Either::A(future),
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(e) => Either::B(err(e)),
+                    };
 
-                FutureOrStateChange::Future(Either::B(future))
-            },
+                    FutureOrStateChange::Future(Either::B(future))
+                },
 
-            PipelineState::Init(ref mut cmds) => {
-                let mut pipeline = mem::replace(cmds, Vec::new());
+                PipelineState::Init(ref mut cmds) => {
+                    let mut pipeline = mem::replace(cmds, Vec::new());
 
-                if pipeline.is_empty() {
-                    // Empty pipelines aren't particularly well-formed, but
-                    // we'll just treat it as a successful command.
-                    FutureOrStateChange::Future(Either::B(Either::B(ok(EXIT_SUCCESS))))
-                } else if pipeline.len() == 1 {
-                    // We treat single commands specially so that their side effects
-                    // can be reflected in the main/parent environment (since "regular"
-                    // pipeline commands will each get their own sub-environment
-                    // and their changes will not be reflected on the parent)
-                    let cmd = pipeline.pop().unwrap();
-                    FutureOrStateChange::StateChange(cmd.spawn(env))
-                } else {
-                    let pipeline = try!(init_pipeline(pipeline, env));
-                    FutureOrStateChange::Future(Either::A(Pipeline::new(pipeline)))
-                }
-            },
-        };
+                    if pipeline.is_empty() {
+                        // Empty pipelines aren't particularly well-formed, but
+                        // we'll just treat it as a successful command.
+                        FutureOrStateChange::Future(Either::B(Either::B(ok(EXIT_SUCCESS))))
+                    } else if pipeline.len() == 1 {
+                        // We treat single commands specially so that their side effects
+                        // can be reflected in the main/parent environment (since "regular"
+                        // pipeline commands will each get their own sub-environment
+                        // and their changes will not be reflected on the parent)
+                        let cmd = pipeline.pop().unwrap();
+                        FutureOrStateChange::StateChange(cmd.spawn(env))
+                    } else {
+                        let pipeline = try!(init_pipeline(pipeline, env));
+                        FutureOrStateChange::Future(Either::A(Pipeline::new(pipeline)))
+                    }
+                },
+            };
 
-        match state {
-            FutureOrStateChange::Future(f) => {
-                let future = InvertStatus::new(self.invert_last_status, f);
-                Ok(Async::Ready(future))
-            },
+            match state {
+                FutureOrStateChange::Future(f) => {
+                    let future = InvertStatus::new(self.invert_last_status, f);
+                    return Ok(Async::Ready(future));
+                },
 
-            FutureOrStateChange::StateChange(single) => {
-                self.pipeline_state = PipelineState::Single(single);
-                // Signal we can make more progress since we didn't poll anything
-                task::park().unpark();
-                Ok(Async::NotReady)
-            },
+                // Loop around and poll the inner future again. We could just
+                // signal that we are ready and get polled again, but that would
+                // require traversing an arbitrarily large future tree, so it's
+                // probably more efficient for us to quickly retry here.
+                FutureOrStateChange::StateChange(single) => self.pipeline_state = PipelineState::Single(single),
+            }
         }
     }
 }
