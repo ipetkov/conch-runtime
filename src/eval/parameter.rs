@@ -24,7 +24,7 @@ pub trait ParamEval<E: ?Sized> {
     fn assig_name(&self) -> Option<Self::EvalResult>;
 }
 
-impl<'a, E: ?Sized, P: ParamEval<E>> ParamEval<E> for &'a P {
+impl<'a, E: ?Sized, P: ?Sized + ParamEval<E>> ParamEval<E> for &'a P {
     type EvalResult = P::EvalResult;
 
     fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {

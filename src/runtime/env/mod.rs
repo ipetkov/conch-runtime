@@ -35,7 +35,7 @@ pub trait IsInteractiveEnvironment {
     fn is_interactive(&self) -> bool;
 }
 
-impl<'a, T: IsInteractiveEnvironment> IsInteractiveEnvironment for &'a T {
+impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a T {
     fn is_interactive(&self) -> bool {
         (**self).is_interactive()
     }
