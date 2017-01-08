@@ -114,3 +114,20 @@ fn test_and_or_should_propagate_fatal_errors() {
 
     run(list).unwrap_err();
 }
+
+#[test]
+fn test_and_or_should_propagate_cancel_to_current_command() {
+    let list = AndOrList {
+        first: mock_must_cancel(),
+        rest: vec!(
+            // Should never get polled, so these don't need to be canceled
+            AndOr::And(mock_must_cancel()),
+            AndOr::Or(mock_must_cancel()),
+
+            AndOr::And(mock_panic("first command should not run")),
+            AndOr::Or(mock_panic("second command should not run")),
+        ),
+    };
+
+    run_cancel(list);
+}

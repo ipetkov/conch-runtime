@@ -76,6 +76,9 @@ fn single_command_env_changes_remain() {
             env.set_var(VAR.to_owned().into(), VALUE.to_owned().into());
             Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
+
+        fn cancel(&mut self, _env: &mut DefaultEnvRc) {
+        }
     }
 
     let var = VAR.to_owned();
@@ -175,6 +178,9 @@ fn multiple_commands_smoke() {
            (self.0)(env);
            Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
+
+        fn cancel(&mut self, _env: &mut DefaultEnvRc) {
+        }
     }
 
     let mut writer = None;
@@ -211,4 +217,13 @@ fn multiple_commands_smoke() {
     assert_eq!(read, msg);
 
     join.join().expect("failed to join thread");
+}
+
+#[test]
+fn single_command_should_propagate_cancel() {
+    let list = ListableCommand::Pipe(false, vec!(
+        mock_must_cancel(),
+    ));
+
+    run_cancel(list);
 }

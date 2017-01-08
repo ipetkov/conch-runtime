@@ -131,4 +131,12 @@ impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
         *self = FlattenedEnvFuture::Future(f);
         Ok(Async::Ready(try_ready!(ret)))
     }
+
+    fn cancel(&mut self, env: &mut E) {
+        match *self {
+            FlattenedEnvFuture::EnvFuture(ref mut e) => e.cancel(env),
+            FlattenedEnvFuture::Future(_) |
+            FlattenedEnvFuture::Done => {}
+        }
+    }
 }

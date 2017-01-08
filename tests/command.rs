@@ -28,3 +28,13 @@ fn test_propagates_all_errors() {
     let cmd = List(mock_error(true));
     run(cmd).unwrap_err();
 }
+
+#[test]
+fn test_propagates_cancellations() {
+    let cmd = List(mock_must_cancel());
+    run_cancel(cmd);
+
+    // FIXME: unimplemented for now
+    //let cmd = Job(mock_must_cancel());
+    //run_cancel(cmd);
+}

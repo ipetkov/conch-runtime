@@ -57,4 +57,11 @@ impl<E: ?Sized, F> EnvFuture<E> for CommandEnvFuture<F>
             },
         }
     }
+
+    fn cancel(&mut self, env: &mut E) {
+        match self.inner {
+            Inner::Pending(ref mut f) => f.cancel(env),
+            Inner::Unimplemented => {},
+        }
+    }
 }

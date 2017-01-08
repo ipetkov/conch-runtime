@@ -141,6 +141,13 @@ impl<E: ?Sized, T> EnvFuture<E> for ListableCommandEnvFuture<T, T::EnvFuture>
             }
         }
     }
+
+    fn cancel(&mut self, env: &mut E) {
+        match self.pipeline_state {
+            PipelineState::Init(_) => {},
+            PipelineState::Single(ref mut e) => e.cancel(env),
+        }
+    }
 }
 
 impl<F: Future<Item = ExitStatus>> Future for Pipeline<F> {

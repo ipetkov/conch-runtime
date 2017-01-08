@@ -54,6 +54,9 @@ mod tests {
         fn poll(&mut self, env: &mut usize) -> Poll<Self::Item, Self::Error> {
             Ok(Async::Ready(*env))
         }
+
+        fn cancel(&mut self, _env: &mut usize) {
+        }
     }
 
     #[test]

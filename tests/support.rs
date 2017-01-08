@@ -44,12 +44,50 @@ impl From<::std::io::Error> for MockErr {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use = "futures do nothing unless polled"]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct MustCancel {
+    /// Did we get polled at least once (i.e. did we get fully "spawned")
+    was_polled: bool,
+    /// Did we ever get a "cancel" signal
+    was_canceled: bool,
+}
+
+impl MustCancel {
+    fn new() -> Self {
+        MustCancel {
+            was_polled: false,
+            was_canceled: false,
+        }
+    }
+
+    fn poll<T, E>(&mut self) -> Poll<T, E> {
+        assert!(!self.was_canceled, "cannot poll after canceling");
+        self.was_polled = true;
+        Ok(Async::NotReady)
+    }
+
+    fn cancel(&mut self) {
+        assert!(!self.was_canceled, "cannot cancel twice");
+        self.was_canceled = true;
+    }
+}
+
+impl Drop for MustCancel {
+    fn drop(&mut self) {
+        if self.was_polled {
+            assert!(self.was_canceled, "MustCancel future was not canceled!");
+        }
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockCmd {
     Status(ExitStatus),
     Error(MockErr),
     Panic(&'static str),
+    MustCancel(MustCancel),
 }
 
 pub fn mock_status(status: ExitStatus) -> MockCmd {
@@ -62,6 +100,10 @@ pub fn mock_error(fatal: bool) -> MockCmd {
 
 pub fn mock_panic(msg: &'static str) -> MockCmd {
     MockCmd::Panic(msg)
+}
+
+pub fn mock_must_cancel() -> MockCmd {
+    MockCmd::MustCancel(MustCancel::new())
 }
 
 impl<E: ?Sized + LastStatusEnvironment> Spawn<E> for MockCmd {
@@ -86,14 +128,38 @@ impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
                 Err(e)
             },
             MockCmd::Panic(msg) => panic!("{}", msg),
+            MockCmd::MustCancel(ref mut mc) => mc.poll(),
+        }
+    }
+
+    fn cancel(&mut self, _env: &mut E) {
+        match *self {
+            MockCmd::Status(_) |
+            MockCmd::Error(_) |
+            MockCmd::Panic(_) => {},
+            MockCmd::MustCancel(ref mut mc) => mc.cancel(),
         }
     }
 }
 
+/// Spawns and syncronously runs the provided command to completion.
 pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
     let env = DefaultEnvRc::new();
     cmd.spawn(&env)
         .pin_env(env)
         .flatten()
         .wait()
+}
+
+/// Spawns the provided command and polls it a single time to give it a
+/// chance to get initialized. Then cancels and drops the future.
+///
+/// It is up to the caller to set up the command in a way that failure to
+/// propagate cancel messages results in a panic.
+pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
+    let mut env = DefaultEnvRc::new();
+    let mut env_future = cmd.spawn(&env);
+    let _ = env_future.poll(&mut env); // Give a chance to init things
+    env_future.cancel(&mut env); // Cancel the operation
+    drop(env_future);
 }

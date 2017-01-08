@@ -86,6 +86,14 @@ impl<E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
             }
         }
     }
+
+    fn cancel(&mut self, env: &mut E) {
+        match self.state {
+            State::Current(ref mut e) => e.cancel(env),
+            State::Last(ref mut e) => e.cancel(env),
+            State::None => {},
+        }
+    }
 }
 
 /// Spawns any iterable collection of sequential items.

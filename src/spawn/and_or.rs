@@ -36,21 +36,6 @@ impl<E: ?Sized, C> Spawn<E> for AndOrList<C>
     }
 }
 
-macro_rules! try_poll {
-    ($result:expr, $env:expr, $ready:path) => {
-        match $result {
-            Ok(Async::Ready(f)) => $ready(f),
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(e) => if e.is_fatal() {
-                return Err(e);
-            } else {
-                $env.report_error(&e);
-                PollKind::Status(EXIT_ERROR)
-            },
-        }
-    };
-}
-
 impl<E: ?Sized, T, EF, F> EnvFuture<E> for AndOrListEnvFuture<T, EF, F>
     where E: FileDescEnvironment + LastStatusEnvironment,
           T: Spawn<E, EnvFuture = EF, Future = F, Error = F::Error>,
@@ -100,5 +85,9 @@ impl<E: ?Sized, T, EF, F> EnvFuture<E> for AndOrListEnvFuture<T, EF, F>
                 };
             }
         }
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        self.current.cancel(env)
     }
 }
