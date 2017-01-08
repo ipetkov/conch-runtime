@@ -14,21 +14,24 @@ pub struct Pinned<E, F> {
     future: F,
 }
 
-impl<E, F> Pinned<E, F> {
-    /// Pin an environment to this future, allowing the resulting future to be
-    /// polled from anywhere without needing the caller to specify an environment.
-    ///
-    /// Alternatively, this combinator can be initialized via `EnvFuture::pin_env`.
-    pub fn new(env: E, future: F) -> Self {
-        Pinned {
-            env: env,
-            future: future,
-        }
+pub fn new<E, F: EnvFuture<E>>(future: F, env: E) -> Pinned<E, F> {
+    Pinned {
+        env: env,
+        future: future,
     }
+}
 
+impl<E, F> Pinned<E, F> {
     /// Unwraps the underlying environment/future pair.
     pub fn unwrap(self) -> (E, F) {
         (self.env, self.future)
+    }
+
+    /// Cancels the inner future, thus restoring any environment state
+    /// before unwrapping the environment.
+    pub fn unwrap_and_cancel(mut self) -> E where F: EnvFuture<E> {
+        self.future.cancel(&mut self.env);
+        self.env
     }
 }
 
@@ -38,39 +41,5 @@ impl<E, F> Future for Pinned<E, F> where F: EnvFuture<E> {
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.future.poll(&mut self.env)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use futures::{Async, Future, Poll};
-    use super::*;
-
-    struct MockEnvFuture;
-    impl EnvFuture<usize> for MockEnvFuture {
-        type Item = usize;
-        type Error = ();
-
-        fn poll(&mut self, env: &mut usize) -> Poll<Self::Item, Self::Error> {
-            Ok(Async::Ready(*env))
-        }
-
-        fn cancel(&mut self, _env: &mut usize) {
-        }
-    }
-
-    #[test]
-    fn smoke() {
-        let env = 42;
-        let future = MockEnvFuture.pin_env(env);
-        assert_eq!(future.wait(), Ok(env));
-    }
-
-    #[test]
-    fn smoke_borrowed() {
-        let env = 42;
-        let borrowed = &mut MockEnvFuture;
-        let future = borrowed.pin_env(env);
-        assert_eq!(future.wait(), Ok(env));
     }
 }

@@ -6,9 +6,9 @@ mod fuse;
 mod pinned;
 
 pub use futures::{Async, Poll};
-pub use self::invert::*;
+pub use self::invert::InvertStatus;
 pub use self::fuse::Fuse;
-pub use self::pinned::*;
+pub use self::pinned::Pinned;
 
 /// A trait for objects that behave exactly like the `Future` trait from the
 /// `futures` crate, however, each object must be polled in the context of some
@@ -81,7 +81,7 @@ pub trait EnvFuture<E: ?Sized> {
     /// Pin an environment to this future, allowing the resulting future to be
     /// polled from anywhere without needing the caller to specify an environment.
     fn pin_env(self, env: E) -> Pinned<E, Self> where E: Sized, Self: Sized {
-        Pinned::new(env, self)
+        pinned::new(self, env)
     }
 
     /// Fuse a future such that `poll` and `cancel` will never again be called
