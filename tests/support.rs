@@ -1,15 +1,33 @@
-extern crate futures;
 extern crate conch_runtime as runtime;
+extern crate futures;
+extern crate tempdir;
 
 use self::futures::{Async, Future, Poll};
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
+use self::tempdir::TempDir;
 
 // Convenience re-exports
 pub use self::runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
 pub use self::runtime::env::*;
 pub use self::runtime::error::*;
 pub use self::runtime::future::*;
+
+/// Poor man's mktmp. A macro for creating "unique" test directories.
+#[macro_export]
+macro_rules! mktmp {
+    () => {
+        mktmp_impl(concat!("test-", module_path!(), "-", line!(), "-", column!()))
+    };
+}
+
+pub fn mktmp_impl(path: &str) -> TempDir {
+    if cfg!(windows) {
+        TempDir::new(&path.replace(":", "_")).unwrap()
+    } else {
+        TempDir::new(path).unwrap()
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MockErr(bool);

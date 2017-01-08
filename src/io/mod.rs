@@ -5,70 +5,15 @@ mod file_desc_wrapper;
 #[path = "unix.rs"] mod os;
 #[cfg(windows)]
 #[path = "windows.rs"] mod os;
+mod permissions;
 
 use std::fmt;
-use std::fs;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
-use std::path;
 use std::process::Stdio;
 
-pub use self::file_desc_wrapper::*;
+pub use self::file_desc_wrapper::FileDescWrapper;
 pub use self::os::getpid;
-
-/// An indicator of the read/write permissions of an OS file primitive.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Permissions {
-    /// A file was opened for reading only.
-    Read,
-    /// A file was opened for writing only.
-    Write,
-    /// A file was opened for both reading and writing.
-    ReadWrite,
-}
-
-impl Into<fs::OpenOptions> for Permissions {
-    fn into(self) -> fs::OpenOptions {
-        let mut options = fs::OpenOptions::new();
-        match self {
-            Permissions::Read => options.read(true),
-            Permissions::Write => options.write(true).create(true).truncate(true),
-            Permissions::ReadWrite => options.read(true).write(true).create(true),
-        };
-        options
-    }
-}
-
-impl Permissions {
-    /// Checks if read permissions are granted.
-    pub fn readable(&self) -> bool {
-        match *self {
-            Permissions::Read |
-            Permissions::ReadWrite => true,
-            Permissions::Write => false,
-        }
-    }
-
-    /// Checks if write permissions are granted.
-    pub fn writable(&self) -> bool {
-        match *self {
-            Permissions::Read => false,
-            Permissions::Write |
-            Permissions::ReadWrite => true,
-        }
-    }
-
-    /// Opens permissions as a file handle.
-    pub fn open<P: AsRef<path::Path>>(self, path: P) -> Result<fs::File> {
-        let options: fs::OpenOptions = self.into();
-        options.open(path)
-    }
-}
-
-impl fmt::Display for Permissions {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{:?}", self)
-    }
-}
+pub use self::permissions::Permissions;
 
 /// A wrapper around an owned OS file primitive. The wrapper
 /// allows reading from or writing to the OS file primitive, and
@@ -239,109 +184,7 @@ mod tests {
     use std::io::{Read, Write};
     use std::path::PathBuf;
     use std::thread;
-    use std::time::Duration;
     use super::*;
-
-    #[test]
-    fn test_permissions_readable() {
-        assert_eq!(Permissions::Read.readable(), true);
-        assert_eq!(Permissions::ReadWrite.readable(), true);
-        assert_eq!(Permissions::Write.readable(), false);
-    }
-
-    #[test]
-    fn test_permissions_writable() {
-        assert_eq!(Permissions::Read.writable(), false);
-        assert_eq!(Permissions::ReadWrite.writable(), true);
-        assert_eq!(Permissions::Write.writable(), true);
-    }
-
-    #[test]
-    fn test_permissions_open_read() {
-        let msg = "hello world!\n";
-        let tempdir = mktmp!();
-
-        let mut file_path = PathBuf::new();
-        file_path.push(tempdir.path());
-        file_path.push("test_open_read");
-
-        {
-            let mut file = File::create(&file_path).unwrap();
-            file.write_all(msg.as_bytes()).unwrap();
-            file.sync_data().unwrap();
-            thread::sleep(Duration::from_millis(100));
-        }
-
-        {
-            let mut file = Permissions::Read.open(&file_path).unwrap();
-            let mut read = String::new();
-            file.read_to_string(&mut read).unwrap();
-            assert_eq!(msg, read);
-        }
-
-        tempdir.close().unwrap();
-    }
-
-    #[test]
-    fn test_permissions_open_write() {
-        let msg = "hello world!\n";
-        let tempdir = mktmp!();
-
-        let mut file_path = PathBuf::new();
-        file_path.push(tempdir.path());
-        file_path.push("test_open_write");
-
-        {
-            let mut file = Permissions::Write.open(&file_path).unwrap();
-            file.write_all(msg.as_bytes()).unwrap();
-            file.sync_data().unwrap();
-            thread::sleep(Duration::from_millis(100));
-        }
-
-        {
-            let mut file = File::open(&file_path).unwrap();
-            let mut read = String::new();
-            file.read_to_string(&mut read).unwrap();
-            assert_eq!(msg, read);
-        }
-
-        tempdir.close().unwrap();
-    }
-
-    #[test]
-    fn test_permissions_open_readwrite() {
-        let msg1 = "hello world!\n";
-        let msg2 = "goodbye world!\n";
-
-        let tempdir = mktmp!();
-
-        let mut file_path = PathBuf::new();
-        file_path.push(tempdir.path());
-        file_path.push("test_open_readwrite");
-
-        {
-            let mut file1 = Permissions::ReadWrite.open(&file_path).unwrap();
-            let mut file2 = Permissions::ReadWrite.open(&file_path).unwrap();
-
-            file1.write_all(msg1.as_bytes()).unwrap();
-            file1.sync_data().unwrap();
-            thread::sleep(Duration::from_millis(100));
-
-            let mut read = String::new();
-            file2.read_to_string(&mut read).unwrap();
-            assert_eq!(msg1, read);
-
-            file2.write_all(msg2.as_bytes()).unwrap();
-            file2.sync_data().unwrap();
-            thread::sleep(Duration::from_millis(100));
-
-            let mut read = String::new();
-            file1.read_to_string(&mut read).unwrap();
-            assert_eq!(msg2, read);
-        }
-
-        tempdir.close().unwrap();
-    }
 
     #[test]
     fn test_pipe() {
