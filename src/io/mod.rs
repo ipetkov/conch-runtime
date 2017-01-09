@@ -6,6 +6,7 @@ mod file_desc_wrapper;
 #[cfg(windows)]
 #[path = "windows.rs"] mod os;
 mod permissions;
+mod pipe;
 
 use std::fmt;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
@@ -14,6 +15,7 @@ use std::process::Stdio;
 pub use self::file_desc_wrapper::FileDescWrapper;
 pub use self::os::getpid;
 pub use self::permissions::Permissions;
+pub use self::pipe::Pipe;
 
 /// A wrapper around an owned OS file primitive. The wrapper
 /// allows reading from or writing to the OS file primitive, and
@@ -142,28 +144,6 @@ impl Seek for FileDesc {
     }
 }
 
-/// A wrapper for a reader and writer OS pipe pair.
-#[derive(Debug)]
-pub struct Pipe {
-    /// The reader end of the pipe. Anything written to the writer end can be read here.
-    pub reader: FileDesc,
-    /// The writer end of the pipe. Anything written here can be read from the reader end.
-    pub writer: FileDesc,
-}
-
-impl Pipe {
-    /// Creates and returns a new pipe pair.
-    /// On Unix systems, both file descriptors of the pipe will have their CLOEXEC flags set,
-    /// however, note that the setting of the flags is nonatomic on BSD systems.
-    pub fn new() -> Result<Pipe> {
-        let (reader, writer) = try!(os::pipe());
-        Ok(Pipe {
-            reader: FileDesc::from_inner(reader),
-            writer: FileDesc::from_inner(writer),
-        })
-    }
-}
-
 #[doc(hidden)]
 /// Duplicates handles for (stdin, stdout, stderr) and returns them in that order.
 pub fn dup_stdio() -> Result<(FileDesc, FileDesc, FileDesc)> {
@@ -185,23 +165,6 @@ mod tests {
     use std::path::PathBuf;
     use std::thread;
     use super::*;
-
-    #[test]
-    fn test_pipe() {
-        let msg = "pipe message";
-        let Pipe { mut reader, mut writer } = Pipe::new().unwrap();
-
-        let guard = thread::spawn(move || {
-            writer.write_all(msg.as_bytes()).unwrap();
-            writer.flush().unwrap();
-            drop(writer);
-        });
-
-        let mut read = String::new();
-        reader.read_to_string(&mut read).unwrap();
-        guard.join().unwrap();
-        assert_eq!(msg, read);
-    }
 
     #[test]
     fn test_file_desc_duplicate() {
