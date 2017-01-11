@@ -3,6 +3,7 @@
 use kernel32;
 use winapi;
 
+use mio_named_pipes::NamedPipe;
 use std::fmt;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result, SeekFrom};
@@ -14,6 +15,11 @@ use std::process::Stdio;
 use std::ptr;
 use std::ptr::Unique as StdUnique;
 use super::FileDesc;
+use tokio_core::reactor::{Handle, PollEvented};
+
+/// An evented version of `RawIo` that can be registered in
+/// `tokio` event loops.
+pub type EventedIo = PollEvented<NamedPipe>;
 
 // A Debug wrapper around `std::ptr::Unique`
 struct Unique<T>(StdUnique<T>);
@@ -36,12 +42,13 @@ impl fmt::Debug for Unique<HANDLE> {
 /// A wrapper around an owned Windows HANDLE. The wrapper
 /// allows reading from or write to the HANDLE, and will
 /// close it once it goes out of scope.
-#[derive(Debug, Eq)]
+#[derive(Debug)]
 pub struct RawIo {
     /// The underlying HANDLE.
     handle: Unique<HANDLE>,
 }
 
+impl Eq for RawIo {}
 impl PartialEq<RawIo> for RawIo {
     fn eq(&self, other: &RawIo) -> bool {
         **(self.handle) == **(other.handle)
@@ -171,6 +178,18 @@ impl RawIo {
             kernel32::SetFilePointerEx(self.handle.get_mut(), pos, &mut newpos, whence)
         }));
         Ok(newpos as u64)
+    }
+
+    /// Converts the file descriptor into an evented handle,
+    /// and registers it with an event loop.
+    pub fn into_evented(self, handle: &Handle) -> Result<EventedIo> {
+        // On Windows anonymous pipes are implemented as named pipes
+        // with unique names, thus as long as our handle came from
+        // `kernel32::CreatePipe`, this conversion should work just fine
+        //
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/aa365141(v=vs.85).aspx
+        let named_pipe = unsafe { NamedPipe::from_raw_handle(self.into_inner()) };
+        PollEvented::new(named_pipe, handle)
     }
 }
 

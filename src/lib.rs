@@ -16,15 +16,18 @@
 
 // Unix only libs
 #[cfg(unix)] extern crate libc;
+#[cfg(unix)] extern crate mio;
 
 // Windows only libs
 #[cfg(windows)] extern crate kernel32;
+#[cfg(windows)] extern crate mio_named_pipes;
 #[cfg(windows)] extern crate winapi;
 
 extern crate conch_parser as syntax;
 #[macro_use] extern crate futures;
 extern crate glob;
 #[macro_use] extern crate lazy_static;
+extern crate tokio_core;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[cfg(test)]
