@@ -1,6 +1,5 @@
 //! Defines interfaces and methods for doing OS agnostic file IO operations.
 
-mod evented;
 mod file_desc_wrapper;
 #[cfg(unix)]
 #[path = "unix.rs"] mod os;
@@ -12,9 +11,7 @@ mod pipe;
 use std::fmt;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 use std::process::Stdio;
-use tokio_core::reactor::Handle;
 
-pub use self::evented::EventedFileDesc;
 pub use self::file_desc_wrapper::FileDescWrapper;
 pub use self::os::getpid;
 pub use self::permissions::Permissions;
@@ -106,15 +103,6 @@ impl FileDesc {
         UnsafeWriter {
             fd: self,
         }
-    }
-
-    /// Registers the underlying primitive OS handle with a `tokio` event loop.
-    ///
-    /// The resulting type is "futures" aware meaning that it is (a) nonblocking,
-    /// (b) will notify the appropriate task when data is ready to be read or written
-    /// and (c) will panic if use off of a future's task.
-    pub fn into_evented(self, handle: &Handle) -> Result<EventedFileDesc> {
-        self.0.into_evented(handle).map(evented::new)
     }
 
     fn inner(&self) -> &os::RawIo {

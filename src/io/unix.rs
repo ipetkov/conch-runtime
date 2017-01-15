@@ -1,19 +1,12 @@
 //! Defines interfaces and methods for doing IO operations on UNIX file descriptors.
 
 use libc::{self, c_void, size_t};
-use mio::{Evented, Poll, PollOpt, Ready, Token};
-use mio::unix::EventedFd;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Result, SeekFrom, Write};
 use std::mem;
 use std::os::unix::io::{RawFd, AsRawFd, FromRawFd, IntoRawFd};
 use std::process::Stdio;
 use super::FileDesc;
-use tokio_core::reactor::{Handle, PollEvented};
-
-/// An evented version of `RawIo` that can be registered in
-/// `tokio` event loops.
-pub type EventedIo = PollEvented<RawIo>;
 
 /// A wrapper around an owned UNIX file descriptor. The wrapper
 /// allows reading from or write to the descriptor, and will
@@ -133,12 +126,6 @@ impl RawIo {
             cvt_r(|| libc::fcntl(self.fd, libc::F_SETFD, new_flags)).map(|_| ())
         }
     }
-
-    /// Converts the file descriptor into an evented handle,
-    /// and registers it with an event loop.
-    pub fn into_evented(self, handle: &Handle) -> Result<EventedIo> {
-        PollEvented::new(self, handle)
-    }
 }
 
 impl Drop for RawIo {
@@ -166,20 +153,6 @@ impl Write for RawIo {
 
     fn flush(&mut self) -> Result<()> {
         self.flush_inner()
-    }
-}
-
-impl Evented for RawIo {
-    fn register(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {
-        EventedFd(&self.fd).register(poll, token, interest, opts)
-    }
-
-    fn reregister(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {
-        EventedFd(&self.fd).reregister(poll, token, interest, opts)
-    }
-
-    fn deregister(&self, poll: &Poll) -> Result<()> {
-        EventedFd(&self.fd).deregister(poll)
     }
 }
 

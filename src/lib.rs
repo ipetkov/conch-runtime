@@ -20,7 +20,6 @@
 
 // Windows only libs
 #[cfg(windows)] extern crate kernel32;
-#[cfg(windows)] extern crate mio_named_pipes;
 #[cfg(windows)] extern crate winapi;
 
 extern crate conch_parser as syntax;
@@ -48,6 +47,7 @@ pub mod error;
 pub mod new_eval; // FIXME: rename to `eval` when `runtime::eval` fully deprecated
 pub mod future;
 pub mod io;
+pub mod os;
 pub mod spawn;
 
 mod ref_counted;

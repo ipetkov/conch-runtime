@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 extern crate conch_runtime;
 extern crate tokio_core;
 
@@ -42,10 +45,11 @@ impl<R: Read> Read for TimesRead<R> {
     }
 }
 
-// FIXME: Currently doesn't work on Windows, anonymous pipes do not support overlapped operations
-#[cfg_attr(windows, ignore)]
 #[test]
+#[cfg(unix)]
 fn evented_is_async() {
+    use conch_runtime::os::unix::io::FileDescExt;
+
     let msg = "hello world";
 
     let Pipe { reader, mut writer } = Pipe::new().expect("failed to create pipe");
