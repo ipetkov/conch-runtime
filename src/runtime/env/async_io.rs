@@ -13,12 +13,15 @@ pub trait AsyncIoEnvironment {
     /// An async/futures-aware `Read` adapter around a `FileDesc`.
     type Read: Read;
     /// An future that represents writing data into a `FileDesc`.
-    type WriteAll: Future<Item = (), Error = Self::Error>;
-    /// An error that may arise during any operation or conversion.
-    type Error;
+    // FIXME: Unfortunately we cannot support resolving/unwrapping futures/adapters
+    // to the `FileDesc` since the Unix extension cannot (currently) support it.
+    // Thus having some impls resolve to the FileDesc and others not could cause
+    // weird deadlock issues (e.g. caller unaware the handle isn't getting dropped
+    // automatically).
+    type WriteAll: Future<Item = (), Error = IoError>;
 
     /// Creates a futures-aware adapter to read data from a `FileDesc` asynchronously.
-    fn read_async(&mut self, fd: FileDesc) -> Self::Read;
+    fn read_async(&mut self, fd: FileDesc) -> Result<Self::Read>;
 
     /// Creates a future for writing data into a `FileDesc`.
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll;
@@ -27,9 +30,8 @@ pub trait AsyncIoEnvironment {
 impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
     type Read = T::Read;
     type WriteAll = T::WriteAll;
-    type Error = T::Error;
 
-    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+    fn read_async(&mut self, fd: FileDesc) -> Result<Self::Read> {
         (**self).read_async(fd)
     }
 
@@ -146,10 +148,9 @@ impl Read for AsyncRead {
 
 impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     type Read = AsyncRead;
-    type WriteAll = CpuFuture<(), Self::Error>;
-    type Error = IoError;
+    type WriteAll = CpuFuture<(), IoError>;
 
-    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+    fn read_async(&mut self, fd: FileDesc) -> Result<Self::Read> {
         let (mut tx, rx) = channel(0); // NB: we have a guaranteed slot for all senders
 
         let cpu = self.pool.spawn_fn(move || {
@@ -188,11 +189,11 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
             Ok(())
         });
 
-        AsyncRead {
+        Ok(AsyncRead {
             _cpu_future: cpu,
             rx: rx.fuse(),
             buf: None,
-        }
+        })
     }
 
     fn write_all(&mut self, mut fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
