@@ -1,3 +1,4 @@
+use env::SubEnvironment;
 use futures::{Async, Future, Sink, Stream};
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
@@ -55,6 +56,12 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
 #[derive(Clone)]
 pub struct ThreadPoolAsyncIoEnv {
     pool: CpuPool, // CpuPool uses an internal Arc, so clones should be shallow/"cheap"
+}
+
+impl SubEnvironment for ThreadPoolAsyncIoEnv {
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
 }
 
 impl ThreadPoolAsyncIoEnv {

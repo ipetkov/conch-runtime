@@ -1,5 +1,5 @@
 use io::FileDesc;
-use env::AsyncIoEnvironment;
+use env::{AsyncIoEnvironment, SubEnvironment};
 use futures::{Async, Future, Poll};
 use os::unix::io::{EventedFileDesc, FileDescExt};
 use tokio_core::io as tokio_io;
@@ -18,6 +18,12 @@ use std::io::{Error as IoError, Result};
 pub struct EventedAsyncIoEnv {
     /// Handle to a tokio event loop for registering file descriptors.
     handle: Handle,
+}
+
+impl SubEnvironment for EventedAsyncIoEnv {
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
 }
 
 impl fmt::Debug for EventedAsyncIoEnv {
