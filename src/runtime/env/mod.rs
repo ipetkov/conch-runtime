@@ -22,7 +22,7 @@ mod reversible_redirect;
 mod string_wrapper;
 mod var;
 
-pub use self::async_io::{AsyncIoEnvironment, AsyncRead, ThreadPoolAsyncIoEnv};
+pub use self::async_io::{AsyncIoEnvironment, ReadAsync, ThreadPoolAsyncIoEnv};
 pub use self::args::*;
 pub use self::fd::*;
 pub use self::func::*;

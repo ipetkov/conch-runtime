@@ -16,7 +16,7 @@ fn async_io_thread_pool_smoke() {
 
     let write_future = pool.write_all(pipe.writer, msg.as_bytes().to_owned());
 
-    let read_async = pool.read_async(pipe.reader).expect("read_async failed");
+    let read_async = pool.read_async(pipe.reader);
     let read_future = read_to_end(read_async, vec!())
         .and_then(|(_, data)| Ok(data));
 
@@ -34,11 +34,11 @@ fn evented_io_env_smoke() {
 
     let pipe = Pipe::new().expect("failed to create pipe");
     let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = EventedAsyncIoEnv::new(lp.handle());
+    let mut env = EventedAsyncIoEnv::new(lp.remote());
 
     let write_future = env.write_all(pipe.writer, msg.as_bytes().to_owned());
 
-    let read_async = env.read_async(pipe.reader).expect("read_async failed");
+    let read_async = env.read_async(pipe.reader);
     let read_future = read_to_end(read_async, vec!())
         .and_then(|(_, data)| Ok(data));
 

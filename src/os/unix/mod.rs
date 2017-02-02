@@ -1,6 +1,6 @@
 //! Extensions and implementations specific to Unix platforms.
 
-mod evented_env;
+mod async_io;
 mod fd_ext;
 
 /// Unix-specific extensions around general I/O.
@@ -10,5 +10,5 @@ pub mod io {
 
 /// Unix-specific environment extensions
 pub mod env {
-    pub use super::evented_env::EventedAsyncIoEnv;
+    pub use super::async_io::{EventedAsyncIoEnv, ReadAsync, WriteAll};
 }

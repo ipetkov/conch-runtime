@@ -22,7 +22,7 @@ pub trait AsyncIoEnvironment {
     type WriteAll: Future<Item = (), Error = IoError>;
 
     /// Creates a futures-aware adapter to read data from a `FileDesc` asynchronously.
-    fn read_async(&mut self, fd: FileDesc) -> Result<Self::Read>;
+    fn read_async(&mut self, fd: FileDesc) -> Self::Read;
 
     /// Creates a future for writing data into a `FileDesc`.
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll;
@@ -32,7 +32,7 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
     type Read = T::Read;
     type WriteAll = T::WriteAll;
 
-    fn read_async(&mut self, fd: FileDesc) -> Result<Self::Read> {
+    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
         (**self).read_async(fd)
     }
 
@@ -93,7 +93,7 @@ impl fmt::Debug for ThreadPoolAsyncIoEnv {
 ///
 /// Note that this type is also "futures aware" meaning that it is both
 /// (a) nonblocking and (b) will panic if used off of a future's task.
-pub struct AsyncRead {
+pub struct ReadAsync {
     /// A reference to the CpuFuture to avoid early cancellation.
     _cpu_future: CpuFuture<(), Void>,
     /// A receiver for fetching additional buffers of data.
@@ -102,15 +102,15 @@ pub struct AsyncRead {
     buf: Option<Vec<u8>>,
 }
 
-impl fmt::Debug for AsyncRead {
+impl fmt::Debug for ReadAsync {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("AsyncRead")
+        fmt.debug_struct("ReadAsync")
             .field("buf", &self.buf)
             .finish()
     }
 }
 
-impl Read for AsyncRead {
+impl Read for ReadAsync {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
         loop {
             match self.buf {
@@ -154,10 +154,10 @@ impl Read for AsyncRead {
 }
 
 impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
-    type Read = AsyncRead;
+    type Read = ReadAsync;
     type WriteAll = CpuFuture<(), IoError>;
 
-    fn read_async(&mut self, fd: FileDesc) -> Result<Self::Read> {
+    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
         let (mut tx, rx) = channel(0); // NB: we have a guaranteed slot for all senders
 
         let cpu = self.pool.spawn_fn(move || {
@@ -170,6 +170,8 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
                             break;
                         }
 
+                        // FIXME: might be more efficient to pass around the same vec
+                        // via two channels than allocating new copies each time?
                         let buf = Vec::from(filled_buf);
                         let len = buf.len();
 
@@ -196,11 +198,11 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
             Ok(())
         });
 
-        Ok(AsyncRead {
+        ReadAsync {
             _cpu_future: cpu,
             rx: rx.fuse(),
             buf: None,
-        })
+        }
     }
 
     fn write_all(&mut self, mut fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
