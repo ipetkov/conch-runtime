@@ -153,6 +153,7 @@ impl Write for WriteAsync {
 ///
 /// Created by the `EventedAsyncIoEnv::write_all` method.
 #[allow(missing_debug_implementations)]
+#[must_use = "futures do nothing unless polled"]
 pub struct WriteAll(tokio_io::WriteAll<WriteAsync, Vec<u8>>);
 
 impl Future for WriteAll {

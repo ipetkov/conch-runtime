@@ -13,7 +13,6 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::rc::Rc;
 
-mod async_io;
 mod args;
 mod fd;
 mod func;
@@ -22,7 +21,7 @@ mod string_wrapper;
 mod var;
 
 pub use new_env::ReversibleRedirectWrapper;
-pub use self::async_io::{AsyncIoEnvironment, ReadAsync, ThreadPoolAsyncIoEnv};
+pub use new_env::{AsyncIoEnvironment, ReadAsync, ThreadPoolAsyncIoEnv};
 pub use self::args::*;
 pub use self::fd::*;
 pub use self::func::*;
