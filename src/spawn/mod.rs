@@ -8,11 +8,14 @@ mod and_or;
 mod command;
 mod listable;
 mod sequence;
+mod subshell;
 
-pub use self::and_or::*;
-pub use self::command::*;
-pub use self::listable::*;
-pub use self::sequence::*;
+pub use self::and_or::AndOrListEnvFuture;
+pub use self::command::CommandEnvFuture;
+pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
+                         PinnedFlattenedFuture, Pipeline};
+pub use self::sequence::{Sequence, sequence};
+pub use self::subshell::{Subshell, subshell};
 
 /// A trait for spawning commands into an `EnvFuture` which can be
 /// polled to completion.
