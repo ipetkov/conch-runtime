@@ -1,11 +1,13 @@
 extern crate conch_runtime as runtime;
 extern crate futures;
 extern crate tempdir;
+extern crate void;
 
 use self::futures::{Async, Future, Poll};
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
+use self::void::{unreachable, Void};
 
 // Convenience re-exports
 pub use self::runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
@@ -59,6 +61,12 @@ impl From<RuntimeError> for MockErr {
 impl From<::std::io::Error> for MockErr {
     fn from(_: ::std::io::Error) -> Self {
         MockErr(false)
+    }
+}
+
+impl From<Void> for MockErr {
+    fn from(void: Void) -> Self {
+        unreachable(void)
     }
 }
 

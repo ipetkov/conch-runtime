@@ -5,6 +5,7 @@ use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future, FutureResult, ok};
 use spawn::{Sequence, sequence};
 use std::fmt;
+use void::Void;
 
 /// A future that represents the sequential execution of commands in a subshell
 /// environment.
@@ -35,24 +36,25 @@ impl<E, I> fmt::Debug for Subshell<E, I>
     }
 }
 
-impl<E, I> Future for Subshell<E, I>
+impl<E, I, S> Future for Subshell<E, I>
     where E: FileDescEnvironment + LastStatusEnvironment,
-          I: Iterator,
-          I::Item: Spawn<E>,
-          <I::Item as Spawn<E>>::Error: IsFatalError,
+          I: Iterator<Item = S>,
+          S: Spawn<E>,
+          S::Error: IsFatalError,
 {
-    type Item = Either<<I::Item as Spawn<E>>::Future, FutureResult<ExitStatus, Self::Error>>;
-    type Error = <I::Item as Spawn<E>>::Error;
+    type Item = Either<S::Future, FutureResult<ExitStatus, S::Error>>;
+    type Error = Void;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.inner.poll(&mut self.env) {
+            Ok(Async::Ready(exit)) => Ok(Async::Ready(exit)),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(err) => {
                 self.env.report_error(&err);
                 let exit = self.env.last_status();
                 debug_assert_eq!(exit.success(), false);
                 Ok(Async::Ready(Either::B(ok(exit))))
-            }
-            ret => ret,
+            },
         }
     }
 }

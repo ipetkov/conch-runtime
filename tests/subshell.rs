@@ -1,5 +1,8 @@
 extern crate conch_runtime;
 extern crate futures;
+extern crate void;
+
+use void::Void;
 
 use conch_runtime::error::IsFatalError;
 use conch_runtime::spawn::subshell;
@@ -11,7 +14,7 @@ pub use self::support::*;
 fn run_subshell<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc>>::Error>
     where I: IntoIterator,
           I::Item: Spawn<DefaultEnvRc>,
-          <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
+          <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError + From<Void>
 {
     let env = DefaultEnvRc::new();
     subshell(cmds, &env)

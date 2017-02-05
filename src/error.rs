@@ -10,6 +10,7 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use super::Fd;
+use void;
 
 /// A macro that accepts a `Result<ExitStatus, _>` and attempts
 /// to unwrap it much like `try!`. If the result is a "fatal" error the macro
@@ -59,6 +60,12 @@ pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, 
 pub trait IsFatalError: Error {
     /// Checks whether the error should be considered a "fatal" error.
     fn is_fatal(&self) -> bool;
+}
+
+impl IsFatalError for void::Void {
+    fn is_fatal(&self) -> bool {
+        void::unreachable(*self)
+    }
 }
 
 /// An error which may arise during parameter expansion.
