@@ -7,6 +7,7 @@ use io::FileDesc;
 use mio::would_block;
 use std::io::{BufRead, BufReader, Error as IoError, ErrorKind, Read, Result, Write};
 use std::fmt;
+use tokio_core::reactor::Remote;
 use void::Void;
 
 /// An environment for performing async operations on `FileDesc` handles.
@@ -38,6 +39,85 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
 
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
         (**self).write_all(fd, data)
+    }
+}
+
+/// A platform specific adapter for async reads from a `FileDesc`.
+///
+/// Note that this type is also "futures aware" meaning that it is both
+/// (a) nonblocking and (b) will panic if used off of a future's task.
+#[cfg(unix)]
+pub type PlatformSpecificRead = ::os::unix::env::ReadAsync;
+
+/// A platform specific future that will write some data to a `FileDesc`.
+///
+/// Created by the `EventedAsyncIoEnv::write_all` method.
+#[cfg(unix)]
+pub type PlatformSpecificWriteAll = ::os::unix::env::WriteAll;
+
+/// A platform specific adapter for async reads from a `FileDesc`.
+///
+/// Note that this type is also "futures aware" meaning that it is both
+/// (a) nonblocking and (b) will panic if used off of a future's task.
+#[cfg(not(unix))]
+pub type PlatformSpecificRead = ReadAsync;
+
+/// A platform specific future that will write some data to a `FileDesc`.
+///
+/// Created by the `EventedAsyncIoEnv::write_all` method.
+#[cfg(not(unix))]
+pub type PlatformSpecificWriteAll = CpuFuture<(), IoError>;
+
+/// A platform specific environment efficiently using a `tokio` event loop,
+/// if the current platform supports efficient async IO, or a `ThreadPoolAsyncIoEnv`
+/// otherwise.
+#[derive(Debug, Clone)]
+pub struct PlatformSpecificAsyncIoEnv {
+    #[cfg(unix)]
+    inner: ::os::unix::env::EventedAsyncIoEnv,
+    #[cfg(not(unix))]
+    inner: ThreadPoolAsyncIoEnv,
+}
+
+impl PlatformSpecificAsyncIoEnv {
+    /// Creates a new platform specific environment using a `tokio` event loop,
+    /// if such an environment is supported on the current platform.
+    ///
+    /// Otherwise, we will fall back to to a `ThreadPoolAsyncIoEnv` with the
+    /// specified number of threads.
+    pub fn new(remote: Remote, fallback_num_threads: usize) -> Self {
+        #[cfg(unix)]
+        let get_inner = |remote: Remote, _: usize| {
+            ::os::unix::env::EventedAsyncIoEnv::new(remote)
+        };
+
+        #[cfg(not(unix))]
+        let get_inner = |_: Remote, num_threads| {
+            ThreadPoolAsyncIoEnv::new(num_threads)
+        };
+
+        PlatformSpecificAsyncIoEnv {
+            inner: get_inner(remote, fallback_num_threads),
+        }
+    }
+}
+
+impl SubEnvironment for PlatformSpecificAsyncIoEnv {
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl AsyncIoEnvironment for PlatformSpecificAsyncIoEnv {
+    type Read = PlatformSpecificRead;
+    type WriteAll = PlatformSpecificWriteAll;
+
+    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+        self.inner.read_async(fd)
+    }
+
+    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+        self.inner.write_all(fd, data)
     }
 }
 
