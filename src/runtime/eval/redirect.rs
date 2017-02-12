@@ -163,9 +163,9 @@ mod tests {
 
     use io::{FileDesc, Permissions};
     use runtime::{Fd, STDIN_FILENO, STDOUT_FILENO};
-    use runtime::env::{DefaultEnvConfig, Env, EnvConfig, FileDescEnv, FileDescEnvironment,
+    use runtime::env::{Env, EnvConfig, FileDescEnv, FileDescEnvironment,
                        IsInteractiveEnvironment};
-    use runtime::tests::{MockWord, word};
+    use runtime::tests::{DefaultEnvConfig, MockWord, word};
     use self::tempdir::TempDir;
     use std::fs::File;
     use std::io::{Read as IoRead, Write as IoWrite};

@@ -1,12 +1,14 @@
 extern crate conch_runtime as runtime;
 extern crate futures;
 extern crate tempdir;
+extern crate tokio_core;
 extern crate void;
 
 use self::futures::{Async, Future, Poll};
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
+use self::tokio_core::reactor::Core;
 use self::void::{unreachable, Void};
 
 // Convenience re-exports
@@ -170,11 +172,13 @@ impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
 
 /// Spawns and syncronously runs the provided command to completion.
 pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
-    let env = DefaultEnvRc::new();
-    cmd.spawn(&env)
+    let mut lp = Core::new().expect("failed to create Core loop");
+    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let future = cmd.spawn(&env)
         .pin_env(env)
-        .flatten()
-        .wait()
+        .flatten();
+
+    lp.run(future)
 }
 
 /// Spawns the provided command and polls it a single time to give it a
@@ -183,7 +187,8 @@ pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
 /// It is up to the caller to set up the command in a way that failure to
 /// propagate cancel messages results in a panic.
 pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
-    let mut env = DefaultEnvRc::new();
+    let lp = Core::new().expect("failed to create Core loop");
+    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
     let mut env_future = cmd.spawn(&env);
     let _ = env_future.poll(&mut env); // Give a chance to init things
     env_future.cancel(&mut env); // Cancel the operation

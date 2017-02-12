@@ -84,16 +84,20 @@ impl PlatformSpecificAsyncIoEnv {
     /// if such an environment is supported on the current platform.
     ///
     /// Otherwise, we will fall back to to a `ThreadPoolAsyncIoEnv` with the
-    /// specified number of threads.
-    pub fn new(remote: Remote, fallback_num_threads: usize) -> Self {
+    /// specified number of threads. If `None` is specified, we'll use one
+    /// thread per CPU.
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
         #[cfg(unix)]
-        let get_inner = |remote: Remote, _: usize| {
+        let get_inner = |remote: Remote, _: Option<usize>| {
             ::os::unix::env::EventedAsyncIoEnv::new(remote)
         };
 
         #[cfg(not(unix))]
         let get_inner = |_: Remote, num_threads| {
-            ThreadPoolAsyncIoEnv::new(num_threads)
+            num_threads.map_or_else(
+                || ThreadPoolAsyncIoEnv::new_num_cpus(),
+                ThreadPoolAsyncIoEnv::new
+            )
         };
 
         PlatformSpecificAsyncIoEnv {

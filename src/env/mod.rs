@@ -4,5 +4,7 @@
 mod async_io;
 mod reversible_redirect;
 
-pub use self::async_io::{AsyncIoEnvironment, ReadAsync, ThreadPoolAsyncIoEnv};
+pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
+                         PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
+                         ThreadPoolAsyncIoEnv};
 pub use self::reversible_redirect::ReversibleRedirectWrapper;

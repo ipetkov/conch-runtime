@@ -10,7 +10,7 @@ pub use self::support::*;
 #[test]
 fn smoke() {
     let exit = ExitStatus::Code(42);
-    let env = DefaultEnvRc::new();
+    let env = LastStatusEnv::new();
     let future = mock_status(exit).pin_env(env).flatten();
     assert_eq!(future.wait(), Ok(exit));
 }

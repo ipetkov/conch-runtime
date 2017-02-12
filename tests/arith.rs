@@ -3,7 +3,7 @@ extern crate conch_runtime as runtime;
 
 use runtime::error::ExpansionError;
 use runtime::eval::ArithEval;
-use runtime::env::{Env, VariableEnvironment};
+use runtime::env::{VarEnv, VariableEnvironment};
 use syntax::ast::Arithmetic;
 
 #[test]
@@ -15,8 +15,7 @@ fn test_eval_arith() {
         Box::new(Literal(i))
     }
 
-    let mut env = Env::new();
-    let env = &mut env;
+    let env = &mut VarEnv::new();
     let var = "var name".to_owned();
     let var_value = 10;
     let var_string = "var string".to_owned();

@@ -448,6 +448,48 @@ mod tests {
     use std::rc::Rc;
     use std::thread;
 
+    #[derive(Debug, Default, Copy, Clone)]
+    pub struct DummySubenv;
+    impl SubEnvironment for DummySubenv {
+        fn sub_env(&self) -> Self {
+            *self
+        }
+    }
+
+    pub type DefaultEnvConfig<T> = EnvConfig<
+        ArgsEnv<T>,
+        DummySubenv,
+        FileDescEnv<Rc<FileDesc>>,
+        LastStatusEnv,
+        VarEnv<T, T>,
+        T
+    >;
+
+    pub type DefaultEnv<T> = Env<
+        ArgsEnv<T>,
+        DummySubenv,
+        FileDescEnv<Rc<FileDesc>>,
+        LastStatusEnv,
+        VarEnv<T, T>,
+        T
+    >;
+
+    impl<T> DefaultEnv<T> where T: Eq + ::std::hash::Hash + From<String> {
+        pub fn new_test_env() -> Self {
+            let cfg = EnvConfig {
+                interactive: false,
+                args_env: Default::default(),
+                async_io_env: DummySubenv,
+                file_desc_env: Default::default(),
+                last_status_env: Default::default(),
+                var_env: Default::default(),
+                fn_name: ::std::marker::PhantomData,
+            };
+
+            cfg.into()
+        }
+    }
+
     use syntax::ast::{CommandList, Parameter, Redirect};
     use syntax::ast::Command::*;
     use syntax::ast::CompoundCommandKind::*;
@@ -539,8 +581,8 @@ mod tests {
         }
     }
 
-    impl Run<DefaultEnvRc> for Command {
-        fn run(&self, env: &mut DefaultEnvRc) -> Result<ExitStatus> {
+    impl Run<DefaultEnv<Rc<String>>> for Command {
+        fn run(&self, env: &mut DefaultEnv<Rc<String>>) -> Result<ExitStatus> {
             self.0.run(env)
         }
     }
@@ -616,12 +658,12 @@ mod tests {
     fn test_error_handling_non_fatals<F>(swallow_errors: bool,
                                          test: F,
                                          ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnv<Rc<String>>) -> Result<ExitStatus>
     {
         // We'll be printing a lot of errors, so we'll suppress actually printing
         // to avoid polluting the output of the test runner.
         // NB: consider removing this line when debugging
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_file_desc(STDERR_FILENO, Rc::new(dev_null()), Permissions::Write);
 
         run_test!(swallow_errors, test, env, ok_status,
@@ -638,14 +680,14 @@ mod tests {
     fn test_error_handling_fatals<F>(swallow_fatals: bool,
                                      test: F,
                                      ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnv<Rc<String>>) -> Result<ExitStatus>
     {
         use syntax::ast::DefaultParameter;
 
         // We'll be printing a lot of errors, so we'll suppress actually printing
         // to avoid polluting the output of the test runner.
         // NB: consider removing this line when debugging
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_file_desc(STDERR_FILENO, Rc::new(dev_null()), Permissions::Write);
 
         const AT: DefaultParameter = Parameter::At;
@@ -660,7 +702,7 @@ mod tests {
 
     /// For exhaustively testing against handling of different error types
     pub fn test_error_handling<F>(swallow_errors: bool, test: F, ok_status: Option<ExitStatus>)
-        where F: Fn(SimpleCommand, DefaultEnvRc) -> Result<ExitStatus>
+        where F: Fn(SimpleCommand, DefaultEnv<Rc<String>>) -> Result<ExitStatus>
     {
         test_error_handling_non_fatals(swallow_errors, &test, ok_status);
         test_error_handling_fatals(false, test, ok_status);
@@ -685,7 +727,7 @@ mod tests {
         use syntax::ast::AndOr::*;
         use syntax::ast::AndOrList;
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         let should_not_run = "should not run";
         env.set_function(should_not_run.to_owned().into(), MockFn::new(|_| {
             panic!("ran command that should not be run")
@@ -870,7 +912,7 @@ mod tests {
     #[test]
     fn test_run_pipeable_command_function_declaration() {
         let fn_name = "function_name";
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         let func: PipeableCommand = FunctionDef(fn_name.to_owned(), Rc::new(CompoundCommand {
             kind: Brace(vec!(false_cmd())),
             io: vec!(),
@@ -1064,7 +1106,7 @@ mod tests {
         let file = TopLevelWord(Single(Simple(Literal(file))));
         let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
 
         let compound = DefaultCompoundCommand {
             kind: Brace(vec!()),
@@ -1116,7 +1158,7 @@ mod tests {
         let value = value.display().to_string();
         let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
 
         let compound = DefaultCompoundCommand {
             kind: Brace(vec!()),
@@ -1201,7 +1243,7 @@ mod tests {
     fn test_run_command_compound_kind_loop() {
         use syntax::ast::GuardBodyPair;
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         let should_not_run = "should not run";
         env.set_function(should_not_run.to_owned().into(), MockFn::new(|_| {
             panic!("ran command that should not be run")
@@ -1339,7 +1381,7 @@ mod tests {
         {
             let var = var.clone();
             let result_var = result_var.clone();
-            env.set_function(fn_body.to_owned().into(), MockFn::new::<DefaultEnvRc>(move |mut env| {
+            env.set_function(fn_body.to_owned().into(), MockFn::new::<DefaultEnv<Rc<String>>>(move |mut env| {
                 let mut result = env.var(&result_var).unwrap().clone();
                 result.make_mut().push_str(env.var(&var).unwrap().as_str());
                 env.set_var(result_var.clone(), result.into());
@@ -1378,7 +1420,7 @@ mod tests {
             let compound: CompoundCommandKind = For {
                 var: "var".to_owned(),
                 words: Some(vec!(MockWord::Error(Rc::new(move || {
-                    let mut env = DefaultEnvRc::new(); // Env not important here
+                    let mut env = DefaultEnv::<Rc<String>>::new_test_env(); // Env not important here
                     cmd.run(&mut env).unwrap_err()
                 })))),
                 body: vec!(),
@@ -1411,7 +1453,7 @@ mod tests {
         let cmd_should_not_run = cmd!(fn_name_should_not_run);
         let cmd_exit = exit(42);
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_function(fn_name_should_not_run.to_owned().into(), MockFn::new(|_| {
             panic!("ran command that should not be run")
         }));
@@ -1453,7 +1495,7 @@ mod tests {
 
     #[test]
     fn test_run_compound_command_kind_if_malformed() {
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
 
         let compound: CompoundCommandKind = If {
             conditionals: vec!(),
@@ -1525,7 +1567,7 @@ mod tests {
 
     #[test]
     fn test_run_compound_command_kind_subshell() {
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         let compound: CompoundCommandKind = Subshell(vec!(exit(5), exit(42)));
         assert_eq!(compound.run(&mut env), Ok(ExitStatus::Code(42)));
     }
@@ -1536,7 +1578,7 @@ mod tests {
         let var_value = Rc::new("value".to_owned());
         let fn_check_vars = "fn_check_vars";
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_var(var_name.clone(), var_value.clone());
 
         env.set_function(fn_check_vars.to_owned().into(), MockFn::new::<DefaultEnv<_>>(move |env| {
@@ -1554,7 +1596,7 @@ mod tests {
         let child_value = Rc::new("child-value".to_owned());
         let fn_check_vars = "fn_check_vars";
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_var(parent_name.clone(), parent_value.clone());
 
         {
@@ -1593,7 +1635,7 @@ mod tests {
         let fn_name_default = "fn_name_default";
         let default_exit_code = 10;
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
 
         // Subshells should inherit function definitions
         env.set_function(fn_name_default.to_owned().into(), MockFn::new(move |_| {
@@ -1611,7 +1653,7 @@ mod tests {
         let parent_exit_code = 5;
         let override_exit_code = 42;
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
 
         // Defining a new function within subshell should disappear
         let compound: CompoundCommandKind = Subshell(vec!(
@@ -1653,7 +1695,7 @@ mod tests {
 
         let guard = thread::spawn(move || {
             let target_fd = 5;
-            let mut env = Env::new();
+            let mut env = Env::new_test_env();
             let writer = Rc::new(writer);
             env.set_file_desc(target_fd, writer.clone(), Permissions::Write);
 
@@ -1695,7 +1737,7 @@ mod tests {
             let change_writer = Rc::new(change_writer);
             let parent_writer = Rc::new(parent_writer);
 
-            let mut env = Env::new();
+            let mut env = Env::new_test_env();
             env.set_file_desc(target_fd, parent_writer.clone(), Permissions::Write);
 
             {
@@ -1788,7 +1830,7 @@ mod tests {
         let status = 42;
         let should_not_run = "should not run";
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_function(should_not_run.to_owned().into(), MockFn::new(|_| {
             panic!("ran command that should not be run")
         }));
@@ -1825,7 +1867,7 @@ mod tests {
         test_error_handling(false, |cmd, mut env| {
             let compound: CompoundCommandKind = Case {
                 word: MockWord::Error(Rc::new(move || {
-                    let mut env = DefaultEnvRc::new(); // Env not important here
+                    let mut env = DefaultEnv::<Rc<String>>::new_test_env(); // Env not important here
                     cmd.run(&mut env).unwrap_err()
                 })),
                 arms: vec!(),
@@ -1841,7 +1883,7 @@ mod tests {
                 word: word("foo"),
                 arms: vec!(PatternBodyPair {
                     patterns: vec!(MockWord::Error(Rc::new(move || {
-                        let mut env = DefaultEnv::<Rc<String>>::new(); // Env not important here
+                        let mut env = DefaultEnv::<Rc<String>>::new_test_env(); // Env not important here
                         cmd.run(&mut env).unwrap_err()
                     }))),
                     body: vec!(),

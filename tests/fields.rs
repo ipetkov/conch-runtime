@@ -1,7 +1,7 @@
 extern crate conch_runtime as runtime;
 
 use runtime::new_eval::Fields::*;
-use runtime::env::{DefaultEnv, VariableEnvironment, UnsetVariableEnvironment};
+use runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 
 #[test]
 fn test_fields_is_null() {
@@ -55,7 +55,7 @@ fn test_fields_join_with_ifs() {
         "bar".to_owned(),
     );
 
-    let mut env = DefaultEnv::new();
+    let mut env = VarEnv::new();
 
     env.set_var(ifs.clone(), "!".to_owned());
     assert_eq!(Zero::<String>.join_with_ifs(&env), "");
@@ -122,7 +122,7 @@ fn test_fields_into_iter() {
 
 #[test]
 fn test_eval_parameter_substitution_splitting_default_ifs() {
-    let mut env = DefaultEnv::<String>::new();
+    let mut env = VarEnv::<String, String>::new();
     env.unset_var("IFS");
 
     // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
@@ -136,7 +136,7 @@ fn test_eval_parameter_substitution_splitting_default_ifs() {
 
 #[test]
 fn test_splitting_with_custom_ifs() {
-    let mut env = DefaultEnv::new();
+    let mut env = VarEnv::new();
     env.set_var("IFS".to_owned(), "0 ".to_owned());
 
     // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
@@ -161,7 +161,7 @@ fn test_splitting_with_custom_ifs() {
 
 #[test]
 fn test_no_splitting_if_ifs_blank() {
-    let mut env = DefaultEnv::new();
+    let mut env = VarEnv::new();
     env.set_var("IFS".to_owned(), "".to_owned());
 
     let fields = Single(" \t\nfoo \t\nbar \t\n".to_owned());

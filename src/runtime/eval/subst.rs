@@ -338,9 +338,9 @@ mod tests {
     use glob;
     use error::{ExpansionError, RuntimeError};
     use runtime::{ExitStatus, EXIT_SUCCESS, Result, Run};
-    use runtime::env::{ArgsEnv, DefaultEnv, Env, EnvConfig,
-                       LastStatusEnvironment, VariableEnvironment};
+    use runtime::env::{ArgsEnv, Env, LastStatusEnvironment, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+    use runtime::tests::{DefaultEnv, DefaultEnvConfig};
     use syntax::ast::{Arithmetic, DefaultArithmetic, DefaultParameter, Parameter,
                       ParameterSubstitution};
 
@@ -414,7 +414,7 @@ mod tests {
             split_fields_further: false,
         };
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
         let cmd_subst: ParamSubst = Command(vec!(MockSubstCmd("hello\n\n\n ~ * world\n\n\n\n")));
 
         assert_eq!(
@@ -450,13 +450,13 @@ mod tests {
         let var   = "var".to_owned();
         let value = "foo bar".to_owned();
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = DefaultEnv::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args(name.clone(), vec!(
                 "one".to_owned(),
                 "two".to_owned(),
                 "three".to_owned(),
             )),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
 
         env.set_var(var.clone(), value.clone());
@@ -504,7 +504,7 @@ mod tests {
     fn test_eval_parameter_substitution_arith() {
         use syntax::ast::ParameterSubstitution::Arith;
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
 
         for &tilde in &[TildeExpansion::None, TildeExpansion::First, TildeExpansion::All] {
             for &split in &[false, true] {
@@ -546,7 +546,7 @@ mod tests {
         let var_value = "foobar".to_owned();
         let null      = "".to_owned();
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
         env.set_var(var.clone(),      var_value.clone());
         env.set_var(var_null.clone(), null.clone());
 
@@ -597,9 +597,9 @@ mod tests {
                 "".to_owned(),
             );
 
-            let mut env = Env::with_config(EnvConfig {
+            let mut env = Env::with_config(DefaultEnvConfig {
                 args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args.clone()),
-                .. EnvConfig::default()
+                .. DefaultEnvConfig::default()
             });
 
             let subst: ParamSubst = Default(true, Parameter::At, Some(default));
@@ -623,13 +623,13 @@ mod tests {
 
         // Args all null
         {
-            let mut env = Env::with_config(EnvConfig {
+            let mut env = Env::with_config(DefaultEnvConfig {
                 args_env: ArgsEnv::with_name_and_args("shell".to_owned(), vec!(
                     "".to_owned(),
                     "".to_owned(),
                     "".to_owned(),
                 )),
-                .. EnvConfig::default()
+                .. DefaultEnvConfig::default()
             });
 
             let subst: ParamSubst = Default(true, Parameter::At, Some(default));
@@ -653,7 +653,7 @@ mod tests {
 
         // Args not set
         {
-            let mut env = Env::new();
+            let mut env = DefaultEnv::new_test_env();
 
             let subst: ParamSubst = Default(true, Parameter::At, Some(default));
             assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(default_value.clone()));
@@ -693,7 +693,7 @@ mod tests {
         let null = String::new();
         let assig = MockSubstWord("assigned value");
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
         env.set_var(var.clone(), var_value.clone());
 
         let assig_var_value = assig.0.to_owned();
@@ -802,7 +802,7 @@ mod tests {
         let null      = "".to_owned();
         let err_msg   = ERR_MSG.to_owned();
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
         env.set_var(var.clone(), var_value.clone());
         env.set_var(var_null.clone(), null.clone());
 
@@ -888,9 +888,9 @@ mod tests {
                 "".to_owned(),
             );
 
-            let mut env = Env::with_config(EnvConfig {
+            let mut env = Env::with_config(DefaultEnvConfig {
                 args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args.clone()),
-                .. EnvConfig::default()
+                .. DefaultEnvConfig::default()
             });
 
             let subst: ParamSubst = Error(true, Parameter::At, Some(err_msg));
@@ -914,13 +914,13 @@ mod tests {
 
         // Args all null
         {
-            let mut env = Env::with_config(EnvConfig {
+            let mut env = Env::with_config(DefaultEnvConfig {
                 args_env: ArgsEnv::with_name_and_args("shell".to_owned(), vec!(
                     "".to_owned(),
                     "".to_owned(),
                     "".to_owned(),
                 )),
-                .. EnvConfig::default()
+                .. DefaultEnvConfig::default()
             });
 
             let subst: ParamSubst = Error(true, Parameter::At, Some(err_msg));
@@ -958,7 +958,7 @@ mod tests {
 
         // Args not set
         {
-            let mut env = DefaultEnv::<String>::new();
+            let mut env = DefaultEnv::<String>::new_test_env();
 
             let subst: ParamSubst = Error(true, Parameter::At, Some(err_msg));
             assert_eq!(subst.eval_with_config(&mut env, cfg).as_ref(), Err(&err_at));
@@ -1011,7 +1011,7 @@ mod tests {
         let alt_value = "some alternative value";
         let alternative = MockSubstWord(alt_value);
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
         env.set_var(var.clone(),      var_value.clone());
         env.set_var(var_null.clone(), null.clone());
 
@@ -1060,9 +1060,9 @@ mod tests {
                 "".to_owned(),
             );
 
-            let mut env = Env::with_config(EnvConfig {
+            let mut env = Env::with_config(DefaultEnvConfig {
                 args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-                .. EnvConfig::default()
+                .. DefaultEnvConfig::default()
             });
 
             let subst: ParamSubst = Alternative(true, Parameter::At, Some(alternative));
@@ -1086,13 +1086,13 @@ mod tests {
 
         // Args all null
         {
-            let mut env = Env::with_config(EnvConfig {
+            let mut env = Env::with_config(DefaultEnvConfig {
                 args_env: ArgsEnv::with_name_and_args("shell".to_owned(), vec!(
                     "".to_owned(),
                     "".to_owned(),
                     "".to_owned(),
                 )),
-                .. EnvConfig::default()
+                .. DefaultEnvConfig::default()
             });
 
             let subst: ParamSubst = Alternative(true, Parameter::At, Some(alternative));
@@ -1116,7 +1116,7 @@ mod tests {
 
         // Args not set
         {
-            let mut env = Env::new();
+            let mut env = DefaultEnv::new_test_env();
 
             let subst: ParamSubst = Alternative(true, Parameter::At, Some(alternative));
             assert_eq!(subst.eval_with_config(&mut env, cfg), Ok(Fields::Zero));
@@ -1161,9 +1161,9 @@ mod tests {
 
         let var_null = var2.clone();
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = Env::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
         env.set_var("var1".to_owned(), val1.clone());
         env.set_var("var2".to_owned(), val2.clone());
@@ -1300,9 +1300,9 @@ mod tests {
         let var_null = var3.clone();
         let var_missing = Parameter::Var("missing".to_owned());
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = Env::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
         env.set_var("IFS".to_owned(), "0 ".to_owned());
 
@@ -1511,9 +1511,9 @@ mod tests {
             split_fields_further: false,
         };
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = Env::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
 
         let subst: ParamSubst = RemoveSmallestSuffix(foobar, None);
@@ -1561,9 +1561,9 @@ mod tests {
             split_fields_further: false,
         };
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = Env::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
 
         let subst: ParamSubst = RemoveLargestSuffix(foobar, None);
@@ -1612,9 +1612,9 @@ mod tests {
             split_fields_further: false,
         };
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = Env::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
 
         let subst: ParamSubst = RemoveSmallestPrefix(foobar, None);
@@ -1663,9 +1663,9 @@ mod tests {
             split_fields_further: false,
         };
 
-        let mut env = Env::with_config(EnvConfig {
+        let mut env = Env::with_config(DefaultEnvConfig {
             args_env: ArgsEnv::with_name_and_args("shell".to_owned(), args),
-            .. EnvConfig::default()
+            .. DefaultEnvConfig::default()
         });
 
         let subst: ParamSubst = RemoveLargestPrefix(foobar, None);
@@ -1711,7 +1711,7 @@ mod tests {
 
         let name = "var";
         let var = Parameter::Var(name.to_owned());
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
 
         let cases = vec!(TildeExpansion::None, TildeExpansion::First, TildeExpansion::All);
         for tilde_expansion in cases {

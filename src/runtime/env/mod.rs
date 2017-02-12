@@ -1,9 +1,8 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
+use {ExitStatus, Fd, Result, Run};
 use io::{FileDesc, Permissions};
-use runtime::{ExitStatus, Fd, Result, Run};
-
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
 use std::hash::Hash;
@@ -12,6 +11,7 @@ use std::error::Error;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::rc::Rc;
+use tokio_core::reactor::Remote;
 
 mod args;
 mod fd;
@@ -21,7 +21,7 @@ mod string_wrapper;
 mod var;
 
 pub use new_env::ReversibleRedirectWrapper;
-pub use new_env::{AsyncIoEnvironment, ReadAsync, ThreadPoolAsyncIoEnv};
+pub use new_env::{AsyncIoEnvironment, ReadAsync, PlatformSpecificAsyncIoEnv, ThreadPoolAsyncIoEnv};
 pub use self::args::*;
 pub use self::fd::*;
 pub use self::func::*;
@@ -78,21 +78,28 @@ pub trait SubEnvironment: Sized {
 /// of the default implementations.
 ///
 /// ```
+/// # extern crate conch_runtime;
+/// # extern crate tokio_core;
 /// # use std::rc::Rc;
-/// use conch_runtime::env::{ArgsEnv, ArgumentsEnvironment, DefaultEnvConfig, Env, EnvConfig};
+/// # use conch_runtime::env::{ArgsEnv, ArgumentsEnvironment, DefaultEnvConfig, Env, EnvConfig};
+/// # fn main() {
+/// let lp = tokio_core::reactor::Core::new().unwrap();
 /// let env = Env::with_config(EnvConfig {
 ///     args_env: ArgsEnv::with_name(Rc::new(String::from("my_shell"))),
-///     .. DefaultEnvConfig::default()
+///     .. DefaultEnvConfig::new(lp.remote(), None)
 /// });
 ///
 /// assert_eq!(**env.name(), "my_shell");
+/// # }
 /// ```
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct EnvConfig<A, FD, L, V, N> {
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
+pub struct EnvConfig<A, IO, FD, L, V, N> {
     /// Specify if the environment is running in interactive mode.
     pub interactive: bool,
     /// An implementation of `ArgumentsEnvironment` and possibly `SetArgumentsEnvironment`.
     pub args_env: A,
+    /// An implementation of `AsyncIoEnvironment`.
+    pub async_io_env: IO,
     /// An implementation of `FileDescEnvironment`.
     pub file_desc_env: FD,
     /// An implementation of `LastStatusEnvironment`.
@@ -103,20 +110,30 @@ pub struct EnvConfig<A, FD, L, V, N> {
     pub fn_name: PhantomData<N>,
 }
 
-/// A default environment configuration using provided (non-atomic) implementations.
+/// A default environment configuration using provided (non-atomic) implementations,
+/// and powered by `tokio`.
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
 ///
-/// ```
+/// ```no_run
+/// # extern crate conch_runtime;
+/// # extern crate tokio_core;
 /// # use std::rc::Rc;
 /// # use conch_runtime::env::DefaultEnvConfig;
+/// # fn main() {
 /// // Can be instantiated as follows
-/// let cfg1 = DefaultEnvConfig::<Rc<String>>::new();
-/// let cfg2 = DefaultEnvConfig::<Rc<String>>::default();
+/// let lp = tokio_core::reactor::Core::new().unwrap();
+///
+/// // Fallback to using one thread per CPU
+/// let cfg1 = DefaultEnvConfig::<Rc<String>>::new(lp.remote(), None);
+/// // Fallback to specific number of threads
+/// let cfg2 = DefaultEnvConfig::<Rc<String>>::new(lp.remote(), Some(2));
+/// # }
 /// ```
 pub type DefaultEnvConfig<T> =
     EnvConfig<
         ArgsEnv<T>,
+        PlatformSpecificAsyncIoEnv,
         FileDescEnv<Rc<FileDesc>>,
         LastStatusEnv,
         VarEnv<T, T>,
@@ -131,16 +148,25 @@ pub type DefaultEnvConfigRc = DefaultEnvConfig<Rc<String>>;
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
 ///
-/// ```
+/// ```no_run
+/// # extern crate conch_runtime;
+/// # extern crate tokio_core;
 /// # use std::sync::Arc;
 /// # use conch_runtime::env::DefaultAtomicEnvConfig;
+/// # fn main() {
 /// // Can be instantiated as follows
-/// let cfg1 = DefaultAtomicEnvConfig::<Arc<String>>::new();
-/// let cfg2 = DefaultAtomicEnvConfig::<Arc<String>>::default();
+/// let lp = tokio_core::reactor::Core::new().unwrap();
+///
+/// // Fallback to using one thread per CPU
+/// let cfg1 = DefaultAtomicEnvConfig::<Arc<String>>::new_atomic(lp.remote(), None);
+/// // Fallback to specific number of threads
+/// let cfg2 = DefaultAtomicEnvConfig::<Arc<String>>::new_atomic(lp.remote(), Some(2));
+/// # }
 /// ```
 pub type DefaultAtomicEnvConfig<T> =
     EnvConfig<
         AtomicArgsEnv<T>,
+        PlatformSpecificAsyncIoEnv,
         AtomicFileDescEnv<Arc<FileDesc>>,
         LastStatusEnv,
         AtomicVarEnv<T, T>,
@@ -151,14 +177,18 @@ pub type DefaultAtomicEnvConfig<T> =
 /// and `Arc<String>` to represent shell values.
 pub type DefaultAtomicEnvConfigArc = DefaultAtomicEnvConfig<Arc<String>>;
 
-impl<T> DefaultEnvConfig<T>
-    where T: Default + Eq + Hash + From<String>,
-{
+impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
     /// Creates a new `DefaultEnvConfig` using default environment components.
-    pub fn new() -> Self {
+    ///
+    /// A `tokio` `Remote` handle is required for performing async IO on
+    /// supported platforms. Otherwise, if the platform does not support
+    /// (easily) support async IO, a dedicated thread-pool will be used.
+    /// If no thread number is specified, one thread per CPU will be used.
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
         DefaultEnvConfig {
             interactive: false,
             args_env: Default::default(),
+            async_io_env: PlatformSpecificAsyncIoEnv::new(remote, fallback_num_threads),
             file_desc_env: Default::default(),
             last_status_env: Default::default(),
             var_env: Default::default(),
@@ -167,52 +197,41 @@ impl<T> DefaultEnvConfig<T>
     }
 }
 
-impl<T> DefaultAtomicEnvConfig<T>
-    where T: Default + Eq + Hash + From<String>,
-{
+impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
     /// Creates a new `DefaultAtomicEnvConfig` using default environment components.
-    pub fn new() -> Self {
+    ///
+    /// A `tokio` `Remote` handle is required for performing async IO on
+    /// supported platforms. Otherwise, if the platform does not support
+    /// (easily) support async IO, a dedicated thread-pool will be used.
+    /// If no thread number is specified, one thread per CPU will be used.
+    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
         DefaultAtomicEnvConfig {
             interactive: false,
             args_env: Default::default(),
+            async_io_env: PlatformSpecificAsyncIoEnv::new(remote, fallback_num_threads),
             file_desc_env: Default::default(),
             last_status_env: Default::default(),
             var_env: Default::default(),
             fn_name: PhantomData,
         }
-    }
-}
-
-impl<T> Default for DefaultEnvConfig<T>
-    where T: Default + Eq + Hash + From<String>,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Default for DefaultAtomicEnvConfig<T>
-    where T: Default + Eq + Hash + From<String>,
-{
-    fn default() -> Self {
-        Self::new()
     }
 }
 
 macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $FnEnv:ident, $Rc:ident, $($extra:tt)*) => {
         $(#[$attr])*
-        pub struct $Env<A, FD, L, V, N: Eq + Hash> {
+        pub struct $Env<A, IO, FD, L, V, N: Eq + Hash> {
             /// If the shell is running in interactive mode
             interactive: bool,
             args_env: A,
+            async_io_env: IO,
             file_desc_env: FD,
-            fn_env: $FnEnv<N, $Rc<Run<$Env<A, FD, L, V, N>> $($extra)*>>,
+            fn_env: $FnEnv<N, $Rc<Run<$Env<A, IO, FD, L, V, N>> $($extra)*>>,
             last_status_env: L,
             var_env: V,
         }
 
-        impl<A, FD, L, V, N> $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> $Env<A, IO, FD, L, V, N>
             where N: Hash + Eq,
         {
             /// Creates an environment using the provided configuration of subcomponents.
@@ -230,10 +249,11 @@ macro_rules! impl_env {
             /// get around borrow restrictions and potential recursive executions and
             /// (re-)definitions. Since this type is probably an AST (which may be
             /// arbitrarily large), `Rc` and `Arc` are your friends.
-            pub fn with_config(cfg: EnvConfig<A, FD, L, V, N>) -> Self {
+            pub fn with_config(cfg: EnvConfig<A, IO, FD, L, V, N>) -> Self {
                 $Env {
                     interactive: cfg.interactive,
                     args_env: cfg.args_env,
+                    async_io_env: cfg.async_io_env,
                     fn_env: $FnEnv::new(),
                     file_desc_env: cfg.file_desc_env,
                     last_status_env: cfg.last_status_env,
@@ -242,17 +262,19 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> Clone for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> Clone for $Env<A, IO, FD, L, V, N>
             where A: Clone,
                   FD: Clone,
                   L: Clone,
                   V: Clone,
                   N: Hash + Eq,
+                  IO: Clone,
         {
             fn clone(&self) -> Self {
                 $Env {
                     interactive: self.interactive,
                     args_env: self.args_env.clone(),
+                    async_io_env: self.async_io_env.clone(),
                     file_desc_env: self.file_desc_env.clone(),
                     fn_env: self.fn_env.clone(),
                     last_status_env: self.last_status_env.clone(),
@@ -261,12 +283,13 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> fmt::Debug for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> fmt::Debug for $Env<A, IO, FD, L, V, N>
             where A: fmt::Debug,
                   FD: fmt::Debug,
                   L: fmt::Debug,
                   V: fmt::Debug,
                   N: Hash + Eq + Ord + fmt::Debug,
+                  IO: fmt::Debug,
         {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 use std::collections::BTreeSet;
@@ -276,6 +299,7 @@ macro_rules! impl_env {
                 fmt.debug_struct(stringify!($Env))
                     .field("interactive", &self.interactive)
                     .field("args_env", &self.args_env)
+                    .field("async_io_env", &self.async_io_env)
                     .field("file_desc_env", &self.file_desc_env)
                     .field("functions", &fn_names)
                     .field("last_status_env", &self.last_status_env)
@@ -284,15 +308,15 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> From<EnvConfig<A, FD, L, V, N>> for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> From<EnvConfig<A, IO, FD, L, V, N>> for $Env<A, IO, FD, L, V, N>
             where N: Hash + Eq,
         {
-            fn from(cfg: EnvConfig<A, FD, L, V, N>) -> Self {
+            fn from(cfg: EnvConfig<A, IO, FD, L, V, N>) -> Self {
                 Self::with_config(cfg)
             }
         }
 
-        impl<A, FD, L, V, N> IsInteractiveEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> IsInteractiveEnvironment for $Env<A, IO, FD, L, V, N>
             where N: Hash + Eq,
         {
             fn is_interactive(&self) -> bool {
@@ -300,17 +324,19 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> SubEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> SubEnvironment for $Env<A, IO, FD, L, V, N>
             where A: SubEnvironment,
                   FD: SubEnvironment,
                   L: SubEnvironment,
                   V: SubEnvironment,
                   N: Hash + Eq,
+                  IO: SubEnvironment,
         {
             fn sub_env(&self) -> Self {
                 $Env {
                     interactive: self.is_interactive(),
                     args_env: self.args_env.sub_env(),
+                    async_io_env: self.async_io_env.sub_env(),
                     file_desc_env: self.file_desc_env.sub_env(),
                     fn_env: self.fn_env.sub_env(),
                     last_status_env: self.last_status_env.sub_env(),
@@ -319,7 +345,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> ArgumentsEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> ArgumentsEnvironment for $Env<A, IO, FD, L, V, N>
             where A: ArgumentsEnvironment,
                   A::Arg: Clone,
                   N: Hash + Eq,
@@ -343,7 +369,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> SetArgumentsEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> SetArgumentsEnvironment for $Env<A, IO, FD, L, V, N>
             where A: SetArgumentsEnvironment,
                   N: Hash + Eq,
         {
@@ -354,7 +380,23 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> FileDescEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> AsyncIoEnvironment for $Env<A, IO, FD, L, V, N>
+            where IO: AsyncIoEnvironment,
+                  N: Hash + Eq,
+        {
+            type Read = IO::Read;
+            type WriteAll = IO::WriteAll;
+
+            fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+                self.async_io_env.read_async(fd)
+            }
+
+            fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+                self.async_io_env.write_all(fd, data)
+            }
+        }
+
+        impl<A, IO, FD, L, V, N> FileDescEnvironment for $Env<A, IO, FD, L, V, N>
             where FD: FileDescEnvironment,
                   N: Hash + Eq,
         {
@@ -377,7 +419,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> FunctionEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> FunctionEnvironment for $Env<A, IO, FD, L, V, N>
             where N: Hash + Eq + Clone,
         {
             type FnName = N;
@@ -396,7 +438,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> UnsetFunctionEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> UnsetFunctionEnvironment for $Env<A, IO, FD, L, V, N>
             where N: Hash + Eq + Clone,
         {
             fn unset_function(&mut self, name: &Self::FnName) {
@@ -404,7 +446,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> LastStatusEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> LastStatusEnvironment for $Env<A, IO, FD, L, V, N>
             where L: LastStatusEnvironment,
                   N: Hash + Eq,
         {
@@ -417,7 +459,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> VariableEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> VariableEnvironment for $Env<A, IO, FD, L, V, N>
             where V: VariableEnvironment,
                   N: Hash + Eq,
         {
@@ -439,7 +481,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> UnsetVariableEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> UnsetVariableEnvironment for $Env<A, IO, FD, L, V, N>
             where V: UnsetVariableEnvironment,
                   N: Hash + Eq,
         {
@@ -450,7 +492,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, FD, L, V, N> FunctionExecutorEnvironment for $Env<A, FD, L, V, N>
+        impl<A, IO, FD, L, V, N> FunctionExecutorEnvironment for $Env<A, IO, FD, L, V, N>
             where
                   A: ArgumentsEnvironment<Arg = N> + SetArgumentsEnvironment,
                   A::Args: From<Vec<N>>,
@@ -495,15 +537,27 @@ impl_env!(
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
 ///
-/// ```
+/// ```no_run
+/// # extern crate conch_runtime;
+/// # extern crate tokio_core;
 /// # use std::rc::Rc;
 /// # use conch_runtime::env::DefaultEnv;
+/// # use conch_runtime::env::DefaultEnvConfig;
+/// # fn main() {
 /// // Can be instantiated as follows
-/// let cfg = DefaultEnv::<Rc<String>>::new();
+/// let lp = tokio_core::reactor::Core::new().unwrap();
+///
+/// // Fallback to using one thread per CPU
+/// let env1 = DefaultEnv::<Rc<String>>::new(lp.remote(), None);
+///
+/// // Fallback to specific number of threads
+/// let env2 = DefaultEnv::<Rc<String>>::new(lp.remote(), Some(2));
+/// # }
 /// ```
 pub type DefaultEnv<T> =
     Env<
         ArgsEnv<T>,
+        PlatformSpecificAsyncIoEnv,
         FileDescEnv<Rc<FileDesc>>,
         LastStatusEnv,
         VarEnv<T, T>,
@@ -518,15 +572,27 @@ pub type DefaultEnvRc = DefaultEnv<Rc<String>>;
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
 ///
-/// ```
+/// ```no_run
+/// # extern crate conch_runtime;
+/// # extern crate tokio_core;
 /// # use std::sync::Arc;
-/// # use conch_runtime::env::DefaultEnv;
+/// # use conch_runtime::env::DefaultAtomicEnv;
+/// # use conch_runtime::env::DefaultAtomicEnvConfig;
+/// # fn main() {
 /// // Can be instantiated as follows
-/// let cfg = DefaultEnv::<Arc<String>>::new();
+/// let lp = tokio_core::reactor::Core::new().unwrap();
+///
+/// // Fallback to using one thread per CPU
+/// let env1 = DefaultAtomicEnv::<Arc<String>>::new(lp.remote(), None);
+///
+/// // Fallback to specific number of threads
+/// let env2 = DefaultAtomicEnv::<Arc<String>>::new(lp.remote(), Some(2));
+/// # }
 /// ```
 pub type DefaultAtomicEnv<T> =
     AtomicEnv<
         AtomicArgsEnv<T>,
+        PlatformSpecificAsyncIoEnv,
         AtomicFileDescEnv<Arc<FileDesc>>,
         LastStatusEnv,
         AtomicVarEnv<T, T>,
@@ -537,12 +603,21 @@ pub type DefaultAtomicEnv<T> =
 /// and uses `Arc<String>` to represent shell values.
 pub type DefaultAtomicEnvArc = DefaultAtomicEnv<Arc<String>>;
 
-impl<T> DefaultEnv<T> where T: Default + Eq + Hash + From<String> {
+impl<T> DefaultEnv<T> where T: Eq + Hash + From<String> {
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
-    pub fn new() -> DefaultEnv<T> {
-        Self::with_config(DefaultEnvConfig::default())
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
+        Self::with_config(DefaultEnvConfig::new(remote, fallback_num_threads))
+    }
+}
+
+impl<T> DefaultAtomicEnv<T> where T: Eq + Hash + From<String> {
+    /// Creates a new default environment.
+    ///
+    /// See the definition of `DefaultAtomicEnvConfig` for what configuration will be used.
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
+        Self::with_config(DefaultAtomicEnvConfig::new_atomic(remote, fallback_num_threads))
     }
 }
 
@@ -553,7 +628,7 @@ mod tests {
     use io::Permissions;
     use runtime::{EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
     use runtime::{ExitStatus, Result, Run};
-    use runtime::tests::{MockFn, word};
+    use runtime::tests::{DefaultEnv, DefaultEnvConfig, MockFn, word};
 
     use self::tempdir::TempDir;
 
@@ -561,7 +636,8 @@ mod tests {
     use std::path::PathBuf;
     use std::rc::Rc;
 
-    use super::*;
+    use super::{ArgumentsEnvironment, Env, EnvConfig, FileDescEnvironment, FunctionEnvironment,
+                FunctionExecutorEnvironment, IsInteractiveEnvironment, VariableEnvironment};
     use syntax::ast::{Redirect, SimpleCommand};
 
     struct MockFnRecursive<F> {
@@ -597,7 +673,7 @@ mod tests {
         let fn_name = "foo".to_owned();
 
         let exit = EXIT_ERROR;
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         assert_eq!(env.has_function(&fn_name), false);
         assert!(env.run_function(&fn_name, vec!()).is_none());
 
@@ -670,7 +746,7 @@ mod tests {
     #[test]
     fn test_env_run_function_can_be_recursive() {
         let fn_name = "fn name".to_owned();
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         {
             let num_calls = 3usize;
             let depth = ::std::cell::Cell::new(num_calls);
@@ -703,7 +779,7 @@ mod tests {
     #[test]
     fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
         let fn_name = "fn name".to_owned();
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         {
             let num_calls = 3usize;
             let depth = ::std::cell::Cell::new(num_calls);
@@ -747,7 +823,7 @@ mod tests {
         file_path.push(tempdir.path());
         file_path.push("out");
 
-        let mut env = Env::new();
+        let mut env = Env::new_test_env();
         env.set_function(fn_name.to_owned(), MockFn::new::<DefaultEnv<_>>(|env| {
             let msg = (*env.args()).join(" ");
             let fd = env.file_desc(STDOUT_FILENO).unwrap().0;

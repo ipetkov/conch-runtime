@@ -11,7 +11,7 @@ use runtime::env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 
 pub use self::redirect::*;
-pub use new_eval::*;
+pub use new_eval::{ArithEval, Fields, ParamEval};
 
 /// An enum representing how tildes (`~`) are expanded.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -123,7 +123,7 @@ impl<E: ?Sized, W: ?Sized + WordEval<E>> WordEval<E> for Box<W> {
 #[cfg(test)]
 mod tests {
     use runtime::Result;
-    use runtime::env::Env;
+    use runtime::tests::DefaultEnv;
     use super::*;
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
             };
         }
 
-        let mut env = Env::new();
+        let mut env = DefaultEnv::new_test_env();
         env.set_var("IFS".to_owned(), "!".to_owned());
 
         word_eval_impl!(MockWord1, Fields::Zero);

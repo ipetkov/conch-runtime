@@ -1,11 +1,13 @@
 extern crate conch_parser as syntax;
 extern crate conch_runtime as runtime;
+extern crate tokio_core;
 
 use runtime::ExitStatus;
 use runtime::env::{ArgsEnv, ArgumentsEnvironment, Env, EnvConfig,
                    LastStatusEnvironment, VariableEnvironment};
 use runtime::eval::{Fields, ParamEval};
 use syntax::ast::Parameter::*;
+use tokio_core::reactor::Core;
 
 #[test]
 fn test_eval_parameter_with_set_vars() {
@@ -25,9 +27,10 @@ fn test_eval_parameter_with_set_vars() {
         arg3.clone(),
     );
 
+    let lp = Core::new().unwrap();
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        .. EnvConfig::default()
+        .. EnvConfig::new(lp.remote(), Some(1))
     });
 
     env.set_var("var1".to_owned(), var1.clone());
@@ -65,7 +68,8 @@ fn test_eval_parameter_with_set_vars() {
 
 #[test]
 fn test_eval_parameter_with_unset_vars() {
-    let env = Env::new();
+    let lp = Core::new().unwrap();
+    let env = Env::new(lp.remote(), Some(1));
 
     assert_eq!(At.eval(false, &env), Some(Fields::Zero));
     assert_eq!(Star.eval(false, &env), Some(Fields::Zero));
@@ -94,9 +98,10 @@ fn test_eval_parameter_splitting_with_default_ifs() {
         val2.clone(),
     );
 
+    let lp = Core::new().unwrap();
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        .. EnvConfig::default()
+        .. EnvConfig::new(lp.remote(), Some(1))
     });
 
     env.set_var("var1".to_owned(), val1.clone());
@@ -140,9 +145,10 @@ fn test_eval_parameter_splitting_with_custom_ifs() {
         val3.clone(),
     );
 
+    let lp = Core::new().unwrap();
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        .. EnvConfig::default()
+        .. EnvConfig::new(lp.remote(), Some(1))
     });
 
     env.set_var("IFS".to_owned(), "0 ".to_owned());
@@ -229,9 +235,10 @@ fn test_eval_parameter_splitting_with_empty_ifs() {
         val2.clone(),
     );
 
+    let lp = Core::new().unwrap();
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        .. EnvConfig::default()
+        .. EnvConfig::new(lp.remote(), Some(1))
     });
 
     env.set_var("IFS".to_owned(), "".to_owned());

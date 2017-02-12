@@ -1,5 +1,6 @@
 extern crate conch_runtime;
 extern crate futures;
+extern crate tokio_core;
 extern crate void;
 
 use void::Void;
@@ -7,6 +8,7 @@ use void::Void;
 use conch_runtime::error::IsFatalError;
 use conch_runtime::spawn::subshell;
 use futures::Future;
+use tokio_core::reactor::Core;
 
 mod support;
 pub use self::support::*;
@@ -16,10 +18,10 @@ fn run_subshell<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc
           I::Item: Spawn<DefaultEnvRc>,
           <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError + From<Void>
 {
-    let env = DefaultEnvRc::new();
-    subshell(cmds, &env)
-        .flatten()
-        .wait()
+    let mut lp = Core::new().unwrap();
+    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let future = subshell(cmds, &env).flatten();
+    lp.run(future)
 }
 
 #[test]
@@ -68,7 +70,9 @@ fn should_terminate_on_fatal_errors_but_swallow_them() {
 
 #[test]
 fn should_isolate_parent_env_from_any_changes() {
-    let mut env = DefaultEnvRc::new();
+    let mut lp = Core::new().unwrap();
+    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+
     let original_status = ExitStatus::Code(5);
     env.set_last_status(original_status);
 
@@ -76,10 +80,8 @@ fn should_isolate_parent_env_from_any_changes() {
         mock_status(ExitStatus::Code(42)),
     );
 
-    subshell(cmds, &env)
-        .flatten()
-        .wait()
-        .expect("subshell failed");
+    let future = subshell(cmds, &env).flatten();
+    lp.run(future).expect("subshell failed");
 
     assert_eq!(env.last_status(), original_status);
 }
