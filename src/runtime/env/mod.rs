@@ -826,8 +826,8 @@ mod tests {
         let mut env = Env::new_test_env();
         env.set_function(fn_name.to_owned(), MockFn::new::<DefaultEnv<_>>(|env| {
             let msg = (*env.args()).join(" ");
-            let fd = env.file_desc(STDOUT_FILENO).unwrap().0;
-            unsafe { fd.unsafe_write().write_all(msg.as_bytes()).unwrap(); }
+            let mut fd = &**env.file_desc(STDOUT_FILENO).unwrap().0;
+            fd.write_all(msg.as_bytes()).unwrap();
             Ok(EXIT_SUCCESS)
         }));
 

@@ -17,56 +17,8 @@ pub use sys::io::getpid;
 /// A wrapper around an owned OS file primitive. The wrapper
 /// allows reading from or writing to the OS file primitive, and
 /// will close it once it goes out of scope.
+#[derive(Debug, PartialEq, Eq)]
 pub struct FileDesc(sys::io::RawIo);
-
-impl Eq for FileDesc {}
-impl PartialEq<FileDesc> for FileDesc {
-    fn eq(&self, other: &FileDesc) -> bool {
-        self.inner() == other.inner()
-    }
-}
-
-impl fmt::Debug for FileDesc {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_tuple("FileDesc")
-            .field(self.inner())
-            .finish()
-    }
-}
-
-/// An adapter writing to a `&FileDesc`.
-#[derive(Debug, PartialEq, Eq)]
-pub struct UnsafeWriter<'a> {
-    // NB: We store the FileDesc here instead of its inner `RawIo` so
-    // that this adapter can inherit any markers/bounds (e.g. Send/Sync)
-    // of the public wrapper, and not of the inner type.
-    fd: &'a FileDesc,
-}
-
-impl<'a> Read for UnsafeReader<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.fd.0.read_inner(buf)
-    }
-}
-
-/// An adapter reading from a `&FileDesc`.
-#[derive(Debug, PartialEq, Eq)]
-pub struct UnsafeReader<'a> {
-    // NB: We store the FileDesc here instead of its inner `RawIo` so
-    // that this adapter can inherit any markers/bounds (e.g. Send/Sync)
-    // of the public wrapper, and not of the inner type.
-    fd: &'a FileDesc,
-}
-
-impl<'a> Write for UnsafeWriter<'a> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.fd.0.write_inner(buf)
-    }
-
-    fn flush(&mut self) -> Result<()> {
-        self.fd.0.flush_inner()
-    }
-}
 
 impl FileDesc {
     #[cfg(unix)]
@@ -86,20 +38,20 @@ impl FileDesc {
         Ok(Self::from_inner(try!(self.inner().duplicate())))
     }
 
-    /// Allows for performing read operations on the underlying OS file
-    /// handle without requiring unique access to the handle.
-    pub unsafe fn unsafe_read(&self) -> UnsafeReader {
-        UnsafeReader {
-            fd: self,
-        }
+    fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        self.inner().read_inner(buf)
     }
 
-    /// Allows for performing write operations on the underlying OS file
-    /// handle without requiring unique access to the handle.
-    pub unsafe fn unsafe_write(&self) -> UnsafeWriter {
-        UnsafeWriter {
-            fd: self,
-        }
+    fn write(&self, buf: &[u8]) -> Result<usize> {
+        self.inner().write_inner(buf)
+    }
+
+    fn flush(&self) -> Result<()> {
+        self.inner().flush_inner()
+    }
+
+    fn seek(&self, pos: SeekFrom) -> Result<u64> {
+        self.inner().seek(pos)
     }
 }
 
@@ -125,23 +77,45 @@ impl Into<Stdio> for FileDesc {
 
 impl Read for FileDesc {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.0.read_inner(buf)
+        FileDesc::read(self, buf)
+    }
+}
+
+impl<'a> Read for &'a FileDesc {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        FileDesc::read(self, buf)
     }
 }
 
 impl Write for FileDesc {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.0.write_inner(buf)
+        FileDesc::write(self, buf)
     }
 
     fn flush(&mut self) -> Result<()> {
-        self.0.flush_inner()
+        FileDesc::flush(self)
+    }
+}
+
+impl<'a> Write for &'a FileDesc {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        FileDesc::write(self, buf)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        FileDesc::flush(self)
     }
 }
 
 impl Seek for FileDesc {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        self.0.seek(pos)
+        FileDesc::seek(self, pos)
+    }
+}
+
+impl<'a> Seek for &'a FileDesc {
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        FileDesc::seek(self, pos)
     }
 }
 
@@ -189,23 +163,6 @@ mod tests {
         reader.read_to_string(&mut read).unwrap();
         guard.join().unwrap();
         assert_eq!(format!("{}{}", msg1, msg2), read);
-    }
-
-    #[test]
-    fn test_file_desc_unsafe_read_and_write() {
-        let msg = "pipe message";
-        let Pipe { reader, writer } = Pipe::new().unwrap();
-
-        let guard = thread::spawn(move || {
-            let mut writer_ref = unsafe { writer.unsafe_write() };
-            writer_ref.write_all(msg.as_bytes()).unwrap();
-            writer_ref.flush().unwrap();
-        });
-
-        let mut read = String::new();
-        unsafe { reader.unsafe_read().read_to_string(&mut read).unwrap(); }
-        guard.join().unwrap();
-        assert_eq!(msg, read);
     }
 
     #[test]

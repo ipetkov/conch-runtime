@@ -155,19 +155,9 @@ macro_rules! impl_env {
             fn report_error(&mut self, err: &Error) {
                 use std::io::Write;
 
-                // We *could* duplicate the handle here and ensure that we are the only
-                // owners of that *copy*, but it won't make much difference. On Unix
-                // sytems file descriptor duplication is effectively just an alias, and
-                // we really *do* want to write into whatever stderr is. Plus our error
-                // description should safely fall well within the system's size for atomic
-                // writes so we (hopefully) shouldn't observe any interleaving of data.
-                //
-                // Tl;dr: duplicating the handle won't offer us any extra safety, so we
-                // can avoid the overhead.
-                self.file_desc(STDERR_FILENO).map(|(fd, _)| unsafe {
-                    let mut writer = fd.borrow().unsafe_write();
-                    let _ = writeln!(&mut writer, "{}", err);
-                });
+                if let Some((fd, _)) = self.file_desc(STDERR_FILENO) {
+                    let _ = writeln!(fd.borrow(), "{}", err);
+                }
             }
         }
     };

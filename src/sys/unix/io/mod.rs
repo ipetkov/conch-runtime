@@ -110,7 +110,7 @@ impl RawIo {
 
     /// Seeks the underlying file descriptor.
     // Adapted from rust: libstd/sys/unix/fs.rs
-    pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    pub fn seek(&self, pos: SeekFrom) -> Result<u64> {
         let (whence, pos) = match pos {
             SeekFrom::Start(off) => (libc::SEEK_SET, off as libc::off_t),
             SeekFrom::End(off) => (libc::SEEK_END, off as libc::off_t),

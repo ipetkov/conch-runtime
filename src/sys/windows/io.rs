@@ -162,7 +162,7 @@ impl RawIo {
 
     /// Seeks the underlying HANDLE.
     // Taken from rust: libstd/sys/windows/fs.rs
-    pub fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+    pub fn seek(&self, pos: SeekFrom) -> Result<u64> {
         let (whence, pos) = match pos {
             SeekFrom::Start(n) => (winapi::FILE_BEGIN, n as i64),
             SeekFrom::End(n) => (winapi::FILE_END, n),
