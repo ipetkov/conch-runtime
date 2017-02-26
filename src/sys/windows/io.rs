@@ -3,6 +3,8 @@
 use kernel32;
 use winapi;
 
+use IntoInner;
+use io::FileDesc;
 use std::fmt;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result, SeekFrom};
@@ -13,7 +15,7 @@ use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle}
 use std::process::Stdio;
 use std::ptr;
 use std::ptr::Unique as StdUnique;
-use super::FileDesc;
+use sys::cvt;
 
 // A Debug wrapper around `std::ptr::Unique`
 struct Unique<T>(StdUnique<T>);
@@ -179,34 +181,6 @@ impl Drop for RawIo {
     // Adapted from rust: src/libstd/sys/windows/handle.rs
     fn drop(&mut self) {
         unsafe { let _ = kernel32::CloseHandle(**self.handle); }
-    }
-}
-
-trait IsZero {
-    fn is_zero(&self) -> bool;
-}
-
-macro_rules! impl_is_zero {
-    ($($t:ident)*) => ($(impl IsZero for $t {
-        fn is_zero(&self) -> bool {
-            *self == 0
-        }
-    })*)
-}
-
-impl_is_zero! { i8 i16 i32 i64 isize u8 u16 u32 u64 usize }
-
-impl<T> IsZero for *mut T {
-    fn is_zero(&self) -> bool {
-        self.is_null()
-    }
-}
-
-fn cvt<I: IsZero>(i: I) -> Result<I> {
-    if i.is_zero() {
-        Err(Error::last_os_error())
-    } else {
-        Ok(i)
     }
 }
 

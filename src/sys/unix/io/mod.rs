@@ -1,12 +1,18 @@
 //! Defines interfaces and methods for doing IO operations on UNIX file descriptors.
 
+use IntoInner;
+use io::FileDesc;
 use libc::{self, c_void, size_t};
+use sys::cvt_r;
 use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Result, SeekFrom, Write};
+use std::io::{Result, SeekFrom};
 use std::mem;
 use std::os::unix::io::{RawFd, AsRawFd, FromRawFd, IntoRawFd};
 use std::process::Stdio;
-use super::FileDesc;
+
+mod fd_ext;
+
+pub use self::fd_ext::{EventedFileDesc, FileDescExt};
 
 /// A wrapper around an owned UNIX file descriptor. The wrapper
 /// allows reading from or write to the descriptor, and will
@@ -79,7 +85,7 @@ impl RawIo {
     /// Reads from the underlying file descriptor.
     // Taken from rust: libstd/sys/unix/fd.rs
     pub fn read_inner(&self, buf: &mut [u8]) -> Result<usize> {
-        let ret = try!(cvt(unsafe {
+        let ret = try!(cvt_r(|| unsafe {
             libc::read(self.fd,
                        buf.as_mut_ptr() as *mut c_void,
                        buf.len() as size_t)
@@ -90,7 +96,7 @@ impl RawIo {
     /// Writes to the underlying file descriptor.
     // Taken from rust: libstd/sys/unix/fd.rs
     pub fn write_inner(&self, buf: &[u8]) -> Result<usize> {
-        let ret = try!(cvt(unsafe {
+        let ret = try!(cvt_r(|| unsafe {
             libc::write(self.fd,
                         buf.as_ptr() as *const c_void,
                         buf.len() as size_t)
@@ -110,7 +116,7 @@ impl RawIo {
             SeekFrom::End(off) => (libc::SEEK_END, off as libc::off_t),
             SeekFrom::Current(off) => (libc::SEEK_CUR, off as libc::off_t),
         };
-        let n = try!(cvt(unsafe { libc::lseek(self.fd, pos, whence) }));
+        let n = try!(cvt_r(|| unsafe { libc::lseek(self.fd, pos, whence) }));
         Ok(n as u64)
     }
 
@@ -137,53 +143,6 @@ impl Drop for RawIo {
         // something like EINTR), we might close another valid file descriptor
         // (opened after we closed ours).
         let _ = unsafe { libc::close(self.fd) };
-    }
-}
-
-impl Read for RawIo {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.read_inner(buf)
-    }
-}
-
-impl Write for RawIo {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.write_inner(buf)
-    }
-
-    fn flush(&mut self) -> Result<()> {
-        self.flush_inner()
-    }
-}
-
-trait IsMinusOne {
-    fn is_minus_one(&self) -> bool;
-}
-
-macro_rules! impl_is_minus_one {
-    ($($t:ident)*) => ($(impl IsMinusOne for $t {
-        fn is_minus_one(&self) -> bool {
-            *self == -1
-        }
-    })*)
-}
-
-impl_is_minus_one! { i8 i16 i32 i64 isize }
-
-fn cvt<T: IsMinusOne>(t: T) -> Result<T> {
-    if t.is_minus_one() {
-        Err(Error::last_os_error())
-    } else {
-        Ok(t)
-    }
-}
-
-fn cvt_r<T: IsMinusOne, F: FnMut() -> T>(mut f: F) -> Result<T> {
-    loop {
-        match cvt(f()) {
-            Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
-            other => return other,
-        }
     }
 }
 

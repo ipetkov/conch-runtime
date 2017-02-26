@@ -1,26 +1,23 @@
 //! Defines interfaces and methods for doing OS agnostic file IO operations.
 
 mod file_desc_wrapper;
-#[cfg(unix)]
-#[path = "unix.rs"] mod os;
-#[cfg(windows)]
-#[path = "windows.rs"] mod os;
 mod permissions;
 mod pipe;
 
-use std::fmt;
+use IntoInner;
+use sys;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 use std::process::Stdio;
 
 pub use self::file_desc_wrapper::FileDescWrapper;
-pub use self::os::getpid;
 pub use self::permissions::Permissions;
 pub use self::pipe::Pipe;
+pub use sys::io::getpid;
 
 /// A wrapper around an owned OS file primitive. The wrapper
 /// allows reading from or writing to the OS file primitive, and
 /// will close it once it goes out of scope.
-pub struct FileDesc(os::RawIo);
+pub struct FileDesc(sys::io::RawIo);
 
 impl Eq for FileDesc {}
 impl PartialEq<FileDesc> for FileDesc {
@@ -75,13 +72,13 @@ impl FileDesc {
     #[cfg(unix)]
     /// Takes ownership of and wraps an OS file primitive.
     pub unsafe fn new(fd: ::std::os::unix::io::RawFd) -> Self {
-        Self::from_inner(os::RawIo::new(fd))
+        Self::from_inner(sys::io::RawIo::new(fd))
     }
 
     #[cfg(windows)]
     /// Takes ownership of and wraps an OS file primitive.
     pub unsafe fn new(handle: ::std::os::windows::io::RawHandle) -> Self {
-        Self::from_inner(os::RawIo::new(handle))
+        Self::from_inner(sys::io::RawIo::new(handle))
     }
 
     /// Duplicates the underlying OS file primitive.
@@ -104,16 +101,20 @@ impl FileDesc {
             fd: self,
         }
     }
+}
 
-    fn inner(&self) -> &os::RawIo {
+impl IntoInner for FileDesc {
+    type Inner = sys::io::RawIo;
+
+    fn inner(&self) -> &Self::Inner {
         &self.0
     }
 
-    fn into_inner(self) -> os::RawIo {
+    fn into_inner(self) -> Self::Inner {
         self.0
     }
 
-    fn from_inner(inner: os::RawIo) -> Self {
+    fn from_inner(inner: Self::Inner) -> Self {
         FileDesc(inner)
     }
 }
@@ -147,7 +148,7 @@ impl Seek for FileDesc {
 #[doc(hidden)]
 /// Duplicates handles for (stdin, stdout, stderr) and returns them in that order.
 pub fn dup_stdio() -> Result<(FileDesc, FileDesc, FileDesc)> {
-    let (stdin, stdout, stderr) = try!(os::dup_stdio());
+    let (stdin, stdout, stderr) = try!(sys::io::dup_stdio());
     Ok((
         FileDesc::from_inner(stdin),
         FileDesc::from_inner(stdout),

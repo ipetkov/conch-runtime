@@ -56,6 +56,24 @@ pub mod spawn;
 
 mod ref_counted;
 mod runtime;
+#[cfg(unix)]
+#[path="sys/unix/mod.rs"]
+mod sys;
+#[cfg(windows)]
+#[path="sys/windows/mod.rs"]
+mod sys;
 pub use self::ref_counted::*;
 pub use self::runtime::*;
 pub use self::spawn::Spawn;
+
+/// A private trait for converting to inner types.
+trait IntoInner: Sized {
+    /// The inner type.
+    type Inner;
+    /// Borrow a reference to the inner type.
+    fn inner(&self) -> &Self::Inner;
+    /// Take ownership of the inner type.
+    fn into_inner(self) -> Self::Inner;
+    /// Convert an inner value to its wrapper.
+    fn from_inner(inner: Self::Inner) -> Self;
+}
