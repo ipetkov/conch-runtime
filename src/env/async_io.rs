@@ -1,5 +1,5 @@
 use env::SubEnvironment;
-use futures::{Async, Future, Sink, Stream};
+use futures::{Async, Future, Poll, Sink, Stream};
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
 use futures_cpupool::{CpuFuture, CpuPool};
@@ -46,27 +46,35 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
 ///
 /// Note that this type is also "futures aware" meaning that it is both
 /// (a) nonblocking and (b) will panic if used off of a future's task.
-#[cfg(unix)]
-pub type PlatformSpecificRead = ::os::unix::env::ReadAsync;
+#[allow(missing_debug_implementations)]
+pub struct PlatformSpecificRead(
+    #[cfg(unix)] ::os::unix::env::ReadAsync,
+    #[cfg(not(unix))] ReadAsync,
+);
+
+impl Read for PlatformSpecificRead {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.0.read(buf)
+    }
+}
 
 /// A platform specific future that will write some data to a `FileDesc`.
 ///
 /// Created by the `EventedAsyncIoEnv::write_all` method.
-#[cfg(unix)]
-pub type PlatformSpecificWriteAll = ::os::unix::env::WriteAll;
+#[allow(missing_debug_implementations)]
+pub struct PlatformSpecificWriteAll(
+    #[cfg(unix)] ::os::unix::env::WriteAll,
+    #[cfg(not(unix))] CpuFuture<(), IoError>,
+);
 
-/// A platform specific adapter for async reads from a `FileDesc`.
-///
-/// Note that this type is also "futures aware" meaning that it is both
-/// (a) nonblocking and (b) will panic if used off of a future's task.
-#[cfg(not(unix))]
-pub type PlatformSpecificRead = ReadAsync;
+impl Future for PlatformSpecificWriteAll {
+    type Item = ();
+    type Error = IoError;
 
-/// A platform specific future that will write some data to a `FileDesc`.
-///
-/// Created by the `EventedAsyncIoEnv::write_all` method.
-#[cfg(not(unix))]
-pub type PlatformSpecificWriteAll = CpuFuture<(), IoError>;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
+    }
+}
 
 /// A platform specific environment efficiently using a `tokio` event loop,
 /// if the current platform supports efficient async IO, or a `ThreadPoolAsyncIoEnv`
@@ -117,11 +125,11 @@ impl AsyncIoEnvironment for PlatformSpecificAsyncIoEnv {
     type WriteAll = PlatformSpecificWriteAll;
 
     fn read_async(&mut self, fd: FileDesc) -> Self::Read {
-        self.inner.read_async(fd)
+        PlatformSpecificRead(self.inner.read_async(fd))
     }
 
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
-        self.inner.write_all(fd, data)
+        PlatformSpecificWriteAll(self.inner.write_all(fd, data))
     }
 }
 
