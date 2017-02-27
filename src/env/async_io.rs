@@ -242,6 +242,8 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     type WriteAll = CpuFuture<(), IoError>;
 
     fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+        let _ = try_set_blocking(&fd); // Best effort here...
+
         let (mut tx, rx) = channel(0); // NB: we have a guaranteed slot for all senders
 
         let cpu = self.pool.spawn_fn(move || {
@@ -269,7 +271,8 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
 
                     // We explicitly do not handle WouldBlock errors here,
                     // and propagate them to the caller. We expect blocking
-                    // descriptors to be provided to us, so if we constantly
+                    // descriptors to be provided to us (NB we can't enforce
+                    // this after the fact on Windows), so if we constantly
                     // loop on WouldBlock errors we would burn a lot of CPU
                     // so it's best to return an explicit error.
                     Err(ref e) if e.kind() == ErrorKind::Interrupted => 0,
@@ -290,6 +293,8 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     }
 
     fn write_all(&mut self, mut fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+        let _ = try_set_blocking(&fd); // Best effort here...
+
         // We could use `tokio` IO adapters here, however, it would cause
         // problems if the file descriptor was set to nonblocking mode, since
         // we aren't registering it with any event loop and no one will wake
@@ -301,4 +306,16 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
             fd.flush()
         })
     }
+}
+
+#[cfg(unix)]
+fn try_set_blocking(fd: &FileDesc) -> Result<()> {
+    use os::unix::io::FileDescExt;
+
+    fd.set_nonblock(false)
+}
+
+#[cfg(not(unix))]
+fn try_set_blocking(fd: &FileDesc) -> Result<()> {
+    Ok(())
 }
