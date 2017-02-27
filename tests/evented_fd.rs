@@ -1,3 +1,5 @@
+// NB: only test here is unix specific, disabling some lints
+// to avoid guarding everything with `#[cfg(unix)]
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
@@ -74,10 +76,8 @@ fn evented_is_async() {
 
     join_handle.join().expect("thread did not exit successfully");
 
+    let msg_len = msg.as_bytes().len();
     assert_eq!(data, msg);
-    assert_eq!(tr.times_read, msg.as_bytes().len());
-
-    // If we were reading syncronously from the pipe
-    // we would never have recorded a `would_block`
-    assert_eq!(tr.times_would_block, 1);
+    assert_eq!(tr.times_read, msg_len);
+    assert_eq!(tr.times_would_block, msg_len + 1);
 }

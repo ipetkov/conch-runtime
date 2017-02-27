@@ -120,7 +120,7 @@ impl RawIo {
         Ok(n as u64)
     }
 
-    /// Sets the CLOEXEC flag on the descriptor to the desired state
+    /// Sets the `CLOEXEC` flag on the descriptor to the desired state
     pub fn set_cloexec(&self, set: bool) -> Result<()> {
         unsafe {
             let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFD)));
@@ -130,6 +130,19 @@ impl RawIo {
                 flags & !libc::FD_CLOEXEC
             };
             cvt_r(|| libc::fcntl(self.fd, libc::F_SETFD, new_flags)).map(|_| ())
+        }
+    }
+
+    /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
+    pub fn set_nonblock(&self, set: bool) -> Result<()> {
+        unsafe {
+            let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFL)));
+            let new_flags = if set {
+                flags | libc::O_NONBLOCK
+            } else {
+                flags & !libc::O_NONBLOCK
+            };
+            cvt_r(|| libc::fcntl(self.fd, libc::F_SETFL, new_flags)).map(|_| ())
         }
     }
 }

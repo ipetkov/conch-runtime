@@ -1,3 +1,4 @@
+use IntoInner;
 use io::FileDesc;
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use mio::unix::EventedFd;
@@ -21,7 +22,7 @@ use tokio_core::reactor::{Handle, PollEvented};
 ///
 /// # fn main() {
 /// let file = File::open("/dev/null").unwrap();
-/// let fd: FileDesc = file.into();
+/// let fd = FileDesc::from(file);
 ///
 /// let core = Core::new().unwrap();
 /// fd.into_evented(&core.handle()).unwrap();
@@ -34,11 +35,22 @@ pub trait FileDescExt {
     /// (b) will notify the appropriate task when data is ready to be read or written
     /// and (c) will panic if use off of a future's task.
     fn into_evented(self, handle: &Handle) -> Result<PollEvented<EventedFileDesc>>;
+
+    /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
+    ///
+    /// Specifiying `true` will set the file descriptor in non-blocking mode,
+    /// while specifying `false` will set it to blocking mode.
+    fn set_nonblock(&self, set: bool) -> Result<()>;
 }
 
 impl FileDescExt for FileDesc {
     fn into_evented(self, handle: &Handle) -> Result<PollEvented<EventedFileDesc>> {
+        try!(self.set_nonblock(true));
         PollEvented::new(EventedFileDesc(self), handle)
+    }
+
+    fn set_nonblock(&self, set: bool) -> Result<()> {
+        self.inner().set_nonblock(set)
     }
 }
 
