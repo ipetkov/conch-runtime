@@ -77,7 +77,7 @@ impl AsyncIoEnvironment for EventedAsyncIoEnv {
 
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
         let write_async = WriteAsync(Deferred::Pending(self.evented_fd(fd)));
-        WriteAll(tokio_io::write_all(write_async, data))
+        WriteAll(State::Writing(tokio_io::write_all(write_async, data)))
     }
 }
 
@@ -149,19 +149,42 @@ impl Write for WriteAsync {
     }
 }
 
+enum State {
+    Writing(tokio_io::WriteAll<WriteAsync, Vec<u8>>),
+    Flushing(tokio_io::Flush<WriteAsync>),
+}
+
+impl Future for State {
+    type Item = ();
+    type Error = IoError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            let (w, _) = match *self {
+                State::Writing(ref mut w) => try_ready!(w.poll()),
+                State::Flushing(ref mut f) => {
+                    try_ready!(f.poll());
+                    return Ok(Async::Ready(()));
+                },
+            };
+
+            *self = State::Flushing(tokio_io::flush(w));
+        }
+    }
+}
+
 /// A future that will write some data to a `FileDesc`.
 ///
 /// Created by the `EventedAsyncIoEnv::write_all` method.
 #[allow(missing_debug_implementations)]
 #[must_use = "futures do nothing unless polled"]
-pub struct WriteAll(tokio_io::WriteAll<WriteAsync, Vec<u8>>);
+pub struct WriteAll(State);
 
 impl Future for WriteAll {
     type Item = ();
     type Error = IoError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let _ = try_ready!(self.0.poll());
-        Ok(Async::Ready(()))
+        self.0.poll()
     }
 }
