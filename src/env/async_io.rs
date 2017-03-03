@@ -134,7 +134,7 @@ impl AsyncIoEnvironment for PlatformSpecificAsyncIoEnv {
 }
 
 /// An `AsyncIoEnvironment` implementation that uses a threadpool for doing
-/// reads and writes on **synchronous** `FileDesc` handles.
+/// reads and writes on **synchronous/blocking** `FileDesc` handles.
 ///
 /// This is a pretty costly implementation which may be required on systems
 /// that do not support asynchronous read/write operations (easily or at all).

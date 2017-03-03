@@ -67,6 +67,19 @@ impl EventedAsyncIoEnv {
     }
 }
 
+// FIXME: consider operating on a FileDescWrapper instead of an owned FileDesc?
+// Right now we require duplicating a FileDesc any time we want to do some evented
+// IO over it, which goes against the entire benefit of using ref counted fd wrappers
+// to avoid exhausting fds.
+//
+// To avoid re-registering with the event loop the env could contain a
+// HashMap<RawFd, Weak<PollEventedRefCountedWrapper>> mapping to either return the existing
+// registration or create a new one.
+//
+// A pitfall to the above approach is having to ensure the fd is nonblocking whenever
+// a read/write is done. If the underlying fd is set back to blocking mode *anywhere*
+// it could deadlock everything. I have a feeling that this probably won't be a major
+// issue (at least within this crate) so its probably worth further investigation.
 impl AsyncIoEnvironment for EventedAsyncIoEnv {
     type Read = ReadAsync;
     type WriteAll = WriteAll;

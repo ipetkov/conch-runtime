@@ -2,7 +2,7 @@ use IntoInner;
 use io::FileDesc;
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use mio::unix::EventedFd;
-use std::io::{Read, Result, Write};
+use std::io::{ErrorKind, Read, Result, Write};
 use std::os::unix::io::AsRawFd;
 use tokio_core::reactor::{Handle, PollEvented};
 
@@ -34,6 +34,12 @@ pub trait FileDescExt {
     /// The resulting type is "futures" aware meaning that it is (a) nonblocking,
     /// (b) will notify the appropriate task when data is ready to be read or written
     /// and (c) will panic if use off of a future's task.
+    ///
+    /// Note: two identical file descriptors (which have identical file descriptions)
+    /// must *NOT* be registered on the same event loop at the same time (e.g.
+    /// `unsafe`ly coping raw file descriptors and registering both copies with
+    /// the same `Handle`). Doing so may end up starving one of the copies from
+    /// receiving notifications from the event loop.
     fn into_evented(self, handle: &Handle) -> Result<PollEvented<EventedFileDesc>>;
 
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
@@ -63,7 +69,14 @@ pub struct EventedFileDesc(FileDesc);
 
 impl Evented for EventedFileDesc {
     fn register(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {
-        EventedFd(&self.0.as_raw_fd()).register(poll, token, interest, opts)
+        match EventedFd(&self.0.as_raw_fd()).register(poll, token, interest, opts) {
+            ret@Ok(_) => ret,
+            Err(e) => if e.kind() == ErrorKind::AlreadyExists {
+                self.reregister(poll, token, interest, opts)
+            } else {
+                Err(e)
+            },
+        }
     }
 
     fn reregister(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {

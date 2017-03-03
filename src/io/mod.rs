@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_file_desc_seeking() {
-        use std::io::{Seek, SeekFrom};
+        use std::io::SeekFrom;
 
         let tempdir = mktmp!();
 
