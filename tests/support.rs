@@ -1,10 +1,9 @@
-extern crate conch_runtime as runtime;
+extern crate conch_runtime;
 extern crate futures;
 extern crate tempdir;
 extern crate tokio_core;
 extern crate void;
 
-use self::futures::{Async, Future, Poll};
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
@@ -12,10 +11,12 @@ use self::tokio_core::reactor::Core;
 use self::void::{unreachable, Void};
 
 // Convenience re-exports
-pub use self::runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
-pub use self::runtime::env::*;
-pub use self::runtime::error::*;
-pub use self::runtime::future::*;
+pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
+pub use self::conch_runtime::new_eval::*;
+pub use self::conch_runtime::env::*;
+pub use self::conch_runtime::error::*;
+pub use self::conch_runtime::future::*;
+pub use self::futures::{Async, Future, Poll};
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[macro_export]
@@ -36,7 +37,7 @@ pub fn mktmp_impl(path: &str) -> TempDir {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MockErr(bool);
 
-impl self::runtime::error::IsFatalError for MockErr {
+impl self::conch_runtime::error::IsFatalError for MockErr {
     fn is_fatal(&self) -> bool {
         self.0
     }
@@ -166,6 +167,51 @@ impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
             MockCmd::Error(_) |
             MockCmd::Panic(_) => {},
             MockCmd::MustCancel(ref mut mc) => mc.cancel(),
+        }
+    }
+}
+
+pub fn mock_word_fields(fields: Fields<String>) -> MockWord {
+    MockWord::Fields(Some(fields))
+}
+
+pub fn mock_word_must_cancel() -> MockWord {
+    MockWord::MustCancel(MustCancel::new())
+}
+
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockWord {
+    Fields(Option<Fields<String>>),
+    MustCancel(MustCancel),
+}
+
+impl<E: ?Sized> WordEval<E> for MockWord {
+    type EvalResult = String;
+    type Error = MockErr;
+    type EvalFuture = Self;
+
+    fn eval_with_config(self, _: &mut E, _: WordEvalConfig) -> Self::EvalFuture {
+        self
+    }
+
+}
+
+impl<E: ?Sized> EnvFuture<E> for MockWord {
+    type Item = Fields<String>;
+    type Error = MockErr;
+
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
+        match *self {
+            MockWord::Fields(ref mut f) => Ok(Async::Ready(f.take().expect("polled twice"))),
+            MockWord::MustCancel(ref mut mc) => mc.poll(),
+        }
+    }
+
+    fn cancel(&mut self, _: &mut E) {
+        match *self {
+            MockWord::Fields(_) => {},
+            MockWord::MustCancel(ref mut mc) => mc.cancel(),
         }
     }
 }
