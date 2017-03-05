@@ -175,6 +175,10 @@ pub fn mock_word_fields(fields: Fields<String>) -> MockWord {
     MockWord::Fields(Some(fields))
 }
 
+pub fn mock_word_error(fatal: bool) -> MockWord {
+    MockWord::Error(MockErr(fatal))
+}
+
 pub fn mock_word_must_cancel() -> MockWord {
     MockWord::MustCancel(MustCancel::new())
 }
@@ -183,6 +187,7 @@ pub fn mock_word_must_cancel() -> MockWord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockWord {
     Fields(Option<Fields<String>>),
+    Error(MockErr),
     MustCancel(MustCancel),
 }
 
@@ -204,13 +209,15 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
     fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
         match *self {
             MockWord::Fields(ref mut f) => Ok(Async::Ready(f.take().expect("polled twice"))),
+            MockWord::Error(ref mut e) => Err(e.clone()),
             MockWord::MustCancel(ref mut mc) => mc.poll(),
         }
     }
 
     fn cancel(&mut self, _: &mut E) {
         match *self {
-            MockWord::Fields(_) => {},
+            MockWord::Fields(_) |
+            MockWord::Error(_) => {},
             MockWord::MustCancel(ref mut mc) => mc.cancel(),
         }
     }
