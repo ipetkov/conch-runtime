@@ -183,12 +183,17 @@ pub fn mock_word_must_cancel() -> MockWord {
     MockWord::MustCancel(MustCancel::new())
 }
 
+pub fn mock_word_assert_cfg(cfg: WordEvalConfig) -> MockWord {
+    MockWord::AssertCfg(cfg)
+}
+
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockWord {
     Fields(Option<Fields<String>>),
     Error(MockErr),
     MustCancel(MustCancel),
+    AssertCfg(WordEvalConfig),
 }
 
 impl<E: ?Sized> WordEval<E> for MockWord {
@@ -196,7 +201,11 @@ impl<E: ?Sized> WordEval<E> for MockWord {
     type Error = MockErr;
     type EvalFuture = Self;
 
-    fn eval_with_config(self, _: &mut E, _: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, _: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        if let MockWord::AssertCfg(expected) = self {
+            assert_eq!(expected, cfg);
+        }
+
         self
     }
 
@@ -211,13 +220,15 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
             MockWord::Fields(ref mut f) => Ok(Async::Ready(f.take().expect("polled twice"))),
             MockWord::Error(ref mut e) => Err(e.clone()),
             MockWord::MustCancel(ref mut mc) => mc.poll(),
+            MockWord::AssertCfg(_) => Ok(Async::Ready(Fields::Zero)),
         }
     }
 
     fn cancel(&mut self, _: &mut E) {
         match *self {
             MockWord::Fields(_) |
-            MockWord::Error(_) => {},
+            MockWord::Error(_) |
+            MockWord::AssertCfg(_) => {},
             MockWord::MustCancel(ref mut mc) => mc.cancel(),
         }
     }

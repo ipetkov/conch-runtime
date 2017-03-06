@@ -1,6 +1,5 @@
 extern crate conch_parser;
 extern crate conch_runtime;
-extern crate futures;
 
 use conch_parser::ast;
 use conch_parser::ast::SimpleWord::*;

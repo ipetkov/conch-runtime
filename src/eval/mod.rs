@@ -11,11 +11,13 @@ mod arith;
 mod fields;
 mod parameter;
 mod simple_word;
+mod word;
 
 pub use self::arith::ArithEval;
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
 pub use self::simple_word::EvalSimpleWord;
+pub use self::word::EvalWord;
 
 /// An enum representing how tildes (`~`) are expanded.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
