@@ -8,12 +8,14 @@ use runtime::env::VariableEnvironment;
 use std::borrow::Borrow;
 
 mod arith;
+mod complex_word;
 mod fields;
 mod parameter;
 mod simple_word;
 mod word;
 
 pub use self::arith::ArithEval;
+pub use self::complex_word::EvalComplexWord;
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
 pub use self::simple_word::EvalSimpleWord;
