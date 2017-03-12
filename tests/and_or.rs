@@ -2,6 +2,7 @@ extern crate conch_parser as syntax;
 
 use syntax::ast::{AndOr, AndOrList};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -13,7 +14,7 @@ fn test_and_or_single_command() {
         rest: vec!(),
     };
 
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
@@ -27,7 +28,7 @@ fn test_and_or_should_skip_or_if_last_status_was_successful() {
         ),
     };
 
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
@@ -42,7 +43,7 @@ fn test_and_or_should_skip_and_if_last_status_was_unsuccessful() {
         ),
     };
 
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
@@ -55,7 +56,7 @@ fn test_and_or_should_run_and_if_last_status_was_successful() {
             AndOr::And(mock_status(exit)),
         )
     };
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
@@ -68,7 +69,7 @@ fn test_and_or_should_run_or_if_last_status_was_unsuccessful() {
             AndOr::Or(mock_status(exit)),
         )
     };
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
@@ -78,7 +79,7 @@ fn test_and_or_should_swallow_non_fatal_errors() {
         rest: vec!(),
     };
 
-    assert_eq!(run(list), Ok(EXIT_ERROR));
+    assert_eq!(run!(list), Ok(EXIT_ERROR));
 
     let exit = ExitStatus::Code(42);
     let list = AndOrList {
@@ -89,7 +90,7 @@ fn test_and_or_should_swallow_non_fatal_errors() {
         ),
     };
 
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
@@ -102,7 +103,7 @@ fn test_and_or_should_propagate_fatal_errors() {
         ),
     };
 
-    run(list).unwrap_err();
+    run!(list).unwrap_err();
 
     let list = AndOrList {
         first: mock_status(EXIT_SUCCESS),
@@ -112,7 +113,7 @@ fn test_and_or_should_propagate_fatal_errors() {
         ),
     };
 
-    run(list).unwrap_err();
+    run!(list).unwrap_err();
 }
 
 #[test]
@@ -129,5 +130,5 @@ fn test_and_or_should_propagate_cancel_to_current_command() {
         ),
     };
 
-    run_cancel(list);
+    run_cancel!(list);
 }

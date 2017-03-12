@@ -11,7 +11,7 @@ mod sequence;
 mod subshell;
 mod substitution;
 
-pub use self::and_or::AndOrListEnvFuture;
+pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter};
 pub use self::command::CommandEnvFuture;
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
                          PinnedFlattenedFuture, Pipeline};
