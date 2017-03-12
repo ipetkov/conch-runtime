@@ -145,6 +145,16 @@ impl<E: ?Sized + LastStatusEnvironment> Spawn<E> for MockCmd {
     }
 }
 
+impl<'a, E: ?Sized + LastStatusEnvironment> Spawn<E> for &'a MockCmd {
+    type Error = MockErr;
+    type EnvFuture = MockCmd;
+    type Future = FutureResult<ExitStatus, Self::Error>;
+
+    fn spawn(self, _: &E) -> Self::EnvFuture {
+        self.clone()
+    }
+}
+
 impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
     type Item = FutureResult<ExitStatus, Self::Error>;
     type Error = MockErr;
@@ -234,7 +244,21 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
     }
 }
 
+#[macro_export]
+macro_rules! run {
+    ($cmd:expr) => {{
+        let cmd = $cmd;
+        #[allow(deprecated)]
+        let ret_ref = run(&cmd);
+        #[allow(deprecated)]
+        let ret = run(cmd);
+        assert_eq!(ret_ref, ret);
+        ret
+    }}
+}
+
 /// Spawns and syncronously runs the provided command to completion.
+#[deprecated(note = "use `run!` macro instead to cover spawning T and &T")]
 pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
     let mut lp = Core::new().expect("failed to create Core loop");
     let env = DefaultEnvRc::new(lp.remote(), Some(1));
@@ -245,11 +269,25 @@ pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
     lp.run(future)
 }
 
+#[macro_export]
+macro_rules! run_cancel {
+    ($cmd:expr) => {{
+        let cmd = $cmd;
+        #[allow(deprecated)]
+        let ret_ref = run_cancel(&cmd);
+        #[allow(deprecated)]
+        let ret = run_cancel(cmd);
+        assert_eq!(ret_ref, ret);
+        ret
+    }}
+}
+
 /// Spawns the provided command and polls it a single time to give it a
 /// chance to get initialized. Then cancels and drops the future.
 ///
 /// It is up to the caller to set up the command in a way that failure to
 /// propagate cancel messages results in a panic.
+#[deprecated(note = "use `run!` macro instead to cover spawning T and &T")]
 pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
     let lp = Core::new().expect("failed to create Core loop");
     let mut env = DefaultEnvRc::new(lp.remote(), Some(1));

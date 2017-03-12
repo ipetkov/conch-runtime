@@ -39,6 +39,27 @@ impl<E: ?Sized, T> Spawn<E> for Command<T>
     }
 }
 
+impl<'a, E: ?Sized, T> Spawn<E> for &'a Command<T>
+    where E: LastStatusEnvironment,
+          &'a T: Spawn<E>,
+          <&'a T as Spawn<E>>::Error: From<RuntimeError>,
+{
+    type Error = <&'a T as Spawn<E>>::Error;
+    type EnvFuture = CommandEnvFuture<<&'a T as Spawn<E>>::EnvFuture>;
+    type Future = <&'a T as Spawn<E>>::Future;
+
+    fn spawn(self, env: &E) -> Self::EnvFuture {
+        let inner = match *self {
+            Command::Job(_) => Inner::Unimplemented,
+            Command::List(ref cmd) => Inner::Pending(cmd.spawn(env)),
+        };
+
+        CommandEnvFuture {
+            inner: inner,
+        }
+    }
+}
+
 impl<E: ?Sized, F> EnvFuture<E> for CommandEnvFuture<F>
     where F: EnvFuture<E>,
           F::Error: From<RuntimeError>,
