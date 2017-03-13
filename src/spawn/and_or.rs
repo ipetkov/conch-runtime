@@ -18,7 +18,7 @@ pub struct AndOrListEnvFuture<T, E, F, I> where I: Iterator<Item = AndOr<T>> {
     rest: Peekable<I>,
 }
 
-#[doc(hidden)]
+/// An iterator that converts `&AndOr<T>` to `AndOr<&T>`.
 #[must_use = "iterators do nothing unless polled"]
 #[derive(Debug)]
 pub struct AndOrRefIter<I> {
@@ -35,7 +35,7 @@ impl<E: ?Sized, T> Spawn<E> for AndOrList<T>
     type Future = Either<FutureResult<ExitStatus, Self::Error>, T::Future>;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
-        spawn(env, self.first, self.rest.into_iter())
+        and_or_list(self.first, self.rest.into_iter(), env)
     }
 }
 
@@ -55,21 +55,23 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a AndOrList<T>
     type Future = Either<FutureResult<ExitStatus, Self::Error>, <&'a T as Spawn<E>>::Future>;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
-        spawn(env, &self.first, AndOrRefIter { iter: self.rest.iter() })
+        let iter = AndOrRefIter { iter: self.rest.iter() };
+        and_or_list(&self.first, iter, env)
     }
 }
 
-fn spawn<E: ?Sized, T, I>(env: &E, first: T, rest: I)
-    -> AndOrListEnvFuture<T, T::EnvFuture, T::Future, I>
+/// Spawns an `And`/`Or` list of commands from an initial command and an iterator.
+pub fn and_or_list<T, I, E: ?Sized>(first: T, rest: I, env: &E)
+    -> AndOrListEnvFuture<T, T::EnvFuture, T::Future, I::IntoIter>
     where E: FileDescEnvironment + LastStatusEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
-          I: Iterator<Item = AndOr<T>>,
+          I: IntoIterator<Item = AndOr<T>>,
 {
     AndOrListEnvFuture {
         last_status: EXIT_SUCCESS,
         current: first.spawn(env).flatten_future(),
-        rest: rest.peekable(),
+        rest: rest.into_iter().peekable(),
     }
 }
 
