@@ -11,47 +11,48 @@ use std::rc::Rc;
 use syntax::ast::ListableCommand;
 use tokio_core::reactor::Core;
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
 #[test]
 fn empty_pipeline_is_noop() {
     let list: ListableCommand<MockCmd> = ListableCommand::Pipe(false, vec!());
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn single_command_propagates_status() {
     let exit = ExitStatus::Code(42);
     let list = ListableCommand::Single(mock_status(exit));
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
 fn single_command_propagates_error() {
     let list = ListableCommand::Single(mock_error(false));
-    run(list).unwrap_err();
+    run!(list).unwrap_err();
 
     let list = ListableCommand::Single(mock_error(true));
-    run(list).unwrap_err();
+    run!(list).unwrap_err();
 }
 
 #[test]
 fn single_command_status_inversion() {
     let list = ListableCommand::Pipe(true, vec!(mock_status(EXIT_SUCCESS)));
-    assert_eq!(run(list), Ok(EXIT_ERROR));
+    assert_eq!(run!(list), Ok(EXIT_ERROR));
 
     let list = ListableCommand::Pipe(true, vec!(mock_status(EXIT_ERROR)));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn single_command_status_inversion_on_error() {
     let list = ListableCommand::Pipe(true, vec!(mock_error(false)));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 
     let list = ListableCommand::Pipe(true, vec!(mock_error(true)));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
@@ -100,7 +101,7 @@ fn multiple_commands_propagates_last_status() {
         mock_status(EXIT_ERROR),
         mock_status(exit),
     ));
-    assert_eq!(run(list), Ok(exit));
+    assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
@@ -110,14 +111,14 @@ fn multiple_commands_propagates_last_error() {
         mock_status(EXIT_ERROR),
         mock_error(false),
     ));
-    run(list).unwrap_err();
+    run!(list).unwrap_err();
 
     let list = ListableCommand::Pipe(false, vec!(
         mock_status(EXIT_SUCCESS),
         mock_status(EXIT_ERROR),
         mock_error(true),
     ));
-    run(list).unwrap_err();
+    run!(list).unwrap_err();
 }
 
 #[test]
@@ -127,7 +128,7 @@ fn multiple_commands_swallows_inner_errors() {
         mock_error(true),
         mock_status(EXIT_SUCCESS),
     ));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
@@ -135,12 +136,12 @@ fn multiple_commands_status_inversion() {
     let list = ListableCommand::Pipe(true, vec!(
         mock_status(EXIT_SUCCESS),
     ));
-    assert_eq!(run(list), Ok(EXIT_ERROR));
+    assert_eq!(run!(list), Ok(EXIT_ERROR));
 
     let list = ListableCommand::Pipe(true, vec!(
         mock_status(EXIT_ERROR),
     ));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
@@ -148,20 +149,22 @@ fn multiple_commands_status_inversion_on_error() {
     let list = ListableCommand::Pipe(true, vec!(
         mock_error(false),
     ));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 
     let list = ListableCommand::Pipe(true, vec!(
         mock_error(true),
     ));
-    assert_eq!(run(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn multiple_commands_smoke() {
+    use std::cell::RefCell;
     use std::io::{Read, Write};
     use std::thread;
 
-    struct MockCmdFn<'a>(Box<FnMut(&mut DefaultEnvRc) + 'a>);
+    #[derive(Clone)]
+    struct MockCmdFn<'a>(Rc<RefCell<FnMut(&mut DefaultEnvRc) + 'a>>);
 
     impl<'a> Spawn<DefaultEnvRc> for MockCmdFn<'a> {
         type Error = RuntimeError;
@@ -173,13 +176,24 @@ fn multiple_commands_smoke() {
         }
     }
 
+    impl<'a: 'b, 'b> Spawn<DefaultEnvRc> for &'b MockCmdFn<'a> {
+        type Error = RuntimeError;
+        type EnvFuture = MockCmdFn<'a>;
+        type Future = FutureResult<ExitStatus, Self::Error>;
+
+        fn spawn(self, _: &DefaultEnvRc) -> Self::EnvFuture {
+            self.clone()
+        }
+    }
+
     impl<'a> EnvFuture<DefaultEnvRc> for MockCmdFn<'a> {
         type Item = FutureResult<ExitStatus, Self::Error>;
         type Error = RuntimeError;
 
         fn poll(&mut self, env: &mut DefaultEnvRc) -> Poll<Self::Item, Self::Error> {
-           (self.0)(env);
-           Ok(Async::Ready(ok(EXIT_SUCCESS)))
+            use std::ops::DerefMut;
+            (self.0.as_ref().borrow_mut().deref_mut())(env);
+            Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
 
         fn cancel(&mut self, _env: &mut DefaultEnvRc) {
@@ -191,18 +205,18 @@ fn multiple_commands_smoke() {
 
     {
         let list = ListableCommand::Pipe(false, vec!(
-            MockCmdFn(Box::new(|env: &mut DefaultEnvRc| {
+            MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
                 let fdes_perms = env.file_desc(STDOUT_FILENO).unwrap();
                 assert_eq!(fdes_perms.1, Permissions::Write);
                 writer = Some(fdes_perms.0.clone());
-            })),
-            MockCmdFn(Box::new(|env: &mut DefaultEnvRc| {
+            }))),
+            MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
                 let fdes_perms = env.file_desc(STDIN_FILENO).unwrap();
                 assert_eq!(fdes_perms.1, Permissions::Read);
                 reader = Some(fdes_perms.0.clone());
-            })),
+            }))),
         ));
-        assert_eq!(run(list), Ok(EXIT_SUCCESS));
+        assert_eq!(run!(list), Ok(EXIT_SUCCESS));
     }
 
     // Verify we are the only owners of the pipe ends,
@@ -228,5 +242,5 @@ fn single_command_should_propagate_cancel() {
         mock_must_cancel(),
     ));
 
-    run_cancel(list);
+    run_cancel!(list);
 }

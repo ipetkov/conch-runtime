@@ -84,6 +84,34 @@ impl<E: ?Sized, T> Spawn<E> for ListableCommand<T>
     }
 }
 
+impl<'a, E: ?Sized, T> Spawn<E> for &'a ListableCommand<T>
+    where E: FileDescEnvironment + SubEnvironment,
+          E::FileHandle: From<FileDesc> + Clone,
+          &'a T: Spawn<E>,
+          <&'a T as Spawn<E>>::Error: From<io::Error>,
+{
+    type Error = <&'a T as Spawn<E>>::Error;
+    type EnvFuture = ListableCommandEnvFuture<&'a T, <&'a T as Spawn<E>>::EnvFuture>;
+    type Future = ListableCommandFuture<
+        E,
+        <&'a T as Spawn<E>>::EnvFuture,
+        <&'a T as Spawn<E>>::Future,
+        Self::Error
+    >;
+
+    fn spawn(self, _: &E) -> Self::EnvFuture {
+        let (invert, pipeline) = match *self {
+            ListableCommand::Single(ref cmd) => (false, vec!(cmd)),
+            ListableCommand::Pipe(invert, ref cmds) => (invert, cmds.iter().collect()),
+        };
+
+        ListableCommandEnvFuture {
+            invert_last_status: invert,
+            pipeline_state: PipelineState::Init(pipeline),
+        }
+    }
+}
+
 impl<E: ?Sized, T> EnvFuture<E> for ListableCommandEnvFuture<T, T::EnvFuture>
     where E: FileDescEnvironment + SubEnvironment,
           E::FileHandle: From<FileDesc> + Clone,
@@ -185,7 +213,7 @@ fn poll_pipeline<F: Future>(pipeline: &mut Vec<F>) {
         return;
     }
 
-    let pending = mem::replace(pipeline, Vec::new())
+    *pipeline = mem::replace(pipeline, Vec::new())
         .into_iter()
         .filter_map(|mut future| match future.poll() {
             Ok(Async::NotReady) => Some(future), // Future pending, keep it around
@@ -194,8 +222,6 @@ fn poll_pipeline<F: Future>(pipeline: &mut Vec<F>) {
             Ok(Async::Ready(_)) => None, // Future done, no need to keep polling it
         })
         .collect();
-
-    mem::replace(pipeline, pending);
 }
 
 /// Spawns each command in the pipeline, and pins them to their own environments.
