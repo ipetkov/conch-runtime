@@ -5,19 +5,22 @@ use futures::future::{Either, Flatten, Future, FutureResult, err, ok};
 use io::{FileDesc, Permissions, Pipe};
 use std::io;
 use std::mem;
+use std::slice;
+use std::vec;
 use syntax::ast::ListableCommand;
 
 /// A future representing the spawning of a `ListableCommand`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct ListableCommandEnvFuture<T, F> {
+pub struct ListableCommandEnvFuture<T, I, F> {
     invert_last_status: bool,
-    pipeline_state: PipelineState<T, F>,
+    pipeline_state: PipelineState<T, I, F>,
 }
 
 #[derive(Debug)]
-enum PipelineState<T, F> {
-    Init(Vec<T>),
+enum PipelineState<T, I, F> {
+    InitSingle(Option<T>),
+    InitMany(I),
     Single(F),
 }
 
@@ -68,18 +71,16 @@ impl<E: ?Sized, T> Spawn<E> for ListableCommand<T>
           T::Error: From<io::Error>,
 {
     type Error = T::Error;
-    type EnvFuture = ListableCommandEnvFuture<T, T::EnvFuture>;
+    type EnvFuture = ListableCommandEnvFuture<T, vec::IntoIter<T>, T::EnvFuture>;
     type Future = ListableCommandFuture<E, T::EnvFuture, T::Future, Self::Error>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
-        let (invert, pipeline) = match self {
-            ListableCommand::Single(cmd) => (false, vec!(cmd)),
-            ListableCommand::Pipe(invert, cmds) => (invert, cmds),
-        };
-
-        ListableCommandEnvFuture {
-            invert_last_status: invert,
-            pipeline_state: PipelineState::Init(pipeline),
+        match self {
+            ListableCommand::Single(cmd) => ListableCommandEnvFuture {
+                invert_last_status: false,
+                pipeline_state: PipelineState::InitSingle(Some(cmd)),
+            },
+            ListableCommand::Pipe(invert, cmds) => pipeline(invert, cmds),
         }
     }
 }
@@ -91,7 +92,11 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a ListableCommand<T>
           <&'a T as Spawn<E>>::Error: From<io::Error>,
 {
     type Error = <&'a T as Spawn<E>>::Error;
-    type EnvFuture = ListableCommandEnvFuture<&'a T, <&'a T as Spawn<E>>::EnvFuture>;
+    type EnvFuture = ListableCommandEnvFuture<
+        &'a T,
+        slice::Iter<'a, T>,
+        <&'a T as Spawn<E>>::EnvFuture
+    >;
     type Future = ListableCommandFuture<
         E,
         <&'a T as Spawn<E>>::EnvFuture,
@@ -100,21 +105,40 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a ListableCommand<T>
     >;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
-        let (invert, pipeline) = match *self {
-            ListableCommand::Single(ref cmd) => (false, vec!(cmd)),
-            ListableCommand::Pipe(invert, ref cmds) => (invert, cmds.iter().collect()),
-        };
-
-        ListableCommandEnvFuture {
-            invert_last_status: invert,
-            pipeline_state: PipelineState::Init(pipeline),
+        match *self {
+            ListableCommand::Single(ref cmd) => ListableCommandEnvFuture {
+                invert_last_status: false,
+                pipeline_state: PipelineState::InitSingle(Some(cmd)),
+            },
+            ListableCommand::Pipe(invert, ref cmds) => pipeline(invert, cmds),
         }
     }
 }
 
-impl<E: ?Sized, T> EnvFuture<E> for ListableCommandEnvFuture<T, T::EnvFuture>
+/// Spawns a pipeline of commands.
+///
+/// The standard output of the previous command will be piped as standard input
+/// to the next. The very first and last commands will inherit standard intput
+/// and output from the environment, respectively.
+///
+/// If `invert_last_status` is set to `false`, the pipeline will fully resolve
+/// to the last command's exit status. Otherwise, `EXIT_ERROR` will be returned
+/// if the last command succeeds, and `EXIT_SUCCESS` will be returned otherwise.
+pub fn pipeline<E: ?Sized, T, I>(invert_last_status: bool, commands: I)
+    -> ListableCommandEnvFuture<T, I::IntoIter, T::EnvFuture>
+    where I: IntoIterator<Item = T>,
+          T: Spawn<E>,
+{
+    ListableCommandEnvFuture {
+        invert_last_status: invert_last_status,
+        pipeline_state: PipelineState::InitMany(commands.into_iter()),
+    }
+}
+
+impl<E: ?Sized, I, T> EnvFuture<E> for ListableCommandEnvFuture<T, I, T::EnvFuture>
     where E: FileDescEnvironment + SubEnvironment,
           E::FileHandle: From<FileDesc> + Clone,
+          I: Iterator<Item = T>,
           T: Spawn<E>,
           T::Error: From<io::Error>,
 {
@@ -134,23 +158,31 @@ impl<E: ?Sized, T> EnvFuture<E> for ListableCommandEnvFuture<T, T::EnvFuture>
                     FutureOrStateChange::Future(Either::B(future))
                 },
 
-                PipelineState::Init(ref mut cmds) => {
-                    let mut pipeline = mem::replace(cmds, Vec::new());
+                PipelineState::InitSingle(ref mut cmd) => {
+                    // We treat single commands specially so that their side effects
+                    // can be reflected in the main/parent environment (since "regular"
+                    // pipeline commands will each get their own sub-environment
+                    // and their changes will not be reflected on the parent)
+                    FutureOrStateChange::StateChange(cmd.take().unwrap().spawn(env))
+                }
 
-                    if pipeline.is_empty() {
-                        // Empty pipelines aren't particularly well-formed, but
-                        // we'll just treat it as a successful command.
-                        FutureOrStateChange::Future(Either::B(Either::B(ok(EXIT_SUCCESS))))
-                    } else if pipeline.len() == 1 {
-                        // We treat single commands specially so that their side effects
-                        // can be reflected in the main/parent environment (since "regular"
-                        // pipeline commands will each get their own sub-environment
-                        // and their changes will not be reflected on the parent)
-                        let cmd = pipeline.pop().unwrap();
-                        FutureOrStateChange::StateChange(cmd.spawn(env))
-                    } else {
-                        let pipeline = try!(init_pipeline(pipeline, env));
-                        FutureOrStateChange::Future(Either::A(Pipeline::new(pipeline)))
+                PipelineState::InitMany(ref mut cmds) => {
+                    let mut cmds = cmds.fuse();
+                    match (cmds.next(), cmds.next()) {
+                        (None, None) => {
+                            // Empty pipelines aren't particularly well-formed, but
+                            // we'll just treat it as a successful command.
+                            FutureOrStateChange::Future(Either::B(Either::B(ok(EXIT_SUCCESS))))
+                        },
+
+                        (None, Some(cmd)) | // Should be unreachable
+                        (Some(cmd), None) => FutureOrStateChange::StateChange(cmd.spawn(env)),
+
+                        (Some(first), Some(second)) => {
+                            let iter = ::std::iter::once(second).chain(cmds);
+                            let pipeline = try!(init_pipeline(env, first, iter));
+                            FutureOrStateChange::Future(Either::A(Pipeline::new(pipeline)))
+                        }
                     }
                 },
             };
@@ -172,7 +204,8 @@ impl<E: ?Sized, T> EnvFuture<E> for ListableCommandEnvFuture<T, T::EnvFuture>
 
     fn cancel(&mut self, env: &mut E) {
         match self.pipeline_state {
-            PipelineState::Init(_) => {},
+            PipelineState::InitSingle(_) |
+            PipelineState::InitMany(_) => {},
             PipelineState::Single(ref mut e) => e.cancel(env),
         }
     }
@@ -243,21 +276,18 @@ fn poll_pipeline<F: Future>(pipeline: &mut Vec<F>) {
 /// risk of behaving differently than the script author intends, so we'll take
 /// bash's approach and spawn each command with its own environment and hide any
 /// lasting effects.
-fn init_pipeline<E: ?Sized, S>(mut pipeline: Vec<S>, env: &E)
+fn init_pipeline<E: ?Sized, S, I>(env: &E, first: S, mut pipeline: I)
     -> io::Result<Vec<PinnedFlattenedFuture<E, S::EnvFuture>>>
     where E: FileDescEnvironment + SubEnvironment,
           E::FileHandle: From<FileDesc> + Clone,
           S: Spawn<E>,
+          I: Iterator<Item = S>,
 {
-    debug_assert!(pipeline.len() >= 2);
-
-    let mut result = Vec::with_capacity(pipeline.len());
-    let last = pipeline.pop().unwrap();
-    let mut iter = pipeline.into_iter();
+    let (lo, hi) = pipeline.size_hint();
+    let mut result = Vec::with_capacity(hi.unwrap_or(lo) + 1);
     let mut next_in = {
         // First command will automatically inherit the stdin of the
         // parent environment, so no need to manually set it
-        let first = iter.next().unwrap();
         let pipe = try!(Pipe::new());
 
         let mut env = env.sub_env();
@@ -267,7 +297,11 @@ fn init_pipeline<E: ?Sized, S>(mut pipeline: Vec<S>, env: &E)
         pipe.reader
     };
 
-    for cmd in iter {
+    let mut last = pipeline.next().expect("pipelines must have at least two commands");
+    for next in pipeline {
+        let cmd = last;
+        last = next;
+
         let pipe = try!(Pipe::new());
 
         let mut env = env.sub_env();

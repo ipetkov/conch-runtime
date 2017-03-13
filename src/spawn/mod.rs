@@ -14,7 +14,7 @@ mod substitution;
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::command::CommandEnvFuture;
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
-                         PinnedFlattenedFuture, Pipeline};
+                         PinnedFlattenedFuture, Pipeline, pipeline};
 pub use self::sequence::{Sequence, sequence};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
