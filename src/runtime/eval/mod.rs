@@ -11,27 +11,7 @@ use runtime::env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 
 pub use self::redirect::*;
-pub use new_eval::{ArithEval, Fields, ParamEval};
-
-/// An enum representing how tildes (`~`) are expanded.
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
-pub enum TildeExpansion {
-    /// Tildes retain a literal value, no expansion is done.
-    None,
-    /// Tildes are expanded if they are at the beginning of a word.
-    First,
-    /// All tildes (either at start of word or after `:`) are expanded.
-    All,
-}
-
-/// A config object for customizing `WordEval` evaluations.
-#[derive(PartialEq, Eq, Copy, Clone, Debug)]
-pub struct WordEvalConfig {
-    /// Configure tilde expansion.
-    pub tilde_expansion: TildeExpansion,
-    /// Perform field splitting where appropriate or not.
-    pub split_fields_further: bool,
-}
+pub use new_eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEvalConfig};
 
 /// A trait for evaluating shell words with various rules for expansion.
 pub trait WordEval<E: ?Sized> {
