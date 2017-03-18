@@ -5,12 +5,14 @@
 
 extern crate conch_runtime;
 extern crate tokio_core;
+extern crate tokio_io;
 
 use conch_runtime::io::Pipe;
 use std::io::{ErrorKind, Read, Result, Write};
 use std::time::Duration;
 use std::thread;
-use tokio_core::io::read_to_end;
+use tokio_io::AsyncRead;
+use tokio_io::io::read_to_end;
 use tokio_core::reactor::Core;
 
 struct TimesRead<R> {
@@ -29,6 +31,7 @@ impl<R> TimesRead<R> {
     }
 }
 
+impl<R: AsyncRead> AsyncRead for TimesRead<R> {}
 impl<R: Read> Read for TimesRead<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.reader.read(buf) {

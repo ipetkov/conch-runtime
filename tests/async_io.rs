@@ -1,11 +1,12 @@
 extern crate futures;
 extern crate conch_runtime;
 extern crate tokio_core;
+extern crate tokio_io;
 
 use conch_runtime::io::Pipe;
 use conch_runtime::env::{AsyncIoEnvironment, ThreadPoolAsyncIoEnv};
 use futures::Future;
-use tokio_core::io::read_to_end;
+use tokio_io::io::read_to_end;
 
 #[test]
 fn async_io_thread_pool_smoke() {

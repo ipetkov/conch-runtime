@@ -6,9 +6,10 @@ use futures::future::{Either, Future, FutureResult, Join};
 use io::{FileDescWrapper, Permissions, Pipe};
 use spawn::{Subshell, subshell};
 use std::borrow::Cow;
-use std::io::{Error as IoError, Read};
+use std::io::Error as IoError;
 use std::marker::PhantomData;
-use tokio_core::io::{ReadToEnd, read_to_end};
+use tokio_io::AsyncRead;
+use tokio_io::io::{ReadToEnd, read_to_end};
 use void::unreachable;
 
 /// A future that represents the spawning of a command substitution.
@@ -27,6 +28,7 @@ impl<E, I, S> EnvFuture<E> for SubstitutionEnvFuture<I>
           S::Error: IsFatalError + From<IoError>,
           E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment + SubEnvironment,
           E::FileHandle: FileDescWrapper,
+          E::Read: AsyncRead,
 {
     type Item = Substitution<E, I, E::Read>;
     type Error = S::Error;
@@ -73,7 +75,7 @@ pub struct Substitution<E, I, R>
           I: Iterator,
           I::Item: Spawn<E>,
           <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
-          R: Read,
+          R: AsyncRead,
 {
     #[cfg_attr(feature = "clippy", allow(type_complexity))]
     inner: JoinSubshellAndReadToEnd<
@@ -88,7 +90,7 @@ impl<E, I, R, S> Future for Substitution<E, I, R>
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
-          R: Read,
+          R: AsyncRead,
 {
     type Item = String;
     type Error = S::Error;

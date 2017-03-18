@@ -28,6 +28,7 @@ extern crate glob;
 #[macro_use] extern crate lazy_static;
 extern crate mio;
 extern crate tokio_core;
+extern crate tokio_io;
 extern crate void;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.

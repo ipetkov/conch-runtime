@@ -5,8 +5,9 @@ use futures::future::{Either, FutureResult, IntoFuture};
 use futures::sync::oneshot::{self, Canceled, Receiver};
 use mio::would_block;
 use os::unix::io::{EventedFileDesc, FileDescExt};
-use tokio_core::io as tokio_io;
 use tokio_core::reactor::{PollEvented, Remote};
+use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_io::io as tokio_io;
 use std::fmt;
 use std::io::{Error as IoError, ErrorKind, Read, Result, Write};
 
@@ -135,6 +136,7 @@ impl<F, I> Deferred<F, I> where F: Future<Item = I> {
 #[allow(missing_debug_implementations)]
 pub struct ReadAsync(DeferredFd);
 
+impl AsyncRead for ReadAsync {}
 impl Read for ReadAsync {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match try!(self.0.poll()) {
@@ -159,6 +161,12 @@ impl Write for WriteAsync {
             Async::Ready(fd) => fd.flush(),
             Async::NotReady => Err(would_block()),
         }
+    }
+}
+
+impl AsyncWrite for WriteAsync {
+    fn shutdown(&mut self) -> Poll<(), IoError> {
+        try_ready!(self.0.poll()).shutdown()
     }
 }
 

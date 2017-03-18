@@ -8,12 +8,13 @@ use mio::would_block;
 use std::io::{BufRead, BufReader, Error as IoError, ErrorKind, Read, Result, Write};
 use std::fmt;
 use tokio_core::reactor::Remote;
+use tokio_io::AsyncRead;
 use void::Void;
 
 /// An environment for performing async operations on `FileDesc` handles.
 pub trait AsyncIoEnvironment {
     /// An async/futures-aware `Read` adapter around a `FileDesc`.
-    type Read: Read;
+    type Read: AsyncRead;
     /// An future that represents writing data into a `FileDesc`.
     // FIXME: Unfortunately we cannot support resolving/unwrapping futures/adapters
     // to the `FileDesc` since the Unix extension cannot (currently) support it.
@@ -52,8 +53,12 @@ pub struct PlatformSpecificRead(
     #[cfg(not(unix))] ReadAsync,
 );
 
+impl AsyncRead for PlatformSpecificRead {}
 impl Read for PlatformSpecificRead {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        fn assert_async_read<T: AsyncRead>(_: &T) {}
+        assert_async_read(&self.0);
+
         self.0.read(buf)
     }
 }
@@ -202,6 +207,7 @@ impl fmt::Debug for ReadAsync {
     }
 }
 
+impl AsyncRead for ReadAsync {}
 impl Read for ReadAsync {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
         loop {
