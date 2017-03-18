@@ -58,7 +58,7 @@ impl EventedAsyncIoEnv {
                 let (tx, rx) = oneshot::channel();
 
                 self.remote.spawn(move |handle| {
-                    tx.complete(fd.into_evented(handle));
+                    let _ = tx.send(fd.into_evented(handle));
                     Ok(())
                 });
 
