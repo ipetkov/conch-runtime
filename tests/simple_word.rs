@@ -10,30 +10,6 @@ pub use self::support::*;
 
 type SimpleWord = ast::SimpleWord<String, MockParam, MockWord>;
 
-#[derive(Debug, Clone)]
-enum MockParam {
-    Fields(Option<Fields<String>>),
-    Split(bool /* expect_split */, Fields<String>),
-}
-
-impl<E: ?Sized> ParamEval<E> for MockParam {
-    type EvalResult = String;
-
-    fn eval(&self, split_fields_further: bool, _: &E) -> Option<Fields<Self::EvalResult>> {
-        match *self {
-            MockParam::Fields(ref f) => f.clone(),
-            MockParam::Split(expect_split, ref f) => {
-                assert_eq!(expect_split, split_fields_further);
-                Some(f.clone())
-            },
-        }
-    }
-
-    fn assig_name(&self) -> Option<Self::EvalResult> {
-        unimplemented!()
-    }
-}
-
 fn eval(word: SimpleWord, cfg: WordEvalConfig) -> Result<Fields<String>, MockErr> {
     let mut env = VarEnv::<String, String>::new();
     word.eval_with_config(&mut env, cfg)

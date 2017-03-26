@@ -1,4 +1,4 @@
-//! A module that defines evaluating parameters and parameter subsitutions.
+//! A module that defines evaluating parameters.
 
 use ExitStatus;
 use env::{ArgumentsEnvironment, LastStatusEnvironment, StringWrapper, VariableEnvironment};

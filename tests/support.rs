@@ -244,6 +244,30 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum MockParam {
+    Fields(Option<Fields<String>>),
+    Split(bool /* expect_split */, Fields<String>),
+}
+
+impl<E: ?Sized> ParamEval<E> for MockParam {
+    type EvalResult = String;
+
+    fn eval(&self, split_fields_further: bool, _: &E) -> Option<Fields<Self::EvalResult>> {
+        match *self {
+            MockParam::Fields(ref f) => f.clone(),
+            MockParam::Split(expect_split, ref f) => {
+                assert_eq!(expect_split, split_fields_further);
+                Some(f.clone())
+            },
+        }
+    }
+
+    fn assig_name(&self) -> Option<Self::EvalResult> {
+        unimplemented!()
+    }
+}
+
 #[macro_export]
 macro_rules! run {
     ($cmd:expr) => {{
