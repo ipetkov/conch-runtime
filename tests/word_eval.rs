@@ -4,6 +4,7 @@ extern crate futures;
 use conch_runtime::new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use conch_runtime::future::{Async, EnvFuture, Poll};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -141,17 +142,13 @@ fn test_assignment_cancel() {
     use conch_runtime::env::VarEnv;
 
     let mut env = VarEnv::<String, String>::new();
-    let mut assignment = mock_word_must_cancel().eval_as_assignment(&mut env);
-    let _ = assignment.poll(&mut env); // Give a chance to init things
-    assignment.cancel(&mut env); // Cancel the operation
-    drop(assignment);
+    let future = mock_word_must_cancel().eval_as_assignment(&mut env);
+    test_cancel!(future, env);
 }
 
 #[test]
 fn test_pattern_cancel() {
     let mut env = ();
-    let mut pattern = mock_word_must_cancel().eval_as_pattern(&mut env);
-    let _ = pattern.poll(&mut env); // Give a chance to init things
-    pattern.cancel(&mut env); // Cancel the operation
-    drop(pattern);
+    let future = mock_word_must_cancel().eval_as_pattern(&mut env);
+    test_cancel!(future, env);
 }

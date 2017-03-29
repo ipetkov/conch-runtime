@@ -5,6 +5,7 @@ use conch_parser::ast;
 use conch_parser::ast::SimpleWord::*;
 use conch_runtime::new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -101,10 +102,8 @@ fn test_subst_cancel() {
 
     let mut env = VarEnv::<String, String>::new();
     let word: SimpleWord = Subst(mock_word_must_cancel());
-    let mut future = word.eval_with_config(&mut env, cfg);
-    let _ = future.poll(&mut env); // Give a chance to init things
-    future.cancel(&mut env); // Cancel the operation
-    drop(future);
+    let future = word.eval_with_config(&mut env, cfg);
+    test_cancel!(future, env);
 }
 
 #[test]

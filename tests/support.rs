@@ -34,6 +34,21 @@ pub fn mktmp_impl(path: &str) -> TempDir {
     }
 }
 
+#[macro_export]
+macro_rules! test_cancel {
+    ($future:expr) => { test_cancel!($future, ()) };
+    ($future:expr, $env:expr) => {{
+        let mut env = $env;
+        ::support::test_cancel_impl($future, &mut env);
+    }};
+}
+
+pub fn test_cancel_impl<F: EnvFuture<E>, E: ?Sized>(mut future: F, env: &mut E) {
+    let _ = future.poll(env); // Give a chance to init things
+    future.cancel(env); // Cancel the operation
+    drop(future);
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct MockErr(bool);
 
@@ -322,8 +337,6 @@ macro_rules! run_cancel {
 pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
     let lp = Core::new().expect("failed to create Core loop");
     let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
-    let mut env_future = cmd.spawn(&env);
-    let _ = env_future.poll(&mut env); // Give a chance to init things
-    env_future.cancel(&mut env); // Cancel the operation
-    drop(env_future);
+    let env_future = cmd.spawn(&env);
+    test_cancel_impl(env_future, &mut env);
 }

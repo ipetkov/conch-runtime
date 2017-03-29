@@ -5,6 +5,7 @@ use conch_parser::ast;
 use conch_parser::ast::ComplexWord::*;
 use conch_runtime::new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -156,22 +157,15 @@ fn test_concat_param_at_expands_to_nothing_when_args_not_set_and_concats_with_re
 
 #[test]
 fn test_single_cancel() {
-    let mut env = ();
-    let mut single = Single(mock_word_must_cancel()).eval(&mut env);
-    let _ = single.poll(&mut env); // Give a chance to init things
-    single.cancel(&mut env); // Cancel the operation
-    drop(single);
+    test_cancel!(Single(mock_word_must_cancel()).eval(&mut ()));
 }
 
 #[test]
 fn test_concat_cancel() {
-    let mut env = ();
-    let mut concat = Concat(vec!(
-            mock_word_must_cancel(),
-            mock_word_must_cancel(),
-            mock_word_must_cancel(),
-    )).eval(&mut env);
-    let _ = concat.poll(&mut env); // Give a chance to init things
-    concat.cancel(&mut env); // Cancel the operation
-    drop(concat);
+    let concat = Concat(vec!(
+        mock_word_must_cancel(),
+        mock_word_must_cancel(),
+        mock_word_must_cancel(),
+    ));
+    test_cancel!(concat.eval(&mut ()));
 }

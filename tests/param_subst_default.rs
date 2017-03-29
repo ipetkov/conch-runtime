@@ -3,19 +3,9 @@ extern crate conch_runtime;
 
 use conch_runtime::new_eval::{default, Fields, TildeExpansion, WordEvalConfig};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
-
-macro_rules! test_cancel {
-    ($future:expr) => { test_cancel!($future, ()) };
-    ($future:expr, $env:expr) => {{
-        let mut env = $env;
-        let mut future = $future;
-        let _ = future.poll(&mut env); // Give a chance to init things
-        future.cancel(&mut env); // Cancel the operation
-        drop(future);
-    }};
-}
 
 const CFG: TildeExpansion = TildeExpansion::All;
 

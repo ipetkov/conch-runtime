@@ -1,14 +1,15 @@
 extern crate conch_parser;
 extern crate conch_runtime;
 
-use conch_runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
+use conch_runtime::env::VarEnv;
 use conch_runtime::new_eval::{Fields, split};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
 fn eval(do_split: bool, inner: MockWord) -> Result<Fields<String>, MockErr> {
-    let mut env = VarEnv::<String, String>::new();
+    let env = VarEnv::<String, String>::new();
     split(do_split, inner)
         .pin_env(env)
         .wait()
@@ -31,9 +32,5 @@ fn should_propagate_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    let mut env = VarEnv::<String, String>::new();
-    let mut split = split(true, mock_word_must_cancel());
-    let _ = split.poll(&mut env); // Give a chance to init things
-    split.cancel(&mut env); // Cancel the operation
-    drop(split);
+    test_cancel!(split(true, mock_word_must_cancel()), VarEnv::<String, String>::new());
 }

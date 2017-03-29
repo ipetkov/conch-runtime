@@ -7,6 +7,7 @@ use runtime::error::IsFatalError;
 use runtime::spawn::sequence;
 use tokio_core::reactor::Core;
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -30,11 +31,8 @@ fn run_cancel_sequence<I>(cmds: I)
           <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
     let lp = Core::new().unwrap();
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
-    let mut env_future = sequence(cmds);
-    let _ = env_future.poll(&mut env); // Give a chance to init things
-    env_future.cancel(&mut env); // Cancel the operation
-    drop(env_future);
+    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    test_cancel!(sequence(cmds), env);
 }
 
 #[test]

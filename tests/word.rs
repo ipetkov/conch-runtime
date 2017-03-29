@@ -6,6 +6,7 @@ use conch_parser::ast::Word::*;
 use conch_runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 use conch_runtime::new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
+#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -164,21 +165,17 @@ fn test_double_quoted_no_field_splitting() {
 #[test]
 fn test_simple_cancel() {
     let mut env = VarEnv::<String, String>::new();
-    let mut simple = Simple(mock_word_must_cancel()).eval(&mut env);
-    let _ = simple.poll(&mut env); // Give a chance to init things
-    simple.cancel(&mut env); // Cancel the operation
-    drop(simple);
+    let future = Simple(mock_word_must_cancel()).eval(&mut env);
+    test_cancel!(future, env);
 }
 
 #[test]
 fn test_double_quoted_cancel() {
     let mut env = VarEnv::<String, String>::new();
-    let mut double_quoted = DoubleQuoted(vec!(
+    let future = DoubleQuoted(vec!(
             mock_word_must_cancel(),
             mock_word_must_cancel(),
             mock_word_must_cancel(),
     )).eval(&mut env);
-    let _ = double_quoted.poll(&mut env); // Give a chance to init things
-    double_quoted.cancel(&mut env); // Cancel the operation
-    drop(double_quoted);
+    test_cancel!(future, env);
 }
