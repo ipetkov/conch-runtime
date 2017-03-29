@@ -197,6 +197,10 @@ pub fn mock_word_assert_cfg(cfg: WordEvalConfig) -> MockWord {
     MockWord::AssertCfg(cfg)
 }
 
+pub fn mock_word_panic(msg: &'static str) -> MockWord {
+    MockWord::Panic(msg)
+}
+
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockWord {
@@ -204,6 +208,7 @@ pub enum MockWord {
     Error(MockErr),
     MustCancel(MustCancel),
     AssertCfg(WordEvalConfig),
+    Panic(&'static str),
 }
 
 impl<E: ?Sized> WordEval<E> for MockWord {
@@ -231,6 +236,7 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
             MockWord::Error(ref mut e) => Err(e.clone()),
             MockWord::MustCancel(ref mut mc) => mc.poll(),
             MockWord::AssertCfg(_) => Ok(Async::Ready(Fields::Zero)),
+            MockWord::Panic(msg) => panic!("{}", msg),
         }
     }
 
@@ -240,6 +246,7 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
             MockWord::Error(_) |
             MockWord::AssertCfg(_) => {},
             MockWord::MustCancel(ref mut mc) => mc.cancel(),
+            MockWord::Panic(msg) => panic!("{}", msg),
         }
     }
 }
