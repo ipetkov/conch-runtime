@@ -49,12 +49,18 @@ pub fn test_cancel_impl<F: EnvFuture<E>, E: ?Sized>(mut future: F, env: &mut E) 
     drop(future);
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MockErr(bool);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockErr {
+    Fatal(bool),
+    ExpansionError(ExpansionError),
+}
 
 impl self::conch_runtime::error::IsFatalError for MockErr {
     fn is_fatal(&self) -> bool {
-        self.0
+        match *self {
+            MockErr::Fatal(fatal) => fatal,
+            MockErr::ExpansionError(ref e) => e.is_fatal(),
+        }
     }
 }
 
@@ -66,19 +72,25 @@ impl ::std::error::Error for MockErr {
 
 impl ::std::fmt::Display for MockErr {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(fmt, "mock {}fatal error", if self.0 { "non-" } else { "" })
+        write!(fmt, "mock {}fatal error", if self.is_fatal() { "non-" } else { "" })
     }
 }
 
 impl From<RuntimeError> for MockErr {
     fn from(err: RuntimeError) -> Self {
-        MockErr(err.is_fatal())
+        MockErr::Fatal(err.is_fatal())
+    }
+}
+
+impl From<ExpansionError> for MockErr {
+    fn from(err: ExpansionError) -> Self {
+        MockErr::ExpansionError(err)
     }
 }
 
 impl From<::std::io::Error> for MockErr {
     fn from(_: ::std::io::Error) -> Self {
-        MockErr(false)
+        MockErr::Fatal(false)
     }
 }
 
@@ -139,7 +151,7 @@ pub fn mock_status(status: ExitStatus) -> MockCmd {
 }
 
 pub fn mock_error(fatal: bool) -> MockCmd {
-    MockCmd::Error(MockErr(fatal))
+    MockCmd::Error(MockErr::Fatal(fatal))
 }
 
 pub fn mock_panic(msg: &'static str) -> MockCmd {
@@ -177,9 +189,9 @@ impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         match *self {
             MockCmd::Status(s) => Ok(Async::Ready(future_result(Ok(s)))),
-            MockCmd::Error(e) => {
+            MockCmd::Error(ref e) => {
                 env.set_last_status(EXIT_ERROR);
-                Err(e)
+                Err(e.clone())
             },
             MockCmd::Panic(msg) => panic!("{}", msg),
             MockCmd::MustCancel(ref mut mc) => mc.poll(),
@@ -201,7 +213,7 @@ pub fn mock_word_fields(fields: Fields<String>) -> MockWord {
 }
 
 pub fn mock_word_error(fatal: bool) -> MockWord {
-    MockWord::Error(MockErr(fatal))
+    MockWord::Error(MockErr::Fatal(fatal))
 }
 
 pub fn mock_word_must_cancel() -> MockWord {
@@ -270,6 +282,12 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
 pub enum MockParam {
     Fields(Option<Fields<String>>),
     Split(bool /* expect_split */, Fields<String>),
+}
+
+impl ::std::fmt::Display for MockParam {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(fmt, "MockParam")
+    }
 }
 
 impl<E: ?Sized> ParamEval<E> for MockParam {

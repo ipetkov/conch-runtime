@@ -2,7 +2,7 @@
 /// returns the result as long as there is at least one non-empty field inside.
 /// If all fields from the evaluated result are empty and the evaluation is
 /// considered NON-strict, an empty `Field` is returned to the caller.
-macro_rules! check_param_subst {
+macro_rules! return_param_if_present {
     ($param_fields:expr, $env:expr, $strict:expr) => {{
         if let Some(fields) = $param_fields {
             if !fields.is_null() {
@@ -15,9 +15,11 @@ macro_rules! check_param_subst {
 }
 
 mod default;
+mod error;
 mod len;
 mod split;
 
 pub use self::default::{default, EvalDefault};
+pub use self::error::{error, EvalError};
 pub use self::len::len;
 pub use self::split::{Split, split};

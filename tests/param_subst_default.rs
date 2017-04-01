@@ -46,7 +46,6 @@ fn should_evaluate_appropriately() {
     });
     eval(false, &param, mock_word.clone()).unwrap();
     eval(true, &param, mock_word.clone()).unwrap();
-    eval(true, &param, mock_word.clone()).unwrap();
 }
 
 #[test]

@@ -47,7 +47,7 @@ impl<W, E: ?Sized> EnvFuture<E> for EvalDefault<W, W::EvalResult, W::EvalFuture>
         loop {
             let next_state = match self.state {
                 State::ParamVal(strict, ref mut param_val, ref mut default, cfg) => {
-                    check_param_subst!(param_val.take(), env, strict);
+                    return_param_if_present!(param_val.take(), env, strict);
                     match default.take() {
                         Some(w) => State::Default(w.eval_with_config(env, cfg)),
                         None => return Ok(Async::Ready(Fields::Zero)),
