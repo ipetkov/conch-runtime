@@ -62,8 +62,8 @@ fn should_propagate_errors_from_word_if_applicable() {
 
     // Param not present
     let param = MockParam::Fields(None);
-    eval(false, &param, mock_word_error(false)).unwrap_err();
-    eval(true, &param, mock_word_error(false)).unwrap_err();
+    assert_eq!(eval(false, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
+    assert_eq!(eval(true, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
     eval(false, &param, None).unwrap();
     eval(true, &param, None).unwrap();
 
@@ -77,7 +77,7 @@ fn should_propagate_errors_from_word_if_applicable() {
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
     eval(false, &param, must_not_run.clone()).unwrap();
-    eval(true, &param, mock_word_error(false)).unwrap_err();
+    assert_eq!(eval(true, &param, mock_word_error(true)), Err(MockErr::Fatal(true)));
     eval(false, &param, None).unwrap();
     eval(true, &param, None).unwrap();
 }
