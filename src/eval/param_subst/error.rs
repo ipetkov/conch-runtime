@@ -1,20 +1,22 @@
 use error::ExpansionError;
-use env::StringWrapper;
+use env::{StringWrapper,VariableEnvironment};
 use new_eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use future::{EnvFuture, Poll};
+use future::{Async, EnvFuture, Poll};
 use std::fmt::Display;
+use super::is_present;
 
 /// A future representing a `Error` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalError<P, T, W, F> {
-    state: State<P, T, W, F>,
+pub struct EvalError<T, F> {
+    state: State<T, F>,
 }
 
 #[derive(Debug)]
-enum State<P, T, W, F> {
-    ParamVal(bool, Option<P>, Option<Fields<T>>, Option<W>, WordEvalConfig),
-    Error(P, F),
+enum State<T, F> {
+    ParamVal(Option<Fields<T>>),
+    EmptyParameter(Option<String>),
+    Error(Option<String>, F),
 }
 
 /// Constructs future representing a `Error` parameter substitution evaluation.
@@ -26,62 +28,72 @@ enum State<P, T, W, F> {
 /// an `ExpansionError::EmptyParameter`.
 ///
 /// Note: field splitting will neither be done on the parameter, nor the error message.
-pub fn error<P, W, E: ?Sized>(strict: bool, param: P, error: W, env: &E, cfg: TildeExpansion)
-    -> EvalError<P, P::EvalResult, W, W::EvalFuture>
-    where P: ParamEval<E>,
+pub fn error<P, W, E: ?Sized>(
+    strict: bool,
+    param: &P,
+    error: Option<W>,
+    env: &mut E,
+    cfg: TildeExpansion
+) -> EvalError<P::EvalResult, W::EvalFuture>
+    where P: ParamEval<E> + Display,
           W: WordEval<E>,
 {
-    let val = param.eval(false, env);
+    let state = match is_present(strict, param.eval(false, env)) {
+        fields@Some(_) => State::ParamVal(fields),
+        None => {
+            let param_display = param.to_string();
+
+            match error {
+                Some(w) => {
+                    let future = w.eval_with_config(env, WordEvalConfig {
+                        split_fields_further: false,
+                        tilde_expansion: cfg,
+                    });
+                    State::Error(Some(param_display), future)
+                },
+                None => State::EmptyParameter(Some(param_display)),
+            }
+        },
+    };
 
     EvalError {
-        state: State::ParamVal(strict, Some(param), val, Some(error), WordEvalConfig {
-            split_fields_further: false,
-            tilde_expansion: cfg,
-        }),
+        state: state,
     }
 }
 
-impl<P, T, W, E: ?Sized> EnvFuture<E> for EvalError<P, T, W, W::EvalFuture>
-    where P: Display,
-          T: StringWrapper,
-          W: WordEval<E>,
-          W::Error: From<ExpansionError>,
+impl<T, FT, F, E: ?Sized> EnvFuture<E> for EvalError<T, F>
+    where FT: StringWrapper,
+          F: EnvFuture<E, Item = Fields<FT>>,
+          F::Error: From<ExpansionError>,
+          E: VariableEnvironment,
 {
     type Item = Fields<T>;
-    type Error = W::Error;
+    type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let next_state = match self.state {
-                State::ParamVal(strict, ref mut param, ref mut param_val, ref mut error, cfg) => {
-                    let param = param.take().expect("polled twice");
-                    return_param_if_present!(param_val.take(), env, strict);
-                    match error.take() {
-                        Some(w) => State::Error(param, w.eval_with_config(env, cfg)),
-                        None => return Err(convert(&param, None).into()),
-                    }
-                },
-
-                State::Error(ref param, ref mut f) => {
-                    let msg = try_ready!(f.poll(env)).join().into_owned();
-                    return Err(convert(param, Some(msg)).into());
-                },
-            };
-
-            self.state = next_state;
+        match self.state {
+            State::ParamVal(ref mut fields) => {
+                let ret = fields.take().expect("polled twice");
+                Ok(Async::Ready(ret))
+            },
+            State::EmptyParameter(ref mut param) => {
+                let param = param.take().expect("polled twice");
+                let msg = String::from("parameter null or not set");
+                Err(ExpansionError::EmptyParameter(param, msg).into())
+            },
+            State::Error(ref mut param, ref mut f) => {
+                let err = try_ready!(f.poll(env)).join().into_owned();
+                let param = param.take().expect("polled twice");
+                Err(ExpansionError::EmptyParameter(param, err).into())
+            },
         }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::ParamVal(..) => {},
+            State::ParamVal(_) |
+            State::EmptyParameter(_) => {},
             State::Error(_, ref mut f) => f.cancel(env),
         }
     }
-}
-
-fn convert<P: Display>(param: &P, msg: Option<String>) -> ExpansionError {
-    let msg = msg.unwrap_or_else(|| String::from("parameter null or not set"));
-    let ret = ExpansionError::EmptyParameter(param.to_string(), msg);
-    ret.into()
 }

@@ -31,7 +31,7 @@ fn run_cancel_sequence<I>(cmds: I)
           <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
     let lp = Core::new().unwrap();
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
     test_cancel!(sequence(cmds), env);
 }
 

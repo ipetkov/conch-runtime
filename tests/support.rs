@@ -38,8 +38,7 @@ pub fn mktmp_impl(path: &str) -> TempDir {
 macro_rules! test_cancel {
     ($future:expr) => { test_cancel!($future, ()) };
     ($future:expr, $env:expr) => {{
-        let mut env = $env;
-        ::support::test_cancel_impl($future, &mut env);
+        ::support::test_cancel_impl($future, &mut $env);
     }};
 }
 
