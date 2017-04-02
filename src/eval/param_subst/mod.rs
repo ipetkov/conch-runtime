@@ -15,11 +15,13 @@ fn is_present<T: StringWrapper>(strict: bool, fields: Option<Fields<T>>) -> Opti
     })
 }
 
+mod assign;
 mod default;
 mod error;
 mod len;
 mod split;
 
+pub use self::assign::{assign, EvalAssign};
 pub use self::default::{default, EvalDefault};
 pub use self::error::{error, EvalError};
 pub use self::len::len;

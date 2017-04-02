@@ -279,6 +279,7 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
 
 #[derive(Debug, Clone)]
 pub enum MockParam {
+    FieldsWithName(Option<Fields<String>>, String),
     Fields(Option<Fields<String>>),
     Split(bool /* expect_split */, Fields<String>),
 }
@@ -294,7 +295,8 @@ impl<E: ?Sized> ParamEval<E> for MockParam {
 
     fn eval(&self, split_fields_further: bool, _: &E) -> Option<Fields<Self::EvalResult>> {
         match *self {
-            MockParam::Fields(ref f) => f.clone(),
+            MockParam::Fields(ref f) |
+            MockParam::FieldsWithName(ref f, _) => f.clone(),
             MockParam::Split(expect_split, ref f) => {
                 assert_eq!(expect_split, split_fields_further);
                 Some(f.clone())
@@ -303,7 +305,11 @@ impl<E: ?Sized> ParamEval<E> for MockParam {
     }
 
     fn assig_name(&self) -> Option<Self::EvalResult> {
-        unimplemented!()
+        match *self {
+            MockParam::Fields(_) |
+            MockParam::Split(..) => None,
+            MockParam::FieldsWithName(_, ref name) => Some(name.clone()),
+        }
     }
 }
 
