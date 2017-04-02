@@ -1,3 +1,6 @@
+use env::StringWrapper;
+use new_eval::Fields;
+
 /// A macro that evaluates a parameter in some environment and immediately
 /// returns the result as long as there is at least one non-empty field inside.
 /// If all fields from the evaluated result are empty and the evaluation is
@@ -12,6 +15,20 @@ macro_rules! return_param_if_present {
             }
         }
     }}
+}
+
+fn is_present<T: StringWrapper>(strict: bool, fields: Option<Fields<T>>) -> Option<Fields<T>> {
+    fields.and_then(|f| {
+        if f.is_null() {
+            if strict {
+                None
+            } else {
+                Some(Fields::Zero)
+            }
+        } else {
+            Some(f)
+        }
+    })
 }
 
 mod default;

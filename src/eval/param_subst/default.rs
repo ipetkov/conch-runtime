@@ -1,16 +1,17 @@
 use new_eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
+use super::is_present;
 
 /// A future representing a `Default` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalDefault<W, T, F> {
-    state: State<W, T, F>,
+pub struct EvalDefault<T, F> {
+    state: State<T, F>,
 }
 
 #[derive(Debug)]
-enum State<W, T, F> {
-    ParamVal(bool, Option<Fields<T>>, Option<W>, WordEvalConfig),
+enum State<T, F> {
+    ParamVal(Option<Fields<T>>),
     Default(F),
 }
 
@@ -22,42 +23,48 @@ enum State<W, T, F> {
 /// Otherwise, `default` will be evaluated using `cfg` and that response yielded.
 ///
 /// Note: field splitting will neither be done on the parameter, nor the default word.
-pub fn default<P, W, E: ?Sized>(strict: bool, param: &P, default: W, env: &E, cfg: TildeExpansion)
-    -> EvalDefault<W, W::EvalResult, W::EvalFuture>
+pub fn default<P, W, E: ?Sized>(
+    strict: bool,
+    param: &P,
+    default: Option<W>,
+    env: &mut E,
+    cfg: TildeExpansion
+) -> EvalDefault<W::EvalResult, W::EvalFuture>
     where P: ParamEval<E, EvalResult = W::EvalResult>,
           W: WordEval<E>,
 {
-    let val = param.eval(false, env);
+    let state = match is_present(strict, param.eval(false, env)) {
+        fields@Some(_) => State::ParamVal(fields),
+        None => match default {
+            None => State::ParamVal(Some(Fields::Zero)),
+            Some(w) => {
+                let future = w.eval_with_config(env, WordEvalConfig {
+                    split_fields_further: false,
+                    tilde_expansion: cfg,
+                });
+                State::Default(future)
+            }
+        },
+    };
 
     EvalDefault {
-        state: State::ParamVal(strict, val, Some(default), WordEvalConfig {
-            split_fields_further: false,
-            tilde_expansion: cfg,
-        }),
+        state: state,
     }
 }
 
-impl<W, E: ?Sized> EnvFuture<E> for EvalDefault<W, W::EvalResult, W::EvalFuture>
-    where W: WordEval<E>,
+impl<T, F, E: ?Sized> EnvFuture<E> for EvalDefault<T, F>
+    where F: EnvFuture<E, Item = Fields<T>>,
 {
-    type Item = Fields<W::EvalResult>;
-    type Error = W::Error;
+    type Item = F::Item;
+    type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let next_state = match self.state {
-                State::ParamVal(strict, ref mut param_val, ref mut default, cfg) => {
-                    return_param_if_present!(param_val.take(), env, strict);
-                    match default.take() {
-                        Some(w) => State::Default(w.eval_with_config(env, cfg)),
-                        None => return Ok(Async::Ready(Fields::Zero)),
-                    }
-                },
-
-                State::Default(ref mut f) => return f.poll(env),
-            };
-
-            self.state = next_state;
+        match self.state {
+            State::ParamVal(ref mut fields) => {
+                let ret = fields.take().expect("polled twice");
+                Ok(Async::Ready(ret))
+            },
+            State::Default(ref mut f) => f.poll(env),
         }
     }
 
