@@ -1,7 +1,7 @@
 extern crate conch_parser;
 extern crate conch_runtime;
 
-use conch_runtime::new_eval::{default, Fields, TildeExpansion, WordEvalConfig};
+use conch_runtime::new_eval::{alternative, Fields, TildeExpansion, WordEvalConfig};
 
 #[macro_use]
 mod support;
@@ -13,7 +13,7 @@ fn eval<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word: W)
     -> Result<Fields<String>, MockErr>
 {
     let mut env = ();
-    default(strict, param, word.into(), &mut env, CFG)
+    alternative(strict, param, word.into(), &mut env, CFG)
         .pin_env(env)
         .wait()
 }
@@ -26,28 +26,27 @@ fn should_evaluate_appropriately() {
 
     // Param not present
     let param = MockParam::Fields(None);
+    assert_eq!(eval(false, &param, must_not_run.clone()), Ok(Fields::Zero));
+    assert_eq!(eval(true, &param, must_not_run.clone()), Ok(Fields::Zero));
+    assert_eq!(eval(false, &param, None), Ok(Fields::Zero));
+    assert_eq!(eval(true, &param, None), Ok(Fields::Zero));
+
+    // Present and non-empty
+    let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
     assert_eq!(eval(false, &param, mock_word.clone()), Ok(word_fields.clone()));
     assert_eq!(eval(true, &param, mock_word.clone()), Ok(word_fields.clone()));
     assert_eq!(eval(false, &param, None), Ok(Fields::Zero));
     assert_eq!(eval(true, &param, None), Ok(Fields::Zero));
 
-    // Present and non-empty
-    let param_fields = Fields::Single("foo".to_owned());
-    let param = MockParam::Split(false, param_fields.clone());
-    assert_eq!(eval(false, &param, must_not_run.clone()), Ok(param_fields.clone()));
-    assert_eq!(eval(true, &param, must_not_run.clone()), Ok(param_fields.clone()));
-    assert_eq!(eval(false, &param, None), Ok(param_fields.clone()));
-    assert_eq!(eval(true, &param, None), Ok(param_fields.clone()));
-
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    assert_eq!(eval(false, &param, must_not_run.clone()), Ok(Fields::Zero));
-    assert_eq!(eval(true, &param, mock_word.clone()), Ok(word_fields.clone()));
+    assert_eq!(eval(false, &param, mock_word.clone()), Ok(word_fields.clone()));
+    assert_eq!(eval(true, &param, must_not_run.clone()), Ok(Fields::Zero));
     assert_eq!(eval(false, &param, None), Ok(Fields::Zero));
     assert_eq!(eval(true, &param, None), Ok(Fields::Zero));
 
     // Assert eval configs
-    let param = MockParam::Fields(None);
+    let param = MockParam::Split(false, Fields::Single("foo".to_owned()));
     let mock_word = mock_word_assert_cfg(WordEvalConfig {
         split_fields_further: false,
         tilde_expansion: CFG,
@@ -67,22 +66,22 @@ fn should_propagate_errors_from_word_if_applicable() {
 
     // Param not present
     let param = MockParam::Fields(None);
-    assert_eq!(eval(false, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
-    assert_eq!(eval(true, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
-    eval(false, &param, None).unwrap();
-    eval(true, &param, None).unwrap();
-
-    // Present and non-empty
-    let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
     eval(false, &param, must_not_run.clone()).unwrap();
     eval(true, &param, must_not_run.clone()).unwrap();
     eval(false, &param, None).unwrap();
     eval(true, &param, None).unwrap();
 
+    // Present and non-empty
+    let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
+    assert_eq!(eval(false, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
+    assert_eq!(eval(true, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
+    eval(false, &param, None).unwrap();
+    eval(true, &param, None).unwrap();
+
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    eval(false, &param, must_not_run.clone()).unwrap();
-    assert_eq!(eval(true, &param, mock_word_error(true)), Err(MockErr::Fatal(true)));
+    assert_eq!(eval(false, &param, mock_word_error(true)), Err(MockErr::Fatal(true)));
+    eval(true, &param, must_not_run.clone()).unwrap();
     eval(false, &param, None).unwrap();
     eval(true, &param, None).unwrap();
 }
@@ -95,22 +94,22 @@ fn should_propagate_cancel_if_required() {
 
     // Param not present
     let param = MockParam::Fields(None);
-    test_cancel!(default(false, &param, must_cancel.clone(), env, CFG));
-    test_cancel!(default(true, &param, must_cancel.clone(), env, CFG));
-    test_cancel!(default::<_, MockWord, _>(false, &param, None, env, CFG));
-    test_cancel!(default::<_, MockWord, _>(true, &param, None, env, CFG));
+    test_cancel!(alternative(false, &param, must_not_run.clone(), env, CFG));
+    test_cancel!(alternative(true, &param, must_not_run.clone(), env, CFG));
+    test_cancel!(alternative::<_, MockWord, _>(false, &param, None, env, CFG));
+    test_cancel!(alternative::<_, MockWord, _>(true, &param, None, env, CFG));
 
     // Present and non-empty
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
-    test_cancel!(default(false, &param, must_not_run.clone(), env, CFG));
-    test_cancel!(default(true, &param, must_not_run.clone(), env, CFG));
-    test_cancel!(default::<_, MockWord, _>(false, &param, None, env, CFG));
-    test_cancel!(default::<_, MockWord, _>(true, &param, None, env, CFG));
+    test_cancel!(alternative(false, &param, must_cancel.clone(), env, CFG));
+    test_cancel!(alternative(true, &param, must_cancel.clone(), env, CFG));
+    test_cancel!(alternative::<_, MockWord, _>(false, &param, None, env, CFG));
+    test_cancel!(alternative::<_, MockWord, _>(true, &param, None, env, CFG));
 
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    test_cancel!(default(false, &param, must_not_run.clone(), env, CFG));
-    test_cancel!(default(true, &param, must_cancel.clone(), env, CFG));
-    test_cancel!(default::<_, MockWord, _>(false, &param, None, env, CFG));
-    test_cancel!(default::<_, MockWord, _>(true, &param, None, env, CFG));
+    test_cancel!(alternative(false, &param, must_cancel.clone(), env, CFG));
+    test_cancel!(alternative(true, &param, must_not_run.clone(), env, CFG));
+    test_cancel!(alternative::<_, MockWord, _>(false, &param, None, env, CFG));
+    test_cancel!(alternative::<_, MockWord, _>(true, &param, None, env, CFG));
 }

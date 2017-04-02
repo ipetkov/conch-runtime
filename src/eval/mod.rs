@@ -19,8 +19,8 @@ pub use self::arith::ArithEval;
 pub use self::complex_word::EvalComplexWord;
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
-pub use self::param_subst::{assign, default, error, len, split};
-pub use self::param_subst::{EvalAssign, EvalDefault, EvalError, Split};
+pub use self::param_subst::{alternative, assign, default, error, len, split};
+pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError, Split};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::EvalWord;
 

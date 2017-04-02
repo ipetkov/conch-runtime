@@ -63,6 +63,11 @@ fn should_evaluate_appropriately() {
     });
     eval(false, &param, mock_word.clone()).unwrap_err();
     eval(true, &param, mock_word.clone()).unwrap_err();
+
+    // Assert param configs
+    let param = MockParam::Split(false, Fields::Single("foo".to_owned()));
+    eval(false, &param, None).unwrap();
+    eval(true, &param, None).unwrap();
 }
 
 #[test]
