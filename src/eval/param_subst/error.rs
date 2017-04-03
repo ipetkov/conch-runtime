@@ -28,7 +28,7 @@ enum State<T, F> {
 /// an `ExpansionError::EmptyParameter`.
 ///
 /// Note: field splitting will neither be done on the parameter, nor the error message.
-pub fn error<P, W, E: ?Sized>(
+pub fn error<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     error: Option<W>,

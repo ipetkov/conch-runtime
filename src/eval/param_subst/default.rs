@@ -23,7 +23,7 @@ enum State<T, F> {
 /// Otherwise, `default` will be evaluated using `cfg` and that response yielded.
 ///
 /// Note: field splitting will neither be done on the parameter, nor the default word.
-pub fn default<P, W, E: ?Sized>(
+pub fn default<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     default: Option<W>,

@@ -29,7 +29,7 @@ enum State<T, F> {
 /// the variable in the current environment, and the value yielded.
 ///
 /// Note: field splitting will neither be done on the parameter, nor the value to assign.
-pub fn assign<P, W, E: ?Sized>(
+pub fn assign<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     assign: Option<W>,

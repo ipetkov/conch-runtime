@@ -24,7 +24,7 @@ enum State<F> {
 /// Otherwise, `Fields::Zero` will be returned (i.e. the value of `param`).
 ///
 /// Note: field splitting will neither be done on the parameter, nor the alternative word.
-pub fn alternative<P, W, E: ?Sized>(
+pub fn alternative<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     alternative: Option<W>,
