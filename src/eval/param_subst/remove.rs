@@ -171,3 +171,37 @@ impl PatRemover for SmallestSuffixPatRemover {
         src
     }
 }
+
+impl_remove!(
+    /// A future representing a `RemoveSmallestPrefix` parameter substitution evaluation.
+    pub struct RemoveSmallestPrefix,
+    struct SmallestPrefixPatRemover,
+
+    /// Constructs future representing a `RemoveSmallestPrefix` parameter substitution evaluation.
+    ///
+    /// First, `param`, then `pat` will be evaluated as a pattern. The smallest prefix of the
+    /// parameter value which is matched by the pattern will be removed.
+    ///
+    /// If no pattern is specified, the parameter value will be left unchanged.
+    ///
+    /// Note: field splitting will neither be done on the parameter, nor the default word.
+    pub fn remove_smallest_prefix
+);
+
+impl PatRemover for SmallestPrefixPatRemover {
+    fn remove<'a>(&self, src: &'a str, pat: &glob::Pattern) -> &'a str {
+        for idx in src.char_indices().map(|(i, _)| i) {
+            let candidate = &src[0..idx];
+            if pat.matches_with(candidate, &PAT_REMOVE_MATCH_OPTS) {
+                return &src[idx..];
+            }
+        }
+
+        // Don't forget to check the entire string for a match
+        if pat.matches_with(src, &PAT_REMOVE_MATCH_OPTS) {
+            ""
+        } else {
+            src
+        }
+    }
+}
