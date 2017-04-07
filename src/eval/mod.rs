@@ -19,8 +19,8 @@ pub use self::arith::ArithEval;
 pub use self::complex_word::EvalComplexWord;
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
-pub use self::param_subst::{alternative, assign, default, error, len, split};
-pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError, Split};
+pub use self::param_subst::{alternative, assign, default, error, len, split, remove_smallest_suffix};
+pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError, RemoveSmallestSuffix, Split};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::EvalWord;
 
@@ -168,9 +168,19 @@ impl<E: ?Sized, T, F> EnvFuture<E> for Pattern<F>
     type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        // FIXME: actually compile the pattern here
+        // FIXME: "intelligently" compile the pattern here
+        // Other shells will treat certain glob "errors" (like unmatched char groups)
+        // as just literal values. Also it would be interesting to explore treating
+        // variables/interpolated values as literals unconditionally (i.e. glob
+        // special chars like *, !, ?, etc. would only have special meaning if they
+        // appear in the original source). Unfortunately, this future doesn't appear
+        // flexible enough to accomplish that (the actual word itself needs to
+        // determine what is special and what isn't at each step), so this may
+        // need to move into its own trait (right now WordEval *must* return a
+        // Pattern future).
         let pat = try_ready!(self.f.poll(env)).join();
-        let pat = glob::Pattern::new(&glob::Pattern::escape(pat.as_str()));
+        let pat = glob::Pattern::new(pat.as_str())
+            .or_else(|_| glob::Pattern::new(&glob::Pattern::escape(pat.as_str())));
         Ok(Async::Ready(pat.expect("pattern compilation unexpectedly failed")))
     }
 

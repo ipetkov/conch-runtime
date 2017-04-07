@@ -133,8 +133,7 @@ fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_f
 
     let mut env = ();
     let pat = word.eval_as_pattern(&mut env).pin_env(env).wait().unwrap();
-    assert_eq!(pat.as_str(), "foo [*][?] bar"); // FIXME: update once patterns implemented
-    //assert_eq!(pat.as_str(), "foo *? bar");
+    assert_eq!(pat.as_str(), "foo *? bar");
 }
 
 #[test]
