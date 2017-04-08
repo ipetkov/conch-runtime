@@ -11,13 +11,6 @@ pub use self::support::*;
 
 type SimpleWord = ast::SimpleWord<String, MockParam, MockWord>;
 
-fn eval(word: SimpleWord, cfg: WordEvalConfig) -> Result<Fields<String>, MockErr> {
-    let mut env = VarEnv::<String, String>::new();
-    word.eval_with_config(&mut env, cfg)
-        .pin_env(env)
-        .wait()
-}
-
 fn assert_eval_equals_single(word: SimpleWord, expected: String) {
     assert_eval_equals_fields(word, Fields::Single(expected));
 }
@@ -29,7 +22,7 @@ fn assert_eval_equals_fields(word: SimpleWord, fields: Fields<String>) {
         split_fields_further: true,
     };
 
-    assert_eq!(eval(word, cfg), Ok(fields));
+    assert_eq!(eval!(word, cfg), Ok(fields));
 }
 
 #[test]
