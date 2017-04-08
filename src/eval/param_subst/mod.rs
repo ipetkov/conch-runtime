@@ -14,8 +14,8 @@ pub use self::assign::{assign, EvalAssign};
 pub use self::default::{default, EvalDefault};
 pub use self::error::{error, EvalError};
 pub use self::len::len;
-pub use self::remove::{remove_smallest_prefix, remove_smallest_suffix};
-pub use self::remove::{RemoveSmallestPrefix, RemoveSmallestSuffix};
+pub use self::remove::{remove_largest_suffix, remove_smallest_prefix, remove_smallest_suffix};
+pub use self::remove::{RemoveLargestSuffix, RemoveSmallestPrefix, RemoveSmallestSuffix};
 pub use self::split::{Split, split};
 
 /// Determines if a `Fields` variant can be considered non-empty/non-null.
