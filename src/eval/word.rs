@@ -4,7 +4,8 @@ use new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use std::borrow::Borrow;
 use std::iter::Fuse;
 use std::mem;
-use std::vec::IntoIter;
+use std::slice;
+use std::vec;
 use syntax::ast::Word;
 
 impl<T, W, E: ?Sized> WordEval<E> for Word<T, W>
@@ -15,18 +16,13 @@ impl<T, W, E: ?Sized> WordEval<E> for Word<T, W>
 {
     type EvalResult = T;
     type Error = W::Error;
-    type EvalFuture = EvalWord<Self::EvalResult, W, W::EvalFuture>;
+    type EvalFuture = EvalWord<Self::EvalResult, W, W::EvalFuture, vec::IntoIter<W>>;
 
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let state = match self {
             Word::Simple(s) => State::Simple(s.eval_with_config(env, cfg)),
             Word::SingleQuoted(s) => State::SingleQuoted(Some(Fields::Single(s))),
-            Word::DoubleQuoted(v) => State::DoubleQuoted(DoubleQuoted {
-                fields: Vec::new(),
-                cur_field: None,
-                future: None,
-                rest: v.into_iter().fuse(),
-            }),
+            Word::DoubleQuoted(v) => State::DoubleQuoted(double_quoted(v, env)),
         };
 
         EvalWord {
@@ -35,31 +31,80 @@ impl<T, W, E: ?Sized> WordEval<E> for Word<T, W>
     }
 }
 
+impl<'a, T, W, E: ?Sized> WordEval<E> for &'a Word<T, W>
+    where T: StringWrapper,
+          &'a W: WordEval<E, EvalResult = T>,
+          E: VariableEnvironment<Var = T>,
+          E::VarName: Borrow<String>,
+{
+    type EvalResult = T;
+    type Error = <&'a W as WordEval<E>>::Error;
+    type EvalFuture = EvalWord<
+        Self::EvalResult,
+        &'a W,
+        <&'a W as WordEval<E>>::EvalFuture,
+        slice::Iter<'a, W>
+    >;
+
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        let state = match *self {
+            Word::Simple(ref s) => State::Simple(s.eval_with_config(env, cfg)),
+            Word::SingleQuoted(ref s) => State::SingleQuoted(Some(Fields::Single(s.clone()))),
+            Word::DoubleQuoted(ref v) => State::DoubleQuoted(double_quoted(v, env)),
+        };
+
+        EvalWord {
+            state: state,
+        }
+    }
+}
+
+/// Evaluates a list of words as if they were double quoted.
+///
+/// All words retain any special meaning/behavior they may have, except
+/// no tilde expansions will be made, and no fields will be split further.
+pub fn double_quoted<W, I, E: ?Sized>(words: I, env: &E)
+    -> DoubleQuoted<W::EvalResult, W, W::EvalFuture, I::IntoIter>
+    where W: WordEval<E>,
+          I: IntoIterator<Item = W>,
+{
+    let _ = env;
+    DoubleQuoted {
+        fields: Vec::new(),
+        cur_field: None,
+        future: None,
+        rest: words.into_iter().fuse(),
+    }
+}
+
 /// A future representing the evaluation of a `Word`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalWord<T, W, F> {
-    state: State<T, W, F>,
+pub struct EvalWord<T, W, F, I> where I: Iterator<Item = W> {
+    state: State<T, W, F, I>,
 }
 
 #[derive(Debug)]
-enum State<T, W, F> {
+enum State<T, W, F, I> where I: Iterator<Item = W> {
     Simple(F),
     SingleQuoted(Option<Fields<T>>),
-    DoubleQuoted(DoubleQuoted<T, W, F>),
+    DoubleQuoted(DoubleQuoted<T, W, F, I>),
 }
 
+/// A future representing the evaluation of a double quoted list of words.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-struct DoubleQuoted<T, W, F> {
+pub struct DoubleQuoted<T, W, F, I> where I: Iterator<Item = W> {
     fields: Vec<T>,
     cur_field: Option<String>,
     future: Option<F>,
-    rest: Fuse<IntoIter<W>>,
+    rest: Fuse<I>,
 }
 
-impl<E: ?Sized, T, W> EnvFuture<E> for EvalWord<T, W, W::EvalFuture>
+impl<T, W, I, E: ?Sized> EnvFuture<E> for EvalWord<T, W, W::EvalFuture, I>
     where T: StringWrapper,
           W: WordEval<E, EvalResult = T>,
+          I: Iterator<Item = W>,
           E: VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
 {
@@ -83,7 +128,7 @@ impl<E: ?Sized, T, W> EnvFuture<E> for EvalWord<T, W, W::EvalFuture>
     }
 }
 
-impl<T, W, F> DoubleQuoted<T, W, F> {
+impl<T, W, F, I> DoubleQuoted<T, W, F, I> where I: Iterator<Item = W> {
     fn append_to_cur_field(&mut self, t: T) where T: StringWrapper {
         match self.cur_field {
             Some(ref mut cur) => cur.push_str(t.as_str()),
@@ -92,9 +137,10 @@ impl<T, W, F> DoubleQuoted<T, W, F> {
     }
 }
 
-impl<E: ?Sized, T, W> EnvFuture<E> for DoubleQuoted<T, W, W::EvalFuture>
+impl<T, W, I, E: ?Sized> EnvFuture<E> for DoubleQuoted<T, W, W::EvalFuture, I>
     where T: StringWrapper,
           W: WordEval<E, EvalResult = T>,
+          I: Iterator<Item = W>,
           E: VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
 {

@@ -26,7 +26,7 @@ pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError,
                             RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
                             RemoveSmallestSuffix, Split};
 pub use self::simple_word::EvalSimpleWord;
-pub use self::word::EvalWord;
+pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 
 /// An enum representing how tildes (`~`) are expanded.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
