@@ -28,7 +28,7 @@ pub fn alternative<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     alternative: Option<W>,
-    env: &mut E,
+    env: &E,
     cfg: TildeExpansion
 ) -> EvalAlternative<W::EvalFuture>
     where P: ParamEval<E, EvalResult = W::EvalResult>,

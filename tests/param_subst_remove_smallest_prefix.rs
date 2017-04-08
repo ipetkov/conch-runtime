@@ -10,8 +10,8 @@ pub use self::support::*;
 fn eval<W: Into<Option<MockWord>>>(param: &MockParam, word: W)
     -> Result<Fields<String>, MockErr>
 {
-    let mut env = ();
-    remove_smallest_prefix(param, word.into(), &mut env)
+    let env = ();
+    remove_smallest_prefix(param, word.into(), &env)
         .pin_env(env)
         .wait()
 }
@@ -74,7 +74,7 @@ fn should_propagate_errors_from_word_if_applicable() {
 
 #[test]
 fn should_propagate_cancel_if_required() {
-    let env = &mut ();
+    let env = &();
     let must_not_run = Some(mock_word_panic("should not run"));
     let must_cancel = Some(mock_word_must_cancel());
 

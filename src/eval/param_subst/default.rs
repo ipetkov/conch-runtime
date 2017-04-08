@@ -27,7 +27,7 @@ pub fn default<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     default: Option<W>,
-    env: &mut E,
+    env: &E,
     cfg: TildeExpansion
 ) -> EvalDefault<W::EvalResult, W::EvalFuture>
     where P: ParamEval<E, EvalResult = W::EvalResult>,

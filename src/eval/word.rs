@@ -17,7 +17,7 @@ impl<T, W, E: ?Sized> WordEval<E> for Word<T, W>
     type Error = W::Error;
     type EvalFuture = EvalWord<Self::EvalResult, W, W::EvalFuture>;
 
-    fn eval_with_config(self, env: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let state = match self {
             Word::Simple(s) => State::Simple(s.eval_with_config(env, cfg)),
             Word::SingleQuoted(s) => State::SingleQuoted(Some(Fields::Single(s))),

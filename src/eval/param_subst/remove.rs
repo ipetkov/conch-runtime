@@ -12,7 +12,7 @@ const PAT_REMOVE_MATCH_OPTS: glob::MatchOptions = glob::MatchOptions {
 /// Evaluates a parameter and remove a pattern from it.
 ///
 /// Note: field splitting will NOT be done at any point.
-fn remove_pattern<P: ?Sized, W, E: ?Sized, R>(param: &P, pat: Option<W>, env: &mut E, remover: R)
+fn remove_pattern<P: ?Sized, W, E: ?Sized, R>(param: &P, pat: Option<W>, env: &E, remover: R)
     -> RemovePattern<P::EvalResult, Pattern<W::EvalFuture>, R>
     where P: ParamEval<E>,
           W: WordEval<E>,
@@ -128,7 +128,7 @@ macro_rules! impl_remove {
         }
 
         $(#[$fn_attr])*
-        pub fn $fn<P: ?Sized, W, E: ?Sized>(param: &P, pat: Option<W>, env: &mut E)
+        pub fn $fn<P: ?Sized, W, E: ?Sized>(param: &P, pat: Option<W>, env: &E)
             -> $Future<P::EvalResult, W::EvalFuture>
             where P: ParamEval<E>,
                   W: WordEval<E>,

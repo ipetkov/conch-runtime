@@ -33,7 +33,7 @@ pub fn assign<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     assign: Option<W>,
-    env: &mut E,
+    env: &E,
     cfg: TildeExpansion
 ) -> EvalAssign<W::EvalResult, W::EvalFuture>
     where P: ParamEval<E, EvalResult = W::EvalResult> + Display,

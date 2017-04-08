@@ -19,7 +19,7 @@ impl<T, P, S, E: ?Sized> WordEval<E> for SimpleWord<T, P, S>
     type Error = S::Error;
     type EvalFuture = EvalSimpleWord<Self::EvalResult, S::EvalFuture>;
 
-    fn eval_with_config(self, env: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let done = match self {
             SimpleWord::Literal(s) |
             SimpleWord::Escaped(s) => Fields::Single(s),

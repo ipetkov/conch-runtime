@@ -242,7 +242,7 @@ impl<E: ?Sized> WordEval<E> for MockWord {
     type Error = MockErr;
     type EvalFuture = Self;
 
-    fn eval_with_config(self, _: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         if let MockWord::AssertCfg(expected) = self {
             assert_eq!(expected, cfg);
         }

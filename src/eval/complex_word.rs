@@ -13,7 +13,7 @@ impl<E: ?Sized, W> WordEval<E> for ComplexWord<W>
     type Error = W::Error;
     type EvalFuture = EvalComplexWord<W, W::EvalResult, W::EvalFuture>;
 
-    fn eval_with_config(self, env: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let state = match self {
             ComplexWord::Single(w) => State::Single(w.eval_with_config(env, cfg)),
             ComplexWord::Concat(mut v) => if v.len() == 1 {

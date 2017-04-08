@@ -32,7 +32,7 @@ pub fn error<P: ?Sized, W, E: ?Sized>(
     strict: bool,
     param: &P,
     error: Option<W>,
-    env: &mut E,
+    env: &E,
     cfg: TildeExpansion
 ) -> EvalError<P::EvalResult, W::EvalFuture>
     where P: ParamEval<E> + Display,

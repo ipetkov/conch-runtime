@@ -12,8 +12,8 @@ const CFG: TildeExpansion = TildeExpansion::All;
 fn eval<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word: W)
     -> Result<Fields<String>, MockErr>
 {
-    let mut env = ();
-    alternative(strict, param, word.into(), &mut env, CFG)
+    let env = ();
+    alternative(strict, param, word.into(), &env, CFG)
         .pin_env(env)
         .wait()
 }

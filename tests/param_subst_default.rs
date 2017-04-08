@@ -12,8 +12,8 @@ const CFG: TildeExpansion = TildeExpansion::All;
 fn eval<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word: W)
     -> Result<Fields<String>, MockErr>
 {
-    let mut env = ();
-    default(strict, param, word.into(), &mut env, CFG)
+    let env = ();
+    default(strict, param, word.into(), &env, CFG)
         .pin_env(env)
         .wait()
 }
@@ -89,7 +89,7 @@ fn should_propagate_errors_from_word_if_applicable() {
 
 #[test]
 fn should_propagate_cancel_if_required() {
-    let env = &mut ();
+    let env = &();
     let must_not_run = Some(mock_word_panic("should not run"));
     let must_cancel = Some(mock_word_must_cancel());
 

@@ -14,7 +14,7 @@ fn eval_and_env<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word
     -> (Result<Fields<String>, MockErr>, VarEnv<String, String>)
 {
     let mut env = VarEnv::<String, String>::new();
-    let ret = assign(strict, param, word.into(), &mut env, CFG)
+    let ret = assign(strict, param, word.into(), &env, CFG)
         .pin_env(&mut env)
         .wait();
     (ret, env)
@@ -167,24 +167,24 @@ fn should_propagate_cancel_if_required() {
 
     // Param not present with name
     let param = MockParam::FieldsWithName(None, name.clone());
-    test_cancel!(assign(false, &param, must_cancel.clone(), &mut env, CFG), env);
-    test_cancel!(assign(true, &param, must_cancel.clone(), &mut env, CFG), env);
-    test_cancel!(assign::<_, MockWord, _>(false, &param, None, &mut env, CFG), env);
-    test_cancel!(assign::<_, MockWord, _>(true, &param, None, &mut env, CFG), env);
+    test_cancel!(assign(false, &param, must_cancel.clone(), &env, CFG), env);
+    test_cancel!(assign(true, &param, must_cancel.clone(), &env, CFG), env);
+    test_cancel!(assign::<_, MockWord, _>(false, &param, None, &env, CFG), env);
+    test_cancel!(assign::<_, MockWord, _>(true, &param, None, &env, CFG), env);
 
     // Param not present without name
     let param = MockParam::Fields(None);
-    test_cancel!(assign(false, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(assign(true, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(assign::<_, MockWord, _>(false, &param, None, &mut env, CFG), env);
-    test_cancel!(assign::<_, MockWord, _>(true, &param, None, &mut env, CFG), env);
+    test_cancel!(assign(false, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(assign(true, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(assign::<_, MockWord, _>(false, &param, None, &env, CFG), env);
+    test_cancel!(assign::<_, MockWord, _>(true, &param, None, &env, CFG), env);
 
     // Present and non-empty with name
     let param = MockParam::FieldsWithName(Some(Fields::Single("foo".to_owned())), name.clone());
-    test_cancel!(assign(false, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(assign(true, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(assign::<_, MockWord, _>(false, &param, None, &mut env, CFG), env);
-    test_cancel!(assign::<_, MockWord, _>(true, &param, None, &mut env, CFG), env);
+    test_cancel!(assign(false, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(assign(true, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(assign::<_, MockWord, _>(false, &param, None, &env, CFG), env);
+    test_cancel!(assign::<_, MockWord, _>(true, &param, None, &env, CFG), env);
 
     // Present and non-empty without name
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));

@@ -65,7 +65,7 @@ pub trait WordEval<E: ?Sized>: Sized {
     /// is set to be the empty or null string). Finally, quotes and escaping
     /// backslashes are removed from the original word (unless they themselves
     /// have been quoted).
-    fn eval(self, env: &mut E) -> Self::EvalFuture {
+    fn eval(self, env: &E) -> Self::EvalFuture {
         // FIXME: implement path expansion here
         self.eval_with_config(env, WordEvalConfig {
             tilde_expansion: TildeExpansion::First,
@@ -78,7 +78,7 @@ pub trait WordEval<E: ?Sized>: Sized {
     /// Tilde, parameter, command substitution, arithmetic expansions, and quote removals
     /// will be performed, however. In addition, if multiple fields arise as a result
     /// of evaluating `$@` or `$*`, the fields will be joined with a single space.
-    fn eval_as_assignment(self, env: &mut E) -> Assignment<Self::EvalFuture>
+    fn eval_as_assignment(self, env: &E) -> Assignment<Self::EvalFuture>
         where E: VariableEnvironment,
               E::VarName: Borrow<String>,
               E::Var: StringWrapper,
@@ -92,7 +92,7 @@ pub trait WordEval<E: ?Sized>: Sized {
     }
 
     /// Evaluates a word just like `eval`, but converts the result into a `glob::Pattern`.
-    fn eval_as_pattern(self, env: &mut E) -> Pattern<Self::EvalFuture> {
+    fn eval_as_pattern(self, env: &E) -> Pattern<Self::EvalFuture> {
         Pattern {
             f: self.eval_with_config(env, WordEvalConfig {
                 tilde_expansion: TildeExpansion::First,
@@ -109,7 +109,7 @@ pub trait WordEval<E: ?Sized>: Sized {
     /// If `cfg.split_fields_further` is false then all empty fields will be kept.
     ///
     /// The caller is responsible for doing path expansions.
-    fn eval_with_config(self, env: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture;
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture;
 }
 
 impl<E: ?Sized, W: WordEval<E>> WordEval<E> for Box<W> {
@@ -118,7 +118,7 @@ impl<E: ?Sized, W: WordEval<E>> WordEval<E> for Box<W> {
     type EvalFuture = W::EvalFuture;
 
     #[cfg_attr(feature = "clippy", allow(boxed_local))]
-    fn eval_with_config(self, env: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         (*self).eval_with_config(env, cfg)
     }
 }

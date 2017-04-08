@@ -19,7 +19,7 @@ impl<E: ?Sized> WordEval<E> for MockWordCfg {
     type Error = ();
     type EvalFuture = Self;
 
-    fn eval_with_config(self, _: &mut E, cfg: WordEvalConfig) -> Self::EvalFuture {
+    fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         assert_eq!(cfg, self.cfg);
         self
     }

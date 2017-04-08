@@ -14,8 +14,8 @@ const DEFAULT_MSG: &'static str = "parameter null or not set";
 fn eval<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word: W)
     -> Result<Fields<String>, MockErr>
 {
-    let mut env = VarEnv::<String, String>::new();
-    error(strict, param, word.into(), &mut env, CFG)
+    let env = VarEnv::<String, String>::new();
+    error(strict, param, word.into(), &env, CFG)
         .pin_env(env)
         .wait()
 }
@@ -108,22 +108,22 @@ fn should_propagate_cancel_if_required() {
 
     // Param not present
     let param = MockParam::Fields(None);
-    test_cancel!(error(false, &param, must_cancel.clone(), &mut env, CFG), env);
-    test_cancel!(error(true, &param, must_cancel.clone(), &mut env, CFG), env);
-    test_cancel!(error::<_, MockWord, _>(false, &param, None, &mut env, CFG), env);
-    test_cancel!(error::<_, MockWord, _>(true, &param, None, &mut env, CFG), env);
+    test_cancel!(error(false, &param, must_cancel.clone(), &env, CFG), env);
+    test_cancel!(error(true, &param, must_cancel.clone(), &env, CFG), env);
+    test_cancel!(error::<_, MockWord, _>(false, &param, None, &env, CFG), env);
+    test_cancel!(error::<_, MockWord, _>(true, &param, None, &env, CFG), env);
 
     // Present and non-empty
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
-    test_cancel!(error(false, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(error(true, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(error::<_, MockWord, _>(false, &param, None, &mut env, CFG), env);
-    test_cancel!(error::<_, MockWord, _>(true, &param, None, &mut env, CFG), env);
+    test_cancel!(error(false, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(error(true, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(error::<_, MockWord, _>(false, &param, None, &env, CFG), env);
+    test_cancel!(error::<_, MockWord, _>(true, &param, None, &env, CFG), env);
 
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    test_cancel!(error(false, &param, must_not_run.clone(), &mut env, CFG), env);
-    test_cancel!(error(true, &param, must_cancel.clone(), &mut env, CFG), env);
-    test_cancel!(error::<_, MockWord, _>(false, &param, None, &mut env, CFG), env);
-    test_cancel!(error::<_, MockWord, _>(true, &param, None, &mut env, CFG), env);
+    test_cancel!(error(false, &param, must_not_run.clone(), &env, CFG), env);
+    test_cancel!(error(true, &param, must_cancel.clone(), &env, CFG), env);
+    test_cancel!(error::<_, MockWord, _>(false, &param, None, &env, CFG), env);
+    test_cancel!(error::<_, MockWord, _>(true, &param, None, &env, CFG), env);
 }
