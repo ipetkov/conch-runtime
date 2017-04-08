@@ -11,13 +11,6 @@ pub use self::support::*;
 
 type ComplexWord = ast::ComplexWord<MockWord>;
 
-fn eval(complex: ComplexWord, cfg: WordEvalConfig) -> Result<Fields<String>, MockErr> {
-    let mut env = ();
-    complex.eval_with_config(&mut env, cfg)
-        .pin_env(env)
-        .wait()
-}
-
 fn assert_eval_equals_single<T: Into<String>>(complex: ComplexWord, expected: T) {
     assert_eval_equals_fields(complex, Fields::Single(expected.into()));
 }
@@ -28,7 +21,7 @@ fn assert_eval_equals_fields(complex: ComplexWord, fields: Fields<String>) {
         split_fields_further: true,
     };
 
-    assert_eq!(eval(complex, cfg), Ok(fields));
+    assert_eq!(eval!(complex, cfg), Ok(fields));
 }
 
 #[test]
@@ -40,7 +33,7 @@ fn test_single() {
         tilde_expansion: TildeExpansion::All,
         split_fields_further: true,
     };
-    eval(Single(mock_word_error(false)), cfg).unwrap_err();
+    eval!(Single(mock_word_error(false)), cfg).unwrap_err();
 }
 
 #[test]
@@ -54,7 +47,7 @@ fn test_concat_error() {
         tilde_expansion: TildeExpansion::All,
         split_fields_further: true,
     };
-    eval(concat, cfg).unwrap_err();
+    eval!(concat, cfg).unwrap_err();
 }
 
 #[test]

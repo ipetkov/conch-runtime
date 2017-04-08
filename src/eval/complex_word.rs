@@ -3,32 +3,21 @@ use future::{Async, EnvFuture, Poll};
 use new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use std::iter::Fuse;
 use std::mem;
-use std::vec::IntoIter;
+use std::slice;
+use std::vec;
 use syntax::ast::ComplexWord;
 
-impl<E: ?Sized, W> WordEval<E> for ComplexWord<W>
+impl<W, E: ?Sized> WordEval<E> for ComplexWord<W>
     where W: WordEval<E>,
 {
     type EvalResult = W::EvalResult;
     type Error = W::Error;
-    type EvalFuture = EvalComplexWord<W, W::EvalResult, W::EvalFuture>;
+    type EvalFuture = EvalComplexWord<W, W::EvalResult, W::EvalFuture, vec::IntoIter<W>>;
 
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let state = match self {
             ComplexWord::Single(w) => State::Single(w.eval_with_config(env, cfg)),
-            ComplexWord::Concat(mut v) => if v.len() == 1 {
-                State::Single(v.pop().unwrap().eval_with_config(env, cfg))
-            } else {
-                let mut iter = v.into_iter().fuse();
-                let future = iter.next().map(|w| w.eval_with_config(env, cfg));
-
-                State::Concat(Concat {
-                    split_fields_further: cfg.split_fields_further,
-                    fields: Vec::new(),
-                    future: future,
-                    rest: iter,
-                })
-            },
+            ComplexWord::Concat(v) => State::Concat(concat(v, env, cfg)),
         };
 
         EvalComplexWord {
@@ -37,29 +26,70 @@ impl<E: ?Sized, W> WordEval<E> for ComplexWord<W>
     }
 }
 
+impl<'a, W, E: ?Sized> WordEval<E> for &'a ComplexWord<W>
+    where &'a W: WordEval<E>,
+{
+    type EvalResult = <&'a W as WordEval<E>>::EvalResult;
+    type Error = <&'a W as WordEval<E>>::Error;
+    type EvalFuture = EvalComplexWord<
+        &'a W,
+        <&'a W as WordEval<E>>::EvalResult,
+        <&'a W as WordEval<E>>::EvalFuture,
+        slice::Iter<'a, W>
+    >;
+
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        let state = match *self {
+            ComplexWord::Single(ref w) => State::Single(w.eval_with_config(env, cfg)),
+            ComplexWord::Concat(ref v) => State::Concat(concat(v, env, cfg)),
+        };
+
+        EvalComplexWord {
+            state: state,
+        }
+    }
+}
+
+fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig)
+    -> Concat<W, W::EvalResult, W::EvalFuture, I::IntoIter>
+    where W: WordEval<E>,
+          I: IntoIterator<Item = W>,
+{
+    let mut iter = words.into_iter().fuse();
+    let future = iter.next().map(|w| w.eval_with_config(env, cfg));
+
+    Concat {
+        split_fields_further: cfg.split_fields_further,
+        fields: Vec::new(),
+        future: future,
+        rest: iter,
+    }
+}
+
 /// A future representing the evaluation of a `ComplexWord`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalComplexWord<W, T, F> {
-    state: State<W, T, F>,
+pub struct EvalComplexWord<W, T, F, I> where I: Iterator<Item = W> {
+    state: State<W, T, F, I>,
 }
 
 #[derive(Debug)]
-enum State<W, T, F> {
+enum State<W, T, F, I> where I: Iterator<Item = W> {
     Single(F),
-    Concat(Concat<W, T, F>),
+    Concat(Concat<W, T, F, I>),
 }
 
 #[derive(Debug)]
-struct Concat<W, T, F> {
+struct Concat<W, T, F, I> where I: Iterator<Item = W> {
     split_fields_further: bool,
     fields: Vec<T>,
     future: Option<F>,
-    rest: Fuse<IntoIter<W>>,
+    rest: Fuse<I>,
 }
 
-impl<E: ?Sized, W> EnvFuture<E> for EvalComplexWord<W, W::EvalResult, W::EvalFuture>
+impl<W, I, E: ?Sized> EnvFuture<E> for EvalComplexWord<W, W::EvalResult, W::EvalFuture, I>
     where W: WordEval<E>,
+          I: Iterator<Item = W>,
 {
     type Item = Fields<W::EvalResult>;
     type Error = W::Error;
@@ -79,13 +109,15 @@ impl<E: ?Sized, W> EnvFuture<E> for EvalComplexWord<W, W::EvalResult, W::EvalFut
     }
 }
 
-impl<E: ?Sized, W> EnvFuture<E> for Concat<W, W::EvalResult, W::EvalFuture>
+impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, W::EvalResult, W::EvalFuture, I>
     where W: WordEval<E>,
+          I: Iterator<Item = W>,
 {
     type Item = Fields<W::EvalResult>;
     type Error = W::Error;
 
     // FIXME: implement tilde substitution here somehow?
+    // FIXME: might also be useful to publicly expose the `concat` function once implemented
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         loop {
             if self.future.is_none() {

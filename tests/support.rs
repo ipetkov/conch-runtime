@@ -249,7 +249,20 @@ impl<E: ?Sized> WordEval<E> for MockWord {
 
         self
     }
+}
 
+impl<'a, E: ?Sized> WordEval<E> for &'a MockWord {
+    type EvalResult = String;
+    type Error = MockErr;
+    type EvalFuture = MockWord;
+
+    fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        if let MockWord::AssertCfg(ref expected) = *self {
+            assert_eq!(*expected, cfg);
+        }
+
+        self.clone()
+    }
 }
 
 impl<E: ?Sized> EnvFuture<E> for MockWord {
@@ -327,7 +340,7 @@ macro_rules! run {
 }
 
 /// Spawns and syncronously runs the provided command to completion.
-#[deprecated(note = "use `run!` macro instead to cover spawning T and &T")]
+#[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
 pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
     let mut lp = Core::new().expect("failed to create Core loop");
     let env = DefaultEnvRc::new(lp.remote(), Some(1));
@@ -356,10 +369,35 @@ macro_rules! run_cancel {
 ///
 /// It is up to the caller to set up the command in a way that failure to
 /// propagate cancel messages results in a panic.
-#[deprecated(note = "use `run!` macro instead to cover spawning T and &T")]
+#[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
 pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
     let lp = Core::new().expect("failed to create Core loop");
     let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
     let env_future = cmd.spawn(&env);
     test_cancel_impl(env_future, &mut env);
+}
+
+#[macro_export]
+macro_rules! eval {
+    ($word:expr, $cfg:expr) => {{
+        let word = $word;
+        let cfg = $cfg;
+        #[allow(deprecated)]
+        let ret_ref = eval_word(&word, cfg);
+        #[allow(deprecated)]
+        let ret = eval_word(word, cfg);
+        assert_eq!(ret_ref, ret);
+        ret
+    }}
+}
+
+/// Evaluates a word to completion.
+#[deprecated(note = "use `eval!` macro instead, to cover spawning T and &T")]
+pub fn eval_word<W: WordEval<VarEnv<String, String>>>(word: W, cfg: WordEvalConfig)
+    -> Result<Fields<W::EvalResult>, W::Error>
+{
+    let env = VarEnv::new();
+    word.eval_with_config(&env, cfg)
+        .pin_env(env)
+        .wait()
 }
