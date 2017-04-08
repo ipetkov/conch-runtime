@@ -240,3 +240,40 @@ impl PatRemover for SmallestPrefixPatRemover {
         }
     }
 }
+
+impl_remove!(
+    /// A future representing a `RemoveLargestPrefix` parameter substitution evaluation.
+    pub struct RemoveLargestPrefix,
+    struct LargestPrefixPatRemover,
+
+    /// Constructs future representing a `RemoveLargestPrefix` parameter substitution evaluation.
+    ///
+    /// First, `param`, then `pat` will be evaluated as a pattern. The largest prefix of the
+    /// parameter value which is matched by the pattern will be removed.
+    ///
+    /// If no pattern is specified, the parameter value will be left unchanged.
+    ///
+    /// Note: field splitting will neither be done on the parameter, nor the default word.
+    pub fn remove_largest_prefix
+);
+
+impl PatRemover for LargestPrefixPatRemover {
+    fn remove<'a>(&self, src: &'a str, pat: &glob::Pattern) -> &'a str {
+        let mut prefix_start = src.len();
+        let mut iter = src.char_indices();
+
+        loop {
+            let candidate = iter.as_str();
+            if pat.matches_with(candidate, &PAT_REMOVE_MATCH_OPTS) {
+                return &src[prefix_start..];
+            }
+
+            prefix_start = match iter.next_back() {
+                Some((i, _)) => i,
+                // candidate == "", nothing to trim
+                None => return src,
+            };
+
+        }
+    }
+}

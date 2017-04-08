@@ -20,9 +20,11 @@ pub use self::complex_word::EvalComplexWord;
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
 pub use self::param_subst::{alternative, assign, default, error, len, split,
-                            remove_largest_suffix, remove_smallest_prefix, remove_smallest_suffix};
+                            remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix,
+                            remove_smallest_suffix};
 pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError,
-                            RemoveLargestSuffix, RemoveSmallestPrefix, RemoveSmallestSuffix, Split};
+                            RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
+                            RemoveSmallestSuffix, Split};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::EvalWord;
 
