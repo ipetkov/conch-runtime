@@ -55,6 +55,7 @@ pub mod io;
 pub mod os;
 pub mod spawn;
 
+mod future_ext;
 mod ref_counted;
 mod runtime;
 #[cfg(unix)]
