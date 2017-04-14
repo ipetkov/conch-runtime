@@ -1,4 +1,3 @@
-extern crate conch_parser;
 extern crate conch_runtime;
 
 use conch_runtime::new_eval::{Fields, remove_smallest_suffix};

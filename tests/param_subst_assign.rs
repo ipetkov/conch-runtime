@@ -1,4 +1,3 @@
-extern crate conch_parser;
 extern crate conch_runtime;
 
 use conch_runtime::env::{VarEnv, VariableEnvironment};
