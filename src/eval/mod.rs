@@ -19,9 +19,9 @@ pub use self::arith::ArithEval;
 pub use self::complex_word::EvalComplexWord;
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
-pub use self::param_subst::{alternative, assign, default, error, len, split,
+pub use self::param_subst::{alternative, assign, default, error, len,
                             remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix,
-                            remove_smallest_suffix};
+                            remove_smallest_suffix, split};
 pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError,
                             RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
                             RemoveSmallestSuffix, Split};

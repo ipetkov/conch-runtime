@@ -4,11 +4,16 @@ extern crate tempdir;
 extern crate tokio_core;
 extern crate void;
 
+use self::conch_runtime::STDOUT_FILENO;
+use self::conch_runtime::error::IsFatalError;
+use self::conch_runtime::io::FileDescWrapper;
+use self::futures::BoxFuture;
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
 use self::tokio_core::reactor::Core;
 use self::void::{unreachable, Void};
+use std::borrow::Borrow;
 
 // Convenience re-exports
 pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
@@ -326,6 +331,83 @@ impl<E: ?Sized> ParamEval<E> for MockParam {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum MockOutCmd {
+    Out(&'static str),
+    Cmd(MockCmd),
+}
+
+impl<E: ?Sized> Spawn<E> for MockOutCmd
+    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
+          E::FileHandle: Clone + FileDescWrapper,
+          E::WriteAll: Send + 'static,
+{
+    type Error = MockErr;
+    type EnvFuture = Self;
+    type Future = BoxFuture<ExitStatus, Self::Error>;
+
+    fn spawn(self, _: &E) -> Self::EnvFuture {
+        self
+    }
+}
+
+impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
+    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
+          E::FileHandle: Clone + FileDescWrapper,
+          E::WriteAll: Send + 'static,
+{
+    type Error = MockErr;
+    type EnvFuture = MockOutCmd;
+    type Future = BoxFuture<ExitStatus, Self::Error>;
+
+    fn spawn(self, _: &E) -> Self::EnvFuture {
+        self.clone()
+    }
+}
+
+impl<E: ?Sized> EnvFuture<E> for MockOutCmd
+    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
+          E::FileHandle: Clone + FileDescWrapper,
+          E::WriteAll: Send + 'static,
+{
+    type Item = BoxFuture<ExitStatus, Self::Error>;
+    type Error = MockErr;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        let msg = match *self {
+            MockOutCmd::Out(ref m) => m,
+            MockOutCmd::Cmd(ref mut c) => match c.poll(env) {
+                Ok(Async::Ready(f)) => return Ok(Async::Ready(f.boxed())),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(e) => return Err(e),
+            },
+        };
+
+        let fd = env.file_desc(STDOUT_FILENO)
+            .expect("failed to get stdout")
+            .0
+            .borrow()
+            .duplicate()
+            .expect("failed to duplicate stdout handle");
+
+        let future = env.write_all(fd, msg.as_bytes().into())
+            .then(|result| {
+                result.expect("unexpected failure");
+                Ok(EXIT_SUCCESS)
+            })
+            .boxed();
+
+        Ok(Async::Ready(future))
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        match *self {
+            MockOutCmd::Out(_) => {},
+            MockOutCmd::Cmd(ref mut c) => c.cancel(env),
+        };
+    }
+}
+
 #[macro_export]
 macro_rules! run {
     ($cmd:expr) => {{
@@ -393,11 +475,13 @@ macro_rules! eval {
 
 /// Evaluates a word to completion.
 #[deprecated(note = "use `eval!` macro instead, to cover spawning T and &T")]
-pub fn eval_word<W: WordEval<VarEnv<String, String>>>(word: W, cfg: WordEvalConfig)
+pub fn eval_word<W: WordEval<DefaultEnv<String>>>(word: W, cfg: WordEvalConfig)
     -> Result<Fields<W::EvalResult>, W::Error>
 {
-    let env = VarEnv::new();
-    word.eval_with_config(&env, cfg)
-        .pin_env(env)
-        .wait()
+    let mut lp = Core::new().expect("failed to create Core loop");
+    let env = DefaultEnv::<String>::new(lp.remote(), Some(1));
+    let future = word.eval_with_config(&env, cfg)
+        .pin_env(env);
+
+    lp.run(future)
 }

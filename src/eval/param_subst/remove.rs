@@ -40,7 +40,7 @@ impl<'b, T: PatRemover> PatRemover for &'b T {
     }
 }
 
-/// A future representing a `Default` parameter substitution evaluation.
+/// A future representing a pattern removal from a parameter evaluation.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 struct RemovePattern<T, F, R> {

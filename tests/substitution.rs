@@ -1,14 +1,9 @@
 extern crate conch_runtime;
-#[macro_use]
 extern crate futures;
 extern crate tokio_core;
 
-use conch_runtime::STDOUT_FILENO;
 use conch_runtime::error::IsFatalError;
-use conch_runtime::io::FileDescWrapper;
 use conch_runtime::spawn::substitution;
-use futures::{Async, BoxFuture, Future, Poll};
-use std::borrow::Borrow;
 use std::io::Error as IoError;
 use tokio_core::reactor::Core;
 
@@ -27,62 +22,6 @@ fn run_substitution<I, S>(cmds: I) -> Result<String, S::Error>
         .flatten();
 
     lp.run(future)
-}
-
-#[derive(Debug, Clone)]
-enum MockOutCmd {
-    Out(&'static str),
-    Cmd(MockCmd),
-}
-
-impl<E: ?Sized> Spawn<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
-          E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: Send + 'static,
-{
-    type Error = MockErr;
-    type EnvFuture = Self;
-    type Future = BoxFuture<ExitStatus, Self::Error>;
-
-    fn spawn(self, _: &E) -> Self::EnvFuture {
-        self
-    }
-}
-
-impl<E: ?Sized> EnvFuture<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
-          E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: Send + 'static,
-{
-    type Item = BoxFuture<ExitStatus, Self::Error>;
-    type Error = MockErr;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let msg = match *self {
-            MockOutCmd::Out(ref m) => m,
-            MockOutCmd::Cmd(ref mut c) => return Ok(Async::Ready(try_ready!(c.poll(env)).boxed())),
-        };
-
-        let fd = env.file_desc(STDOUT_FILENO)
-            .expect("failed to get stdout")
-            .0
-            .borrow()
-            .duplicate()
-            .expect("failed to duplicate stdout handle");
-
-        let future = env.write_all(fd, msg.as_bytes().into())
-            .then(|result| {
-                result.expect("unexpected failure");
-                Ok(EXIT_SUCCESS)
-            })
-            .boxed();
-
-        Ok(Async::Ready(future))
-    }
-
-    fn cancel(&mut self, _env: &mut E) {
-        // Nothing to cancel
-    }
 }
 
 #[test]

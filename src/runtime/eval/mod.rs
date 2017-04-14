@@ -1,5 +1,6 @@
 //! A module for evaluating arbitrary shell components such as words,
 //! parameter subsitutions, redirections, and others.
+#![deprecated(note = "use `new_eval` module")]
 
 mod redirect;
 mod subst;

@@ -6,6 +6,7 @@ use futures::future::{Either, Future, FutureResult, Join};
 use io::{FileDescWrapper, Permissions, Pipe};
 use spawn::{Subshell, subshell};
 use std::borrow::Cow;
+use std::fmt;
 use std::io::Error as IoError;
 use std::marker::PhantomData;
 use tokio_io::AsyncRead;
@@ -69,7 +70,6 @@ type JoinSubshellAndReadToEnd<E, I, R, F, ER> = Join<
 /// The standard output of the commands will be captured and
 /// trailing newlines trimmed.
 #[must_use = "futures do nothing unless polled"]
-#[allow(missing_debug_implementations)]
 pub struct Substitution<E, I, R>
     where E: FileDescEnvironment + LastStatusEnvironment,
           I: Iterator,
@@ -83,6 +83,22 @@ pub struct Substitution<E, I, R>
         <I::Item as Spawn<E>>::Future,
         <I::Item as Spawn<E>>::Error
     >,
+}
+
+impl<E, I, R, S> fmt::Debug for Substitution<E, I, R>
+    where E: FileDescEnvironment + LastStatusEnvironment + fmt::Debug,
+          I: Iterator<Item = S> + fmt::Debug,
+          R: AsyncRead + fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+          S::Error: IsFatalError + From<IoError> + fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Substitution")
+            .field("inner", &self.inner)
+            .finish()
+    }
 }
 
 impl<E, I, R, S> Future for Substitution<E, I, R>
@@ -123,6 +139,30 @@ enum FlattenSubshell<E, I, F, ER>
 {
     Subshell(Subshell<E, I>),
     Flatten(Either<F, FutureResult<ExitStatus, ER>>),
+}
+
+impl<E, I, S> fmt::Debug for FlattenSubshell<E, I, S::Future, S::Error>
+    where E: fmt::Debug,
+          I: Iterator<Item = S> + fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+          S::Error: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            FlattenSubshell::Subshell(ref s) => {
+                fmt.debug_tuple("FlattenSubshell::Subshell")
+                    .field(s)
+                    .finish()
+            },
+            FlattenSubshell::Flatten(ref f) => {
+                fmt.debug_tuple("FlattenSubshell::Flatten")
+                    .field(f)
+                    .finish()
+            },
+        }
+    }
 }
 
 impl<E, I, S> Future for FlattenSubshell<E, I, S::Future, S::Error>
