@@ -176,9 +176,6 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ParameterSubstitution<P, W, C, A>
 pub struct EvalParamSubst<T, F, I, A, E, R>
     where I: Iterator,
           I::Item: Spawn<E>,
-          <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
-          E: FileDescEnvironment + LastStatusEnvironment,
-          R: AsyncRead,
 {
     inner: Split<Inner<T, F, I, A, E, R>>,
 }
@@ -190,9 +187,9 @@ impl<T, I, A, E, R, S> fmt::Debug for EvalParamSubst<T, S::Future, I, A, E, R>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: IsFatalError + From<IoError> + fmt::Debug,
-          E: FileDescEnvironment + LastStatusEnvironment + fmt::Debug,
-          R: AsyncRead + fmt::Debug,
+          S::Error: fmt::Debug,
+          E: fmt::Debug,
+          R: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("EvalParamSubst")
@@ -205,9 +202,6 @@ impl<T, I, A, E, R, S> fmt::Debug for EvalParamSubst<T, S::Future, I, A, E, R>
 enum Inner<T, F, I, A, E, R>
     where I: Iterator,
           I::Item: Spawn<E>,
-          <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
-          E: FileDescEnvironment + LastStatusEnvironment,
-          R: AsyncRead,
 {
     CommandInit(SubstitutionEnvFuture<I>),
     Command(Substitution<E, I, R>),
@@ -230,9 +224,9 @@ impl<T, I, A, E, R, S> fmt::Debug for Inner<T, S::Future, I, A, E, R>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: IsFatalError + From<IoError> + fmt::Debug,
-          E: FileDescEnvironment + LastStatusEnvironment + fmt::Debug,
-          R: AsyncRead + fmt::Debug,
+          S::Error: fmt::Debug,
+          E: fmt::Debug,
+          R: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
