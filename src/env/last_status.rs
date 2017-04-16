@@ -20,7 +20,7 @@ impl<'a, T: ?Sized + LastStatusEnvironment> LastStatusEnvironment for &'a mut T 
     }
 }
 
-/// An `Environment` module for setting and getting
+/// An environment module for setting and getting
 /// the exit status of the last command to run.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct LastStatusEnv {

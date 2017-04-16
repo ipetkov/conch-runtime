@@ -11,7 +11,7 @@ use tokio_core::reactor::Remote;
 use tokio_io::AsyncRead;
 use void::Void;
 
-/// An environment for performing async operations on `FileDesc` handles.
+/// An interface for performing async operations on `FileDesc` handles.
 pub trait AsyncIoEnvironment {
     /// An async/futures-aware `Read` adapter around a `FileDesc`.
     type Read: AsyncRead;
