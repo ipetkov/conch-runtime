@@ -1,5 +1,4 @@
-use runtime::env::SubEnvironment;
-
+use env::SubEnvironment;
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -153,19 +152,19 @@ macro_rules! impl_env {
 }
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell and function arguments.
+    /// An environment module for setting and getting shell and function arguments.
     ///
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `AtomicArgsEnv`.
+    /// see `env::atomic::ArgsEnv`.
     pub struct ArgsEnv,
     Rc
 );
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell and function arguments.
+    /// An environment module for setting and getting shell and function arguments.
     ///
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `ArgsEnv` as a cheaper alternative.
+    /// see `env::ArgsEnv` as a cheaper alternative.
     pub struct AtomicArgsEnv,
     Arc
 );
@@ -173,7 +172,7 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use RefCounted;
-    use runtime::env::SubEnvironment;
+    use env::SubEnvironment;
     use super::*;
 
     #[test]

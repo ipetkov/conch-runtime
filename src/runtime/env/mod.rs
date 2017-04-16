@@ -13,15 +13,15 @@ use std::sync::Arc;
 use std::rc::Rc;
 use tokio_core::reactor::Remote;
 
-mod args;
 mod fd;
 mod func;
 mod var;
 
+pub use new_env::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
+pub use new_env::atomic::ArgsEnv as AtomicArgsEnv;
 pub use new_env::{AsyncIoEnvironment, IsInteractiveEnvironment, LastStatusEnv,
                   LastStatusEnvironment, ReadAsync, PlatformSpecificAsyncIoEnv,
                   ReversibleRedirectWrapper, StringWrapper, SubEnvironment, ThreadPoolAsyncIoEnv};
-pub use self::args::*;
 pub use self::fd::*;
 pub use self::func::*;
 pub use self::var::*;
