@@ -92,7 +92,7 @@ fn should_propagate_errors_from_word_if_applicable() {
 
 #[test]
 fn should_propagate_cancel_if_required() {
-    let mut lp = Core::new().expect("failed to create Core loop");
+    let lp = Core::new().expect("failed to create Core loop");
     let mut env = DefaultEnv::new(lp.remote(), Some(1));
 
     let must_cancel = Some(mock_word_must_cancel());
@@ -100,6 +100,7 @@ fn should_propagate_cancel_if_required() {
     let empty_param = MockParam::Fields(None);
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
 
+    // NB: cannot test canceling a command since the SubstitionEnvFuture cannot be cancelled
     // NB: Nothing to test for Len or Arith
     let subst: ParamSubst = Default(true, empty_param.clone(), must_cancel.clone());
     test_cancel!(subst.eval(&mut env), env);
