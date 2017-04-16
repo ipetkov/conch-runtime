@@ -1,5 +1,5 @@
-use runtime::{ExitStatus, EXIT_SUCCESS};
-use runtime::env::SubEnvironment;
+use {ExitStatus, EXIT_SUCCESS};
+use env::SubEnvironment;
 
 /// An interface for setting and getting the
 /// exit status of the last command to run.
@@ -66,8 +66,8 @@ impl SubEnvironment for LastStatusEnv {
 
 #[cfg(test)]
 mod tests {
-    use runtime::ExitStatus;
-    use runtime::env::SubEnvironment;
+    use ExitStatus;
+    use env::SubEnvironment;
     use super::*;
 
     #[test]

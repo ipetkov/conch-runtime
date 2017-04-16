@@ -16,16 +16,14 @@ use tokio_core::reactor::Remote;
 mod args;
 mod fd;
 mod func;
-mod last_status;
 mod var;
 
-pub use new_env::{AsyncIoEnvironment, IsInteractiveEnvironment, ReadAsync,
-                  PlatformSpecificAsyncIoEnv, ReversibleRedirectWrapper, StringWrapper,
-                  SubEnvironment, ThreadPoolAsyncIoEnv};
+pub use new_env::{AsyncIoEnvironment, IsInteractiveEnvironment, LastStatusEnv,
+                  LastStatusEnvironment, ReadAsync, PlatformSpecificAsyncIoEnv,
+                  ReversibleRedirectWrapper, StringWrapper, SubEnvironment, ThreadPoolAsyncIoEnv};
 pub use self::args::*;
 pub use self::fd::*;
 pub use self::func::*;
-pub use self::last_status::*;
 pub use self::var::*;
 
 /// An interface for executing registered shell functions.

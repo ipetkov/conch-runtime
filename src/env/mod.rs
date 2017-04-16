@@ -2,12 +2,14 @@
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
 mod async_io;
+mod last_status;
 mod reversible_redirect;
 mod string_wrapper;
 
 pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};
+pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::reversible_redirect::ReversibleRedirectWrapper;
 pub use self::string_wrapper::StringWrapper;
 
