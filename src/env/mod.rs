@@ -4,6 +4,7 @@
 mod args;
 mod async_io;
 mod fd;
+mod func;
 mod last_status;
 mod reversible_redirect;
 mod string_wrapper;
@@ -14,6 +15,7 @@ pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
+pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::reversible_redirect::ReversibleRedirectWrapper;
 pub use self::string_wrapper::StringWrapper;
@@ -24,6 +26,7 @@ pub use self::var::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 pub mod atomic {
     pub use super::args::AtomicArgsEnv as ArgsEnv;
     pub use super::fd::AtomicFileDescEnv as FileDescEnv;
+    pub use super::func::AtomicFnEnv as FnEnv;
     pub use super::var::AtomicVarEnv as VarEnv;
 }
 

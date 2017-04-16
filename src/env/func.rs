@@ -1,6 +1,5 @@
 use RefCounted;
-use runtime::env::SubEnvironment;
-
+use env::SubEnvironment;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
@@ -141,19 +140,19 @@ macro_rules! impl_env {
 }
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell functions.
+    /// An environment module for setting and getting shell functions.
     ///
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `AtomicFnEnv`.
+    /// see `env::atomic::FnEnv`.
     pub struct FnEnv,
     Rc
 );
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell functions.
+    /// An environment module for setting and getting shell functions.
     ///
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `FnEnv` as a cheaper alternative.
+    /// see `env::FnEnv` as a cheaper alternative.
     pub struct AtomicFnEnv,
     Arc
 );
@@ -161,7 +160,7 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use RefCounted;
-    use runtime::env::SubEnvironment;
+    use env::SubEnvironment;
     use super::*;
 
     #[test]

@@ -13,18 +13,17 @@ use std::sync::Arc;
 use std::rc::Rc;
 use tokio_core::reactor::Remote;
 
-mod func;
-
 pub use new_env::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
 pub use new_env::atomic::ArgsEnv as AtomicArgsEnv;
 pub use new_env::{FileDescEnv, FileDescEnvironment};
 pub use new_env::atomic::FileDescEnv as AtomicFileDescEnv;
 pub use new_env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 pub use new_env::atomic::VarEnv as AtomicVarEnv;
+pub use new_env::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
+pub use new_env::atomic::FnEnv as AtomicFnEnv;
 pub use new_env::{AsyncIoEnvironment, IsInteractiveEnvironment, LastStatusEnv,
                   LastStatusEnvironment, ReadAsync, PlatformSpecificAsyncIoEnv,
                   ReversibleRedirectWrapper, StringWrapper, SubEnvironment, ThreadPoolAsyncIoEnv};
-pub use self::func::*;
 
 /// An interface for executing registered shell functions.
 pub trait FunctionExecutorEnvironment: FunctionEnvironment {
