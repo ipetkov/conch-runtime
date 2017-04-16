@@ -1,8 +1,6 @@
-use RefCounted;
+use {Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use io::{dup_stdio, FileDesc, Permissions};
-use runtime::{Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-use runtime::env::SubEnvironment;
-
+use env::SubEnvironment;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::error::Error;
@@ -164,29 +162,28 @@ macro_rules! impl_env {
 }
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell file descriptors.
+    /// An environment module for setting and getting shell file descriptors.
     ///
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `AtomicFileDescEnv`.
+    /// see `env::atomic::FileDescEnv`.
     pub struct FileDescEnv,
     Rc
 );
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell file descriptors.
+    /// An environment module for setting and getting shell file descriptors.
     ///
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `FileDescEnv` as a cheaper alternative.
+    /// see `env::FileDescEnv` as a cheaper alternative.
     pub struct AtomicFileDescEnv,
     Arc
 );
 
 #[cfg(test)]
 mod tests {
-    use RefCounted;
+    use {RefCounted, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
     use io::{Permissions, Pipe};
-    use runtime::{STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
-    use runtime::env::SubEnvironment;
+    use env::SubEnvironment;
     use runtime::tests::dev_null;
     use std::thread;
     use std::rc::Rc;

@@ -3,6 +3,7 @@
 
 mod args;
 mod async_io;
+mod fd;
 mod last_status;
 mod reversible_redirect;
 mod string_wrapper;
@@ -11,6 +12,7 @@ pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
 pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};
+pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::reversible_redirect::ReversibleRedirectWrapper;
 pub use self::string_wrapper::StringWrapper;
@@ -19,6 +21,7 @@ pub use self::string_wrapper::StringWrapper;
 /// `Sync`) of the various environment interfaces.
 pub mod atomic {
     pub use super::args::AtomicArgsEnv as ArgsEnv;
+    pub use super::fd::AtomicFileDescEnv as FileDescEnv;
 }
 
 /// An interface for checking if the current environment is an interactive one.
