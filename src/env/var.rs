@@ -1,6 +1,5 @@
 use RefCounted;
-use runtime::env::SubEnvironment;
-
+use env::SubEnvironment;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt;
@@ -188,19 +187,19 @@ macro_rules! impl_env {
 }
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell variables.
+    /// An environment module for setting and getting shell variables.
     ///
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `AtomicVarEnv`.
+    /// see `env::atomic::VarEnv`.
     pub struct VarEnv,
     Rc
 );
 
 impl_env!(
-    /// An `Environment` module for setting and getting shell variables.
+    /// An environment module for setting and getting shell variables.
     ///
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `VarEnv` as a cheaper alternative.
+    /// see `env::VarEnv` as a cheaper alternative.
     pub struct AtomicVarEnv,
     Arc
 );
@@ -208,7 +207,7 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use RefCounted;
-    use runtime::env::SubEnvironment;
+    use env::SubEnvironment;
     use super::*;
 
     #[test]
