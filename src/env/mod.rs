@@ -11,6 +11,18 @@ pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
 pub use self::reversible_redirect::ReversibleRedirectWrapper;
 pub use self::string_wrapper::StringWrapper;
 
+/// An interface for checking if the current environment is an interactive one.
+pub trait IsInteractiveEnvironment {
+    /// Indicates if running in interactive mode.
+    fn is_interactive(&self) -> bool;
+}
+
+impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a T {
+    fn is_interactive(&self) -> bool {
+        (**self).is_interactive()
+    }
+}
+
 /// An interface for all environments that can produce another environment,
 /// identical to itself, but any changes applied to the sub environment will
 /// not be reflected on the parent.

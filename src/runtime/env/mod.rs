@@ -19,25 +19,14 @@ mod func;
 mod last_status;
 mod var;
 
-pub use new_env::{AsyncIoEnvironment, ReadAsync, PlatformSpecificAsyncIoEnv,
-                  ReversibleRedirectWrapper, StringWrapper, SubEnvironment, ThreadPoolAsyncIoEnv};
+pub use new_env::{AsyncIoEnvironment, IsInteractiveEnvironment, ReadAsync,
+                  PlatformSpecificAsyncIoEnv, ReversibleRedirectWrapper, StringWrapper,
+                  SubEnvironment, ThreadPoolAsyncIoEnv};
 pub use self::args::*;
 pub use self::fd::*;
 pub use self::func::*;
 pub use self::last_status::*;
 pub use self::var::*;
-
-/// An interface for checking if the current environment is an interactive one.
-pub trait IsInteractiveEnvironment {
-    /// Indicates if running in interactive mode.
-    fn is_interactive(&self) -> bool;
-}
-
-impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a T {
-    fn is_interactive(&self) -> bool {
-        (**self).is_interactive()
-    }
-}
 
 /// An interface for executing registered shell functions.
 pub trait FunctionExecutorEnvironment: FunctionEnvironment {
