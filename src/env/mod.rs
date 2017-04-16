@@ -10,3 +10,21 @@ pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          ThreadPoolAsyncIoEnv};
 pub use self::reversible_redirect::ReversibleRedirectWrapper;
 pub use self::string_wrapper::StringWrapper;
+
+/// An interface for all environments that can produce another environment,
+/// identical to itself, but any changes applied to the sub environment will
+/// not be reflected on the parent.
+///
+/// Although this trait is very similar to the `Clone` trait, it is beneficial
+/// for subenvironments to be created as cheaply as possible (in the event that
+/// no changes are made to the subenvironment, there is no need for a deep clone),
+/// without relying on default `Clone` implementations or semantics.
+///
+/// It is strongly encouraged for implementors to utilize clone-on-write smart
+/// pointers or other mechanisms (e.g. `Rc`) to ensure creating and mutating sub
+/// environments is as cheap as possible.
+pub trait SubEnvironment: Sized {
+    /// Create a new sub-environment, which starts out idential to its parent,
+    /// but any changes on the new environment will not be reflected on the parent.
+    fn sub_env(&self) -> Self;
+}
