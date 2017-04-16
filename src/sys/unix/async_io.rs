@@ -95,6 +95,7 @@ impl AsyncIoEnvironment for EventedAsyncIoEnv {
     }
 }
 
+#[derive(Debug)]
 struct IoReceiver<T>(Receiver<Result<T>>);
 
 impl<T> Future for IoReceiver<T> {
@@ -111,6 +112,7 @@ impl<T> Future for IoReceiver<T> {
     }
 }
 
+#[derive(Debug)]
 enum Deferred<F, I> {
     Pending(F),
     Done(I),
@@ -133,7 +135,7 @@ impl<F, I> Deferred<F, I> where F: Future<Item = I> {
 ///
 /// Note that this type is also "futures aware" meaning that it is both
 /// (a) nonblocking and (b) will panic if used off of a future's task.
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 pub struct ReadAsync(DeferredFd);
 
 impl AsyncRead for ReadAsync {}
@@ -146,6 +148,7 @@ impl Read for ReadAsync {
     }
 }
 
+#[derive(Debug)]
 struct WriteAsync(DeferredFd);
 
 impl Write for WriteAsync {
@@ -170,6 +173,7 @@ impl AsyncWrite for WriteAsync {
     }
 }
 
+#[derive(Debug)]
 enum State {
     Writing(tokio_io::WriteAll<WriteAsync, Vec<u8>>),
     Flushing(tokio_io::Flush<WriteAsync>),
@@ -197,8 +201,8 @@ impl Future for State {
 /// A future that will write some data to a `FileDesc`.
 ///
 /// Created by the `EventedAsyncIoEnv::write_all` method.
-#[allow(missing_debug_implementations)]
 #[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
 pub struct WriteAll(State);
 
 impl Future for WriteAll {

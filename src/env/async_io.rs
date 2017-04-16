@@ -47,7 +47,7 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
 ///
 /// Note that this type is also "futures aware" meaning that it is both
 /// (a) nonblocking and (b) will panic if used off of a future's task.
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 pub struct PlatformSpecificRead(
     #[cfg(unix)] ::os::unix::env::ReadAsync,
     #[cfg(not(unix))] ReadAsync,
