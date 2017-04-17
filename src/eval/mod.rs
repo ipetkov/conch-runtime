@@ -3,8 +3,7 @@
 
 use future::{Async, EnvFuture, Poll};
 use glob;
-use new_env::StringWrapper;
-use runtime::env::VariableEnvironment;
+use env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 
 mod arith;

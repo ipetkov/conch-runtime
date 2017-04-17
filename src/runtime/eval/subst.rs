@@ -2,11 +2,11 @@
 
 use glob;
 
+use env::{FileDescEnvironment, LastStatusEnvironment,
+          StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, RuntimeError};
 use io::FileDescWrapper;
 use runtime::{Result, Run};
-use runtime::env::{FileDescEnvironment, LastStatusEnvironment,
-                   StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use std::fmt::Display;
 use std::io;
@@ -336,9 +336,9 @@ fn run_cmd_subst<I, E>(body: I, env: &E) -> io::Result<String>
 #[cfg(test)]
 mod tests {
     use glob;
+    use env::{ArgsEnv, Env, LastStatusEnvironment, VariableEnvironment};
     use error::{ExpansionError, RuntimeError};
     use runtime::{ExitStatus, EXIT_SUCCESS, Result, Run};
-    use runtime::env::{ArgsEnv, Env, LastStatusEnvironment, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use runtime::tests::{DefaultEnv, DefaultEnvConfig};
     use syntax::ast::{Arithmetic, DefaultArithmetic, DefaultParameter, Parameter,
@@ -381,9 +381,9 @@ mod tests {
 
     #[test]
     fn test_eval_parameter_substitution_command() {
+        use env::FileDescEnvironment;
         use io::FileDescWrapper;
         use runtime::STDOUT_FILENO;
-        use runtime::env::FileDescEnvironment;
         use runtime::tests::MockWord;
         use std::borrow::Borrow;
         use std::io::Write;
@@ -677,8 +677,8 @@ mod tests {
 
     #[test]
     fn test_eval_parameter_substitution_assign() {
+        use env::SubEnvironment;
         use syntax::ast::ParameterSubstitution::Assign;
-        use runtime::env::SubEnvironment;
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::None,
@@ -1684,9 +1684,9 @@ mod tests {
 
     #[test]
     fn test_eval_parameter_substitution_forwards_tilde_expansion() {
-        use syntax::ast::ParameterSubstitution::*;
+        use env::UnsetVariableEnvironment;
         use runtime::Result;
-        use runtime::env::UnsetVariableEnvironment;
+        use syntax::ast::ParameterSubstitution::*;
 
         #[derive(Copy, Clone, Debug)]
         struct MockWord(TildeExpansion);

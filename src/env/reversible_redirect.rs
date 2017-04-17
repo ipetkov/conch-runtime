@@ -1,7 +1,6 @@
+use Fd;
 use io::Permissions;
-use runtime::Fd;
-use runtime::env::FileDescEnvironment;
-
+use env::FileDescEnvironment;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
 use std::error::Error;

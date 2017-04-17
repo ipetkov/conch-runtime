@@ -1,7 +1,7 @@
-extern crate conch_runtime as runtime;
+extern crate conch_runtime;
 
-use runtime::new_eval::Fields::*;
-use runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
+use conch_runtime::new_eval::Fields::*;
+use conch_runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 
 #[test]
 fn test_fields_is_null() {
@@ -46,8 +46,6 @@ fn test_fields_join() {
 
 #[test]
 fn test_fields_join_with_ifs() {
-    use runtime::env::{VariableEnvironment, UnsetVariableEnvironment};
-
     let ifs = "IFS".to_owned();
     let strs = vec!(
         "foo".to_owned(),

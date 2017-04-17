@@ -1,10 +1,10 @@
 //! A module which defines evaluating any kind of word.
 
+use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionExecutorEnvironment,
+          IsInteractiveEnvironment, LastStatusEnvironment,
+          StringWrapper, SubEnvironment, VariableEnvironment};
 use io::FileDescWrapper;
 use runtime::{HOME, Result, Run};
-use runtime::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionExecutorEnvironment,
-                   IsInteractiveEnvironment, LastStatusEnvironment,
-                   StringWrapper, SubEnvironment, VariableEnvironment};
 use runtime::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use std::borrow::Borrow;
 use std::convert::{From, Into};
@@ -193,10 +193,10 @@ impl<T, E> WordEval<E> for TopLevelWord<T>
 
 #[cfg(test)]
 mod tests {
+    use env::{ArgsEnv, Env, VariableEnvironment};
     use error::RuntimeError;
     use error::ExpansionError::DivideByZero;
     use runtime::Result;
-    use runtime::env::{ArgsEnv, Env, VariableEnvironment};
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use runtime::tests::{DefaultEnv, DefaultEnvConfig};
     use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
@@ -522,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_word_double_quoted_param_star_expands_but_joined_by_ifs() {
-        use runtime::env::UnsetVariableEnvironment;
+        use env::UnsetVariableEnvironment;
 
         // Should have no effect
         let cfg = WordEvalConfig {

@@ -6,9 +6,9 @@ mod redirect;
 mod subst;
 mod word;
 
+use env::{StringWrapper, VariableEnvironment};
 use glob;
 use runtime::Result;
-use runtime::env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 
 pub use self::redirect::*;
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
-        use runtime::env::VariableEnvironment;
+        use env::VariableEnvironment;
 
         macro_rules! word_eval_impl {
             ($name:ident, $ret:expr) => {

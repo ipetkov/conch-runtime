@@ -1,7 +1,6 @@
-use env::{FileDescEnvironment, LastStatusEnvironment, StringWrapper,
-          SubEnvironment, VariableEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment,
+          StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, IsFatalError};
-use new_env::AsyncIoEnvironment;
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
 use io::FileDescWrapper;

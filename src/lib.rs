@@ -46,8 +46,7 @@ macro_rules! mktmp {
 
 #[macro_use]
 pub mod error;
-#[path="env/mod.rs"]
-pub mod new_env; // FIXME: rename to `env` when `runtime::env` fully deprecated
+pub mod env;
 #[path="eval/mod.rs"]
 pub mod new_eval; // FIXME: rename to `eval` when `runtime::eval` fully deprecated
 pub mod future;

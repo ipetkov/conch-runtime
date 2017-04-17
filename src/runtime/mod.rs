@@ -4,12 +4,11 @@
 
 use glob;
 
+use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
+          FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
+          StringWrapper, SubEnvironment, VariableEnvironment};
 use error::RuntimeError;
 use io::FileDescWrapper;
-use self::env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
-                FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
-                StringWrapper, SubEnvironment, VariableEnvironment};
-
 use std::convert::{From, Into};
 use std::fmt;
 use std::iter::{IntoIterator, Iterator};
@@ -23,7 +22,6 @@ use runtime::eval::{RedirectEval, TildeExpansion, WordEval, WordEvalConfig};
 
 mod simple;
 
-pub mod env;
 pub mod eval;
 
 lazy_static! {
@@ -411,7 +409,7 @@ pub fn run_with_local_redirections<'a, I, R: ?Sized, F, E: ?Sized, T>(env: &mut 
           E: 'a + FileDescEnvironment,
           E::FileHandle: Clone,
 {
-    use runtime::env::ReversibleRedirectWrapper;
+    use env::ReversibleRedirectWrapper;
 
     // Make all file descriptor changes through a reversible wrapper
     // so it can handle the restoration for us when it is dropped.
@@ -429,14 +427,14 @@ pub fn run_with_local_redirections<'a, I, R: ?Sized, F, E: ?Sized, T>(env: &mut 
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     extern crate tempdir;
 
     use glob;
 
+    use env::*;
     use error::*;
     use io::{FileDesc, Permissions, Pipe};
-    use runtime::env::*;
     use runtime::eval::{Fields, WordEval, WordEvalConfig};
     use runtime::*;
 
@@ -510,6 +508,7 @@ mod tests {
     #[cfg(windows)]
     pub const DEV_NULL: &'static str = "NUL";
 
+    #[derive(Debug)]
     pub struct MockFn<F> {
         callback: RefCell<F>,
     }
@@ -527,6 +526,7 @@ mod tests {
     }
 
     #[derive(Clone)]
+    #[allow(missing_debug_implementations)]
     pub enum MockWord {
         Regular(String),
         Multiple(Vec<String>),

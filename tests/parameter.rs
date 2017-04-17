@@ -1,17 +1,17 @@
-extern crate conch_parser as syntax;
-extern crate conch_runtime as runtime;
+extern crate conch_parser;
+extern crate conch_runtime;
 extern crate tokio_core;
 
-use runtime::ExitStatus;
-use runtime::env::{ArgsEnv, ArgumentsEnvironment, Env, EnvConfig,
-                   LastStatusEnvironment, VariableEnvironment};
-use runtime::eval::{Fields, ParamEval};
-use syntax::ast::Parameter::*;
+use conch_parser::ast::Parameter::*;
+use conch_runtime::ExitStatus;
+use conch_runtime::env::{ArgsEnv, ArgumentsEnvironment, Env, EnvConfig,
+                         LastStatusEnvironment, VariableEnvironment};
+use conch_runtime::eval::{Fields, ParamEval};
 use tokio_core::reactor::Core;
 
 #[test]
 fn test_eval_parameter_with_set_vars() {
-    use runtime::io::getpid;
+    use conch_runtime::io::getpid;
 
     let var1 = "var1_value".to_owned();
     let var2 = "var2_value".to_owned();

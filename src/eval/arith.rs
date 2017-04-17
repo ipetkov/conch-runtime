@@ -1,7 +1,7 @@
 //! A module that defines evaluating parameters and parameter subsitutions.
 
+use env::VariableEnvironment;
 use error::ExpansionError;
-use runtime::env::VariableEnvironment;
 use std::borrow::Borrow;
 use syntax::ast::Arithmetic;
 use syntax::ast::Arithmetic::*;

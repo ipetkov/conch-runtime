@@ -1,15 +1,15 @@
-extern crate conch_parser as syntax;
-extern crate conch_runtime as runtime;
+extern crate conch_parser;
+extern crate conch_runtime;
 
-use runtime::error::ExpansionError;
-use runtime::eval::ArithEval;
-use runtime::env::{VarEnv, VariableEnvironment};
-use syntax::ast::Arithmetic;
+use conch_parser::ast::Arithmetic;
+use conch_runtime::error::ExpansionError;
+use conch_runtime::eval::ArithEval;
+use conch_runtime::env::{VarEnv, VariableEnvironment};
 
 #[test]
 fn test_eval_arith() {
-    use ::std::isize::MAX;
-    use syntax::ast::Arithmetic::*;
+    use conch_parser::ast::Arithmetic::*;
+    use std::isize::MAX;
 
     fn lit(i: isize) -> Box<Arithmetic<String>> {
         Box::new(Literal(i))

@@ -1,5 +1,5 @@
 use glob;
-use new_env::StringWrapper;
+use env::StringWrapper;
 use new_eval::{Fields, ParamEval, Pattern, WordEval};
 use future::{Async, EnvFuture, Poll};
 
