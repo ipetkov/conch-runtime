@@ -4,15 +4,14 @@
 
 use glob;
 
+use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
 use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
           FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
           StringWrapper, SubEnvironment, VariableEnvironment};
 use error::RuntimeError;
 use io::FileDescWrapper;
 use std::convert::{From, Into};
-use std::fmt;
 use std::iter::{IntoIterator, Iterator};
-use std::process;
 use std::rc::Rc;
 use std::result;
 
@@ -28,71 +27,8 @@ lazy_static! {
     static ref HOME: String = { String::from("HOME") };
 }
 
-/// Exit code for commands that exited successfully.
-pub const EXIT_SUCCESS:            ExitStatus = ExitStatus::Code(0);
-/// Exit code for commands that did not exit successfully.
-pub const EXIT_ERROR:              ExitStatus = ExitStatus::Code(1);
-/// Exit code for commands which are not executable.
-pub const EXIT_CMD_NOT_EXECUTABLE: ExitStatus = ExitStatus::Code(126);
-/// Exit code for missing commands.
-pub const EXIT_CMD_NOT_FOUND:      ExitStatus = ExitStatus::Code(127);
-
-/// File descriptor for standard input.
-pub const STDIN_FILENO: Fd = 0;
-/// File descriptor for standard output.
-pub const STDOUT_FILENO: Fd = 1;
-/// File descriptor for standard error.
-pub const STDERR_FILENO: Fd = 2;
-
 /// A specialized `Result` type for shell runtime operations.
 pub type Result<T> = result::Result<T, RuntimeError>;
-
-/// The type that represents a file descriptor within shell scripts.
-pub type Fd = u16;
-
-/// Describes the result of a process after it has terminated.
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum ExitStatus {
-    /// Normal termination with an exit code.
-    Code(i32),
-
-    /// Termination by signal, with the signal number.
-    ///
-    /// Never generated on Windows.
-    Signal(i32),
-}
-
-impl ExitStatus {
-    /// Was termination successful? Signal termination not considered a success,
-    /// and success is defined as a zero exit status.
-    pub fn success(&self) -> bool { *self == EXIT_SUCCESS }
-}
-
-impl fmt::Display for ExitStatus {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ExitStatus::Code(code)   => write!(f, "exit code: {}", code),
-            ExitStatus::Signal(code) => write!(f, "signal: {}", code),
-        }
-    }
-}
-
-impl From<process::ExitStatus> for ExitStatus {
-    fn from(exit: process::ExitStatus) -> ExitStatus {
-        #[cfg(unix)]
-        fn get_signal(exit: process::ExitStatus) -> Option<i32> {
-            ::std::os::unix::process::ExitStatusExt::signal(&exit)
-        }
-
-        #[cfg(windows)]
-        fn get_signal(_exit: process::ExitStatus) -> Option<i32> { None }
-
-        match exit.code() {
-            Some(code) => ExitStatus::Code(code),
-            None => get_signal(exit).map_or(EXIT_ERROR, ExitStatus::Signal),
-        }
-    }
-}
 
 /// An interface for anything that can be executed within an environment context.
 pub trait Run<E: ?Sized> {

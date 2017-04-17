@@ -642,9 +642,9 @@ impl<T> DefaultAtomicEnv<T> where T: Eq + Hash + From<String> {
 mod tests {
     extern crate tempdir;
 
+    use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
     use io::Permissions;
-    use runtime::{EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
-    use runtime::{ExitStatus, Result, Run};
+    use runtime::{Result, Run};
     use runtime::tests::{DefaultEnv, DefaultEnvConfig, MockFn, word};
 
     use self::tempdir::TempDir;
