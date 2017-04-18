@@ -15,7 +15,7 @@ use syntax::ast::{ComplexWord, SimpleWord, TopLevelWord, Word};
 impl<T, P, S, E: ?Sized> WordEval<E> for SimpleWord<T, P, S>
     where T: StringWrapper,
           P: ParamEval<E, EvalResult = T>,
-          S: WordEval<E, EvalResult = T>,
+          //S: WordEval<E, EvalResult = T>,
           E: VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
 {
@@ -44,7 +44,7 @@ impl<T, P, S, E: ?Sized> WordEval<E> for SimpleWord<T, P, S>
                 },
             },
 
-            SimpleWord::Subst(ref s) => try!(s.eval_with_config(env, cfg)),
+            SimpleWord::Subst(_) => panic!("unimplemented: to be deprecated soon"),
             SimpleWord::Param(ref p) => p.eval(cfg.split_fields_further, env).unwrap_or(Fields::Zero),
         };
 
@@ -195,12 +195,10 @@ impl<T, E> WordEval<E> for TopLevelWord<T>
 #[cfg(test)]
 mod tests {
     use env::{ArgsEnv, Env, VariableEnvironment};
-    use error::RuntimeError;
-    use error::ExpansionError::DivideByZero;
     use runtime::Result;
     use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
     use runtime::tests::{DefaultEnv, DefaultEnvConfig};
-    use syntax::ast::{Parameter, ParameterSubstitution, TopLevelWord};
+    use syntax::ast::{Parameter, TopLevelWord};
     use syntax::ast::{DefaultComplexWord, DefaultWord, DefaultSimpleWord};
     use syntax::ast::ComplexWord::*;
     use syntax::ast::SimpleWord::*;
@@ -285,50 +283,50 @@ mod tests {
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(home_value)));
     }
 
-    #[test]
-    fn test_simple_word_subst() {
-        use syntax::ast::ParameterSubstitution;
+    //#[test]
+    //fn test_simple_word_subst() {
+    //    use syntax::ast::ParameterSubstitution;
 
-        let cfg = WordEvalConfig {
-            tilde_expansion: TildeExpansion::None,
-            split_fields_further: false,
-        };
+    //    let cfg = WordEvalConfig {
+    //        tilde_expansion: TildeExpansion::None,
+    //        split_fields_further: false,
+    //    };
 
-        let var_name = "var".to_owned();
-        let var_value = "foo".to_owned();
+    //    let var_name = "var".to_owned();
+    //    let var_value = "foo".to_owned();
 
-        let mut env = DefaultEnv::new_test_env();
-        env.set_var(var_name.clone(), var_value.clone());
+    //    let mut env = DefaultEnv::new_test_env();
+    //    env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: DefaultSimpleWord =
-            Subst(Box::new(ParameterSubstitution::Len(Parameter::Var(var_name))));
-        let correct = Fields::Single("3".to_owned());
-        assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(correct));
-    }
+    //    let simple: DefaultSimpleWord =
+    //        Subst(Box::new(ParameterSubstitution::Len(Parameter::Var(var_name))));
+    //    let correct = Fields::Single("3".to_owned());
+    //    assert_eq!(simple.eval_with_config(&mut env, cfg), Ok(correct));
+    //}
 
-    #[test]
-    fn test_simple_word_subst_error() {
-        use runtime::RuntimeError;
-        use syntax::ast::{Arithmetic, ParameterSubstitution};
+    //#[test]
+    //fn test_simple_word_subst_error() {
+    //    use runtime::RuntimeError;
+    //    use syntax::ast::{Arithmetic, ParameterSubstitution};
 
-        let cfg = WordEvalConfig {
-            tilde_expansion: TildeExpansion::None,
-            split_fields_further: false,
-        };
+    //    let cfg = WordEvalConfig {
+    //        tilde_expansion: TildeExpansion::None,
+    //        split_fields_further: false,
+    //    };
 
-        let var_name = "var".to_owned();
-        let var_value = "foo".to_owned();
+    //    let var_name = "var".to_owned();
+    //    let var_value = "foo".to_owned();
 
-        let mut env = DefaultEnv::new_test_env();
-        env.set_var(var_name.clone(), var_value.clone());
+    //    let mut env = DefaultEnv::new_test_env();
+    //    env.set_var(var_name.clone(), var_value.clone());
 
-        let simple: DefaultSimpleWord = Subst(Box::new(ParameterSubstitution::Arith(Some(Arithmetic::Div(
-            Box::new(Arithmetic::Literal(1)),
-            Box::new(Arithmetic::Literal(0))
-        )))));
-        let correct = RuntimeError::Expansion(DivideByZero);
-        assert_eq!(simple.eval_with_config(&mut env, cfg), Err(correct));
-    }
+    //    let simple: DefaultSimpleWord = Subst(Box::new(ParameterSubstitution::Arith(Some(Arithmetic::Div(
+    //        Box::new(Arithmetic::Literal(1)),
+    //        Box::new(Arithmetic::Literal(0))
+    //    )))));
+    //    let correct = RuntimeError::Expansion(DivideByZero);
+    //    assert_eq!(simple.eval_with_config(&mut env, cfg), Err(correct));
+    //}
 
     #[test]
     fn test_simple_word_param() {
@@ -381,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_word_simple() {
-        use syntax::ast::Arithmetic;
+        //use syntax::ast::Arithmetic;
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -393,13 +391,13 @@ mod tests {
         let word = lit(&value);
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let word: DefaultWord = Simple(Subst(Box::new(ParameterSubstitution::Arith(Some(
-            Arithmetic::Div(
-                Box::new(Arithmetic::Literal(1)),
-                Box::new(Arithmetic::Literal(0))
-            )
-        )))));
-        assert_eq!(word.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
+        //let word: DefaultWord = Simple(Subst(Box::new(ParameterSubstitution::Arith(Some(
+        //    Arithmetic::Div(
+        //        Box::new(Arithmetic::Literal(1)),
+        //        Box::new(Arithmetic::Literal(0))
+        //    )
+        //)))));
+        //assert_eq!(word.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 
     #[test]
@@ -593,16 +591,16 @@ mod tests {
         let correct = Fields::Single("foo bar".to_owned());
         assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
 
-        let word: DefaultWord = DoubleQuoted(vec!(
-            Subst(Box::new(ParameterSubstitution::Default(false, var, None)))
-        ));
-        let correct = Fields::Single("foo bar".to_owned());
-        assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
+        //let word: DefaultWord = DoubleQuoted(vec!(
+        //    Subst(Box::new(ParameterSubstitution::Default(false, var, None)))
+        //));
+        //let correct = Fields::Single("foo bar".to_owned());
+        //assert_eq!(word.eval_with_config(&mut env, cfg), Ok(correct));
     }
 
     #[test]
     fn test_complex_word_single() {
-        use syntax::ast::Arithmetic;
+        //use syntax::ast::Arithmetic;
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -614,18 +612,18 @@ mod tests {
         let complex: DefaultComplexWord = Single(Simple(Literal(value.clone())));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let complex: DefaultComplexWord = Single(Simple(Subst(Box::new(ParameterSubstitution::Arith(
-            Some(Arithmetic::Div(
-                Box::new(Arithmetic::Literal(1)),
-                Box::new(Arithmetic::Literal(0))
-            ))
-        )))));
-        assert_eq!(complex.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
+        //let complex: DefaultComplexWord = Single(Simple(Subst(Box::new(ParameterSubstitution::Arith(
+        //    Some(Arithmetic::Div(
+        //        Box::new(Arithmetic::Literal(1)),
+        //        Box::new(Arithmetic::Literal(0))
+        //    ))
+        //)))));
+        //assert_eq!(complex.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 
     #[test]
     fn test_complex_word_concat_error() {
-        use syntax::ast::Arithmetic;
+        //use syntax::ast::Arithmetic;
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -637,15 +635,15 @@ mod tests {
         let complex: DefaultComplexWord = Single(Simple(Literal(value.clone())));
         assert_eq!(complex.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let complex: DefaultComplexWord = Concat(vec!(
-            Simple(Subst(Box::new(ParameterSubstitution::Arith(
-                Some(Arithmetic::Div(
-                    Box::new(Arithmetic::Literal(1)),
-                    Box::new(Arithmetic::Literal(0))
-                ))
-            ))))
-        ));
-        assert_eq!(complex.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
+        //let complex: DefaultComplexWord = Concat(vec!(
+        //    Simple(Subst(Box::new(ParameterSubstitution::Arith(
+        //        Some(Arithmetic::Div(
+        //            Box::new(Arithmetic::Literal(1)),
+        //            Box::new(Arithmetic::Literal(0))
+        //        ))
+        //    ))))
+        //));
+        //assert_eq!(complex.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 
     #[test]
@@ -831,7 +829,7 @@ mod tests {
 
     #[test]
     fn test_top_level_word() {
-        use syntax::ast::Arithmetic;
+        //use syntax::ast::Arithmetic;
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -843,12 +841,12 @@ mod tests {
         let top_level_word = TopLevelWord(Single(Simple(Literal(value.clone()))));
         assert_eq!(top_level_word.eval_with_config(&mut env, cfg), Ok(Fields::Single(value)));
 
-        let top_level_word = TopLevelWord(Single(Simple(Subst(Box::new(
-            ParameterSubstitution::Arith(Some(Arithmetic::Div(
-                Box::new(Arithmetic::Literal(1)),
-                Box::new(Arithmetic::Literal(0))
-            )))
-        )))));
-        assert_eq!(top_level_word.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
+        //let top_level_word = TopLevelWord(Single(Simple(Subst(Box::new(
+        //    ParameterSubstitution::Arith(Some(Arithmetic::Div(
+        //        Box::new(Arithmetic::Literal(1)),
+        //        Box::new(Arithmetic::Literal(0))
+        //    )))
+        //)))));
+        //assert_eq!(top_level_word.eval_with_config(&mut env, cfg), Err(RuntimeError::Expansion(DivideByZero)));
     }
 }

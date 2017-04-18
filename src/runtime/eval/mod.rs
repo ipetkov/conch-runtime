@@ -3,7 +3,6 @@
 #![deprecated(note = "use `new_eval` module")]
 
 mod redirect;
-mod subst;
 mod word;
 
 use env::{StringWrapper, VariableEnvironment};

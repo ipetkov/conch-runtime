@@ -4,7 +4,7 @@
 
 use glob;
 
-use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
+use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS};
 use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
           FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
           ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
@@ -369,7 +369,7 @@ pub mod tests {
 
     use glob;
 
-    use STDERR_FILENO;
+    use {STDERR_FILENO, STDOUT_FILENO};
     use env::*;
     use error::*;
     use io::{FileDesc, Permissions, Pipe};
@@ -1021,104 +1021,104 @@ pub mod tests {
         assert_eq!(read, "default\n");
     }
 
-    #[test]
-    fn test_run_compound_command_local_redirections_closed_after_but_side_effects_remain() {
-        use syntax::ast::ParameterSubstitution::Assign;
-        use syntax::ast::ComplexWord::Single;
-        use syntax::ast::SimpleWord::{Literal, Subst};
-        use syntax::ast::{DefaultCompoundCommand, TopLevelWord};
-        use syntax::ast::Word::Simple;
+    //#[test]
+    //fn test_run_compound_command_local_redirections_closed_after_but_side_effects_remain() {
+    //    use syntax::ast::ParameterSubstitution::Assign;
+    //    use syntax::ast::ComplexWord::Single;
+    //    use syntax::ast::SimpleWord::Literal;
+    //    use syntax::ast::{DefaultCompoundCommand, TopLevelWord};
+    //    use syntax::ast::Word::Simple;
 
-        let var = "var";
-        let tempdir = mktmp!();
+    //    let var = "var";
+    //    let tempdir = mktmp!();
 
-        let mut value = PathBuf::from(tempdir.path());
-        value.push(String::from("foobar"));
+    //    let mut value = PathBuf::from(tempdir.path());
+    //    value.push(String::from("foobar"));
 
-        let mut file_path = PathBuf::from(tempdir.path());
-        file_path.push(String::from("out"));
+    //    let mut file_path = PathBuf::from(tempdir.path());
+    //    file_path.push(String::from("out"));
 
-        let value = value.display().to_string();
-        let file = file_path.display().to_string();
+    //    let value = value.display().to_string();
+    //    let file = file_path.display().to_string();
 
-        let file = TopLevelWord(Single(Simple(Literal(file))));
-        let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
+    //    let file = TopLevelWord(Single(Simple(Literal(file))));
+    //    let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
 
-        let mut env = Env::new_test_env();
+    //    let mut env = Env::new_test_env();
 
-        let compound = DefaultCompoundCommand {
-            kind: Brace(vec!()),
-            io: vec!(
-                Redirect::Write(Some(3), file.clone()),
-                Redirect::Write(Some(4), file.clone()),
-                Redirect::Write(Some(5), TopLevelWord(Single(Simple(Subst(Box::new(Assign(
-                    true,
-                    Parameter::Var(var.to_string()),
-                    Some(var_value),
-                ))))))),
-            )
-        };
+    //    let compound = DefaultCompoundCommand {
+    //        kind: Brace(vec!()),
+    //        io: vec!(
+    //            Redirect::Write(Some(3), file.clone()),
+    //            Redirect::Write(Some(4), file.clone()),
+    //            Redirect::Write(Some(5), TopLevelWord(Single(Simple(Subst(Box::new(Assign(
+    //                true,
+    //                Parameter::Var(var.to_string()),
+    //                Some(var_value),
+    //            ))))))),
+    //        )
+    //    };
 
-        assert_eq!(compound.run(&mut env), Ok(EXIT_SUCCESS));
-        assert!(env.file_desc(3).is_none());
-        assert!(env.file_desc(4).is_none());
-        assert!(env.file_desc(5).is_none());
-        assert_eq!(env.var(var), Some(&value.to_owned()));
-    }
+    //    assert_eq!(compound.run(&mut env), Ok(EXIT_SUCCESS));
+    //    assert!(env.file_desc(3).is_none());
+    //    assert!(env.file_desc(4).is_none());
+    //    assert!(env.file_desc(5).is_none());
+    //    assert_eq!(env.var(var), Some(&value.to_owned()));
+    //}
 
-    #[test]
-    fn test_run_compound_command_redirections_closed_after_side_effects_remain_after_error() {
-        use syntax::ast::ParameterSubstitution::Assign;
-        use syntax::ast::ComplexWord::Single;
-        use syntax::ast::SimpleWord::{Literal, Subst};
-        use syntax::ast::{DefaultCompoundCommand, TopLevelWord};
-        use syntax::ast::Word::Simple;
+    //#[test]
+    //fn test_run_compound_command_redirections_closed_after_side_effects_remain_after_error() {
+    //    use syntax::ast::ParameterSubstitution::Assign;
+    //    use syntax::ast::ComplexWord::Single;
+    //    use syntax::ast::SimpleWord::{Literal, Subst};
+    //    use syntax::ast::{DefaultCompoundCommand, TopLevelWord};
+    //    use syntax::ast::Word::Simple;
 
-        let var = "var";
-        let tempdir = mktmp!();
+    //    let var = "var";
+    //    let tempdir = mktmp!();
 
-        let mut value = PathBuf::from(tempdir.path());
-        value.push(String::from("foobar"));
+    //    let mut value = PathBuf::from(tempdir.path());
+    //    value.push(String::from("foobar"));
 
-        let mut file_path = PathBuf::from(tempdir.path());
-        file_path.push(String::from("out"));
+    //    let mut file_path = PathBuf::from(tempdir.path());
+    //    file_path.push(String::from("out"));
 
-        let mut missing_file_path = PathBuf::new();
-        missing_file_path.push(tempdir.path());
-        missing_file_path.push(String::from("if_this_file_exists_the_unverse_has_ended"));
+    //    let mut missing_file_path = PathBuf::new();
+    //    missing_file_path.push(tempdir.path());
+    //    missing_file_path.push(String::from("if_this_file_exists_the_unverse_has_ended"));
 
-        let file = file_path.display().to_string();
-        let file = TopLevelWord(Single(Simple(Literal(file))));
+    //    let file = file_path.display().to_string();
+    //    let file = TopLevelWord(Single(Simple(Literal(file))));
 
-        let missing = missing_file_path.display().to_string();
-        let missing = TopLevelWord(Single(Simple(Literal(missing))));
+    //    let missing = missing_file_path.display().to_string();
+    //    let missing = TopLevelWord(Single(Simple(Literal(missing))));
 
-        let value = value.display().to_string();
-        let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
+    //    let value = value.display().to_string();
+    //    let var_value = TopLevelWord(Single(Simple(Literal(value.to_owned()))));
 
-        let mut env = Env::new_test_env();
+    //    let mut env = Env::new_test_env();
 
-        let compound = DefaultCompoundCommand {
-            kind: Brace(vec!()),
-            io: vec!(
-                Redirect::Write(Some(3), file.clone()),
-                Redirect::Write(Some(4), file.clone()),
-                Redirect::Write(Some(5), TopLevelWord(Single(Simple(Subst(Box::new(Assign(
-                    true,
-                    Parameter::Var(var.to_string()),
-                    Some(var_value),
-                ))))))),
-                Redirect::Read(Some(6), missing)
-            )
-        };
+    //    let compound = DefaultCompoundCommand {
+    //        kind: Brace(vec!()),
+    //        io: vec!(
+    //            Redirect::Write(Some(3), file.clone()),
+    //            Redirect::Write(Some(4), file.clone()),
+    //            Redirect::Write(Some(5), TopLevelWord(Single(Simple(Subst(Box::new(Assign(
+    //                true,
+    //                Parameter::Var(var.to_string()),
+    //                Some(var_value),
+    //            ))))))),
+    //            Redirect::Read(Some(6), missing)
+    //        )
+    //    };
 
-        compound.run(&mut env).unwrap_err();
-        assert!(env.file_desc(3).is_none());
-        assert!(env.file_desc(4).is_none());
-        assert!(env.file_desc(5).is_none());
-        assert!(env.file_desc(6).is_none());
-        assert_eq!(env.var(var), Some(&value.to_owned()));
-    }
+    //    compound.run(&mut env).unwrap_err();
+    //    assert!(env.file_desc(3).is_none());
+    //    assert!(env.file_desc(4).is_none());
+    //    assert!(env.file_desc(5).is_none());
+    //    assert!(env.file_desc(6).is_none());
+    //    assert_eq!(env.var(var), Some(&value.to_owned()));
+    //}
 
     #[test]
     fn test_run_compound_command_kind_brace() {
