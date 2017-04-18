@@ -2,7 +2,7 @@
 
 use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionExecutorEnvironment,
           IsInteractiveEnvironment, LastStatusEnvironment,
-          StringWrapper, SubEnvironment, VariableEnvironment};
+          ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use io::FileDescWrapper;
 use runtime::{HOME, Result, Run};
 use runtime::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
@@ -178,6 +178,7 @@ impl<T, E> WordEval<E> for TopLevelWord<T>
             + FunctionExecutorEnvironment<FnName = T>
             + IsInteractiveEnvironment
             + LastStatusEnvironment
+            + ReportErrorEnvironment
             + SubEnvironment
             + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,

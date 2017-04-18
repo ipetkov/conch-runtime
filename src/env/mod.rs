@@ -1,7 +1,7 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
-use {ExitStatus, Fd, Result, Run};
+use {ExitStatus, Fd, Result, Run, STDERR_FILENO};
 use io::{FileDesc, Permissions};
 use self::atomic::ArgsEnv as AtomicArgsEnv;
 use self::atomic::FileDescEnv as AtomicFileDescEnv;
@@ -55,6 +55,18 @@ pub trait IsInteractiveEnvironment {
 impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a T {
     fn is_interactive(&self) -> bool {
         (**self).is_interactive()
+    }
+}
+
+/// An interface for reporting arbitrary errors.
+pub trait ReportErrorEnvironment {
+    /// Reports any `Error` as appropriate, e.g. print to stderr.
+    fn report_error(&self, err: &Error);
+}
+
+impl<'a, T: ?Sized + ReportErrorEnvironment> ReportErrorEnvironment for &'a T {
+    fn report_error(&self, err: &Error) {
+        (**self).report_error(err);
     }
 }
 
@@ -430,9 +442,21 @@ macro_rules! impl_env {
             fn close_file_desc(&mut self, fd: Fd) {
                 self.file_desc_env.close_file_desc(fd)
             }
+        }
 
-            fn report_error(&mut self, err: &Error) {
-                self.file_desc_env.report_error(err);
+        impl<A, IO, FD, L, V, N> ReportErrorEnvironment for $Env<A, IO, FD, L, V, N>
+            where A: ArgumentsEnvironment,
+                  A::Arg: fmt::Display,
+                  FD: FileDescEnvironment,
+                  FD::FileHandle: Borrow<FileDesc>,
+                  N: Hash + Eq,
+        {
+            fn report_error(&self, err: &Error) {
+                use std::io::Write;
+
+                if let Some((fd, _)) = self.file_desc(STDERR_FILENO) {
+                    let _ = writeln!(fd.borrow(), "{}: {}", self.name(), err);
+                }
             }
         }
 
@@ -653,8 +677,7 @@ mod tests {
     use std::path::PathBuf;
     use std::rc::Rc;
 
-    use super::{ArgumentsEnvironment, Env, EnvConfig, FileDescEnvironment, FunctionEnvironment,
-                FunctionExecutorEnvironment, IsInteractiveEnvironment, VariableEnvironment};
+    use super::*;
     use syntax::ast::{Redirect, SimpleCommand};
 
     struct MockFnRecursive<F> {
@@ -859,5 +882,54 @@ mod tests {
         let mut read = String::new();
         Permissions::Read.open(&file_path).unwrap().read_to_string(&mut read).unwrap();
         assert_eq!(read, "foo bar");
+    }
+
+    #[test]
+    fn test_report_error() {
+        use STDERR_FILENO;
+        use io::Pipe;
+        use std::error::Error;
+        use std::fmt;
+        use std::io::{Read, Write};
+        use std::thread;
+
+        const MSG: &'static str = "some error message";
+
+        #[derive(Debug)]
+        struct MockErr;
+
+        impl fmt::Display for MockErr {
+            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+                write!(fmt, "{}", self.description())
+            }
+        }
+
+        impl Error for MockErr {
+            fn description(&self) -> &str {
+                MSG
+            }
+        }
+
+        let Pipe { mut reader, writer } = Pipe::new().unwrap();
+
+        let guard = thread::spawn(move || {
+            let writer = Rc::new(writer);
+            let mut env = DefaultEnv::<String>::new_test_env();
+            env.set_file_desc(STDERR_FILENO, writer.clone(), Permissions::Write);
+
+            let name = env.name().clone();
+            env.report_error(&MockErr);
+            drop(env);
+
+            let mut writer = Rc::try_unwrap(writer).unwrap();
+            writer.flush().unwrap();
+            drop(writer);
+            name
+        });
+
+        let mut msg = String::new();
+        reader.read_to_string(&mut msg).unwrap();
+        let name = guard.join().unwrap();
+        assert_eq!(msg, format!("{}: {}\n", name, MSG));
     }
 }

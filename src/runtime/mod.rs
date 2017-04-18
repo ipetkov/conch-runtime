@@ -7,7 +7,7 @@ use glob;
 use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, STDOUT_FILENO};
 use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
           FunctionExecutorEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
-          StringWrapper, SubEnvironment, VariableEnvironment};
+          ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use error::RuntimeError;
 use io::FileDescWrapper;
 use std::convert::{From, Into};
@@ -67,6 +67,7 @@ impl<T, E> Run<E> for TopLevelCommand<T>
             + FunctionExecutorEnvironment<FnName = T>
             + IsInteractiveEnvironment
             + LastStatusEnvironment
+            + ReportErrorEnvironment
             + SubEnvironment
             + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
@@ -95,7 +96,7 @@ impl<T, E: ?Sized> Run<E> for Command<T>
 }
 
 impl<E: ?Sized, C> Run<E> for AndOrList<C>
-    where E: FileDescEnvironment + LastStatusEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           C: Run<E>,
 {
     fn run(&self, env: &mut E) -> Result<ExitStatus> {
@@ -164,9 +165,9 @@ impl<E: ?Sized, C, R> Run<E> for CompoundCommand<C, R>
 
 impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
     where E: ArgumentsEnvironment<Arg = W::EvalResult>
-            + FileDescEnvironment
             + LastStatusEnvironment
             + SubEnvironment
+            + ReportErrorEnvironment
             + VariableEnvironment<Var = W::EvalResult>,
           V: Clone + Into<E::VarName>,
           W: WordEval<E>,
@@ -309,7 +310,7 @@ impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
 fn run_as_subshell<I, E>(iter: I, env: &E) -> ExitStatus
     where I: IntoIterator,
           I::Item: Run<E>,
-          E: LastStatusEnvironment + FileDescEnvironment + SubEnvironment,
+          E: LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,
 {
     let env = &mut env.sub_env();
     run(iter, env).unwrap_or_else(|err| {
@@ -325,7 +326,7 @@ fn run_as_subshell<I, E>(iter: I, env: &E) -> ExitStatus
 pub fn run<I, E: ?Sized>(iter: I, env: &mut E) -> Result<ExitStatus>
     where I: IntoIterator,
           I::Item: Run<E>,
-          E: LastStatusEnvironment + FileDescEnvironment,
+          E: LastStatusEnvironment + ReportErrorEnvironment,
 {
     let mut exit = EXIT_SUCCESS;
     for c in iter {
@@ -368,6 +369,7 @@ pub mod tests {
 
     use glob;
 
+    use STDERR_FILENO;
     use env::*;
     use error::*;
     use io::{FileDesc, Permissions, Pipe};

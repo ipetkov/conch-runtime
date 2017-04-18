@@ -3,7 +3,7 @@
 
 use ExitStatus;
 use io::Permissions;
-use env::{FileDescEnvironment, LastStatusEnvironment};
+use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
@@ -31,7 +31,7 @@ macro_rules! try_and_swallow_non_fatal {
 #[deprecated]
 pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, ER>, env: &mut E)
     -> Result<ExitStatus, ER>
-    where E: LastStatusEnvironment + FileDescEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           ER: IsFatalError,
 {
     result.or_else(|err| if err.is_fatal() {

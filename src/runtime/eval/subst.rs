@@ -3,7 +3,7 @@
 use glob;
 
 use env::{FileDescEnvironment, LastStatusEnvironment,
-          StringWrapper, SubEnvironment, VariableEnvironment};
+          ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, RuntimeError};
 use io::FileDescWrapper;
 use runtime::{Result, Run};
@@ -19,6 +19,7 @@ impl<P, W, C, A, E: ?Sized> WordEval<E> for ParameterSubstitution<P, W, C, A>
           A: ArithEval<E>,
           E: LastStatusEnvironment
               + FileDescEnvironment
+              + ReportErrorEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = P::EvalResult, Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
@@ -79,6 +80,7 @@ fn eval_inner<P, W, C, A, E>(subst: &ParameterSubstitution<P, W, C, A>,
           A: ArithEval<E>,
           E: LastStatusEnvironment
               + FileDescEnvironment
+              + ReportErrorEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = P::EvalResult, Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
@@ -282,7 +284,7 @@ fn eval_inner<P, W, C, A, E>(subst: &ParameterSubstitution<P, W, C, A>,
 fn run_cmd_subst<I, E>(body: I, env: &E) -> io::Result<String>
     where I: IntoIterator,
           I::Item: Run<E>,
-          E: FileDescEnvironment + LastStatusEnvironment + SubEnvironment,
+          E: FileDescEnvironment + LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,
           E::FileHandle: FileDescWrapper,
 {
     use io::{Permissions, Pipe};

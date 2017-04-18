@@ -1,5 +1,5 @@
 use {ExitStatus, Spawn};
-use env::{FileDescEnvironment, LastStatusEnvironment, SubEnvironment};
+use env::{LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future, FutureResult, ok};
@@ -37,7 +37,7 @@ impl<E, I> fmt::Debug for Subshell<E, I>
 }
 
 impl<E, I, S> Future for Subshell<E, I>
-    where E: FileDescEnvironment + LastStatusEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,
@@ -67,7 +67,7 @@ impl<E, I, S> Future for Subshell<E, I>
 pub fn subshell<I, E: ?Sized>(iter: I, env: &E) -> Subshell<E, I::IntoIter>
     where I: IntoIterator,
           I::Item: Spawn<E>,
-          E: FileDescEnvironment + LastStatusEnvironment + SubEnvironment,
+          E: LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,
 {
     Subshell {
         env: env.sub_env(),

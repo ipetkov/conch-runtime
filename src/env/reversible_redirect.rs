@@ -3,7 +3,6 @@ use io::Permissions;
 use env::FileDescEnvironment;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
-use std::error::Error;
 use std::ops::{Deref, DerefMut};
 
 const ILLEGAL_MOVE: &'static str = "inner value has been moved";
@@ -246,9 +245,5 @@ impl<E> FileDescEnvironment for ReversibleRedirectWrapper<E>
     fn close_file_desc(&mut self, fd: Fd) {
         self.backup(fd);
         self.env.close_file_desc(fd);
-    }
-
-    fn report_error(&mut self, err: &Error) {
-        self.env.report_error(err);
     }
 }

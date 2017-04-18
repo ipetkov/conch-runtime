@@ -1,6 +1,6 @@
 use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
-use env::{FileDescEnvironment, LastStatusEnvironment};
+use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future, FutureResult, ok as future_ok};
 use spawn::{EnvFutureExt, FlattenedEnvFuture};
@@ -26,7 +26,7 @@ pub struct AndOrRefIter<I> {
 }
 
 impl<E: ?Sized, T> Spawn<E> for AndOrList<T>
-    where E: FileDescEnvironment + LastStatusEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
 {
@@ -40,7 +40,7 @@ impl<E: ?Sized, T> Spawn<E> for AndOrList<T>
 }
 
 impl<'a, E: ?Sized, T> Spawn<E> for &'a AndOrList<T>
-    where E: FileDescEnvironment + LastStatusEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           &'a T: Spawn<E>,
           <&'a T as Spawn<E>>::Error: IsFatalError,
 {
@@ -63,7 +63,7 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a AndOrList<T>
 /// Spawns an `And`/`Or` list of commands from an initial command and an iterator.
 pub fn and_or_list<T, I, E: ?Sized>(first: T, rest: I, env: &E)
     -> AndOrListEnvFuture<T, T::EnvFuture, T::Future, I::IntoIter>
-    where E: FileDescEnvironment + LastStatusEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
           I: IntoIterator<Item = AndOr<T>>,
@@ -89,7 +89,7 @@ impl<'a, I, T: 'a> Iterator for AndOrRefIter<I>
 }
 
 impl<E: ?Sized, T, EF, F, I> EnvFuture<E> for AndOrListEnvFuture<T, EF, F, I>
-    where E: FileDescEnvironment + LastStatusEnvironment,
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
           T: Spawn<E, EnvFuture = EF, Future = F, Error = F::Error>,
           EF: EnvFuture<E, Item = F, Error = F::Error>,
           F: Future<Item = ExitStatus>,

@@ -5,7 +5,6 @@ use conch_runtime::Fd;
 use conch_runtime::env::{FileDescEnvironment, ReversibleRedirectWrapper};
 use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MockFileDescEnv<T> {
@@ -33,10 +32,6 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
 
     fn close_file_desc(&mut self, fd: Fd) {
         self.fds.remove(&fd);
-    }
-
-    fn report_error(&mut self, _: &Error) {
-        unimplemented!();
     }
 }
 

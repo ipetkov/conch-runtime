@@ -1,5 +1,5 @@
 use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment,
-          StringWrapper, SubEnvironment, VariableEnvironment};
+          ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, IsFatalError};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
@@ -65,8 +65,9 @@ impl<T, P, W, C, A, E> WordEval<E> for ParameterSubstitution<P, W, C, A>
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + LastStatusEnvironment
-              + VariableEnvironment<VarName = T, Var = T>
-              + SubEnvironment,
+              + ReportErrorEnvironment
+              + SubEnvironment
+              + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
           E::Read: AsyncRead,
 {
@@ -117,8 +118,9 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ParameterSubstitution<P, W, C, A>
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + LastStatusEnvironment
-              + VariableEnvironment<VarName = T, Var = T>
-              + SubEnvironment,
+              + ReportErrorEnvironment
+              + SubEnvironment
+              + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
           E::Read: AsyncRead,
 {
@@ -304,8 +306,9 @@ impl<T, F, I, A, E> EnvFuture<E> for EvalParamSubst<T, F, I, A, E, E::Read>
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + LastStatusEnvironment
-              + VariableEnvironment<VarName = T, Var = T>
-              + SubEnvironment,
+              + ReportErrorEnvironment
+              + SubEnvironment
+              + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
 {
     type Item = Fields<T>;
@@ -331,8 +334,9 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + LastStatusEnvironment
-              + VariableEnvironment<VarName = T, Var = T>
-              + SubEnvironment,
+              + ReportErrorEnvironment
+              + SubEnvironment
+              + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: FileDescWrapper,
 {
     type Item = Fields<T>;

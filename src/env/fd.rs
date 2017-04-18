@@ -3,7 +3,6 @@ use io::{dup_stdio, FileDesc, Permissions};
 use env::SubEnvironment;
 use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt;
 use std::io::Result;
 use std::rc::Rc;
@@ -19,8 +18,6 @@ pub trait FileDescEnvironment {
     fn set_file_desc(&mut self, fd: Fd, handle: Self::FileHandle, perms: Permissions);
     /// Treat the specified file descriptor as closed for the current environment.
     fn close_file_desc(&mut self, fd: Fd);
-    /// Reports any `Error` as appropriate, e.g. print to stderr.
-    fn report_error(&mut self, err: &Error);
 }
 
 impl<'a, T: ?Sized + FileDescEnvironment> FileDescEnvironment for &'a mut T {
@@ -36,10 +33,6 @@ impl<'a, T: ?Sized + FileDescEnvironment> FileDescEnvironment for &'a mut T {
 
     fn close_file_desc(&mut self, fd: Fd) {
         (**self).close_file_desc(fd)
-    }
-
-    fn report_error(&mut self, err: &Error) {
-        (**self).report_error(err);
     }
 }
 
@@ -149,14 +142,6 @@ macro_rules! impl_env {
                     self.fds.make_mut().remove(&fd);
                 }
             }
-
-            fn report_error(&mut self, err: &Error) {
-                use std::io::Write;
-
-                if let Some((fd, _)) = self.file_desc(STDERR_FILENO) {
-                    let _ = writeln!(fd.borrow(), "{}", err);
-                }
-            }
         }
     };
 }
@@ -182,10 +167,9 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use {RefCounted, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
-    use io::{Permissions, Pipe};
+    use io::Permissions;
     use env::SubEnvironment;
     use runtime::tests::dev_null;
-    use std::thread;
     use std::rc::Rc;
     use super::*;
 
@@ -229,51 +213,6 @@ mod tests {
         if env.fds.get_mut().is_some() {
             panic!("needles clone!");
         }
-    }
-
-    #[test]
-    fn test_report_error() {
-        use std::error::Error;
-        use std::fmt;
-        use std::io::{Read, Write};
-
-        const MSG: &'static str = "some error message";
-
-        #[derive(Debug)]
-        struct MockErr;
-
-        impl fmt::Display for MockErr {
-            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                write!(fmt, "{}", self.description())
-            }
-        }
-
-        impl Error for MockErr {
-            fn description(&self) -> &str {
-                MSG
-            }
-        }
-
-        let Pipe { mut reader, writer } = Pipe::new().unwrap();
-
-        let guard = thread::spawn(move || {
-            let writer = Rc::new(writer);
-            let mut env = FileDescEnv::with_fds(vec!(
-                (STDERR_FILENO, writer.clone(), Permissions::Write))
-            );
-
-            env.report_error(&MockErr);
-            drop(env);
-
-            let mut writer = Rc::try_unwrap(writer).unwrap();
-            writer.flush().unwrap();
-            drop(writer);
-        });
-
-        let mut msg = String::new();
-        reader.read_to_string(&mut msg).unwrap();
-        guard.join().unwrap();
-        assert_eq!(msg, format!("{}\n", MSG));
     }
 
     #[test]
