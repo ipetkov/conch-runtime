@@ -3,9 +3,9 @@ use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment, Report
           SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
-use futures::future::{Either, Future, FutureResult};
+use futures::future::Future;
 use io::{FileDescWrapper, Permissions, Pipe};
-use spawn::{Subshell, subshell};
+use spawn::{ExitResult, Subshell, subshell};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Error as IoError;
@@ -125,11 +125,7 @@ enum FlattenSubshell<E, I>
           I::Item: Spawn<E>,
 {
     Subshell(Subshell<E, I>),
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
-    Flatten(Either<
-        <I::Item as Spawn<E>>::Future,
-        FutureResult<ExitStatus, <I::Item as Spawn<E>>::Error>
-    >),
+    Flatten(ExitResult<<I::Item as Spawn<E>>::Future>),
 }
 
 impl<E, I, S> fmt::Debug for FlattenSubshell<E, I>

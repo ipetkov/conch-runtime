@@ -1,7 +1,7 @@
 //! Defines methods for spawning commands into futures.
 
 use ExitStatus;
-use future::EnvFuture;
+use future::{Async, EnvFuture, Poll};
 use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
 
@@ -68,5 +68,29 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
         (*self).spawn(env)
+    }
+}
+
+/// Represents either a ready `ExitStatus` or a future that will resolve to one.
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
+pub enum ExitResult<F> {
+    /// An unresolved future.
+    Pending(F),
+    /// A ready `ExitStatus` value.
+    Ready(ExitStatus),
+}
+
+impl<F> Future for ExitResult<F>
+    where F: Future<Item = ExitStatus>
+{
+    type Item = F::Item;
+    type Error = F::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match *self {
+            ExitResult::Pending(ref mut f) => f.poll(),
+            ExitResult::Ready(exit) => Ok(Async::Ready(exit)),
+        }
     }
 }

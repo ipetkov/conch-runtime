@@ -1,9 +1,9 @@
-use {ExitStatus, Spawn};
+use Spawn;
 use env::{LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
-use futures::future::{Either, Future, FutureResult, ok};
-use spawn::{Sequence, sequence};
+use futures::future::Future;
+use spawn::{ExitResult, Sequence, sequence};
 use std::fmt;
 use void::Void;
 
@@ -42,7 +42,7 @@ impl<E, I, S> Future for Subshell<E, I>
           S: Spawn<E>,
           S::Error: IsFatalError,
 {
-    type Item = Either<S::Future, FutureResult<ExitStatus, S::Error>>;
+    type Item = ExitResult<S::Future>;
     type Error = Void;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -53,7 +53,7 @@ impl<E, I, S> Future for Subshell<E, I>
                 self.env.report_error(&err);
                 let exit = self.env.last_status();
                 debug_assert_eq!(exit.success(), false);
-                Ok(Async::Ready(Either::B(ok(exit))))
+                Ok(Async::Ready(ExitResult::Ready(exit)))
             },
         }
     }

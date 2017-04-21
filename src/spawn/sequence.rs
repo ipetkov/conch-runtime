@@ -1,9 +1,8 @@
-use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, Spawn};
+use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
-use futures::future::{Either, FutureResult, ok};
-use spawn::{EnvFutureExt, FlattenedEnvFuture};
+use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture};
 use std::fmt;
 use std::iter::Peekable;
 
@@ -30,11 +29,11 @@ pub struct Sequence<E: ?Sized, I>
     iter: Peekable<I>,
 }
 
-impl<E: ?Sized, I> fmt::Debug for Sequence<E, I>
-    where I: Iterator + fmt::Debug,
-          I::Item: Spawn<E> + fmt::Debug,
-          <I::Item as Spawn<E>>::EnvFuture: fmt::Debug,
-          <I::Item as Spawn<E>>::Future: fmt::Debug,
+impl<S, E: ?Sized, I> fmt::Debug for Sequence<E, I>
+    where I: Iterator<Item = S> + fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Sequence")
@@ -44,14 +43,14 @@ impl<E: ?Sized, I> fmt::Debug for Sequence<E, I>
     }
 }
 
-impl<E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
+impl<S, E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
-          I: Iterator,
-          I::Item: Spawn<E>,
-          <I::Item as Spawn<E>>::Error: IsFatalError,
+          I: Iterator<Item = S>,
+          S: Spawn<E>,
+          S::Error: IsFatalError,
 {
-    type Item = Either<<I::Item as Spawn<E>>::Future, FutureResult<ExitStatus, Self::Error>>;
-    type Error = <I::Item as Spawn<E>>::Error;
+    type Item = ExitResult<S::Future>;
+    type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         loop {
@@ -70,8 +69,10 @@ impl<E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
                     };
                     env.set_last_status(exit);
                 },
-                State::Last(ref mut e) =>
-                    return Ok(Async::Ready(Either::A(try_ready!(e.poll(env))))),
+                State::Last(ref mut e) => {
+                    let future = try_ready!(e.poll(env));
+                    return Ok(Async::Ready(ExitResult::Pending(future)));
+                },
             }
 
             match self.iter.next().map(|s| s.spawn(env)) {
@@ -82,7 +83,7 @@ impl<E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
                     };
                     self.state = next_state;
                 },
-                None => return Ok(Async::Ready(Either::B(ok(EXIT_SUCCESS)))),
+                None => return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS))),
             }
         }
     }
