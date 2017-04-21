@@ -1,0 +1,228 @@
+use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
+use error::IsFatalError;
+use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use future::{Async, EnvFuture, Poll};
+use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, GuardBodyPair, Sequence, sequence};
+use std::fmt;
+
+/// Spawns an `If` commands from number of conditional branches.
+///
+/// If any guard evaluates with a successful exit status, then only its
+/// corresponding body will be evaluated. If no guard exits successfully,
+/// the `else` branch will be run, if present. Otherwise, the `If` command
+/// will exit successfully.
+pub fn if_cmd<C, I, E: ?Sized>(conditionals: C, else_branch: Option<I>, env: &E) -> If<C::IntoIter, I, E>
+    where C: IntoIterator<Item = GuardBodyPair<I>>,
+          I: IntoIterator,
+          I::Item: Spawn<E>,
+{
+    let _env = env;
+    If {
+        state: State::Conditionals {
+            current: None,
+            conditionals: conditionals.into_iter(),
+            else_branch: else_branch.into(),
+        }
+    }
+}
+
+/// A future representing the execution of an `if` command.
+#[must_use = "futures do nothing unless polled"]
+pub struct If<C, I, E: ?Sized>
+    where I: IntoIterator,
+          I::Item: Spawn<E>,
+{
+    state: State<C, I, E>,
+}
+
+impl<S, C, I, E: ?Sized> fmt::Debug for If<C, I, E>
+    where C: fmt::Debug,
+          I: IntoIterator<Item = S> + fmt::Debug,
+          I::IntoIter: fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+          S::Error: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("If")
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+enum State<C, I, E: ?Sized>
+    where I: IntoIterator,
+          I::Item: Spawn<E>,
+{
+    Conditionals {
+        current: Option<Branch<I::IntoIter, E>>,
+        conditionals: C,
+        else_branch: Option<I>,
+    },
+
+    Body(Sequence<E, I::IntoIter>),
+}
+
+impl<S, C, I, E: ?Sized> fmt::Debug for State<C, I, E>
+    where C: fmt::Debug,
+          I: IntoIterator<Item = S> + fmt::Debug,
+          I::IntoIter: fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+          S::Error: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            State::Conditionals { ref current, ref conditionals, ref else_branch } => {
+                fmt.debug_struct("State::Conditionals")
+                    .field("current", current)
+                    .field("conditionals", conditionals)
+                    .field("else_branch", else_branch)
+                    .finish()
+            },
+            State::Body(ref b) => fmt.debug_tuple("State::Body")
+                .field(b)
+                .finish(),
+        }
+    }
+}
+
+impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
+          C: Iterator<Item = GuardBodyPair<I>>,
+          I: IntoIterator<Item = S>,
+          S: Spawn<E>,
+          S::Error: IsFatalError,
+{
+    type Item = ExitResult<S::Future>;
+    type Error = S::Error;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        loop {
+            let next_state = match self.state {
+                State::Conditionals {
+                    ref mut current,
+                    ref mut conditionals,
+                    ref mut else_branch
+                } => {
+                    let body = if let Some(ref mut branch) = *current {
+                        try_ready!(branch.poll(env))
+                    } else {
+                        None
+                    };
+
+                    match body {
+                        Some(body) => State::Body(sequence(body)),
+                        None => match conditionals.next() {
+                            Some(GuardBodyPair { guard, body }) => {
+                                *current = Some(Branch {
+                                    guard: sequence(guard).flatten_future(),
+                                    body: Some(body.into_iter()),
+                                });
+                                continue;
+                            },
+
+                            None => {
+                                match else_branch.take() {
+                                    Some(els) => State::Body(sequence(els)),
+                                    None => {
+                                        let exit = ExitResult::Ready(EXIT_SUCCESS);
+                                        return Ok(Async::Ready(exit));
+                                    },
+                                }
+                            }
+                        },
+                    }
+                }
+
+                State::Body(ref mut f) => return f.poll(env),
+            };
+
+            self.state = next_state;
+        }
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        match self.state {
+            State::Conditionals { ref mut current, ..  } => {
+                if let Some(ref mut branch) = *current {
+                    branch.cancel(env)
+                }
+            },
+
+            State::Body(ref mut f) => f.cancel(env),
+        }
+    }
+}
+
+/// A future which represents the resolution of a conditional guard in an `If` command.
+///
+/// If the guard exits successfully, its corresponding body is yielded back, so that it
+/// can be run by the caller.
+#[must_use = "futures do nothing unless polled"]
+struct Branch<I, E: ?Sized>
+    where I: Iterator,
+          I::Item: Spawn<E>,
+{
+    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    guard: FlattenedEnvFuture<Sequence<E, I>, ExitResult<<I::Item as Spawn<E>>::Future>>,
+    body: Option<I>,
+}
+
+impl<I, S, E: ?Sized> fmt::Debug for Branch<I, E>
+    where I: Iterator<Item = S> + fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+          S::Error: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Branch")
+            .field("guard", &self.guard)
+            .field("body", &self.body)
+            .finish()
+    }
+}
+
+impl<S, I, E: ?Sized> EnvFuture<E> for Branch<I, E>
+    where E: LastStatusEnvironment + ReportErrorEnvironment,
+          I: Iterator<Item = S>,
+          S: Spawn<E>,
+          S::Error: IsFatalError,
+{
+    type Item = Option<I>;
+    type Error = S::Error;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        let ret = match self.guard.poll(env) {
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+
+            Ok(Async::Ready(status)) => {
+                env.set_last_status(status);
+                if status.success() {
+                    Some(self.body.take().expect("polled twice"))
+                } else {
+                    None
+                }
+            },
+
+            Err(e) => {
+                if e.is_fatal() {
+                    return Err(e);
+                } else {
+                    env.report_error(&e);
+                    env.set_last_status(EXIT_ERROR);
+                    None
+                }
+            },
+        };
+
+        Ok(Async::Ready(ret))
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        self.guard.cancel(env)
+    }
+}

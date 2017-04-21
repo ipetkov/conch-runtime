@@ -7,6 +7,7 @@ use futures::Future;
 
 mod and_or;
 mod command;
+mod if_cmd;
 mod listable;
 mod sequence;
 mod subshell;
@@ -14,6 +15,7 @@ mod substitution;
 
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::command::CommandEnvFuture;
+pub use self::if_cmd::{If, if_cmd};
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
                          PinnedFlattenedFuture, Pipeline, pipeline};
 pub use self::sequence::{Sequence, sequence};
@@ -93,4 +95,14 @@ impl<F> Future for ExitResult<F>
             ExitResult::Ready(exit) => Ok(Async::Ready(exit)),
         }
     }
+}
+
+/// A grouping of guard and body commands.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct GuardBodyPair<T> {
+    /// The guard commands, which if successful, should lead to the
+    /// execution of the body commands.
+    pub guard: T,
+    /// The body commands to execute if the guard is successful.
+    pub body: T,
 }
