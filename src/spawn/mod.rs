@@ -62,6 +62,18 @@ pub trait Spawn<E: ?Sized> {
     fn spawn(self, env: &E) -> Self::EnvFuture;
 }
 
+impl<'a, 'b: 'a, T, E: ?Sized> Spawn<E> for &'a &'b T
+    where &'b T: Spawn<E>
+{
+    type EnvFuture = <&'b T as Spawn<E>>::EnvFuture;
+    type Future = <&'b T as Spawn<E>>::Future;
+    type Error = <&'b T as Spawn<E>>::Error;
+
+    fn spawn(self, env: &E) -> Self::EnvFuture {
+        (*self).spawn(env)
+    }
+}
+
 #[cfg_attr(feature = "clippy", allow(boxed_local))]
 impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     type EnvFuture = T::EnvFuture;
