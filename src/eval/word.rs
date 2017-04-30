@@ -22,7 +22,7 @@ impl<T, W, E: ?Sized> WordEval<E> for Word<T, W>
         let state = match self {
             Word::Simple(s) => State::Simple(s.eval_with_config(env, cfg)),
             Word::SingleQuoted(s) => State::SingleQuoted(Some(Fields::Single(s))),
-            Word::DoubleQuoted(v) => State::DoubleQuoted(double_quoted(v, env)),
+            Word::DoubleQuoted(v) => State::DoubleQuoted(double_quoted(v)),
         };
 
         EvalWord {
@@ -50,7 +50,7 @@ impl<'a, T, W, E: ?Sized> WordEval<E> for &'a Word<T, W>
         let state = match *self {
             Word::Simple(ref s) => State::Simple(s.eval_with_config(env, cfg)),
             Word::SingleQuoted(ref s) => State::SingleQuoted(Some(Fields::Single(s.clone()))),
-            Word::DoubleQuoted(ref v) => State::DoubleQuoted(double_quoted(v, env)),
+            Word::DoubleQuoted(ref v) => State::DoubleQuoted(double_quoted(v)),
         };
 
         EvalWord {
@@ -63,12 +63,11 @@ impl<'a, T, W, E: ?Sized> WordEval<E> for &'a Word<T, W>
 ///
 /// All words retain any special meaning/behavior they may have, except
 /// no tilde expansions will be made, and no fields will be split further.
-pub fn double_quoted<W, I, E: ?Sized>(words: I, env: &E)
+pub fn double_quoted<W, I, E: ?Sized>(words: I)
     -> DoubleQuoted<W::EvalResult, W, W::EvalFuture, I::IntoIter>
     where W: WordEval<E>,
           I: IntoIterator<Item = W>,
 {
-    let _ = env;
     DoubleQuoted {
         fields: Vec::new(),
         cur_field: None,
