@@ -11,12 +11,11 @@ use std::fmt;
 /// corresponding body will be evaluated. If no guard exits successfully,
 /// the `else` branch will be run, if present. Otherwise, the `If` command
 /// will exit successfully.
-pub fn if_cmd<C, I, E: ?Sized>(conditionals: C, else_branch: Option<I>, env: &E) -> If<C::IntoIter, I, E>
+pub fn if_cmd<C, I, E: ?Sized>(conditionals: C, else_branch: Option<I>) -> If<C::IntoIter, I, E>
     where C: IntoIterator<Item = GuardBodyPair<I>>,
           I: IntoIterator,
           I::Item: Spawn<E>,
 {
-    let _env = env;
     If {
         state: State::Conditionals {
             current: None,

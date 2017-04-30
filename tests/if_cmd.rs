@@ -9,17 +9,15 @@ mod support;
 pub use self::support::*;
 
 macro_rules! run_env {
-    ($future:expr, $env:expr, $lp:expr) => {{
-        let env = $env.sub_env();
-        $lp.run($future.pin_env(env).flatten())
+    ($future:expr) => {{
+        let mut lp = Core::new().expect("failed to create Core loop");
+        let env = DefaultEnvRc::new(lp.remote(), Some(1));
+        lp.run($future.pin_env(env).flatten())
     }}
 }
 
 #[test]
 fn should_run_body_of_successful_guard() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
-
     let should_not_run = mock_panic("must not run");
     let exit = ExitStatus::Code(42);
 
@@ -39,16 +37,12 @@ fn should_run_body_of_successful_guard() {
             },
         ),
         Some(vec!(should_not_run.clone())),
-        &env
     );
-    assert_eq!(run_env!(cmd, env, lp), Ok(exit));
+    assert_eq!(run_env!(cmd), Ok(exit));
 }
 
 #[test]
 fn should_run_else_branch_if_present_and_no_successful_guards() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
-
     let should_not_run = mock_panic("must not run");
     let exit = ExitStatus::Code(42);
 
@@ -60,9 +54,8 @@ fn should_run_else_branch_if_present_and_no_successful_guards() {
             },
         ),
         Some(vec!(mock_status(exit))),
-        &env
     );
-    assert_eq!(run_env!(cmd, env, lp), Ok(exit));
+    assert_eq!(run_env!(cmd), Ok(exit));
 
     let cmd = if_cmd(
         vec!(
@@ -72,22 +65,18 @@ fn should_run_else_branch_if_present_and_no_successful_guards() {
             },
         ),
         None,
-        &env
     );
-    assert_eq!(run_env!(cmd, env, lp), Ok(EXIT_SUCCESS));
+    assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 
-    let cmd = if_cmd(vec!(), Some(vec!(mock_status(exit))), &env);
-    assert_eq!(run_env!(cmd, env, lp), Ok(exit));
+    let cmd = if_cmd(vec!(), Some(vec!(mock_status(exit))));
+    assert_eq!(run_env!(cmd), Ok(exit));
 
-    let cmd = if_cmd(Vec::<GuardBodyPair<Vec<MockCmd>>>::new(), None, &env);
-    assert_eq!(run_env!(cmd, env, lp), Ok(EXIT_SUCCESS));
+    let cmd = if_cmd(Vec::<GuardBodyPair<Vec<MockCmd>>>::new(), None);
+    assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn should_propagate_fatal_errors() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
-
     let should_not_run = mock_panic("must not run");
 
     let cmd = if_cmd(
@@ -98,12 +87,11 @@ fn should_propagate_fatal_errors() {
             },
         ),
         Some(vec!(should_not_run.clone())),
-        &env
     );
-    assert_eq!(run_env!(cmd, env, lp), Err(MockErr::Fatal(true)));
+    assert_eq!(run_env!(cmd), Err(MockErr::Fatal(true)));
 
-    let cmd = if_cmd(vec!(), Some(vec!(mock_error(true))), &env);
-    assert_eq!(run_env!(cmd, env, lp), Err(MockErr::Fatal(true)));
+    let cmd = if_cmd(vec!(), Some(vec!(mock_error(true))));
+    assert_eq!(run_env!(cmd), Err(MockErr::Fatal(true)));
 }
 
 #[test]
@@ -125,7 +113,6 @@ fn should_propagate_cancel() {
             },
         ),
         Some(vec!(should_not_run.clone())),
-        &env
     );
     test_cancel!(cmd, env);
 
@@ -141,14 +128,12 @@ fn should_propagate_cancel() {
             },
         ),
         Some(vec!(should_not_run.clone())),
-        &env
     );
     test_cancel!(cmd, env);
 
     let cmd = if_cmd(
         vec!(),
         Some(vec!(mock_must_cancel())),
-        &env
     );
     test_cancel!(cmd, env);
 }
