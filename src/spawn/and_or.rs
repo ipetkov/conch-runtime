@@ -2,8 +2,7 @@ use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use futures::future::{Either, Future, FutureResult, ok as future_ok};
-use spawn::{EnvFutureExt, FlattenedEnvFuture};
+use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture};
 use std::iter::Peekable;
 use std::slice;
 use std::vec;
@@ -12,9 +11,12 @@ use syntax::ast::{AndOr, AndOrList};
 /// A future representing the execution of a list of `And`/`Or` commands.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct AndOrListEnvFuture<T, E, F, I> where I: Iterator<Item = AndOr<T>> {
+pub struct AndOrListEnvFuture<T, I, E: ?Sized>
+    where I: Iterator<Item = AndOr<T>>,
+          T: Spawn<E>
+{
     last_status: ExitStatus,
-    current: FlattenedEnvFuture<E, F>,
+    current: FlattenedEnvFuture<T::EnvFuture, T::Future>,
     rest: Peekable<I>,
 }
 
@@ -31,8 +33,8 @@ impl<E: ?Sized, T> Spawn<E> for AndOrList<T>
           T::Error: IsFatalError,
 {
     type Error = T::Error;
-    type EnvFuture = AndOrListEnvFuture<T, T::EnvFuture, T::Future, vec::IntoIter<AndOr<T>>>;
-    type Future = Either<FutureResult<ExitStatus, Self::Error>, T::Future>;
+    type EnvFuture = AndOrListEnvFuture<T, vec::IntoIter<AndOr<T>>, E>;
+    type Future = ExitResult<T::Future>;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
         and_or_list(self.first, self.rest.into_iter(), env)
@@ -45,14 +47,8 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a AndOrList<T>
           <&'a T as Spawn<E>>::Error: IsFatalError,
 {
     type Error = <&'a T as Spawn<E>>::Error;
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
-    type EnvFuture = AndOrListEnvFuture<
-        &'a T,
-        <&'a T as Spawn<E>>::EnvFuture,
-        <&'a T as Spawn<E>>::Future,
-        AndOrRefIter<slice::Iter<'a, AndOr<T>>>
-    >;
-    type Future = Either<FutureResult<ExitStatus, Self::Error>, <&'a T as Spawn<E>>::Future>;
+    type EnvFuture = AndOrListEnvFuture<&'a T, AndOrRefIter<slice::Iter<'a, AndOr<T>>>, E>;
+    type Future = ExitResult<<&'a T as Spawn<E>>::Future>;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
         let iter = AndOrRefIter { iter: self.rest.iter() };
@@ -62,7 +58,7 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a AndOrList<T>
 
 /// Spawns an `And`/`Or` list of commands from an initial command and an iterator.
 pub fn and_or_list<T, I, E: ?Sized>(first: T, rest: I, env: &E)
-    -> AndOrListEnvFuture<T, T::EnvFuture, T::Future, I::IntoIter>
+    -> AndOrListEnvFuture<T, I::IntoIter, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
@@ -88,16 +84,14 @@ impl<'a, I, T: 'a> Iterator for AndOrRefIter<I>
     }
 }
 
-impl<E: ?Sized, T, EF, F, I> EnvFuture<E> for AndOrListEnvFuture<T, EF, F, I>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
-          T: Spawn<E, EnvFuture = EF, Future = F, Error = F::Error>,
-          EF: EnvFuture<E, Item = F, Error = F::Error>,
-          F: Future<Item = ExitStatus>,
-          F::Error: IsFatalError,
+impl<T, I, E: ?Sized> EnvFuture<E> for AndOrListEnvFuture<T, I, E>
+    where T: Spawn<E>,
+          T::Error: IsFatalError,
           I: Iterator<Item = AndOr<T>>,
+          E: LastStatusEnvironment + ReportErrorEnvironment,
 {
-    type Item = Either<FutureResult<ExitStatus, Self::Error>, F>;
-    type Error = F::Error;
+    type Item = ExitResult<T::Future>;
+    type Error = T::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         loop {
@@ -105,7 +99,7 @@ impl<E: ?Sized, T, EF, F, I> EnvFuture<E> for AndOrListEnvFuture<T, EF, F, I>
             // current command's future (so the caller may drop the environment)
             if self.rest.peek().is_none() {
                 if let FlattenedEnvFuture::Future(_) = self.current {
-                    return Ok(Async::Ready(Either::B(self.current.take_future())));
+                    return Ok(Async::Ready(ExitResult::Pending(self.current.take_future())));
                 }
             }
 
@@ -123,7 +117,7 @@ impl<E: ?Sized, T, EF, F, I> EnvFuture<E> for AndOrListEnvFuture<T, EF, F, I>
 
             'find_next: loop {
                 match (self.rest.next(), self.last_status.success()) {
-                    (None, _) => return Ok(Async::Ready(Either::A(future_ok(self.last_status)))),
+                    (None, _) => return Ok(Async::Ready(ExitResult::Ready(self.last_status))),
 
                     (Some(AndOr::And(next)), true) |
                     (Some(AndOr::Or(next)), false) => {
