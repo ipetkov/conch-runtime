@@ -6,6 +6,7 @@ use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
 
 mod and_or;
+mod case;
 mod command;
 mod if_cmd;
 mod listable;
@@ -14,6 +15,7 @@ mod subshell;
 mod substitution;
 
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
+pub use self::case::{Case, case, PatternBodyPair};
 pub use self::command::CommandEnvFuture;
 pub use self::if_cmd::{If, if_cmd};
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
