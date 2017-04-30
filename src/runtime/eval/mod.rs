@@ -3,10 +3,8 @@
 #![deprecated(note = "use `new_eval` module")]
 
 mod redirect;
-mod word;
 
 use env::{StringWrapper, VariableEnvironment};
-use glob;
 use runtime::Result;
 use std::borrow::Borrow;
 
@@ -59,18 +57,6 @@ pub trait WordEval<E: ?Sized> {
         }
     }
 
-    /// Evaluates a word just like `eval`, but converts the result into a `glob::Pattern`.
-    fn eval_as_pattern(&self, env: &mut E) -> Result<glob::Pattern> {
-        let cfg = WordEvalConfig {
-            tilde_expansion: TildeExpansion::First,
-            split_fields_further: false,
-        };
-
-        // FIXME: actually compile the pattern here
-        let pat = try!(self.eval_with_config(env, cfg)).join();
-        Ok(glob::Pattern::new(&glob::Pattern::escape(pat.as_str())).unwrap())
-    }
-
     /// Evaluate and take a provided config into account.
     ///
     /// Generally `$*` should always be joined by the first char of `$IFS` or have all
@@ -97,107 +83,5 @@ impl<E: ?Sized, W: ?Sized + WordEval<E>> WordEval<E> for Box<W> {
     fn eval_with_config(&self, env: &mut E, cfg: WordEvalConfig) -> Result<Fields<Self::EvalResult>>
     {
         (**self).eval_with_config(env, cfg)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use runtime::Result;
-    use runtime::tests::DefaultEnv;
-    use super::*;
-
-    #[test]
-    fn test_eval_expands_first_tilde_and_splits_words() {
-        struct MockWord;
-
-        impl<E: ?Sized> WordEval<E> for MockWord {
-            type EvalResult = String;
-            fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig) -> Result<Fields<String>> {
-                assert_eq!(cfg, WordEvalConfig {
-                    tilde_expansion: TildeExpansion::First,
-                    split_fields_further: true,
-                });
-                Ok(Fields::Zero)
-            }
-        }
-
-        MockWord.eval(&mut ()).unwrap();
-    }
-
-    #[test]
-    fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
-        use env::VariableEnvironment;
-
-        macro_rules! word_eval_impl {
-            ($name:ident, $ret:expr) => {
-                struct $name;
-
-                impl<E: ?Sized> WordEval<E> for $name {
-                    type EvalResult = String;
-                    fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig)
-                        -> Result<Fields<String>>
-                    {
-                        assert_eq!(cfg, WordEvalConfig {
-                            tilde_expansion: TildeExpansion::All,
-                            split_fields_further: false,
-                        });
-                        Ok($ret)
-                    }
-                }
-            };
-        }
-
-        let mut env = DefaultEnv::new_test_env();
-        env.set_var("IFS".to_owned(), "!".to_owned());
-
-        word_eval_impl!(MockWord1, Fields::Zero);
-        assert_eq!(MockWord1.eval_as_assignment(&mut env), Ok("".to_owned()));
-
-        word_eval_impl!(MockWord2, Fields::Single("foo".to_owned()));
-        assert_eq!(MockWord2.eval_as_assignment(&mut env), Ok("foo".to_owned()));
-
-        word_eval_impl!(MockWord3, Fields::At(vec!(
-            "foo".to_owned(),
-            "bar".to_owned(),
-        )));
-        assert_eq!(MockWord3.eval_as_assignment(&mut env), Ok("foo bar".to_owned()));
-
-        word_eval_impl!(MockWord4, Fields::Split(vec!(
-            "foo".to_owned(),
-            "bar".to_owned(),
-        )));
-        assert_eq!(MockWord4.eval_as_assignment(&mut env), Ok("foo bar".to_owned()));
-
-        word_eval_impl!(MockWord5, Fields::Star(vec!(
-            "foo".to_owned(),
-            "bar".to_owned(),
-        )));
-        assert_eq!(MockWord5.eval_as_assignment(&mut env), Ok("foo!bar".to_owned()));
-    }
-
-    #[test]
-    fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_fields() {
-        struct MockWord;
-
-        impl<E: ?Sized> WordEval<E> for MockWord {
-            type EvalResult = String;
-            fn eval_with_config(&self, _: &mut E, cfg: WordEvalConfig)
-                -> Result<Fields<Self::EvalResult>>
-            {
-                assert_eq!(cfg, WordEvalConfig {
-                    tilde_expansion: TildeExpansion::First,
-                    split_fields_further: false,
-                });
-                Ok(Fields::Split(vec!(
-                    "foo".to_owned(),
-                    "*?".to_owned(),
-                    "bar".to_owned(),
-                )))
-            }
-        }
-
-        let pat = MockWord.eval_as_pattern(&mut ()).unwrap();
-        assert_eq!(pat.as_str(), "foo [*][?] bar"); // FIXME: update once patterns implemented
-        //assert_eq!(pat.as_str(), "foo *? bar");
     }
 }
