@@ -1,7 +1,7 @@
 use {ExitStatus, EXIT_SUCCESS, STDIN_FILENO, STDOUT_FILENO, Spawn};
 use env::{FileDescEnvironment, SubEnvironment};
 use future::{Async, EnvFuture, InvertStatus, Pinned, Poll};
-use futures::future::{Either, Flatten, Future, FutureResult, err, ok};
+use futures::future::{Either, Flatten, Future};
 use io::{FileDesc, Permissions, Pipe};
 use std::io;
 use std::mem;
@@ -14,11 +14,11 @@ use syntax::ast::ListableCommand;
 #[derive(Debug)]
 pub struct ListableCommandEnvFuture<T, I, F> {
     invert_last_status: bool,
-    pipeline_state: PipelineState<T, I, F>,
+    pipeline_state: State<T, I, F>,
 }
 
 #[derive(Debug)]
-enum PipelineState<T, I, F> {
+enum State<T, I, F> {
     InitSingle(Option<T>),
     InitMany(I),
     Single(F),
@@ -33,12 +33,22 @@ pub struct Pipeline<F> where F: Future {
 }
 
 impl<F: Future> Pipeline<F> {
+    /// Creates a new pipline from a list of futures.
     fn new(mut pipeline: Vec<F>) -> Self {
         debug_assert!(!pipeline.is_empty());
 
         Pipeline {
             last: LastState::Pending(pipeline.pop().unwrap()),
             pipeline: pipeline,
+        }
+    }
+
+    /// Creates an adapter with a finished error, essentially a `FutureResult`
+    /// but without needing an extra type.
+    fn finished(result: Result<ExitStatus, F::Error>) -> Self {
+        Pipeline {
+            last: LastState::Exited(Some(result)),
+            pipeline: Vec::new(),
         }
     }
 }
@@ -50,18 +60,18 @@ enum LastState<F, E> {
 }
 
 #[derive(Debug)]
-enum FutureOrStateChange<F, S> {
-    Future(F),
-    StateChange(S),
+enum Transition<F, S> {
+    Done(F),
+    RunSingle(S),
 }
 
 /// Type alias for pinned and flattened futures
 pub type PinnedFlattenedFuture<E, F> = Flatten<Pinned<E, F>>;
 
 /// Type alias for the future that fully resolves a `ListableCommand`.
-pub type ListableCommandFuture<ENV, EF, F, ERR> = InvertStatus<Either<
+pub type ListableCommandFuture<ENV, EF, F> = InvertStatus<Either<
     Pipeline<PinnedFlattenedFuture<ENV, EF>>,
-    Either<F, FutureResult<ExitStatus, ERR>>
+    F
 >>;
 
 impl<E: ?Sized, T> Spawn<E> for ListableCommand<T>
@@ -72,13 +82,13 @@ impl<E: ?Sized, T> Spawn<E> for ListableCommand<T>
 {
     type Error = T::Error;
     type EnvFuture = ListableCommandEnvFuture<T, vec::IntoIter<T>, T::EnvFuture>;
-    type Future = ListableCommandFuture<E, T::EnvFuture, T::Future, Self::Error>;
+    type Future = ListableCommandFuture<E, T::EnvFuture, T::Future>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         match self {
             ListableCommand::Single(cmd) => ListableCommandEnvFuture {
                 invert_last_status: false,
-                pipeline_state: PipelineState::InitSingle(Some(cmd)),
+                pipeline_state: State::InitSingle(Some(cmd)),
             },
             ListableCommand::Pipe(invert, cmds) => pipeline(invert, cmds),
         }
@@ -100,15 +110,14 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a ListableCommand<T>
     type Future = ListableCommandFuture<
         E,
         <&'a T as Spawn<E>>::EnvFuture,
-        <&'a T as Spawn<E>>::Future,
-        Self::Error
+        <&'a T as Spawn<E>>::Future
     >;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         match *self {
             ListableCommand::Single(ref cmd) => ListableCommandEnvFuture {
                 invert_last_status: false,
-                pipeline_state: PipelineState::InitSingle(Some(cmd)),
+                pipeline_state: State::InitSingle(Some(cmd)),
             },
             ListableCommand::Pipe(invert, ref cmds) => pipeline(invert, cmds),
         }
@@ -131,7 +140,7 @@ pub fn pipeline<E: ?Sized, T, I>(invert_last_status: bool, commands: I)
 {
     ListableCommandEnvFuture {
         invert_last_status: invert_last_status,
-        pipeline_state: PipelineState::InitMany(commands.into_iter()),
+        pipeline_state: State::InitMany(commands.into_iter()),
     }
 }
 
@@ -142,53 +151,54 @@ impl<E: ?Sized, I, T> EnvFuture<E> for ListableCommandEnvFuture<T, I, T::EnvFutu
           T: Spawn<E>,
           T::Error: From<io::Error>,
 {
-    type Item = ListableCommandFuture<E, T::EnvFuture, T::Future, Self::Error>;
+    type Item = ListableCommandFuture<E, T::EnvFuture, T::Future>;
     type Error = T::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         loop {
             let state = match self.pipeline_state {
-                PipelineState::Single(ref mut f) => {
+                State::Single(ref mut f) => {
                     let future = match f.poll(env) {
-                        Ok(Async::Ready(future)) => Either::A(future),
+                        Ok(Async::Ready(future)) => Either::B(future),
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
-                        Err(e) => Either::B(err(e)),
+                        Err(e) => Either::A(Pipeline::finished(Err(e))),
                     };
 
-                    FutureOrStateChange::Future(Either::B(future))
+                    Transition::Done(future)
                 },
 
-                PipelineState::InitSingle(ref mut cmd) => {
+                State::InitSingle(ref mut cmd) => {
                     // We treat single commands specially so that their side effects
                     // can be reflected in the main/parent environment (since "regular"
                     // pipeline commands will each get their own sub-environment
                     // and their changes will not be reflected on the parent)
-                    FutureOrStateChange::StateChange(cmd.take().unwrap().spawn(env))
+                    Transition::RunSingle(cmd.take().expect("polled twice").spawn(env))
                 }
 
-                PipelineState::InitMany(ref mut cmds) => {
+                State::InitMany(ref mut cmds) => {
                     let mut cmds = cmds.fuse();
                     match (cmds.next(), cmds.next()) {
                         (None, None) => {
                             // Empty pipelines aren't particularly well-formed, but
                             // we'll just treat it as a successful command.
-                            FutureOrStateChange::Future(Either::B(Either::B(ok(EXIT_SUCCESS))))
+                            let pipeline = Pipeline::finished(Ok(EXIT_SUCCESS));
+                            Transition::Done(Either::A(pipeline))
                         },
 
                         (None, Some(cmd)) | // Should be unreachable
-                        (Some(cmd), None) => FutureOrStateChange::StateChange(cmd.spawn(env)),
+                        (Some(cmd), None) => Transition::RunSingle(cmd.spawn(env)),
 
                         (Some(first), Some(second)) => {
                             let iter = ::std::iter::once(second).chain(cmds);
                             let pipeline = try!(init_pipeline(env, first, iter));
-                            FutureOrStateChange::Future(Either::A(Pipeline::new(pipeline)))
+                            Transition::Done(Either::A(Pipeline::new(pipeline)))
                         }
                     }
                 },
             };
 
             match state {
-                FutureOrStateChange::Future(f) => {
+                Transition::Done(f) => {
                     let future = InvertStatus::new(self.invert_last_status, f);
                     return Ok(Async::Ready(future));
                 },
@@ -197,16 +207,16 @@ impl<E: ?Sized, I, T> EnvFuture<E> for ListableCommandEnvFuture<T, I, T::EnvFutu
                 // signal that we are ready and get polled again, but that would
                 // require traversing an arbitrarily large future tree, so it's
                 // probably more efficient for us to quickly retry here.
-                FutureOrStateChange::StateChange(single) => self.pipeline_state = PipelineState::Single(single),
+                Transition::RunSingle(single) => self.pipeline_state = State::Single(single),
             }
         }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.pipeline_state {
-            PipelineState::InitSingle(_) |
-            PipelineState::InitMany(_) => {},
-            PipelineState::Single(ref mut e) => e.cancel(env),
+            State::InitSingle(_) |
+            State::InitMany(_) => {},
+            State::Single(ref mut e) => e.cancel(env),
         }
     }
 }
