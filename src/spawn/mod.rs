@@ -1,15 +1,21 @@
 //! Defines methods for spawning commands into futures.
 
-use ExitStatus;
+use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus};
 use future::{Async, EnvFuture, Poll};
 use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
+use env::ReportErrorEnvironment;
+use error::IsFatalError;
+use std::fmt;
+use std::mem;
+use syntax::ast;
 
 mod and_or;
 mod case;
 mod command;
 mod if_cmd;
 mod listable;
+mod loop_cmd;
 mod sequence;
 mod subshell;
 mod substitution;
@@ -20,6 +26,7 @@ pub use self::command::CommandEnvFuture;
 pub use self::if_cmd::{If, if_cmd};
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
                          PinnedFlattenedFuture, Pipeline, pipeline};
+pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::sequence::{Sequence, sequence};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
@@ -119,4 +126,112 @@ pub struct GuardBodyPair<T> {
     pub guard: T,
     /// The body commands to execute if the guard is successful.
     pub body: T,
+}
+
+impl<T> From<ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
+    fn from(guard_body_pair: ast::GuardBodyPair<T>) -> Self {
+        GuardBodyPair {
+            guard: guard_body_pair.guard,
+            body: guard_body_pair.body,
+        }
+    }
+}
+
+struct VecSequence<S, E: ?Sized> where S: Spawn<E> {
+    commands: Vec<S>,
+    current: Option<FlattenedEnvFuture<S::EnvFuture, S::Future>>,
+    next_idx: usize,
+}
+
+impl<S, E: ?Sized> fmt::Debug for VecSequence<S, E>
+    where S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("VecSequence")
+            .field("commands", &self.commands)
+            .field("current", &self.current)
+            .field("next_idx", &self.next_idx)
+            .finish()
+    }
+}
+
+impl<S, E: ?Sized> VecSequence<S, E> where S: Spawn<E> {
+    pub fn new(commands: Vec<S>) -> Self {
+        VecSequence {
+            commands: commands,
+            current: None,
+            next_idx: 0,
+        }
+    }
+}
+
+// FIXME: Revisit and remove Clone bounds here
+// It is really rather unfortunate that we're forced to clone each inner command
+// before running it, as this will need to clone arbitrarily deep ASTs when S
+// isn't a reference.
+//
+// Ideally we'd need a bound like `for<'a> &'a S: Spawn<E>` to require that we can
+// spawn S as many times as we want without moving out of it, but every attempt I've
+// tried in this direction has resulted in the compiler getting stuck in infinite loops
+// when trying to figure out bounds in other parts of the code (sample error is along the
+// lines of hitting the recursion limit while checking SomeCmd<&SomeCmd<_>>,
+// SomeCmd<&SomeCmd<&SomeCmd<_>>>, ...) which I don't understand exactly why.
+//
+// My gut feeling is that this is a result of us trying to implement Spawn on T and &'a T
+// for the same T (we do this today to get around lack of Associated Type Constructors so
+// that we can potentially spawn via reference without moving ownership). The compiler is
+// unable to understand what we want since the same trait is implemented for the "same" type.
+//
+// Tried to experiment with having a `SpawnRef<'a>` trait (with a `fn spawn_ref(&'a self, ...)`
+// method), but hit other lifetime pains down the line. Perhaps another mitigation would be to
+// require Copy instead of Clone, and then use a `RefCopy: Copy` marker trait we can add to all &T
+// impls of Spawn which denotes those types are safe to copy cheaply (i.e. just like references).
+// This would allow us to constrain the bounds to half of all Spawn impls, which may be enough
+// to get the compiler to correctly reason about things...
+//
+// Any ideas around mitigating the Clone bound here are appreciated!
+impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
+    where S: Spawn<E> + Clone,
+          S::Error: IsFatalError,
+          E: ReportErrorEnvironment,
+{
+    type Item = (Vec<S>, ExitStatus);
+    type Error = S::Error;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        loop {
+            let status = if let Some(ref mut f) = self.current.as_mut() {
+                // NB: don't set last status here, let caller handle it specifically
+                match f.poll(env) {
+                    Ok(Async::Ready(status)) => status,
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err(e) => if e.is_fatal() {
+                        return Err(e);
+                    } else {
+                        env.report_error(&e);
+                        EXIT_ERROR
+                    },
+                }
+            } else {
+                EXIT_SUCCESS
+            };
+
+            let next = self.commands.get(self.next_idx).map(|cmd| cmd.clone().spawn(env));
+            self.next_idx += 1;
+
+            match next {
+                Some(future) => self.current = Some(future.flatten_future()),
+                None => {
+                    let commands = mem::replace(&mut self.commands, Vec::new());
+                    return Ok(Async::Ready((commands, status)));
+                }
+            }
+        }
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        self.current.as_mut().map(|f| f.cancel(env));
+    }
 }
