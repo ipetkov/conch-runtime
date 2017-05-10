@@ -156,30 +156,6 @@ impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
             // for the caller to decide how to handle.
             Brace(ref cmds) => try!(run(cmds, env)),
 
-            While(GuardBodyPair { ref guard, ref body }) |
-            Until(GuardBodyPair { ref guard, ref body }) => {
-                let invert_guard_status = if let Until(..) = *self { true } else { false };
-                let mut exit = EXIT_SUCCESS;
-
-                // Should the loop continue?
-                //
-                //      invert_guard_status (i.e. is `Until` loop)
-                //         +---+---+---+
-                //         | ^ | 0 | 1 |
-                // --------+---+---+---+
-                // exit is | 0 | 0 | 1 |
-                // success +---+---+---+
-                //         | 1 | 1 | 0 |
-                // --------+---+---+---+
-                //
-                // bash and zsh appear to break loops if a "fatal" error occurs,
-                // so we'll emulate the same behavior in case it is expected
-                while try_and_swallow_non_fatal!(run(guard, env), env).success() ^ invert_guard_status {
-                    exit = try_and_swallow_non_fatal!(run(body, env), env);
-                }
-                exit
-            },
-
             If { ref conditionals, ref else_branch } => if conditionals.is_empty() {
                 // An `If` AST node without any branches (conditional guards)
                 // isn't really a valid instantiation, but we'll just
@@ -199,7 +175,6 @@ impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
                     None => try!(else_branch.as_ref().map_or(Ok(EXIT_SUCCESS), |els| run(els, env))),
                 }
             },
-
 
             // bash and zsh appear to break loops if a "fatal" error occurs,
             // so we'll emulate the same behavior in case it is expected
@@ -230,6 +205,8 @@ impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
                 exit
             },
 
+            While(_) |
+            Until(_) |
             Subshell(_) |
             Case { .. } => panic!("deprecated"),
 
@@ -870,186 +847,6 @@ pub mod tests {
     //    assert!(env.file_desc(6).is_none());
     //    assert_eq!(env.var(var), Some(&value.to_owned()));
     //}
-
-    #[test]
-    fn test_run_compound_command_kind_brace() {
-        let tempdir = mktmp!();
-
-        let mut file_path = PathBuf::new();
-        file_path.push(tempdir.path());
-        file_path.push(String::from("out"));
-
-        let file = Permissions::Write.open(&file_path).unwrap();
-
-        let mut env = Env::with_config(EnvConfig {
-            file_desc_env: FileDescEnv::with_fds(vec!(
-                (STDOUT_FILENO, Rc::new(file.into()), Permissions::Write)
-            )),
-            .. Default::default()
-        });
-
-        let cmd: CompoundCommandKind = Brace(vec!(
-            cmd!("echo", "foo"),
-            false_cmd(),
-            cmd!("echo", "bar"),
-            true_cmd(),
-            exit(42),
-        ));
-
-        assert_eq!(cmd.run(&mut env), Ok(ExitStatus::Code(42)));
-
-        let mut read = String::new();
-        Permissions::Read.open(&file_path).unwrap().read_to_string(&mut read).unwrap();
-        assert_eq!(read, "foo\nbar\n");
-    }
-
-    #[test]
-    fn test_run_command_compound_kind_brace_error_handling() {
-        test_error_handling(true, |cmd, mut env| {
-            let compound: CompoundCommandKind = Brace(vec!(cmd_from_simple(cmd), exit(42)));
-            compound.run(&mut env)
-        }, Some(ExitStatus::Code(42)));
-
-        test_error_handling(true, |cmd, mut env| {
-            let compound: CompoundCommandKind = Brace(vec!(true_cmd(), cmd_from_simple(cmd)));
-            compound.run(&mut env)
-        }, None);
-
-        test_error_handling_fatals(false, |cmd, mut env| {
-            let should_not_run = "should not run";
-            env.set_function(should_not_run.to_owned().into(), MockFn::new(|_| {
-                panic!("ran command that should not be run")
-            }));
-
-            let compound: CompoundCommandKind = Brace(vec!(
-                cmd_from_simple(cmd), cmd!(should_not_run)
-            ));
-            compound.run(&mut env)
-        }, None);
-    }
-
-    #[test]
-    fn test_run_command_compound_kind_loop() {
-        use syntax::ast::GuardBodyPair;
-
-        let mut env = Env::new_test_env();
-        let should_not_run = "should not run";
-        env.set_function(should_not_run.to_owned().into(), MockFn::new(|_| {
-            panic!("ran command that should not be run")
-        }));
-
-        // If the body never runs, the loop is still considered successful
-        let compound: CompoundCommandKind = While(GuardBodyPair {
-            guard: vec!(false_cmd()),
-            body: vec!(cmd!(should_not_run)),
-        });
-        assert_eq!(compound.run(&mut env), Ok(EXIT_SUCCESS));
-
-        // If the body never runs, the loop is still considered successful
-        let compound: CompoundCommandKind = Until(GuardBodyPair {
-            guard: vec!(true_cmd()),
-            body: vec!(cmd!(should_not_run)),
-        });
-        assert_eq!(compound.run(&mut env), Ok(EXIT_SUCCESS));
-
-        let guard = "guard";
-
-        {
-            let mut env = env.sub_env();
-            let mut called = false;
-            env.set_function(guard.to_owned().into(), MockFn::new(move |_| {
-                let ret = if called {
-                    Ok(EXIT_ERROR)
-                } else {
-                    Ok(EXIT_SUCCESS)
-                };
-                called = true;
-                ret
-            }));
-
-            // exit status should be exit of last ran body
-            let compound: CompoundCommandKind = While(GuardBodyPair {
-                guard: vec!(cmd!(guard)),
-                body: vec!(exit(5)),
-            });
-            assert_eq!(compound.run(&mut env), Ok(ExitStatus::Code(5)));
-        }
-
-        {
-            let mut env = env.sub_env();
-            let mut called = false;
-            env.set_function(guard.to_owned().into(), MockFn::new(move |_| {
-                let ret = if called {
-                    Ok(EXIT_SUCCESS)
-                } else {
-                    Ok(EXIT_ERROR)
-                };
-                called = true;
-                ret
-            }));
-
-            // exit status should be exit of last ran body
-            let compound: CompoundCommandKind = Until(GuardBodyPair {
-                guard: vec!(cmd!(guard)),
-                body: vec!(exit(5)),
-            });
-            assert_eq!(compound.run(&mut env), Ok(ExitStatus::Code(5)));
-        }
-    }
-
-    #[test]
-    fn test_run_command_compound_kind_loop_error_handling() {
-        use syntax::ast::GuardBodyPair;
-
-        // NB Cannot test Until, as it will keep swallowing the errors
-        test_error_handling(true, |cmd, mut env| {
-            let compound: CompoundCommandKind = While(GuardBodyPair {
-                guard: vec!(cmd_from_simple(cmd)),
-                body: vec!(false_cmd()), // Body should never run, overall exit should be success
-            });
-            compound.run(&mut env)
-        }, Some(EXIT_SUCCESS));
-
-        test_error_handling(true, |cmd, mut env| {
-            let guard = "guard";
-            let mut called = false;
-            env.set_function(guard.to_owned().into(), MockFn::new(move |_| {
-                let ret = if called {
-                    Ok(EXIT_ERROR)
-                } else {
-                    Ok(EXIT_SUCCESS)
-                };
-                called = true;
-                ret
-            }));
-
-            let compound: CompoundCommandKind = While(GuardBodyPair {
-                guard: vec!(cmd!(guard)),
-                body: vec!(cmd_from_simple(cmd)),
-            });
-            compound.run(&mut env)
-        }, None);
-
-        test_error_handling(true, |cmd, mut env| {
-            let guard = "guard";
-            let mut called = false;
-            env.set_function(guard.to_owned().into(), MockFn::new(move |_| {
-                let ret = if called {
-                    Ok(EXIT_SUCCESS)
-                } else {
-                    Ok(EXIT_ERROR)
-                };
-                called = true;
-                ret
-            }));
-
-            let compound: CompoundCommandKind = Until(GuardBodyPair {
-                guard: vec!(cmd!(guard)),
-                body: vec!(cmd_from_simple(cmd)),
-            });
-            compound.run(&mut env)
-        }, None);
-    }
 
     #[test]
     fn test_run_command_compound_kind_for() {
