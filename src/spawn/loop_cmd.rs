@@ -1,9 +1,9 @@
-use {EXIT_SUCCESS, ExitStatus, Spawn};
+use {EXIT_SUCCESS, ExitStatus};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{FutureResult, ok};
-use spawn::{GuardBodyPair, VecSequence};
+use spawn::{GuardBodyPair, SpawnRef, VecSequence};
 use std::fmt;
 use std::mem;
 
@@ -21,7 +21,7 @@ use std::mem;
 pub fn loop_cmd<S, E: ?Sized>(
     invert_guard_status: bool,
     guard_body_pair: GuardBodyPair<Vec<S>>,
-) -> Loop<S, E> where S: Spawn<E>,
+) -> Loop<S, E> where S: SpawnRef<E>,
 {
     Loop {
         invert_guard_status: invert_guard_status,
@@ -33,7 +33,7 @@ pub fn loop_cmd<S, E: ?Sized>(
 
 /// A future representing the execution of a loop (e.g. `while`/`until`) command.
 #[must_use = "futures do nothing unless polled"]
-pub struct Loop<S, E: ?Sized> where S: Spawn<E>
+pub struct Loop<S, E: ?Sized> where S: SpawnRef<E>
 {
     invert_guard_status: bool,
     guard: Vec<S>,
@@ -42,7 +42,7 @@ pub struct Loop<S, E: ?Sized> where S: Spawn<E>
 }
 
 impl<S, E: ?Sized> fmt::Debug for Loop<S, E>
-    where S: Spawn<E> + fmt::Debug,
+    where S: SpawnRef<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
 {
@@ -64,7 +64,7 @@ enum State<F> {
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
-    where S: Spawn<E> + Clone,
+    where S: SpawnRef<E>,
           S::Error: IsFatalError,
           E: LastStatusEnvironment + ReportErrorEnvironment,
 {

@@ -94,6 +94,54 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     }
 }
 
+/// A marker trait for denoting that the receiver of a `Spawn` implementation
+/// can also be `spawn`ed by reference without moving. Automatically derived
+/// for any `&'a T: Spawn`.
+///
+/// Until Associated Type Constructors (ATCs) land, we cannot define a version
+/// of `Spawn` which takes the receiver by reference since there is no way we
+/// reference the receiver's lifetime within the associated futures.
+///
+/// We can, however, get around this by defining `Spawn` to move its receiver,
+/// and then implementing the trait directly on a reference (this moves the
+/// reference, but references are `Copy` which is effectively a no-op). That way
+/// we can tie the associated futures to the lifetime of the reference since
+/// neither can outlive the actual struct.
+///
+/// This effectively gives rise to two `Spawn` implementations we can add on each
+/// type: one that moves the caller and any inner types by value, and one that
+/// operates on the outer and inner types by reference only. As long as we don't
+/// mix the two kinds, we're golden!
+///
+/// Except there are situations where we may want to own a type directly, but
+/// want to spawn it by reference (imagine we're running a loop on an "owned"
+/// implementation chain and need to spawn something repeatedly, but we don't
+/// want to clone deeply nested types)... Unfortunately, doing so confuses the
+/// compiler which causes it to get stuck in a recursive loop when evaluating
+/// bounds (error is `E0275` with a message like "required by the impl for
+/// `&T<_>` because of the requirements on the impl for `&T<T<_>>`,
+/// `&T<T<T<_>>>`, ...").
+///
+/// We can apparently point the compiler in the right direction by adding a
+/// marker trait only when `Spawn` is implemented directly on a reference,
+/// allowing it to avoid the first "owned" implementation on the same type.
+pub trait SpawnRef<E: ?Sized>: Spawn<E> {
+    /// Identical to `Spawn::spawn` but does not move `self`.
+    fn spawn_ref(&self, env: &E) -> Self::EnvFuture;
+}
+
+/// A marker trait for any reference.
+pub trait Ref: Copy {}
+impl<'a, T> Ref for &'a T {}
+
+impl<S, E: ?Sized> SpawnRef<E> for S
+    where S: Spawn<E> + Ref,
+{
+    fn spawn_ref(&self, env: &E) -> Self::EnvFuture {
+        (*self).spawn(env)
+    }
+}
+
 /// Represents either a ready `ExitStatus` or a future that will resolve to one.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
@@ -137,14 +185,14 @@ impl<T> From<ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
     }
 }
 
-struct VecSequence<S, E: ?Sized> where S: Spawn<E> {
+struct VecSequence<S, E: ?Sized> where S: SpawnRef<E> {
     commands: Vec<S>,
     current: Option<FlattenedEnvFuture<S::EnvFuture, S::Future>>,
     next_idx: usize,
 }
 
 impl<S, E: ?Sized> fmt::Debug for VecSequence<S, E>
-    where S: Spawn<E> + fmt::Debug,
+    where S: SpawnRef<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
 {
@@ -157,7 +205,7 @@ impl<S, E: ?Sized> fmt::Debug for VecSequence<S, E>
     }
 }
 
-impl<S, E: ?Sized> VecSequence<S, E> where S: Spawn<E> {
+impl<S, E: ?Sized> VecSequence<S, E> where S: SpawnRef<E> {
     pub fn new(commands: Vec<S>) -> Self {
         VecSequence {
             commands: commands,
@@ -167,33 +215,8 @@ impl<S, E: ?Sized> VecSequence<S, E> where S: Spawn<E> {
     }
 }
 
-// FIXME: Revisit and remove Clone bounds here
-// It is really rather unfortunate that we're forced to clone each inner command
-// before running it, as this will need to clone arbitrarily deep ASTs when S
-// isn't a reference.
-//
-// Ideally we'd need a bound like `for<'a> &'a S: Spawn<E>` to require that we can
-// spawn S as many times as we want without moving out of it, but every attempt I've
-// tried in this direction has resulted in the compiler getting stuck in infinite loops
-// when trying to figure out bounds in other parts of the code (sample error is along the
-// lines of hitting the recursion limit while checking SomeCmd<&SomeCmd<_>>,
-// SomeCmd<&SomeCmd<&SomeCmd<_>>>, ...) which I don't understand exactly why.
-//
-// My gut feeling is that this is a result of us trying to implement Spawn on T and &'a T
-// for the same T (we do this today to get around lack of Associated Type Constructors so
-// that we can potentially spawn via reference without moving ownership). The compiler is
-// unable to understand what we want since the same trait is implemented for the "same" type.
-//
-// Tried to experiment with having a `SpawnRef<'a>` trait (with a `fn spawn_ref(&'a self, ...)`
-// method), but hit other lifetime pains down the line. Perhaps another mitigation would be to
-// require Copy instead of Clone, and then use a `RefCopy: Copy` marker trait we can add to all &T
-// impls of Spawn which denotes those types are safe to copy cheaply (i.e. just like references).
-// This would allow us to constrain the bounds to half of all Spawn impls, which may be enough
-// to get the compiler to correctly reason about things...
-//
-// Any ideas around mitigating the Clone bound here are appreciated!
 impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
-    where S: Spawn<E> + Clone,
+    where S: SpawnRef<E>,
           S::Error: IsFatalError,
           E: ReportErrorEnvironment,
 {
@@ -218,7 +241,7 @@ impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
                 EXIT_SUCCESS
             };
 
-            let next = self.commands.get(self.next_idx).map(|cmd| cmd.clone().spawn(env));
+            let next = self.commands.get(self.next_idx).map(|cmd| cmd.spawn_ref(env));
             self.next_idx += 1;
 
             match next {
