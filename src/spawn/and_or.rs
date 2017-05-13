@@ -99,8 +99,8 @@ impl<T, I, E: ?Sized> EnvFuture<E> for AndOrListEnvFuture<T, I, E>
             // If we have no further commands to process, we can return the
             // current command's future (so the caller may drop the environment)
             if self.rest.peek().is_none() {
-                if let FlattenedEnvFuture::Future(_) = *self.current {
-                    return Ok(Async::Ready(ExitResult::Pending(self.current.take_future())));
+                if let FlattenedEnvFuture::Future(_) = *self.current.as_ref() {
+                    return Ok(Async::Ready(ExitResult::Pending(self.current.as_mut().take_future())));
                 }
             }
 

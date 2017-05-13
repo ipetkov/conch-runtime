@@ -25,8 +25,8 @@ enum MockCmd2 {
     Status(
         Result<ExitStatus, MockErr> /* if we haven't run body yet */,
         ExitStatus /* if we have run body already */,
-        ),
-        SetVar
+    ),
+    SetVar,
 }
 
 impl<'a> Spawn<DefaultEnvRc> for &'a MockCmd2 {
@@ -67,6 +67,18 @@ impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
     fn cancel(&mut self, _env: &mut DefaultEnvRc) {
         unimplemented!()
     }
+}
+
+#[test]
+fn should_bail_on_empty_commands() {
+    let cmd = loop_cmd::<&MockCmd, _>(
+        false,
+        GuardBodyPair {
+            guard: vec!(),
+            body: vec!(),
+        }
+    );
+    assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
 #[test]

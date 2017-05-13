@@ -2,8 +2,9 @@ use {EXIT_SUCCESS, ExitStatus};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use futures::future::{FutureResult, ok};
-use spawn::{GuardBodyPair, SpawnRef, VecSequence};
+use futures::future::{Future, FutureResult, ok};
+use spawn::{ExitResult, GuardBodyPair, SpawnRef, SwallowNonFatal, swallow_non_fatal_errors,
+            VecSequence};
 use std::fmt;
 use std::mem;
 
@@ -27,6 +28,7 @@ pub fn loop_cmd<S, E: ?Sized>(
         invert_guard_status: invert_guard_status,
         guard: guard_body_pair.guard,
         body: guard_body_pair.body,
+        has_run_body: false,
         state: State::Init,
     }
 }
@@ -38,7 +40,8 @@ pub struct Loop<S, E: ?Sized> where S: SpawnRef<E>
     invert_guard_status: bool,
     guard: Vec<S>,
     body: Vec<S>,
-    state: State<VecSequence<S, E>>,
+    has_run_body: bool,
+    state: State<VecSequence<S, E>, S::Future>,
 }
 
 impl<S, E: ?Sized> fmt::Debug for Loop<S, E>
@@ -51,16 +54,42 @@ impl<S, E: ?Sized> fmt::Debug for Loop<S, E>
             .field("invert_guard_status", &self.invert_guard_status)
             .field("guard", &self.guard)
             .field("body", &self.body)
+            .field("has_run_body", &self.has_run_body)
             .field("state", &self.state)
             .finish()
     }
 }
 
 #[derive(Debug)]
-enum State<F> {
+enum State<V, F> {
     Init,
-    Guard(F),
-    Body(F),
+    /// The initial guard sequence.
+    Guard(V),
+    /// The context-free future that finally resolves the guard.
+    GuardLast(SwallowNonFatal<Bridge<F>>),
+    /// The initial body sequence.
+    Body(V),
+    /// The context-free future that finally resolves the body.
+    BodyLast(SwallowNonFatal<Bridge<F>>),
+}
+
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
+struct Bridge<F>(ExitResult<F>);
+
+impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
+    where F: Future<Item = ExitStatus>
+{
+    type Item = F::Item;
+    type Error = F::Error;
+
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
+    }
+
+    fn cancel(&mut self, _: &mut E) {
+        // Nothing to cancel
+    }
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
@@ -72,14 +101,34 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        if self.guard.is_empty() && self.body.is_empty() {
+            // Not a well formed command, rather than burning CPU and spinning
+            // here, we'll just bail out. Alternatively we can just return
+            // `NotReady` without ever making any progress, but that may not be
+            // worth any downstream debugging headaches.
+            return Ok(Async::Ready(ok(EXIT_SUCCESS)));
+        }
+
         loop {
             let next_state = match self.state {
-                State::Guard(ref mut f) => {
-                    let (guard, status) = try_ready!(f.poll(env));
-                    mem::replace(&mut self.guard, guard);
+                State::Init => None,
 
+                State::Guard(ref mut f) => {
+                    let (guard, last) = try_ready!(f.poll(env));
+                    self.guard = guard;
+                    Some(State::GuardLast(swallow_non_fatal_errors(Bridge(last))))
+                },
+
+                State::GuardLast(ref mut f) => {
+                    let status = try_ready!(f.poll(env));
                     let should_continue = status.success() ^ self.invert_guard_status;
                     if !should_continue {
+                        if !self.has_run_body {
+                            // bash/zsh will exit loops with a successful status if
+                            // loop breaks out of the first round without running the body
+                            env.set_last_status(EXIT_SUCCESS);
+                        }
+
                         // NB: last status should contain the status of the last body execution
                         return Ok(Async::Ready(ok(env.last_status())));
                     }
@@ -93,15 +142,15 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
                     Some(State::Body(VecSequence::new(body)))
                 },
 
-                State::Init => {
-                    // bash/zsh will exit loops with a successful status if
-                    // loop breaks out of the first round without running the body
-                    env.set_last_status(EXIT_SUCCESS);
-                    None
-                },
                 State::Body(ref mut f) => {
-                    let (body, status) = try_ready!(f.poll(env));
-                    mem::replace(&mut self.body, body);
+                    let (body, last) = try_ready!(f.poll(env));
+                    self.has_run_body = true;
+                    self.body = body;
+                    Some(State::BodyLast(swallow_non_fatal_errors(Bridge(last))))
+                },
+
+                State::BodyLast(ref mut f) => {
+                    let status = try_ready!(f.poll(env));
                     env.set_last_status(status);
                     None
                 },
@@ -116,7 +165,9 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Init => {},
+            State::Init |
+            State::GuardLast(_) |
+            State::BodyLast(_) => {},
             State::Guard(ref mut f) |
             State::Body(ref mut f) => f.cancel(env),
         }

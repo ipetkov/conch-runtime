@@ -2,7 +2,6 @@ use {ExitStatus, EXIT_ERROR};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use std::ops::{Deref, DerefMut};
 
 /// A future representing a word evaluation and conditionally splitting it afterwards.
 #[must_use = "futures do nothing unless polled"]
@@ -22,7 +21,8 @@ pub fn swallow_non_fatal_errors<F>(inner: F) -> SwallowNonFatal<F> {
 }
 
 impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
-    where F: EnvFuture<E, Item = ExitStatus>,
+    where F: EnvFuture<E>,
+          F::Item: From<ExitStatus>,
           F::Error: IsFatalError,
           E: LastStatusEnvironment + ReportErrorEnvironment,
 {
@@ -31,13 +31,14 @@ impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         match self.inner.poll(env) {
-            ret@Ok(_) => ret,
+            Ok(Async::Ready(ret)) => Ok(Async::Ready(ret)),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => {
                 if e.is_fatal() {
                     Err(e)
                 } else {
                     env.report_error(&e);
-                    Ok(Async::Ready(EXIT_ERROR))
+                    Ok(Async::Ready(EXIT_ERROR.into()))
                 }
             },
         }
@@ -48,16 +49,14 @@ impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
     }
 }
 
-impl<F> Deref for SwallowNonFatal<F> {
-    type Target = F;
-
-    fn deref(&self) -> &Self::Target {
+impl<F> AsRef<F> for SwallowNonFatal<F> {
+    fn as_ref(&self) -> &F {
         &self.inner
     }
 }
 
-impl<F> DerefMut for SwallowNonFatal<F> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+impl<F> AsMut<F> for SwallowNonFatal<F> {
+    fn as_mut(&mut self) -> &mut F {
         &mut self.inner
     }
 }
