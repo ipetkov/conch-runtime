@@ -1,14 +1,14 @@
-use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
+use {EXIT_SUCCESS, Spawn};
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
-use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture};
+use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal, swallow_non_fatal_errors};
 use std::fmt;
 use std::iter::Peekable;
 
 #[derive(Debug)]
 enum State<C, L> {
-    Current(C),
+    Current(SwallowNonFatal<C>),
     Last(L),
     None,
 }
@@ -57,16 +57,7 @@ impl<S, E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
             match self.state {
                 State::None => {},
                 State::Current(ref mut e) => {
-                    let exit = match e.poll(env) {
-                        Ok(Async::Ready(exit)) => exit,
-                        Ok(Async::NotReady) => return Ok(Async::NotReady),
-                        Err(e) => if e.is_fatal() {
-                            return Err(e);
-                        } else {
-                            env.report_error(&e);
-                            EXIT_ERROR
-                        },
-                    };
+                    let exit = try_ready!(e.poll(env));
                     env.set_last_status(exit);
                 },
                 State::Last(ref mut e) => {
@@ -78,7 +69,7 @@ impl<S, E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
             match self.iter.next().map(|s| s.spawn(env)) {
                 Some(e) => {
                     let next_state = match self.iter.peek() {
-                        Some(_) => State::Current(e.flatten_future()),
+                        Some(_) => State::Current(swallow_non_fatal_errors(e.flatten_future())),
                         None => State::Last(e),
                     };
                     self.state = next_state;

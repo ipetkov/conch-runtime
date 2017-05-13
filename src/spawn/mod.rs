@@ -19,6 +19,7 @@ mod loop_cmd;
 mod sequence;
 mod subshell;
 mod substitution;
+mod swallow_non_fatal;
 
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
@@ -30,6 +31,7 @@ pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::sequence::{Sequence, sequence};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
+pub use self::swallow_non_fatal::{SwallowNonFatal, swallow_non_fatal_errors};
 
 /// A trait for spawning commands into an `EnvFuture` which can be
 /// polled to completion.

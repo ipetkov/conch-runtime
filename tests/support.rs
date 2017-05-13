@@ -114,20 +114,20 @@ pub struct MustCancel {
 }
 
 impl MustCancel {
-    fn new() -> Self {
+    pub fn new() -> Self {
         MustCancel {
             was_polled: false,
             was_canceled: false,
         }
     }
 
-    fn poll<T, E>(&mut self) -> Poll<T, E> {
+    pub fn poll<T, E>(&mut self) -> Poll<T, E> {
         assert!(!self.was_canceled, "cannot poll after canceling");
         self.was_polled = true;
         Ok(Async::NotReady)
     }
 
-    fn cancel(&mut self) {
+    pub fn cancel(&mut self) {
         assert!(!self.was_canceled, "cannot cancel twice");
         self.was_canceled = true;
     }

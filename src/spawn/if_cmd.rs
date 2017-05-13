@@ -1,8 +1,9 @@
-use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
+use {EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, GuardBodyPair, Sequence, sequence};
+use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, GuardBodyPair, Sequence, sequence,
+            SwallowNonFatal, swallow_non_fatal_errors};
 use std::fmt;
 
 /// Spawns an `If` commands from number of conditional branches.
@@ -116,10 +117,13 @@ impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
                         Some(body) => State::Body(sequence(body)),
                         None => match conditionals.next() {
                             Some(GuardBodyPair { guard, body }) => {
+                                let guard = sequence(guard).flatten_future();
+
                                 *current = Some(Branch {
-                                    guard: sequence(guard).flatten_future(),
+                                    guard: swallow_non_fatal_errors(guard),
                                     body: Some(body.into_iter()),
                                 });
+
                                 continue;
                             },
 
@@ -156,6 +160,8 @@ impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
     }
 }
 
+type FlattenedSequence<E, I, F> = FlattenedEnvFuture<Sequence<E, I>, ExitResult<F>>;
+
 /// A future which represents the resolution of a conditional guard in an `If` command.
 ///
 /// If the guard exits successfully, its corresponding body is yielded back, so that it
@@ -165,8 +171,7 @@ struct Branch<I, E: ?Sized>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
-    guard: FlattenedEnvFuture<Sequence<E, I>, ExitResult<<I::Item as Spawn<E>>::Future>>,
+    guard: SwallowNonFatal<FlattenedSequence<E, I, <I::Item as Spawn<E>>::Future>>,
     body: Option<I>,
 }
 
@@ -195,27 +200,13 @@ impl<S, I, E: ?Sized> EnvFuture<E> for Branch<I, E>
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let ret = match self.guard.poll(env) {
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+        let status = try_ready!(self.guard.poll(env));
+        env.set_last_status(status);
 
-            Ok(Async::Ready(status)) => {
-                env.set_last_status(status);
-                if status.success() {
-                    Some(self.body.take().expect("polled twice"))
-                } else {
-                    None
-                }
-            },
-
-            Err(e) => {
-                if e.is_fatal() {
-                    return Err(e);
-                } else {
-                    env.report_error(&e);
-                    env.set_last_status(EXIT_ERROR);
-                    None
-                }
-            },
+        let ret = if status.success() {
+            Some(self.body.take().expect("polled twice"))
+        } else {
+            None
         };
 
         Ok(Async::Ready(ret))

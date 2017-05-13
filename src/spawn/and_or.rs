@@ -1,8 +1,9 @@
-use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS, Spawn};
+use {ExitStatus, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture};
+use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal,
+            swallow_non_fatal_errors};
 use std::iter::Peekable;
 use std::slice;
 use std::vec;
@@ -16,7 +17,7 @@ pub struct AndOrListEnvFuture<T, I, E: ?Sized>
           T: Spawn<E>
 {
     last_status: ExitStatus,
-    current: FlattenedEnvFuture<T::EnvFuture, T::Future>,
+    current: SwallowNonFatal<FlattenedEnvFuture<T::EnvFuture, T::Future>>,
     rest: Peekable<I>,
 }
 
@@ -66,7 +67,7 @@ pub fn and_or_list<T, I, E: ?Sized>(first: T, rest: I, env: &E)
 {
     AndOrListEnvFuture {
         last_status: EXIT_SUCCESS,
-        current: first.spawn(env).flatten_future(),
+        current: swallow_non_fatal_errors(first.spawn(env).flatten_future()),
         rest: rest.into_iter().peekable(),
     }
 }
@@ -98,21 +99,12 @@ impl<T, I, E: ?Sized> EnvFuture<E> for AndOrListEnvFuture<T, I, E>
             // If we have no further commands to process, we can return the
             // current command's future (so the caller may drop the environment)
             if self.rest.peek().is_none() {
-                if let FlattenedEnvFuture::Future(_) = self.current {
+                if let FlattenedEnvFuture::Future(_) = *self.current {
                     return Ok(Async::Ready(ExitResult::Pending(self.current.take_future())));
                 }
             }
 
-            self.last_status = match self.current.poll(env) {
-                Ok(Async::Ready(status)) => status,
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(e) => if e.is_fatal() {
-                    return Err(e);
-                } else {
-                    env.report_error(&e);
-                    EXIT_ERROR
-                },
-            };
+            self.last_status = try_ready!(self.current.poll(env));
             env.set_last_status(self.last_status);
 
             'find_next: loop {
@@ -121,7 +113,8 @@ impl<T, I, E: ?Sized> EnvFuture<E> for AndOrListEnvFuture<T, I, E>
 
                     (Some(AndOr::And(next)), true) |
                     (Some(AndOr::Or(next)), false) => {
-                        self.current = next.spawn(env).flatten_future();
+                        let next = next.spawn(env).flatten_future();
+                        self.current = swallow_non_fatal_errors(next);
                         // Break the inner loop, outer loop will ensure we poll
                         // the newly spawned future
                         break 'find_next;
