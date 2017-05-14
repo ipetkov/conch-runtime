@@ -1,13 +1,9 @@
 //! Defines methods for spawning commands into futures.
 
-use {EXIT_SUCCESS, ExitStatus};
+use ExitStatus;
 use future::{Async, EnvFuture, Poll};
 use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
-use error::IsFatalError;
-use std::fmt;
-use std::mem;
 use syntax::ast;
 
 mod and_or;
@@ -20,7 +16,12 @@ mod sequence;
 mod subshell;
 mod substitution;
 mod swallow_non_fatal;
+mod vec_sequence;
 
+// Private definitions
+use self::vec_sequence::{VecSequence, VecSequenceWithLast};
+
+// Pub reexports
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
 pub use self::command::CommandEnvFuture;
@@ -190,181 +191,5 @@ impl<T> From<ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
             guard: guard_body_pair.guard,
             body: guard_body_pair.body,
         }
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-struct Bridge<F>(F);
-
-impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
-    where F: Future<Item = ExitStatus>
-{
-    type Item = F::Item;
-    type Error = F::Error;
-
-    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
-    }
-
-    fn cancel(&mut self, _: &mut E) {
-        // Nothing to cancel
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-enum VecSequence<S, E: ?Sized> where S: SpawnRef<E> {
-    Init(VecSequenceWithLast<S, E>),
-    Last(Vec<S>, SwallowNonFatal<Bridge<ExitResult<S::Future>>>),
-}
-
-impl<S, E: ?Sized> fmt::Debug for VecSequence<S, E>
-    where S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            VecSequence::Init(ref init) => {
-                fmt.debug_tuple("VecSequence::Init")
-                    .field(init)
-                    .finish()
-            },
-            VecSequence::Last(ref body, ref last) => {
-                fmt.debug_tuple("VecSequence::Last")
-                    .field(body)
-                    .field(last)
-                    .finish()
-            },
-        }
-    }
-}
-
-impl<S, E: ?Sized> VecSequence<S, E> where S: SpawnRef<E> {
-    pub fn new(commands: Vec<S>) -> Self {
-        VecSequence::Init(VecSequenceWithLast::new(commands))
-    }
-}
-
-impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
-    where S: SpawnRef<E>,
-          S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
-{
-    type Item = (Vec<S>, ExitStatus);
-    type Error = S::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let next_state = match *self {
-                VecSequence::Init(ref mut f) => {
-                    let (body, last) = try_ready!(f.poll(env));
-                    VecSequence::Last(body, swallow_non_fatal_errors(Bridge(last)))
-                },
-
-                VecSequence::Last(ref mut body, ref mut last) => {
-                    let status = try_ready!(last.poll(env));
-                    let body = mem::replace(body, Vec::new());
-                    return Ok(Async::Ready((body, status)));
-                },
-            };
-
-            *self = next_state;
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        match *self {
-            VecSequence::Init(ref mut f) => f.cancel(env),
-            VecSequence::Last(_, ref mut f) => f.cancel(env),
-        }
-    }
-}
-
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-struct MapToExitResult<F>(F);
-
-impl<F, E: ?Sized> EnvFuture<E> for MapToExitResult<F>
-    where F: EnvFuture<E>,
-          F::Item: Future<Item = ExitStatus, Error = F::Error>,
-{
-    type Item = ExitResult<F::Item>;
-    type Error = F::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let ret = try_ready!(self.0.poll(env));
-        Ok(Async::Ready(ExitResult::Pending(ret)))
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        self.0.cancel(env)
-    }
-}
-
-/// Identical to `VecSequence` but yields the last command's `Future`.
-#[must_use = "futures do nothing unless polled"]
-struct VecSequenceWithLast<S, E: ?Sized> where S: SpawnRef<E> {
-    commands: Vec<S>,
-    current: Option<SwallowNonFatal<MapToExitResult<S::EnvFuture>>>,
-    next_idx: usize,
-}
-
-impl<S, E: ?Sized> fmt::Debug for VecSequenceWithLast<S, E>
-    where S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("VecSequenceWithLast")
-            .field("commands", &self.commands)
-            .field("current", &self.current)
-            .field("next_idx", &self.next_idx)
-            .finish()
-    }
-}
-
-impl<S, E: ?Sized> VecSequenceWithLast<S, E> where S: SpawnRef<E> {
-    pub fn new(commands: Vec<S>) -> Self {
-        VecSequenceWithLast {
-            commands: commands,
-            current: None,
-            next_idx: 0,
-        }
-    }
-}
-
-impl<S, E: ?Sized> EnvFuture<E> for VecSequenceWithLast<S, E>
-    where S: SpawnRef<E>,
-          S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
-{
-    type Item = (Vec<S>, ExitResult<S::Future>);
-    type Error = S::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let ret = if let Some(ref mut f) = self.current.as_mut() {
-                // NB: don't set last status here, let caller handle it specifically
-                try_ready!(f.poll(env))
-            } else {
-                ExitResult::Ready(EXIT_SUCCESS)
-            };
-
-            let next = self.commands.get(self.next_idx)
-                .map(|cmd| swallow_non_fatal_errors(MapToExitResult(cmd.spawn_ref(env))));
-            self.next_idx += 1;
-
-            match next {
-                cur@Some(_) => self.current = cur,
-                None => {
-                    let commands = mem::replace(&mut self.commands, Vec::new());
-                    return Ok(Async::Ready((commands, ret)));
-                }
-            }
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        self.current.as_mut().map(|f| f.cancel(env));
     }
 }

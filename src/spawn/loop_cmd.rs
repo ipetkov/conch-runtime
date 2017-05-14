@@ -2,8 +2,7 @@ use {EXIT_SUCCESS, ExitStatus};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use futures::future::Future;
-use spawn::{ExitResult, GuardBodyPair, SpawnRef, VecSequence};
+use spawn::{GuardBodyPair, SpawnRef, VecSequence};
 use std::fmt;
 use std::mem;
 
