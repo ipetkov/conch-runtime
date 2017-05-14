@@ -2,7 +2,7 @@ use {EXIT_SUCCESS, ExitStatus};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
-use futures::future::{Future, FutureResult, ok};
+use futures::future::Future;
 use spawn::{ExitResult, GuardBodyPair, SpawnRef, SwallowNonFatal, swallow_non_fatal_errors,
             VecSequence};
 use std::fmt;
@@ -97,7 +97,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
           S::Error: IsFatalError,
           E: LastStatusEnvironment + ReportErrorEnvironment,
 {
-    type Item = FutureResult<ExitStatus, Self::Error>;
+    type Item = ExitStatus;
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -106,7 +106,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
             // here, we'll just bail out. Alternatively we can just return
             // `NotReady` without ever making any progress, but that may not be
             // worth any downstream debugging headaches.
-            return Ok(Async::Ready(ok(EXIT_SUCCESS)));
+            return Ok(Async::Ready(EXIT_SUCCESS));
         }
 
         loop {
@@ -130,7 +130,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
                         }
 
                         // NB: last status should contain the status of the last body execution
-                        return Ok(Async::Ready(ok(env.last_status())));
+                        return Ok(Async::Ready(env.last_status()));
                     }
 
                     // Set the last status as that of the guard so that the body

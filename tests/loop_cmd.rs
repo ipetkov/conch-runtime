@@ -14,7 +14,7 @@ macro_rules! run_env {
     ($future:expr) => {{
         let mut lp = Core::new().expect("failed to create Core loop");
         let env = DefaultEnvRc::new(lp.remote(), Some(1));
-        lp.run($future.pin_env(env).flatten())
+        lp.run($future.pin_env(env))
     }}
 }
 
