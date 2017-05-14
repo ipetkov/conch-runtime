@@ -3,8 +3,7 @@ use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
-use spawn::{ExitResult, GuardBodyPair, SpawnRef, SwallowNonFatal, swallow_non_fatal_errors,
-            VecSequence};
+use spawn::{ExitResult, GuardBodyPair, SpawnRef, VecSequence};
 use std::fmt;
 use std::mem;
 
@@ -41,7 +40,7 @@ pub struct Loop<S, E: ?Sized> where S: SpawnRef<E>
     guard: Vec<S>,
     body: Vec<S>,
     has_run_body: bool,
-    state: State<VecSequence<S, E>, S::Future>,
+    state: State<VecSequence<S, E>>,
 }
 
 impl<S, E: ?Sized> fmt::Debug for Loop<S, E>
@@ -61,35 +60,10 @@ impl<S, E: ?Sized> fmt::Debug for Loop<S, E>
 }
 
 #[derive(Debug)]
-enum State<V, F> {
+enum State<V> {
     Init,
-    /// The initial guard sequence.
     Guard(V),
-    /// The context-free future that finally resolves the guard.
-    GuardLast(SwallowNonFatal<Bridge<F>>),
-    /// The initial body sequence.
     Body(V),
-    /// The context-free future that finally resolves the body.
-    BodyLast(SwallowNonFatal<Bridge<F>>),
-}
-
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-struct Bridge<F>(ExitResult<F>);
-
-impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
-    where F: Future<Item = ExitStatus>
-{
-    type Item = F::Item;
-    type Error = F::Error;
-
-    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
-    }
-
-    fn cancel(&mut self, _: &mut E) {
-        // Nothing to cancel
-    }
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
@@ -114,13 +88,9 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
                 State::Init => None,
 
                 State::Guard(ref mut f) => {
-                    let (guard, last) = try_ready!(f.poll(env));
+                    let (guard, status) = try_ready!(f.poll(env));
                     self.guard = guard;
-                    Some(State::GuardLast(swallow_non_fatal_errors(Bridge(last))))
-                },
 
-                State::GuardLast(ref mut f) => {
-                    let status = try_ready!(f.poll(env));
                     let should_continue = status.success() ^ self.invert_guard_status;
                     if !should_continue {
                         if !self.has_run_body {
@@ -143,14 +113,9 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
                 },
 
                 State::Body(ref mut f) => {
-                    let (body, last) = try_ready!(f.poll(env));
+                    let (body, status) = try_ready!(f.poll(env));
                     self.has_run_body = true;
                     self.body = body;
-                    Some(State::BodyLast(swallow_non_fatal_errors(Bridge(last))))
-                },
-
-                State::BodyLast(ref mut f) => {
-                    let status = try_ready!(f.poll(env));
                     env.set_last_status(status);
                     None
                 },
@@ -165,9 +130,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Init |
-            State::GuardLast(_) |
-            State::BodyLast(_) => {},
+            State::Init => {},
             State::Guard(ref mut f) |
             State::Body(ref mut f) => f.cancel(env),
         }
