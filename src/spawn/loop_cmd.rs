@@ -2,6 +2,7 @@ use {EXIT_SUCCESS, ExitStatus};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use future::{Async, EnvFuture, Poll};
+use futures::task;
 use spawn::{GuardBodyPair, SpawnRef, VecSequence};
 use std::fmt;
 use std::mem;
@@ -82,7 +83,18 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
             return Ok(Async::Ready(EXIT_SUCCESS));
         }
 
+        let mut num_tries = 0;
         loop {
+            // In case we end up running in a hot loop which is always ready to
+            // do more work, we'll preemptively yield (but signal immediate
+            // readiness) so that other futures running on the same thread
+            // get a chance to make some progress too.
+            num_tries += 1;
+            if num_tries > 20 {
+                task::park().unpark();
+                return Ok(Async::NotReady);
+            }
+
             let next_state = match self.state {
                 State::Init => None,
 
