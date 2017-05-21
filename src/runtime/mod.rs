@@ -178,33 +178,7 @@ impl<E, V, W, C> Run<E> for CompoundCommandKind<V, W, C>
 
             // bash and zsh appear to break loops if a "fatal" error occurs,
             // so we'll emulate the same behavior in case it is expected
-            For { ref var, ref words, ref body } => {
-                let mut exit = EXIT_SUCCESS;
-
-                let values = match *words {
-                    Some(ref words) => {
-                        let mut values = Vec::with_capacity(words.len());
-                        for w in words {
-                            match w.eval(env) {
-                                Ok(fields) => values.extend(fields.into_iter()),
-                                Err(e) => {
-                                    env.set_last_status(EXIT_ERROR);
-                                    return Err(e.into());
-                                },
-                            }
-                        }
-                        values
-                    },
-                    None => env.args().iter().cloned().collect(),
-                };
-
-                for val in values {
-                    env.set_var(var.clone().into(), val);
-                    exit = try_and_swallow_non_fatal!(run(body, env), env);
-                }
-                exit
-            },
-
+            For { .. } |
             While(_) |
             Until(_) |
             Subshell(_) |
@@ -847,86 +821,4 @@ pub mod tests {
     //    assert!(env.file_desc(6).is_none());
     //    assert_eq!(env.var(var), Some(&value.to_owned()));
     //}
-
-    #[test]
-    fn test_run_command_compound_kind_for() {
-        use RefCounted;
-
-        let fn_body = "fn_body";
-        let var = "var".to_owned();
-        let result_var = Rc::new("result_var".to_owned());
-
-        let mut env = Env::with_config(EnvConfig {
-            args_env: ArgsEnv::with_name_and_args("shell".to_owned().into(), vec!(
-                "arg1".to_owned().into(),
-                "arg2".to_owned().into(),
-            )),
-            .. Default::default()
-        });
-
-        {
-            let var = var.clone();
-            let result_var = result_var.clone();
-            env.set_function(fn_body.to_owned().into(), MockFn::new::<DefaultEnv<Rc<String>>>(move |mut env| {
-                let mut result = env.var(&result_var).unwrap().clone();
-                result.make_mut().push_str(env.var(&var).unwrap().as_str());
-                env.set_var(result_var.clone(), result.into());
-                Ok(ExitStatus::Code(42))
-            }));
-        }
-
-        let compound: CompoundCommandKind = For {
-            var: var.clone(),
-            words: Some(vec!(word("foo"), word("bar"))),
-            body: vec!(cmd!(fn_body)),
-        };
-
-        env.set_var(result_var.clone().into(), "".to_owned().into());
-        assert_eq!(compound.run(&mut env), Ok(ExitStatus::Code(42)));
-        assert_eq!(**env.var(&result_var).unwrap(), "foobar");
-        // Bash appears to retain the last value of the bound variable
-        assert_eq!(**env.var(&var).unwrap(), "bar");
-
-        let compound: CompoundCommandKind = For {
-            var: var.to_owned(),
-            words: None,
-            body: vec!(cmd!(fn_body)),
-        };
-
-        env.set_var(result_var.clone(), "".to_owned().into());
-        assert_eq!(compound.run(&mut env), Ok(ExitStatus::Code(42)));
-        assert_eq!(**env.var(&result_var).unwrap(), "arg1arg2");
-        // Bash appears to retain the last value of the bound variable
-        assert_eq!(**env.var(&var).unwrap(), "arg2");
-    }
-
-    #[test]
-    fn test_run_command_compound_kind_for_error_handling() {
-        test_error_handling(false, |cmd, mut env| {
-            let compound: CompoundCommandKind = For {
-                var: "var".to_owned(),
-                words: Some(vec!(MockWord::Error(Rc::new(move || {
-                    let mut env = DefaultEnv::<Rc<String>>::new_test_env(); // Env not important here
-                    cmd.run(&mut env).unwrap_err()
-                })))),
-                body: vec!(),
-            };
-            let ret = compound.run(&mut env);
-            let last_status = env.last_status();
-            assert!(!last_status.success(), "unexpected success: {:#?}", last_status);
-            ret
-        }, None);
-
-        test_error_handling(true, |cmd, mut env| {
-            let compound: CompoundCommandKind = For {
-                var: "var".to_owned(),
-                words: Some(vec!(word("foo"))),
-                body: vec!(cmd_from_simple(cmd)),
-            };
-            let ret = compound.run(&mut env);
-            let last_status = env.last_status();
-            assert!(!last_status.success(), "unexpected success: {:#?}", last_status);
-            ret
-        }, None);
-    }
 }
