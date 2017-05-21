@@ -1,6 +1,6 @@
 extern crate conch_runtime;
 
-use conch_runtime::new_eval::{alternative, Fields, TildeExpansion, WordEvalConfig};
+use conch_runtime::eval::{alternative, Fields, TildeExpansion, WordEvalConfig};
 
 #[macro_use]
 mod support;

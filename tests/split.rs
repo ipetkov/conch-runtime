@@ -1,7 +1,7 @@
 extern crate conch_runtime;
 
 use conch_runtime::env::VarEnv;
-use conch_runtime::new_eval::{Fields, split};
+use conch_runtime::eval::{Fields, split};
 
 #[macro_use]
 mod support;

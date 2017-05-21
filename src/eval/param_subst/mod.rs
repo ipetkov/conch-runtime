@@ -4,7 +4,7 @@ use error::{ExpansionError, IsFatalError};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
 use io::FileDescWrapper;
-use new_eval::{ArithEval, Fields, ParamEval, WordEval, WordEvalConfig};
+use eval::{ArithEval, Fields, ParamEval, WordEval, WordEvalConfig};
 use spawn::{substitution, Spawn, Substitution, SubstitutionEnvFuture};
 use std::fmt;
 use std::io::Error as IoError;

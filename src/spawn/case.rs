@@ -1,7 +1,7 @@
 use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportErrorEnvironment, StringWrapper};
-use new_eval::{Pattern, TildeExpansion, WordEval, WordEvalConfig};
+use eval::{Pattern, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use glob::MatchOptions;
 use spawn::{ExitResult, Sequence, sequence};

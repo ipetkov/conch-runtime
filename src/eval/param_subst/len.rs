@@ -1,5 +1,5 @@
 use env::StringWrapper;
-use new_eval::{Fields, ParamEval};
+use eval::{Fields, ParamEval};
 
 /// Evaluates a parameter and returns the length of the result.
 ///

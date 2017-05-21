@@ -1,6 +1,6 @@
 extern crate conch_runtime;
 
-use conch_runtime::new_eval::{Fields, len};
+use conch_runtime::eval::{Fields, len};
 
 mod support;
 pub use self::support::*;

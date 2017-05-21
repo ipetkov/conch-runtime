@@ -7,7 +7,7 @@ use io::{FileDesc, Permissions};
 use std::fs::OpenOptions;
 use syntax::ast::Redirect;
 use runtime::Result;
-use runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use runtime::old_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
 /// Indicates what changes should be made to the environment as a result
 /// of a successful `Redirect` evaluation.
@@ -476,8 +476,8 @@ mod tests {
         use error::RedirectionError::Ambiguous;
         use error::RuntimeError::Redirection;
         use runtime::Result;
-        use runtime::eval::{Fields, WordEval, WordEvalConfig};
-        use runtime::eval::Fields::*;
+        use runtime::old_eval::{Fields, WordEval, WordEvalConfig};
+        use runtime::old_eval::Fields::*;
         use runtime::tests::DEV_NULL;
 
         type Redirect = ::syntax::ast::Redirect<MockWord>;
@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn test_eval_redirect_word_splitting_done_in_interactive_mode() {
         use runtime::Result;
-        use runtime::eval::{Fields, WordEval, WordEvalConfig};
+        use runtime::old_eval::{Fields, WordEval, WordEvalConfig};
         use runtime::tests::DEV_NULL;
 
         type Redirect = ::syntax::ast::Redirect<MockWord>;

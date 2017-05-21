@@ -1,7 +1,7 @@
 use {EXIT_ERROR, EXIT_SUCCESS};
 use error::IsFatalError;
 use env::{ArgumentsEnvironment, LastStatusEnvironment, ReportErrorEnvironment, VariableEnvironment};
-use new_eval::WordEval;
+use eval::WordEval;
 use future::{Async, EnvFuture, Poll};
 use spawn::{ExitResult, SpawnRef, VecSequence, VecSequenceWithLast};
 use std::fmt;

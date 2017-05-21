@@ -7,17 +7,18 @@ use env::{ArgumentsEnvironment, FileDescEnvironment, FunctionEnvironment,
           LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment, VariableEnvironment};
 use error::RuntimeError;
 use std::convert::{From, Into};
-use std::iter::{IntoIterator, Iterator};
+use std::iter::IntoIterator;
 use std::rc::Rc;
 use std::result;
 
 use syntax::ast::{AndOr, AndOrList, Command, CompoundCommand, CompoundCommandKind, GuardBodyPair,
                   ListableCommand, PipeableCommand};
-use runtime::eval::{RedirectEval, WordEval};
+use runtime::old_eval::{RedirectEval, WordEval};
 
 mod simple;
 
-pub mod eval;
+#[path = "eval/mod.rs"]
+pub mod old_eval;
 
 /// A specialized `Result` type for shell runtime operations.
 pub type Result<T> = result::Result<T, RuntimeError>;
@@ -241,7 +242,7 @@ pub mod tests {
     use env::*;
     use error::*;
     use io::{FileDesc, Permissions};
-    use runtime::eval::{Fields, WordEval, WordEvalConfig};
+    use runtime::old_eval::{Fields, WordEval, WordEvalConfig};
     use runtime::*;
 
     use self::tempdir::TempDir;

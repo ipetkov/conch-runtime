@@ -1,6 +1,6 @@
 use env::{StringWrapper, VariableEnvironment};
 use future::{Async, EnvFuture, Poll};
-use new_eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
+use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use std::borrow::Borrow;
 use syntax::ast::SimpleWord;
 

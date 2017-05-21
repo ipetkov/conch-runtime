@@ -3,7 +3,7 @@ extern crate conch_runtime;
 
 use conch_parser::ast;
 use conch_parser::ast::ComplexWord::*;
-use conch_runtime::new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use conch_runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
 #[macro_use]
 mod support;

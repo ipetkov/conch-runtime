@@ -17,9 +17,9 @@ use std::borrow::Borrow;
 
 // Convenience re-exports
 pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
-pub use self::conch_runtime::new_eval::*;
 pub use self::conch_runtime::env::*;
 pub use self::conch_runtime::error::*;
+pub use self::conch_runtime::eval::*;
 pub use self::conch_runtime::future::*;
 pub use self::futures::{Async, Future, Poll};
 

@@ -1,5 +1,5 @@
 use env::{StringWrapper, VariableEnvironment};
-use new_eval::Fields;
+use eval::Fields;
 use future::{Async, EnvFuture, Poll};
 use std::borrow::Borrow;
 

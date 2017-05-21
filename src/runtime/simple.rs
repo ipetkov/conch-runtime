@@ -10,7 +10,7 @@ use error::{CommandError, RuntimeError};
 use env::{FileDescEnvironment, FunctionEnvironment, FunctionExecutorEnvironment,
                    LastStatusEnvironment, StringWrapper, VariableEnvironment};
 use io::FileDescWrapper;
-use runtime::eval::{RedirectEval, WordEval};
+use runtime::old_eval::{RedirectEval, WordEval};
 
 use std::borrow::Borrow;
 use std::collections::HashMap;

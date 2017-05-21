@@ -1,4 +1,4 @@
-use new_eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
+use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use super::is_present;
 

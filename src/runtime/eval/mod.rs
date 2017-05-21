@@ -1,6 +1,6 @@
 //! A module for evaluating arbitrary shell components such as words,
 //! parameter subsitutions, redirections, and others.
-#![deprecated(note = "use `new_eval` module")]
+#![deprecated(note = "use the `eval` module")]
 
 mod redirect;
 
@@ -9,7 +9,7 @@ use runtime::Result;
 use std::borrow::Borrow;
 
 pub use self::redirect::*;
-pub use new_eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEvalConfig};
+pub use eval::{ArithEval, Fields, ParamEval, TildeExpansion, WordEvalConfig};
 
 /// A trait for evaluating shell words with various rules for expansion.
 pub trait WordEval<E: ?Sized> {

@@ -47,8 +47,7 @@ macro_rules! mktmp {
 #[macro_use]
 pub mod error;
 pub mod env;
-#[path="eval/mod.rs"]
-pub mod new_eval; // FIXME: rename to `eval` when `runtime::eval` fully deprecated
+pub mod eval;
 pub mod future;
 pub mod io;
 pub mod os;
@@ -63,7 +62,7 @@ mod sys;
 #[cfg(windows)]
 #[path="sys/windows/mod.rs"]
 mod sys;
-pub use self::ref_counted::*;
+pub use self::ref_counted::RefCounted;
 pub use self::runtime::*;
 pub use self::spawn::Spawn;
 

@@ -1,7 +1,7 @@
 extern crate conch_runtime;
 
 use conch_runtime::env::{VarEnv, VariableEnvironment};
-use conch_runtime::new_eval::{assign, Fields, ParamEval, TildeExpansion, WordEvalConfig};
+use conch_runtime::eval::{assign, Fields, ParamEval, TildeExpansion, WordEvalConfig};
 
 #[macro_use]
 mod support;

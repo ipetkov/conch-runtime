@@ -1,6 +1,6 @@
 use env::{StringWrapper, VariableEnvironment};
 use error::ExpansionError;
-use new_eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
+use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use std::fmt::Display;
 use super::is_present;

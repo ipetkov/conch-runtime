@@ -1,6 +1,6 @@
 extern crate conch_runtime;
 
-use conch_runtime::new_eval::{Fields, remove_largest_prefix};
+use conch_runtime::eval::{Fields, remove_largest_prefix};
 
 #[macro_use]
 mod support;

@@ -4,7 +4,7 @@ extern crate conch_runtime;
 use conch_parser::ast;
 use conch_parser::ast::Word::*;
 use conch_runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
-use conch_runtime::new_eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use conch_runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
 #[macro_use]
 mod support;

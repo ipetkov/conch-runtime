@@ -1,6 +1,6 @@
 extern crate conch_runtime;
 
-use conch_runtime::new_eval::Fields::*;
+use conch_runtime::eval::Fields::*;
 use conch_runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 
 #[test]
