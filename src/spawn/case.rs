@@ -58,7 +58,7 @@ pub struct Case<IA, IW, IS, E: ?Sized>
 }
 
 impl<W, S, IA, IW, IS, E: ?Sized> fmt::Debug for Case<IA, IW, IS, E>
-    where IA: Iterator + fmt::Debug,
+    where IA: fmt::Debug,
           IW: IntoIterator<Item = W> + fmt::Debug,
           IW::IntoIter: fmt::Debug,
           W: WordEval<E> + fmt::Debug,
@@ -69,7 +69,6 @@ impl<W, S, IA, IW, IS, E: ?Sized> fmt::Debug for Case<IA, IW, IS, E>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Case")
@@ -91,7 +90,7 @@ enum State<IA, IW, IS, E: ?Sized>
 }
 
 impl<W, S, IA, IW, IS, E: ?Sized> fmt::Debug for State<IA, IW, IS, E>
-    where IA: Iterator + fmt::Debug,
+    where IA: fmt::Debug,
           IW: IntoIterator<Item = W> + fmt::Debug,
           IW::IntoIter: fmt::Debug,
           W: WordEval<E> + fmt::Debug,
@@ -102,7 +101,6 @@ impl<W, S, IA, IW, IS, E: ?Sized> fmt::Debug for State<IA, IW, IS, E>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {

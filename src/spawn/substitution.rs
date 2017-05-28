@@ -79,7 +79,6 @@ impl<E, I, R, S> fmt::Debug for Substitution<E, I, R>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Substitution")
@@ -134,7 +133,6 @@ impl<E, I, S> fmt::Debug for FlattenSubshell<E, I>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -224,7 +222,6 @@ impl<E, I, R, S> fmt::Debug for JoinSubshellAndReadToEnd<E, I, R>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("JoinSubshellAndReadToEnd")

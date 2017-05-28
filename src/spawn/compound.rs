@@ -1,0 +1,288 @@
+use {ExitStatus, Spawn};
+use error::IsFatalError;
+use env::{ArgumentsEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
+          SubEnvironment, VariableEnvironment};
+use eval::WordEval;
+use future::{Async, EnvFuture, Poll};
+use futures::future::{Either, Future};
+use spawn::{ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd, Loop, loop_cmd,
+            PatternBodyPair, Sequence, sequence, SpawnRef, Subshell, subshell};
+use std::fmt;
+use std::slice::Iter;
+use std::vec::IntoIter;
+use syntax::ast::CompoundCommandKind;
+use void;
+
+/// A type alias for the `CompoundCommandKindFuture` created by spawning a `CompoundCommand`.
+pub type CompoundCommandKindOwnedFuture<S, W, E> = CompoundCommandKindFuture<
+    IntoIter<S>,
+    IntoIter<W>,
+    IntoIter<GuardBodyPair<IntoIter<S>>>,
+    IntoIter<PatternBodyPair<IntoIter<W>, IntoIter<S>>>,
+    &'static S,
+    E
+>;
+
+/// A type alias for the `CompoundCommandKindFuture` created by spawning a
+/// `CompoundCommand` by reference.
+pub type CompoundCommandKindRefFuture<'a, S, W, E> = CompoundCommandKindFuture<
+    Iter<'a, S>,
+    Iter<'a, W>,
+    IntoIter<GuardBodyPair<Iter<'a, S>>>,
+    IntoIter<PatternBodyPair<Iter<'a, W>, Iter<'a, S>>>,
+    &'a S,
+    E
+>;
+
+/// A future representing the execution of a `CompoundCommandKind` command.
+#[must_use = "futures do nothing unless polled"]
+pub struct CompoundCommandKindFuture<IS, IW, IG, IP, SR, E>
+    where IS: Iterator,
+          IS::Item: Spawn<E>,
+          IW: Iterator,
+          IW::Item: WordEval<E>,
+          SR: SpawnRef<E>,
+          E: VariableEnvironment,
+{
+    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    state: State<
+        Sequence<E, IS>,
+        If<IG, IS, E>,
+        Loop<SR, E>,
+        For<IW, SR, E>,
+        Case<IP, IW, IS, E>,
+        Subshell<E, IS>,
+    >,
+}
+
+impl<S, W, IS, IW, IG, IP, SR, E> fmt::Debug for CompoundCommandKindFuture<IS, IW, IG, IP, SR, E>
+    where S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          S::Future: fmt::Debug,
+          W: WordEval<E> + fmt::Debug,
+          W::EvalFuture: fmt::Debug,
+          W::EvalResult: fmt::Debug,
+          IS: Iterator<Item = S> + fmt::Debug,
+          IW: Iterator<Item = W> + fmt::Debug,
+          IG: fmt::Debug,
+          IP: fmt::Debug,
+          SR: SpawnRef<E> + fmt::Debug,
+          SR::EnvFuture: fmt::Debug,
+          SR::Future: fmt::Debug,
+          E: VariableEnvironment + fmt::Debug,
+          E::Var: fmt::Debug,
+          E::VarName: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("CompoundCommandKindFuture")
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
+enum State<Seq, If, Loop, For, Case, Sub> {
+    Sequence(Seq),
+    If(If),
+    Loop(Loop),
+    For(For),
+    Case(Case),
+    Subshell(Sub),
+}
+
+impl<SRF, W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
+    where W: WordEval<E>,
+          W::Error: IsFatalError,
+          W::EvalResult: Into<E::Var>,
+          S: 'static + Spawn<E>,
+          S::Error: IsFatalError,
+          S::Error: From<W::Error> + IsFatalError,
+          for<'a> &'a S: SpawnRef<E, Future = SRF, Error = S::Error>,
+          SRF: Future<Item = ExitStatus, Error = S::Error>,
+          E: ArgumentsEnvironment
+            + LastStatusEnvironment
+            + ReportErrorEnvironment
+            + VariableEnvironment
+            + SubEnvironment,
+        E::Var: From<E::Arg>,
+        E::VarName: Clone,
+{
+    type EnvFuture = CompoundCommandKindOwnedFuture<S, W, E>;
+    type Future = ExitResult<Either<S::Future, SRF>>;
+    type Error = S::Error;
+
+    fn spawn(self, env: &E) -> Self::EnvFuture {
+        let state = match self {
+            CompoundCommandKind::Brace(cmds) => State::Sequence(sequence(cmds)),
+
+            CompoundCommandKind::If { conditionals, else_branch } => {
+                let conditionals = conditionals.into_iter()
+                    .map(|gbp| GuardBodyPair {
+                        guard: gbp.guard.into_iter(),
+                        body: gbp.body.into_iter(),
+                    })
+                    .collect::<Vec<_>>();
+
+                let else_branch = else_branch.map(|v| v.into_iter());
+
+                State::If(if_cmd(conditionals, else_branch))
+            },
+
+            CompoundCommandKind::Case { word, arms } => {
+                let arms = arms.into_iter()
+                    .map(|pbp| PatternBodyPair {
+                        patterns: pbp.patterns.into_iter(),
+                        body: pbp.body.into_iter(),
+                    })
+                    .collect::<Vec<_>>();
+
+                State::Case(case(word, arms))
+            },
+
+            CompoundCommandKind::Subshell(cmds) => State::Subshell(subshell(cmds, env)),
+            _ => unimplemented!()
+        };
+
+        CompoundCommandKindFuture {
+            state: state,
+        }
+    }
+}
+
+impl<'a, W, S, E> Spawn<E> for &'a CompoundCommandKind<E::VarName, W, S>
+    where &'a W: WordEval<E>,
+          <&'a W as WordEval<E>>::Error: IsFatalError,
+          <&'a W as WordEval<E>>::EvalResult: Into<E::Var>,
+          &'a S: Spawn<E>,
+          <&'a S as Spawn<E>>::Error: IsFatalError,
+          <&'a S as Spawn<E>>::Error: From<<&'a W as WordEval<E>>::Error> + IsFatalError,
+          E: ArgumentsEnvironment
+            + LastStatusEnvironment
+            + ReportErrorEnvironment
+            + VariableEnvironment
+            + SubEnvironment,
+        E::Var: From<E::Arg>,
+        E::VarName: Clone,
+{
+    type EnvFuture = CompoundCommandKindRefFuture<'a, S, W, E>;
+    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    type Future = ExitResult<Either<<&'a S as Spawn<E>>::Future, <&'a S as Spawn<E>>::Future>>;
+    type Error = <&'a S as Spawn<E>>::Error;
+
+    fn spawn(self, env: &E) -> Self::EnvFuture {
+        let state = match *self {
+            CompoundCommandKind::Brace(ref cmds) => State::Sequence(sequence(cmds)),
+
+            CompoundCommandKind::If { ref conditionals, ref else_branch } => {
+                let conditionals = conditionals.iter()
+                    .map(|gbp| GuardBodyPair {
+                        guard: gbp.guard.iter(),
+                        body: gbp.body.iter(),
+                    })
+                    .collect::<Vec<_>>();
+
+                let else_branch = else_branch.as_ref().map(|v| v.iter());
+
+                State::If(if_cmd(conditionals, else_branch))
+            },
+
+            CompoundCommandKind::For { ref var, ref words, ref body } => {
+                State::For(for_loop(var.clone(), words.as_ref(), body.iter().collect(), env))
+            },
+
+            CompoundCommandKind::Case { ref word, ref arms } => {
+                let arms = arms.iter()
+                    .map(|pbp| PatternBodyPair {
+                        patterns: pbp.patterns.iter(),
+                        body: pbp.body.iter(),
+                    })
+                    .collect::<Vec<_>>();
+
+                State::Case(case(word, arms))
+            },
+
+            CompoundCommandKind::While(ref guard_body_pair) => {
+                State::Loop(loop_cmd(false, GuardBodyPair {
+                    guard: guard_body_pair.guard.iter().collect(),
+                    body: guard_body_pair.body.iter().collect(),
+                }))
+            },
+            CompoundCommandKind::Until(ref guard_body_pair) => {
+                State::Loop(loop_cmd(true, GuardBodyPair {
+                    guard: guard_body_pair.guard.iter().collect(),
+                    body: guard_body_pair.body.iter().collect(),
+                }))
+            },
+
+            CompoundCommandKind::Subshell(ref cmds) => State::Subshell(subshell(cmds, env)),
+        };
+
+        CompoundCommandKindFuture {
+            state: state,
+        }
+    }
+}
+
+impl<S, W, IS, IW, IG, IP, SR, E> EnvFuture<E> for CompoundCommandKindFuture<IS, IW, IG, IP, SR, E>
+    where S: Spawn<E>,
+          S::Error: From<W::Error> + IsFatalError,
+          W: WordEval<E>,
+          W::EvalResult: Into<E::Var>,
+          W::Error: IsFatalError,
+          IS: Iterator<Item = S>,
+          IW: Iterator<Item = W>,
+          IG: Iterator<Item = GuardBodyPair<IS>>,
+          IP: Iterator<Item = PatternBodyPair<IW, IS>>,
+          SR: SpawnRef<E, Error = S::Error>,
+          E: LastStatusEnvironment + ReportErrorEnvironment + VariableEnvironment + SubEnvironment,
+          E::VarName: Clone,
+{
+    type Item = ExitResult<Either<S::Future, SR::Future>>;
+    type Error = S::Error;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        let ret = match self.state {
+            State::Sequence(ref mut f) => try_ready!(f.poll(env)),
+            State::If(ref mut f)       => try_ready!(f.poll(env)),
+            State::Case(ref mut f)     => try_ready!(f.poll(env)),
+
+            State::For(ref mut f) => {
+                let ret = match try_ready!(f.poll(env)) {
+                    ExitResult::Ready(ret) => ExitResult::Ready(ret),
+                    ExitResult::Pending(f) => ExitResult::Pending(Either::B(f)),
+                };
+
+                return Ok(Async::Ready(ret));
+            }
+
+            State::Loop(ref mut f) => {
+                let status = try_ready!(f.poll(env));
+                return Ok(Async::Ready(ExitResult::Ready(status)));
+            },
+
+            State::Subshell(ref mut f) => match f.poll() {
+                Ok(Async::Ready(ret)) => ret,
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(void) => void::unreachable(void),
+            },
+        };
+
+        let ret = match ret {
+            ExitResult::Ready(ret) => ExitResult::Ready(ret),
+            ExitResult::Pending(f) => ExitResult::Pending(Either::A(f)),
+        };
+
+        Ok(Async::Ready(ret))
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        match self.state {
+            State::Subshell(_) => {},
+            State::Sequence(ref mut f) => f.cancel(env),
+            State::If(ref mut f)       => f.cancel(env),
+            State::Case(ref mut f)     => f.cancel(env),
+            State::For(ref mut f)      => f.cancel(env),
+            State::Loop(ref mut f)     => f.cancel(env),
+        }
+    }
+}

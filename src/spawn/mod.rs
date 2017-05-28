@@ -9,6 +9,7 @@ use syntax::ast;
 mod and_or;
 mod case;
 mod command;
+mod compound;
 mod for_cmd;
 mod if_cmd;
 mod listable;
@@ -26,6 +27,7 @@ use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
 pub use self::command::CommandEnvFuture;
+pub use self::compound::{CompoundCommandKindFuture, CompoundCommandKindRefFuture};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::if_cmd::{If, if_cmd};
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,

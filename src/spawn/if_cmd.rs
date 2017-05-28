@@ -42,7 +42,6 @@ impl<S, C, I, E: ?Sized> fmt::Debug for If<C, I, E>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("If")
@@ -71,7 +70,6 @@ impl<S, C, I, E: ?Sized> fmt::Debug for State<C, I, E>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -180,7 +178,6 @@ impl<I, S, E: ?Sized> fmt::Debug for Branch<I, E>
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
           S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Branch")
