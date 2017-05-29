@@ -67,6 +67,9 @@ pub use self::ref_counted::RefCounted;
 pub use self::runtime::*;
 pub use self::spawn::Spawn;
 
+/// Generic panic message for futures which have been polled after completion.
+const POLLED_TWICE: &'static str = "this future cannot be polled again after completion!";
+
 /// Exit code for commands that exited successfully.
 pub const EXIT_SUCCESS:            ExitStatus = ExitStatus::Code(0);
 /// Exit code for commands that did not exit successfully.

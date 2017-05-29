@@ -1,4 +1,4 @@
-use {ExitStatus, Spawn};
+use {ExitStatus, POLLED_TWICE, Spawn};
 use future::{Async, EnvFuture, Poll};
 use future_ext::EnvFutureExt;
 use futures::Future;
@@ -111,10 +111,10 @@ macro_rules! impl_spawn {
             type Error = ERR;
 
             fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-                let ret = self.as_mut().expect("polled twice").rent_mut(|state| {
+                let ret = self.as_mut().expect(POLLED_TWICE).rent_mut(|state| {
                     let next = match *state {
                         State::EnvFuture(ref mut f) => try_ready!(f.poll(env)),
-                        State::Future(_) => panic!("polled twice"),
+                        State::Future(_) => panic!(POLLED_TWICE),
                     };
 
                     *state = State::Future(next);
@@ -127,9 +127,9 @@ macro_rules! impl_spawn {
             }
 
             fn cancel(&mut self, env: &mut E) {
-                self.as_mut().expect("polled twice").rent_mut(|state| match *state {
+                self.as_mut().expect(POLLED_TWICE).rent_mut(|state| match *state {
                     State::EnvFuture(ref mut f) => f.cancel(env),
-                    State::Future(_) => panic!("polled twice"),
+                    State::Future(_) => panic!(POLLED_TWICE),
                 })
             }
         }

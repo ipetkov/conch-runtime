@@ -1,4 +1,4 @@
-use {ExitStatus, Spawn, STDOUT_FILENO};
+use {ExitStatus, POLLED_TWICE, Spawn, STDOUT_FILENO};
 use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
           SubEnvironment};
 use error::IsFatalError;
@@ -36,7 +36,7 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let body = self.body.take().expect("polled twice");
+        let body = self.body.take().expect(POLLED_TWICE);
         let Pipe { reader: cmd_output, writer: cmd_stdout_fd } = try!(Pipe::new());
 
         let mut env = env.sub_env();
@@ -187,7 +187,7 @@ impl<F: Future> MaybeDone<F, F::Item> {
         let res = match *self {
             MaybeDone::NotYet(ref mut f) => try!(f.poll()),
             MaybeDone::Done(_) => return Ok(true),
-            MaybeDone::Gone => panic!("polled twice"),
+            MaybeDone::Gone => panic!(POLLED_TWICE),
         };
         match res {
             Async::Ready(res) => {
@@ -201,7 +201,7 @@ impl<F: Future> MaybeDone<F, F::Item> {
     fn take(&mut self) -> F::Item {
         match mem::replace(self, MaybeDone::Gone) {
             MaybeDone::Done(f) => f,
-            _ => panic!("polled twice"),
+            _ => panic!(POLLED_TWICE),
         }
     }
 }
