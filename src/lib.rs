@@ -27,6 +27,7 @@ extern crate futures_cpupool;
 extern crate glob;
 #[macro_use] extern crate lazy_static;
 extern crate mio;
+#[macro_use] extern crate rental;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate void;

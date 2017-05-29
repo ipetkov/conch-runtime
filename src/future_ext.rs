@@ -1,5 +1,6 @@
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
+use std::marker::PhantomData;
 
 /// Private extension of the `EnvFuture` trait.
 pub trait EnvFutureExt<E: ?Sized>: EnvFuture<E> {
@@ -20,6 +21,21 @@ pub trait EnvFutureExt<E: ?Sized>: EnvFuture<E> {
               Self: Sized,
     {
         FlattenedEnvFuture::EnvFuture(self)
+    }
+
+    /// Converts the resulting future into a boxed trait object.
+    ///
+    /// In other words, instead of returning a concrete type, this
+    /// adapter will return `Box<Future>` which is useful when type
+    /// erasure is desired.
+    fn boxed_result<'a>(self) -> BoxedResult<'a, Self>
+        where Self: Sized,
+              Self::Item: 'a + Future,
+    {
+        BoxedResult {
+            inner: self,
+            phantom: PhantomData,
+        }
     }
 }
 
@@ -74,5 +90,32 @@ impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
             FlattenedEnvFuture::Future(_) |
             FlattenedEnvFuture::Done => {}
         }
+    }
+}
+
+/// A future adapter for `EnvFuture`s which return a `Future`, whose
+/// result will be boxed upon resolution.
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
+pub struct BoxedResult<'a, EF> {
+    inner: EF,
+    phantom: PhantomData<&'a ()>,
+}
+
+impl<'a, EF, F, E: ?Sized> EnvFuture<E> for BoxedResult<'a, EF>
+    where EF: EnvFuture<E, Item = F>,
+          F: 'a + Future,
+          F::Error: From<EF::Error>,
+{
+    type Item = Box<'a + Future<Item = F::Item, Error = F::Error>>;
+    type Error = F::Error;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        let ret = try_ready!(self.inner.poll(env));
+        Ok(Async::Ready(Box::from(ret)))
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        self.inner.cancel(env)
     }
 }

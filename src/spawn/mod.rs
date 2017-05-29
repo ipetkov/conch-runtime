@@ -14,6 +14,7 @@ mod for_cmd;
 mod if_cmd;
 mod listable;
 mod loop_cmd;
+mod rc;
 mod sequence;
 mod subshell;
 mod substitution;

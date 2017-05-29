@@ -114,3 +114,16 @@ impl<'a, T: ?Sized, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> 
         (**self).cancel(env)
     }
 }
+
+impl<T: ?Sized, E: ?Sized> EnvFuture<E> for Box<T> where T: EnvFuture<E> {
+    type Item = T::Item;
+    type Error = T::Error;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        (**self).poll(env)
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        (**self).cancel(env)
+    }
+}
