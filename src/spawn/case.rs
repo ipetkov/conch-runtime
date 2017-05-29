@@ -86,7 +86,7 @@ enum State<IA, IW, IS, E: ?Sized>
     Init(Option<IW::Item>, Option<IA>),
     Word(<IW::Item as WordEval<E>>::EvalFuture, Option<IA>),
     Cases(Arm<IW::IntoIter, IS, E>, IA),
-    Body(Sequence<E, IS::IntoIter>),
+    Body(Sequence<IS::IntoIter, E>),
 }
 
 impl<W, S, IA, IW, IS, E: ?Sized> fmt::Debug for State<IA, IW, IS, E>

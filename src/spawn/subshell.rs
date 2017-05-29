@@ -13,15 +13,15 @@ use void::Void;
 /// Commands are sequentially executed regardless of the exit status of
 /// previous commands. All errors are reported and swallowed.
 #[must_use = "futures do nothing unless polled"]
-pub struct Subshell<E, I>
+pub struct Subshell<I, E>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
     env: E,
-    inner: Sequence<E, I>,
+    inner: Sequence<I, E>,
 }
 
-impl<E, I> fmt::Debug for Subshell<E, I>
+impl<I, E> fmt::Debug for Subshell<I, E>
     where E: fmt::Debug,
           I: Iterator + fmt::Debug,
           I::Item: Spawn<E> + fmt::Debug,
@@ -36,7 +36,7 @@ impl<E, I> fmt::Debug for Subshell<E, I>
     }
 }
 
-impl<E, I, S> Future for Subshell<E, I>
+impl<S, I, E> Future for Subshell<I, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
@@ -64,7 +64,7 @@ impl<E, I, S> Future for Subshell<E, I>
 ///
 /// The `env` parameter will be copied as a `SubEnvironment`, in whose context
 /// the commands will be executed.
-pub fn subshell<I, E: ?Sized>(iter: I, env: &E) -> Subshell<E, I::IntoIter>
+pub fn subshell<I, E: ?Sized>(iter: I, env: &E) -> Subshell<I::IntoIter, E>
     where I: IntoIterator,
           I::Item: Spawn<E>,
           E: LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,

@@ -24,7 +24,7 @@ pub struct SubstitutionEnvFuture<I> {
     body: Option<I>,
 }
 
-impl<E, I, S> EnvFuture<E> for SubstitutionEnvFuture<I>
+impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
     where I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
@@ -32,7 +32,7 @@ impl<E, I, S> EnvFuture<E> for SubstitutionEnvFuture<I>
           E::FileHandle: FileDescWrapper,
           E::Read: AsyncRead,
 {
-    type Item = Substitution<E, I, E::Read>;
+    type Item = Substitution<I, E::Read, E>;
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -65,14 +65,14 @@ impl<E, I, S> EnvFuture<E> for SubstitutionEnvFuture<I>
 /// The standard output of the commands will be captured and
 /// trailing newlines trimmed.
 #[must_use = "futures do nothing unless polled"]
-pub struct Substitution<E, I, R>
+pub struct Substitution<I, R, E>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
-    inner: JoinSubshellAndReadToEnd<E, I, R>,
+    inner: JoinSubshellAndReadToEnd<I, R, E>,
 }
 
-impl<E, I, R, S> fmt::Debug for Substitution<E, I, R>
+impl<I, R, S, E> fmt::Debug for Substitution<I, R, E>
     where E: fmt::Debug,
           I: Iterator<Item = S> + fmt::Debug,
           R: fmt::Debug,
@@ -87,7 +87,7 @@ impl<E, I, R, S> fmt::Debug for Substitution<E, I, R>
     }
 }
 
-impl<E, I, R, S> Future for Substitution<E, I, R>
+impl<I, R, S, E> Future for Substitution<I, R, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
@@ -119,15 +119,15 @@ impl<E, I, R, S> Future for Substitution<E, I, R>
     }
 }
 
-enum FlattenSubshell<E, I>
+enum FlattenSubshell<I, E>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
-    Subshell(Subshell<E, I>),
+    Subshell(Subshell<I, E>),
     Flatten(ExitResult<<I::Item as Spawn<E>>::Future>),
 }
 
-impl<E, I, S> fmt::Debug for FlattenSubshell<E, I>
+impl<I, S, E> fmt::Debug for FlattenSubshell<I, E>
     where E: fmt::Debug,
           I: Iterator<Item = S> + fmt::Debug,
           S: Spawn<E> + fmt::Debug,
@@ -150,7 +150,7 @@ impl<E, I, S> fmt::Debug for FlattenSubshell<E, I>
     }
 }
 
-impl<E, I, S> Future for FlattenSubshell<E, I>
+impl<I, S, E> Future for FlattenSubshell<I, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
@@ -207,15 +207,15 @@ impl<F: Future> MaybeDone<F, F::Item> {
 }
 
 #[must_use = "futures do nothing unless polled"]
-struct JoinSubshellAndReadToEnd<E, I, R>
+struct JoinSubshellAndReadToEnd<I, R, E>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
     read_to_end: MaybeDone<ReadToEnd<R>, (R, Vec<u8>)>,
-    subshell: MaybeDone<FlattenSubshell<E, I>, ExitStatus>,
+    subshell: MaybeDone<FlattenSubshell<I, E>, ExitStatus>,
 }
 
-impl<E, I, R, S> fmt::Debug for JoinSubshellAndReadToEnd<E, I, R>
+impl<I, R, S, E> fmt::Debug for JoinSubshellAndReadToEnd<I, R, E>
     where E: fmt::Debug,
           I: Iterator<Item = S> + fmt::Debug,
           R: fmt::Debug,
@@ -231,7 +231,7 @@ impl<E, I, R, S> fmt::Debug for JoinSubshellAndReadToEnd<E, I, R>
     }
 }
 
-impl<E, I, R> JoinSubshellAndReadToEnd<E, I, R>
+impl<I, R, E> JoinSubshellAndReadToEnd<I, R, E>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
@@ -241,7 +241,7 @@ impl<E, I, R> JoinSubshellAndReadToEnd<E, I, R>
     }
 }
 
-impl<E, I, S, R> Future for JoinSubshellAndReadToEnd<E, I, R>
+impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,

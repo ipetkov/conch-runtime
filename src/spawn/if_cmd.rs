@@ -60,7 +60,7 @@ enum State<C, I, E: ?Sized>
         else_branch: Option<I>,
     },
 
-    Body(Sequence<E, I::IntoIter>),
+    Body(Sequence<I::IntoIter, E>),
 }
 
 impl<S, C, I, E: ?Sized> fmt::Debug for State<C, I, E>
@@ -158,7 +158,7 @@ impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
     }
 }
 
-type FlattenedSequence<E, I, F> = FlattenedEnvFuture<Sequence<E, I>, ExitResult<F>>;
+type FlattenedSequence<I, F, E> = FlattenedEnvFuture<Sequence<I, E>, ExitResult<F>>;
 
 /// A future which represents the resolution of a conditional guard in an `If` command.
 ///
@@ -169,7 +169,7 @@ struct Branch<I, E: ?Sized>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
-    guard: SwallowNonFatal<FlattenedSequence<E, I, <I::Item as Spawn<E>>::Future>>,
+    guard: SwallowNonFatal<FlattenedSequence<I, <I::Item as Spawn<E>>::Future, E>>,
     body: Option<I>,
 }
 

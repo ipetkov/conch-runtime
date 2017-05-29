@@ -47,12 +47,12 @@ pub struct CompoundCommandKindFuture<IS, IW, IG, IP, SR, E>
 {
     #[cfg_attr(feature = "clippy", allow(type_complexity))]
     state: State<
-        Sequence<E, IS>,
+        Sequence<IS, E>,
         If<IG, IS, E>,
         Loop<SR, E>,
         For<IW, SR, E>,
         Case<IP, IW, IS, E>,
-        Subshell<E, IS>,
+        Subshell<IS, E>,
     >,
 }
 

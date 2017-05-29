@@ -21,7 +21,7 @@ type FlattenedState<E, F> = State<FlattenedEnvFuture<E, F>, E>;
 /// previous commands. All non-fatal errors are reported and swallowed,
 /// however, "fatal" errors are bubbled up and the sequence terminated.
 #[must_use = "futures do nothing unless polled"]
-pub struct Sequence<E: ?Sized, I>
+pub struct Sequence<I, E: ?Sized>
     where I: Iterator,
           I::Item: Spawn<E>,
 {
@@ -29,7 +29,7 @@ pub struct Sequence<E: ?Sized, I>
     iter: Peekable<I>,
 }
 
-impl<S, E: ?Sized, I> fmt::Debug for Sequence<E, I>
+impl<S, I, E: ?Sized> fmt::Debug for Sequence<I, E>
     where I: Iterator<Item = S> + fmt::Debug,
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
@@ -43,7 +43,7 @@ impl<S, E: ?Sized, I> fmt::Debug for Sequence<E, I>
     }
 }
 
-impl<S, E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
+impl<S, I, E: ?Sized> EnvFuture<E> for Sequence<I, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
@@ -93,7 +93,7 @@ impl<S, E: ?Sized, I> EnvFuture<E> for Sequence<E, I>
 /// Commands are sequentially executed regardless of the exit status of
 /// previous commands. All non-fatal errors are reported and swallowed,
 /// however, "fatal" errors are bubbled up and the sequence terminated.
-pub fn sequence<E: ?Sized, I>(iter: I) -> Sequence<E, I::IntoIter>
+pub fn sequence<I, E: ?Sized>(iter: I) -> Sequence<I::IntoIter, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           I: IntoIterator,
           I::Item: Spawn<E>,

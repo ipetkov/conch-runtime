@@ -205,7 +205,7 @@ enum Inner<T, F, I, A, E, R>
           I::Item: Spawn<E>,
 {
     CommandInit(SubstitutionEnvFuture<I>),
-    Command(Substitution<E, I, R>),
+    Command(Substitution<I, R, E>),
     Len(Option<T>),
     Arith(Option<A>),
     Default(EvalDefault<T, F>),
