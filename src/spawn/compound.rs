@@ -9,8 +9,9 @@ use spawn::{ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd, Lo
             PatternBodyPair, Sequence, sequence, SpawnRef, Subshell, subshell};
 use std::fmt;
 use std::slice::Iter;
+use std::sync::Arc;
 use std::vec::IntoIter;
-use syntax::ast::CompoundCommandKind;
+use syntax::ast::{self, CompoundCommandKind};
 use void;
 
 /// A type alias for the `CompoundCommandKindFuture` created by spawning a `CompoundCommand`.
@@ -19,7 +20,7 @@ pub type CompoundCommandKindOwnedFuture<S, W, E> = CompoundCommandKindFuture<
     IntoIter<W>,
     IntoIter<GuardBodyPair<IntoIter<S>>>,
     IntoIter<PatternBodyPair<IntoIter<W>, IntoIter<S>>>,
-    &'static S,
+    Arc<S>,
     E
 >;
 
@@ -90,16 +91,14 @@ enum State<Seq, If, Loop, For, Case, Sub> {
     Subshell(Sub),
 }
 
-impl<SRF, W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
+impl<W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
     where W: WordEval<E>,
           W::Error: IsFatalError,
           W::EvalResult: Into<E::Var>,
           S: 'static + Spawn<E>,
-          S::Error: IsFatalError,
-          S::Error: From<W::Error> + IsFatalError,
-          for<'a> &'a S: SpawnRef<E, Future = SRF, Error = S::Error>,
-          SRF: Future<Item = ExitStatus, Error = S::Error>,
-          E: ArgumentsEnvironment
+          S::Error: 'static + From<W::Error> + IsFatalError,
+          for<'a> &'a S: SpawnRef<E, Error = S::Error>,
+          E: 'static + ArgumentsEnvironment
             + LastStatusEnvironment
             + ReportErrorEnvironment
             + VariableEnvironment
@@ -108,7 +107,11 @@ impl<SRF, W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
         E::VarName: Clone,
 {
     type EnvFuture = CompoundCommandKindOwnedFuture<S, W, E>;
-    type Future = ExitResult<Either<S::Future, SRF>>;
+    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    type Future = ExitResult<Either<
+        S::Future,
+        Box<'static + Future<Item = ExitStatus, Error = Self::Error>>>
+    >;
     type Error = S::Error;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
@@ -128,6 +131,11 @@ impl<SRF, W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
                 State::If(if_cmd(conditionals, else_branch))
             },
 
+            CompoundCommandKind::For { var, words, body } => {
+                let body = body.into_iter().map(Arc::from).collect();
+                State::For(for_loop(var, words, body, env))
+            },
+
             CompoundCommandKind::Case { word, arms } => {
                 let arms = arms.into_iter()
                     .map(|pbp| PatternBodyPair {
@@ -139,8 +147,24 @@ impl<SRF, W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
                 State::Case(case(word, arms))
             },
 
+            CompoundCommandKind::While(ast::GuardBodyPair { guard, body }) => {
+                let guard = guard.into_iter().map(Arc::from).collect();
+                let body = body.into_iter().map(Arc::from).collect();
+                State::Loop(loop_cmd(false, GuardBodyPair {
+                    guard: guard,
+                    body: body,
+                }))
+            },
+            CompoundCommandKind::Until(ast::GuardBodyPair { guard, body }) => {
+                let guard = guard.into_iter().map(Arc::from).collect();
+                let body = body.into_iter().map(Arc::from).collect();
+                State::Loop(loop_cmd(true, GuardBodyPair {
+                    guard: guard,
+                    body: body,
+                }))
+            },
+
             CompoundCommandKind::Subshell(cmds) => State::Subshell(subshell(cmds, env)),
-            _ => unimplemented!()
         };
 
         CompoundCommandKindFuture {
@@ -201,16 +225,16 @@ impl<'a, W, S, E> Spawn<E> for &'a CompoundCommandKind<E::VarName, W, S>
                 State::Case(case(word, arms))
             },
 
-            CompoundCommandKind::While(ref guard_body_pair) => {
+            CompoundCommandKind::While(ast::GuardBodyPair { ref guard, ref body }) => {
                 State::Loop(loop_cmd(false, GuardBodyPair {
-                    guard: guard_body_pair.guard.iter().collect(),
-                    body: guard_body_pair.body.iter().collect(),
+                    guard: guard.iter().collect(),
+                    body: body.iter().collect(),
                 }))
             },
-            CompoundCommandKind::Until(ref guard_body_pair) => {
+            CompoundCommandKind::Until(ast::GuardBodyPair { ref guard, ref body }) => {
                 State::Loop(loop_cmd(true, GuardBodyPair {
-                    guard: guard_body_pair.guard.iter().collect(),
-                    body: guard_body_pair.body.iter().collect(),
+                    guard: guard.iter().collect(),
+                    body: body.iter().collect(),
                 }))
             },
 
