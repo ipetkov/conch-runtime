@@ -423,6 +423,10 @@ macro_rules! impl_env {
             fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
                 self.async_io_env.write_all(fd, data)
             }
+
+            fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+                self.async_io_env.write_all_best_effort(fd, data);
+            }
         }
 
         impl<A, IO, FD, L, V, N> FileDescEnvironment for $Env<A, IO, FD, L, V, N>

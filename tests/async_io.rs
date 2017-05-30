@@ -11,18 +11,27 @@ use tokio_io::io::read_to_end;
 #[test]
 fn async_io_thread_pool_smoke() {
     let pipe = Pipe::new().expect("failed to create pipe");
-    let mut pool = ThreadPoolAsyncIoEnv::new(2);
+    let best_effort_pipe = Pipe::new().expect("failed to create pipe");
+
+    let mut pool = ThreadPoolAsyncIoEnv::new(4);
 
     let msg = "hello piped world!";
 
     let write_future = pool.write_all(pipe.writer, msg.as_bytes().to_owned());
+    pool.write_all_best_effort(best_effort_pipe.writer, msg.as_bytes().to_owned());
 
-    let read_async = pool.read_async(pipe.reader);
-    let read_future = read_to_end(read_async, vec!())
+    let read_future = read_to_end(pool.read_async(pipe.reader), vec!())
+        .and_then(|(_, data)| Ok(data));
+    let read_future_best_effort = read_to_end(pool.read_async(best_effort_pipe.reader), vec!())
         .and_then(|(_, data)| Ok(data));
 
-    let (_, read_msg) = write_future.join(read_future).wait().expect("futures failed");
+    let (_, read_msg, read_msg_best_effort) = write_future
+        .join3(read_future, read_future_best_effort)
+        .wait()
+        .expect("futures failed");
+
     assert_eq!(read_msg, msg.as_bytes());
+    assert_eq!(read_msg_best_effort, msg.as_bytes());
 }
 
 #[test]
@@ -34,15 +43,22 @@ fn evented_io_env_smoke() {
     let msg = "hello world";
 
     let pipe = Pipe::new().expect("failed to create pipe");
+    let best_effort_pipe = Pipe::new().expect("failed to create pipe");
+
     let mut lp = Core::new().expect("failed to create event loop");
     let mut env = EventedAsyncIoEnv::new(lp.remote());
 
     let write_future = env.write_all(pipe.writer, msg.as_bytes().to_owned());
+    env.write_all_best_effort(best_effort_pipe.writer, msg.as_bytes().to_owned());
 
-    let read_async = env.read_async(pipe.reader);
-    let read_future = read_to_end(read_async, vec!())
+    let read_future = read_to_end(env.read_async(pipe.reader), vec!())
+        .and_then(|(_, data)| Ok(data));
+    let read_future_best_effort = read_to_end(env.read_async(best_effort_pipe.reader), vec!())
         .and_then(|(_, data)| Ok(data));
 
-    let (_, read_msg) = lp.run(write_future.join(read_future)).expect("futures failed");
+    let future = write_future.join3(read_future, read_future_best_effort);
+    let (_, read_msg, read_msg_best_effort) = lp.run(future).expect("futures failed");
+
     assert_eq!(read_msg, msg.as_bytes());
+    assert_eq!(read_msg_best_effort, msg.as_bytes());
 }

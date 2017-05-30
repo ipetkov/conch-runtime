@@ -28,6 +28,11 @@ pub trait AsyncIoEnvironment {
 
     /// Creates a future for writing data into a `FileDesc`.
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll;
+
+    /// Asynchronously write the contents of `data` to a `FileDesc` in the
+    /// background on a best effort basis (e.g. the implementation can give up
+    /// due to any (appropriately) unforceen errors like broken pipes).
+    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>);
 }
 
 impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
@@ -40,6 +45,10 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
 
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
         (**self).write_all(fd, data)
+    }
+
+    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+        (**self).write_all_best_effort(fd, data);
     }
 }
 
@@ -135,6 +144,10 @@ impl AsyncIoEnvironment for PlatformSpecificAsyncIoEnv {
 
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
         PlatformSpecificWriteAll(self.inner.write_all(fd, data))
+    }
+
+    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+        self.inner.write_all_best_effort(fd, data);
     }
 }
 
@@ -319,6 +332,10 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
             try!(fd.write_all(&data));
             fd.flush()
         })
+    }
+
+    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+        self.write_all(fd, data).forget();
     }
 }
 
