@@ -11,6 +11,7 @@ mod complex_word;
 mod fields;
 mod parameter;
 mod param_subst;
+mod redirect;
 mod simple_word;
 mod word;
 
@@ -24,6 +25,9 @@ pub use self::param_subst::{alternative, assign, default, error, len,
 pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError, EvalParamSubst,
                             RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
                             RemoveSmallestSuffix, Split};
+pub use self::redirect::{RedirectAction, RedirectEval,
+                         redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write,
+                         redirect_heredoc, redirect_read, redirect_readwrite, redirect_write};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 

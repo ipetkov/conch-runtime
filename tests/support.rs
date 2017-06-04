@@ -57,6 +57,7 @@ pub fn test_cancel_impl<F: EnvFuture<E>, E: ?Sized>(mut future: F, env: &mut E) 
 pub enum MockErr {
     Fatal(bool),
     ExpansionError(ExpansionError),
+    RedirectionError(RedirectionError),
 }
 
 impl self::conch_runtime::error::IsFatalError for MockErr {
@@ -64,6 +65,7 @@ impl self::conch_runtime::error::IsFatalError for MockErr {
         match *self {
             MockErr::Fatal(fatal) => fatal,
             MockErr::ExpansionError(ref e) => e.is_fatal(),
+            MockErr::RedirectionError(ref e) => e.is_fatal(),
         }
     }
 }
@@ -89,6 +91,12 @@ impl From<RuntimeError> for MockErr {
 impl From<ExpansionError> for MockErr {
     fn from(err: ExpansionError) -> Self {
         MockErr::ExpansionError(err)
+    }
+}
+
+impl From<RedirectionError> for MockErr {
+    fn from(err: RedirectionError) -> Self {
+        MockErr::RedirectionError(err)
     }
 }
 
@@ -225,7 +233,14 @@ pub fn mock_word_must_cancel() -> MockWord {
 }
 
 pub fn mock_word_assert_cfg(cfg: WordEvalConfig) -> MockWord {
-    MockWord::AssertCfg(cfg)
+    MockWord::AssertCfg(cfg, None)
+}
+
+pub fn mock_word_assert_cfg_with_fields(
+    fields: Fields<String>,
+    cfg: WordEvalConfig,
+) -> MockWord {
+    MockWord::AssertCfg(cfg, Some(fields))
 }
 
 pub fn mock_word_panic(msg: &'static str) -> MockWord {
@@ -238,7 +253,7 @@ pub enum MockWord {
     Fields(Option<Fields<String>>),
     Error(MockErr),
     MustCancel(MustCancel),
-    AssertCfg(WordEvalConfig),
+    AssertCfg(WordEvalConfig, Option<Fields<String>>),
     Panic(&'static str),
 }
 
@@ -248,7 +263,7 @@ impl<E: ?Sized> WordEval<E> for MockWord {
     type EvalFuture = Self;
 
     fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-        if let MockWord::AssertCfg(expected) = self {
+        if let MockWord::AssertCfg(expected, _) = self {
             assert_eq!(expected, cfg);
         }
 
@@ -262,7 +277,7 @@ impl<'a, E: ?Sized> WordEval<E> for &'a MockWord {
     type EvalFuture = MockWord;
 
     fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-        if let MockWord::AssertCfg(ref expected) = *self {
+        if let MockWord::AssertCfg(ref expected, _) = *self {
             assert_eq!(*expected, cfg);
         }
 
@@ -279,7 +294,10 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
             MockWord::Fields(ref mut f) => Ok(Async::Ready(f.take().expect("polled twice"))),
             MockWord::Error(ref mut e) => Err(e.clone()),
             MockWord::MustCancel(ref mut mc) => mc.poll(),
-            MockWord::AssertCfg(_) => Ok(Async::Ready(Fields::Zero)),
+            MockWord::AssertCfg(_, ref mut fields) => {
+                let ret = fields.take().unwrap_or(Fields::Zero);
+                Ok(Async::Ready(ret))
+            },
             MockWord::Panic(msg) => panic!("{}", msg),
         }
     }
@@ -288,7 +306,7 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
         match *self {
             MockWord::Fields(_) |
             MockWord::Error(_) |
-            MockWord::AssertCfg(_) => {},
+            MockWord::AssertCfg(_, _) => {},
             MockWord::MustCancel(ref mut mc) => mc.cancel(),
             MockWord::Panic(msg) => panic!("{}", msg),
         }
