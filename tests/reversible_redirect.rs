@@ -1,9 +1,10 @@
 extern crate conch_runtime;
 
-use conch_runtime::io::Permissions;
+use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::Fd;
-use conch_runtime::env::{FileDescEnvironment, ReversibleRedirectWrapper};
-use std::borrow::Borrow;
+use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, PlatformSpecificRead,
+                         PlatformSpecificWriteAll, RedirectRestorer};
+use conch_runtime::eval::RedirectAction;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,83 +36,67 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
     }
 }
 
+impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
+    type Read = PlatformSpecificRead;
+    type WriteAll = PlatformSpecificWriteAll;
+
+    fn read_async(&mut self, _: FileDesc) -> Self::Read {
+        unimplemented!()
+    }
+
+    fn write_all(&mut self, _: FileDesc, _: Vec<u8>) -> Self::WriteAll {
+        unimplemented!()
+    }
+
+    fn write_all_best_effort(&mut self, _: FileDesc, _: Vec<u8>) {
+        // Nothing to do
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct S(&'static str);
+
+impl From<FileDesc> for S {
+    fn from(_fdes: FileDesc) -> Self {
+        S("FileDesc conversion")
+    }
+}
+
 #[test]
-fn test_restoring_should_revert_to_state_when_env_wrapped() {
+fn smoke() {
     let mut env = MockFileDescEnv::new();
-    env.set_file_desc(1, "a", Permissions::Read);
-    env.set_file_desc(2, "b", Permissions::Write);
-    env.set_file_desc(3, "c", Permissions::ReadWrite);
+    env.set_file_desc(1, S("a"), Permissions::Read);
+    env.set_file_desc(2, S("b"), Permissions::Write);
+    env.set_file_desc(3, S("c"), Permissions::ReadWrite);
     env.close_file_desc(4);
     env.close_file_desc(5);
 
     let env_original = env.clone();
 
-    let mut wrapper = ReversibleRedirectWrapper::new(env);
+    let mut restorer = RedirectRestorer::new();
 
-    // Existing fd set to two other values
-    wrapper.set_file_desc(1, "x", Permissions::Read);
-    wrapper.set_file_desc(1, "y", Permissions::Write);
+    // Existing fd set to multiple other values
+    restorer.apply_action(RedirectAction::Open(1, S("x"), Permissions::Read), &mut env).unwrap();
+    restorer.apply_action(RedirectAction::Open(1, S("y"), Permissions::Write), &mut env).unwrap();
+    restorer.apply_action(RedirectAction::HereDoc(1, vec!()), &mut env).unwrap();
 
     // Existing fd closed, then opened
-    wrapper.close_file_desc(2);
-    wrapper.set_file_desc(2, "z", Permissions::Read);
+    restorer.apply_action(RedirectAction::Close(2), &mut env).unwrap();
+    restorer.apply_action(RedirectAction::Open(2, S("z"), Permissions::Write), &mut env).unwrap();
 
     // Existing fd changed, then closed
-    wrapper.set_file_desc(3, "w", Permissions::Write);
-    wrapper.close_file_desc(3);
+    restorer.apply_action(RedirectAction::Open(3, S("w"), Permissions::Write), &mut env).unwrap();
+    restorer.apply_action(RedirectAction::Close(3), &mut env).unwrap();
 
     // Nonexistent fd set, then changed
-    wrapper.set_file_desc(4, "s", Permissions::Read);
-    wrapper.set_file_desc(4, "t", Permissions::Write);
+    restorer.apply_action(RedirectAction::HereDoc(4, vec!()), &mut env).unwrap();
+    restorer.apply_action(RedirectAction::Open(4, S("s"), Permissions::Write), &mut env).unwrap();
 
     // Nonexistent fd set, then closed
-    wrapper.set_file_desc(5, "s", Permissions::Read);
-    wrapper.close_file_desc(5);
+    restorer.apply_action(RedirectAction::Open(5, S("t"), Permissions::Read), &mut env).unwrap();
+    restorer.apply_action(RedirectAction::Close(5), &mut env).unwrap();
 
-    assert!(&env_original != wrapper.borrow());
-    assert_eq!(env_original, wrapper.restore());
-}
-
-#[test]
-fn test_directly_calling_backup() {
-    let env = MockFileDescEnv::new();
-    let env_original = env.clone();
-
-    let mut wrapper = ReversibleRedirectWrapper::new(env);
-    wrapper.backup(1);
-    // Note: bypassing the wrapper by mutating the inner env directly
-    wrapper.as_mut().set_file_desc(1, "a", Permissions::Read);
-
-    assert!(&env_original != wrapper.inner());
-    assert_eq!(env_original, wrapper.restore());
-}
-
-#[test]
-fn test_unwrapping_should_not_restore() {
-    let env = MockFileDescEnv::new();
-    let env_original = env.clone();
-
-    let mut wrapper = ReversibleRedirectWrapper::new(env);
-    wrapper.set_file_desc(1, "a", Permissions::Read);
-
-    let env_modified = wrapper.as_ref().clone();
-    let env = wrapper.unwrap_without_restore();
-
-    assert_eq!(env_modified, env);
     assert!(env_original != env);
-}
-
-#[test]
-fn test_dropping_wrapper_should_restore() {
-    let mut env = MockFileDescEnv::new();
-    let env_original = env.clone();
-
-    {
-        let mut wrapper = ReversibleRedirectWrapper::new(&mut env);
-        wrapper.set_file_desc(1, "a", Permissions::Read);
-        assert!(env_original != **wrapper.inner());
-        drop(wrapper);
-    }
-
+    restorer.restore(&mut env);
     assert_eq!(env_original, env);
 }

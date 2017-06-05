@@ -33,7 +33,7 @@ pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
-pub use self::reversible_redirect::ReversibleRedirectWrapper;
+pub use self::reversible_redirect::{RedirectRestorer, ReversibleRedirectWrapper};
 pub use self::string_wrapper::StringWrapper;
 pub use self::var::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 

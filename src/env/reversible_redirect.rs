@@ -1,9 +1,13 @@
+#![allow(deprecated)] // FIXME: remove once ReversibleRedirectWrapper removed
+
 use Fd;
-use io::Permissions;
-use env::FileDescEnvironment;
+use io::{FileDesc, Permissions};
+use env::{AsyncIoEnvironment, FileDescEnvironment};
+use eval::RedirectAction;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use std::io::Result as IoResult;
 
 const ILLEGAL_MOVE: &'static str = "inner value has been moved";
 
@@ -81,6 +85,7 @@ impl<T> DerefMut for MoveWrapper<T> {
 /// when `restore` is called, or the wrapper is dropped. To avoid restoring any
 /// changes, `unwrap_without_restore` can be used.
 #[derive(Debug, Clone)]
+#[deprecated(note = "deprecated in favor of `RedirectRestorer`")]
 pub struct ReversibleRedirectWrapper<E>
     where E: FileDescEnvironment,
           E::FileHandle: Clone,
@@ -245,5 +250,77 @@ impl<E> FileDescEnvironment for ReversibleRedirectWrapper<E>
     fn close_file_desc(&mut self, fd: Fd) {
         self.backup(fd);
         self.env.close_file_desc(fd);
+    }
+}
+
+/// Maintains a state of all file descriptors that have been modified so that
+/// they can be restored later.
+///
+/// > *Note*: the caller should take care that a restorer instance is always
+/// > called with the same environment for its entire lifetime. Using different
+/// > environments with the same restorer instance will undoubtedly do the wrong
+/// > thing eventually, and no guarantees can be made.
+#[derive(Debug, Clone)]
+pub struct RedirectRestorer<E: ?Sized>
+    where E: FileDescEnvironment,
+          E::FileHandle: Clone,
+{
+    /// Any overrides that have been applied (and be undone).
+    overrides: HashMap<Fd, Option<(E::FileHandle, Permissions)>>,
+}
+
+impl<E: ?Sized> RedirectRestorer<E>
+    where E: FileDescEnvironment,
+          E::FileHandle: Clone,
+{
+    /// Create a new wrapper.
+    pub fn new() -> Self {
+        RedirectRestorer {
+            overrides: HashMap::new(),
+        }
+    }
+
+    /// Create a new wrapper and reserve capacity for backing up the previous
+    /// file descriptors of the environment.
+    pub fn with_capacity(capacity: usize) -> Self {
+        RedirectRestorer {
+            overrides: HashMap::with_capacity(capacity),
+        }
+    }
+
+    /// Applies changes to a given environment after backing up as appropriate.
+    pub fn apply_action<T>(&mut self, action: RedirectAction<T>, env: &mut E) -> IoResult<()>
+        where T: From<FileDesc>,
+              E: AsyncIoEnvironment + FileDescEnvironment<FileHandle = T>,
+    {
+        match action {
+            RedirectAction::Close(fd) |
+            RedirectAction::Open(fd, _, _) |
+            RedirectAction::HereDoc(fd, _) => self.backup(fd, env),
+        }
+
+        action.apply(env)
+    }
+
+    /// Backs up the original handle of specified file descriptor.
+    ///
+    /// The original value of the file descriptor is the one the environment
+    /// held before it was passed into this wrapper. That is, if a file
+    /// descriptor is backed up multiple times, only the value before the first
+    /// call could be restored later.
+    pub fn backup(&mut self, fd: Fd, env: &mut E) {
+        self.overrides.entry(fd).or_insert_with(|| {
+            env.file_desc(fd).map(|(handle, perms)| (handle.clone(), perms))
+        });
+    }
+
+    /// Restore all file descriptors to their original state.
+    pub fn restore(self, env: &mut E) {
+        for (fd, backup) in self.overrides {
+            match backup {
+                Some((handle, perms)) => env.set_file_desc(fd, handle, perms),
+                None => env.close_file_desc(fd),
+            }
+        }
     }
 }
