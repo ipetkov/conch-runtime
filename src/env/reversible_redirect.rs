@@ -6,8 +6,9 @@ use env::{AsyncIoEnvironment, FileDescEnvironment};
 use eval::RedirectAction;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
+use std::fmt;
 use std::io::Result as IoResult;
+use std::ops::{Deref, DerefMut};
 
 const ILLEGAL_MOVE: &'static str = "inner value has been moved";
 
@@ -260,18 +261,27 @@ impl<E> FileDescEnvironment for ReversibleRedirectWrapper<E>
 /// > called with the same environment for its entire lifetime. Using different
 /// > environments with the same restorer instance will undoubtedly do the wrong
 /// > thing eventually, and no guarantees can be made.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RedirectRestorer<E: ?Sized>
     where E: FileDescEnvironment,
-          E::FileHandle: Clone,
 {
     /// Any overrides that have been applied (and be undone).
     overrides: HashMap<Fd, Option<(E::FileHandle, Permissions)>>,
 }
 
+impl<E: ?Sized> fmt::Debug for RedirectRestorer<E>
+    where E: FileDescEnvironment,
+          E::FileHandle: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("RedirectRestorer")
+            .field("overrides", &self.overrides)
+            .finish()
+    }
+}
+
 impl<E: ?Sized> RedirectRestorer<E>
     where E: FileDescEnvironment,
-          E::FileHandle: Clone,
 {
     /// Create a new wrapper.
     pub fn new() -> Self {
@@ -289,9 +299,10 @@ impl<E: ?Sized> RedirectRestorer<E>
     }
 
     /// Applies changes to a given environment after backing up as appropriate.
-    pub fn apply_action<T>(&mut self, action: RedirectAction<T>, env: &mut E) -> IoResult<()>
-        where T: From<FileDesc>,
-              E: AsyncIoEnvironment + FileDescEnvironment<FileHandle = T>,
+    pub fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E)
+        -> IoResult<()>
+        where E: AsyncIoEnvironment,
+              E::FileHandle: Clone + From<FileDesc>,
     {
         match action {
             RedirectAction::Close(fd) |
@@ -308,7 +319,9 @@ impl<E: ?Sized> RedirectRestorer<E>
     /// held before it was passed into this wrapper. That is, if a file
     /// descriptor is backed up multiple times, only the value before the first
     /// call could be restored later.
-    pub fn backup(&mut self, fd: Fd, env: &mut E) {
+    pub fn backup(&mut self, fd: Fd, env: &mut E)
+        where E::FileHandle: Clone,
+    {
         self.overrides.entry(fd).or_insert_with(|| {
             env.file_desc(fd).map(|(handle, perms)| (handle.clone(), perms))
         });

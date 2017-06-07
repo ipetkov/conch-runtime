@@ -69,6 +69,8 @@ pub use self::spawn::Spawn;
 
 /// Generic panic message for futures which have been polled after completion.
 const POLLED_TWICE: &'static str = "this future cannot be polled again after completion!";
+/// Generic panic message for futures which have been cancelled after completion.
+const CANCELLED_TWICE: &'static str = "this future cannot be cancelled again after completion!";
 
 /// Exit code for commands that exited successfully.
 pub const EXIT_SUCCESS:            ExitStatus = ExitStatus::Code(0);

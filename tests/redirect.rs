@@ -12,7 +12,7 @@ use conch_runtime::eval::{RedirectAction, RedirectEval};
 use conch_runtime::io::{FileDesc, FileDescWrapper, Permissions};
 use futures::future::poll_fn;
 use tokio_core::reactor::Core;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -20,23 +20,6 @@ use std::rc::Rc;
 #[macro_use]
 mod support;
 pub use self::support::*;
-
-#[cfg(unix)]
-const DEV_NULL: &'static str = "/dev/null";
-
-#[cfg(windows)]
-const DEV_NULL: &'static str = "NUL";
-
-fn dev_null() -> Rc<FileDesc> {
-    let fdes = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(DEV_NULL)
-        .unwrap()
-        .into();
-
-    Rc::new(fdes)
-}
 
 macro_rules! eval {
     ($redirect:expr) => { eval!(eval, $redirect,) };

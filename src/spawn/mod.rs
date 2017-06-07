@@ -13,6 +13,7 @@ mod compound;
 mod for_cmd;
 mod if_cmd;
 mod listable;
+mod local_redirections;
 mod loop_cmd;
 mod rc;
 mod sequence;
@@ -33,6 +34,7 @@ pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::if_cmd::{If, if_cmd};
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
                          PinnedFlattenedFuture, Pipeline, pipeline};
+pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirections};
 pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::sequence::{Sequence, sequence};
 pub use self::subshell::{Subshell, subshell};

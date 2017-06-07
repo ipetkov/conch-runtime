@@ -6,7 +6,7 @@ extern crate void;
 
 use self::conch_runtime::STDOUT_FILENO;
 use self::conch_runtime::error::IsFatalError;
-use self::conch_runtime::io::FileDescWrapper;
+use self::conch_runtime::io::{FileDesc, FileDescWrapper};
 use self::futures::BoxFuture;
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
@@ -14,6 +14,8 @@ use self::tempdir::TempDir;
 use self::tokio_core::reactor::Core;
 use self::void::{unreachable, Void};
 use std::borrow::Borrow;
+use std::fs::OpenOptions;
+use std::rc::Rc;
 
 // Convenience re-exports
 pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
@@ -51,6 +53,23 @@ pub fn test_cancel_impl<F: EnvFuture<E>, E: ?Sized>(mut future: F, env: &mut E) 
     let _ = future.poll(env); // Give a chance to init things
     future.cancel(env); // Cancel the operation
     drop(future);
+}
+
+#[cfg(unix)]
+pub const DEV_NULL: &'static str = "/dev/null";
+
+#[cfg(windows)]
+pub const DEV_NULL: &'static str = "NUL";
+
+pub fn dev_null() -> Rc<FileDesc> {
+    let fdes = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(DEV_NULL)
+        .unwrap()
+        .into();
+
+    Rc::new(fdes)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -420,6 +439,69 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
             MockOutCmd::Out(_) => {},
             MockOutCmd::Cmd(ref mut c) => c.cancel(env),
         };
+    }
+}
+
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug, Clone)]
+pub enum MockRedirect<T> {
+    Action(Option<RedirectAction<T>>),
+    MustCancel(MustCancel),
+    Error(Option<MockErr>),
+}
+
+pub fn mock_redirect<T>(action: RedirectAction<T>) -> MockRedirect<T> {
+    MockRedirect::Action(Some(action))
+}
+
+pub fn mock_redirect_must_cancel<T>() -> MockRedirect<T> {
+    MockRedirect::MustCancel(MustCancel::new())
+}
+
+pub fn mock_redirect_error<T>(fatal: bool) -> MockRedirect<T> {
+    MockRedirect::Error(Some(MockErr::Fatal(fatal)))
+}
+
+impl<T, E: ?Sized> RedirectEval<E> for MockRedirect<T> {
+    type Handle = T;
+    type Error = MockErr;
+    type EvalFuture = Self;
+
+    fn eval(self, _: &E) -> Self::EvalFuture {
+        self
+    }
+}
+
+impl<'a, T, E: ?Sized> RedirectEval<E> for &'a MockRedirect<T>
+    where T: Clone,
+{
+    type Handle = T;
+    type Error = MockErr;
+    type EvalFuture = MockRedirect<T>;
+
+    fn eval(self, _: &E) -> Self::EvalFuture {
+        self.clone()
+    }
+}
+
+impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
+    type Item = RedirectAction<T>;
+    type Error = MockErr;
+
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
+        match *self {
+            MockRedirect::Action(ref mut a) => Ok(Async::Ready(a.take().expect("polled twice"))),
+            MockRedirect::MustCancel(ref mut mc) => mc.poll(),
+            MockRedirect::Error(ref mut e) => Err(e.take().expect("polled twice")),
+        }
+    }
+
+    fn cancel(&mut self, _: &mut E) {
+        match *self {
+            MockRedirect::Action(_) |
+            MockRedirect::Error(_) => {},
+            MockRedirect::MustCancel(ref mut mc) => mc.cancel(),
+        }
     }
 }
 
