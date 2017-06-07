@@ -1,4 +1,4 @@
-use Spawn;
+use {EXIT_ERROR, Spawn};
 use env::{LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
@@ -51,9 +51,7 @@ impl<S, I, E> Future for Subshell<I, E>
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(err) => {
                 self.env.report_error(&err);
-                let exit = self.env.last_status();
-                debug_assert_eq!(exit.success(), false);
-                Ok(Async::Ready(ExitResult::Ready(exit)))
+                Ok(Async::Ready(ExitResult::Ready(EXIT_ERROR)))
             },
         }
     }

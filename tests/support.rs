@@ -174,7 +174,7 @@ pub fn mock_must_cancel() -> MockCmd {
     MockCmd::MustCancel(MustCancel::new())
 }
 
-impl<E: ?Sized + LastStatusEnvironment> Spawn<E> for MockCmd {
+impl<E: ?Sized> Spawn<E> for MockCmd {
     type Error = MockErr;
     type EnvFuture = Self;
     type Future = FutureResult<ExitStatus, Self::Error>;
@@ -184,7 +184,7 @@ impl<E: ?Sized + LastStatusEnvironment> Spawn<E> for MockCmd {
     }
 }
 
-impl<'a, E: ?Sized + LastStatusEnvironment> Spawn<E> for &'a MockCmd {
+impl<'a, E: ?Sized> Spawn<E> for &'a MockCmd {
     type Error = MockErr;
     type EnvFuture = MockCmd;
     type Future = FutureResult<ExitStatus, Self::Error>;
@@ -194,17 +194,14 @@ impl<'a, E: ?Sized + LastStatusEnvironment> Spawn<E> for &'a MockCmd {
     }
 }
 
-impl<E: ?Sized + LastStatusEnvironment> EnvFuture<E> for MockCmd {
+impl<E: ?Sized> EnvFuture<E> for MockCmd {
     type Item = FutureResult<ExitStatus, Self::Error>;
     type Error = MockErr;
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
         match *self {
             MockCmd::Status(s) => Ok(Async::Ready(future_result(Ok(s)))),
-            MockCmd::Error(ref e) => {
-                env.set_last_status(EXIT_ERROR);
-                Err(e.clone())
-            },
+            MockCmd::Error(ref e) => Err(e.clone()),
             MockCmd::Panic(msg) => panic!("{}", msg),
             MockCmd::MustCancel(ref mut mc) => mc.poll(),
         }
@@ -356,7 +353,7 @@ pub enum MockOutCmd {
 }
 
 impl<E: ?Sized> Spawn<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
+    where E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
           E::WriteAll: Send + 'static,
 {
@@ -370,7 +367,7 @@ impl<E: ?Sized> Spawn<E> for MockOutCmd
 }
 
 impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
+    where E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
           E::WriteAll: Send + 'static,
 {
@@ -384,7 +381,7 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
 }
 
 impl<E: ?Sized> EnvFuture<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment,
+    where E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
           E::WriteAll: Send + 'static,
 {
