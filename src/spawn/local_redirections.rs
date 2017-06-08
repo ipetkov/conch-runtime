@@ -80,13 +80,12 @@ pub fn spawn_with_local_redirections<I, S, E: ?Sized>(redirects: I, cmd: S)
 }
 
 impl<R, I, S, E: ?Sized> EnvFuture<E> for LocalRedirections<I, S, E>
-    where R: RedirectEval<E>,
-          R::Handle: From<FileDesc>,
+    where R: RedirectEval<E, Handle = E::FileHandle>,
           I: Iterator<Item = R>,
           S: Spawn<E>,
           S::Error: From<IoError> + From<R::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment<FileHandle = R::Handle>,
-          E::FileHandle: Clone,
+          E: AsyncIoEnvironment + FileDescEnvironment,
+          E::FileHandle: Clone + From<FileDesc>,
 {
     type Item = S::Future;
     type Error = S::Error;

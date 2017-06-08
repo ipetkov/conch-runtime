@@ -1,10 +1,12 @@
 extern crate conch_runtime;
+extern crate conch_parser;
 extern crate futures;
 extern crate tokio_core;
 
 use conch_runtime::{EXIT_SUCCESS, Fd, STDIN_FILENO, STDOUT_FILENO};
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::spawn::spawn_with_local_redirections;
+use conch_parser::ast::CompoundCommand;
 use futures::future::{FutureResult, ok};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
@@ -302,5 +304,58 @@ fn fds_restored_after_cmd_or_redirect_error() {
     while let Ok(Async::NotReady) = future.poll(&mut env) {
         // loop
     }
+    assert_eq!(env, env_original);
+}
+
+#[test]
+fn spawn_compound_command_smoke() {
+    let mut env = MockEnv::new();
+    let mut expected_fds = HashMap::new();
+
+    let fdes = dev_null();
+    env.set_file_desc(STDIN_FILENO, fdes.clone(), Permissions::Read);
+    expected_fds.insert(STDIN_FILENO, Some((fdes, Permissions::Read)));
+
+    let env_original = env.clone();
+    let mut redirects = vec!();
+
+    let fdes = dev_null();
+    redirects.push(mock_redirect(RedirectAction::Open(5, fdes.clone(), Permissions::ReadWrite)));
+    expected_fds.insert(5, Some((fdes, Permissions::ReadWrite))); // Last change wins
+
+    let expected_fds = expected_fds;
+    let redirects = redirects;
+
+    let var = "var";
+    let value = "value";
+
+    let cmd = MockCmd2 {
+        expected_fds: expected_fds.clone(),
+        var: var,
+        value: value,
+    };
+
+    let compound = CompoundCommand {
+        kind: cmd,
+        io: redirects,
+    };
+
+    let mut future = compound.spawn(&env);
+    loop {
+        match future.poll(&mut env) {
+            Ok(Async::Ready(f)) => {
+                f.wait().unwrap();
+                break;
+            },
+            Ok(Async::NotReady) => {},
+            Err(e) => panic!("unexpected error: {}", e),
+        }
+    }
+
+    assert!(env != env_original);
+    let env = env;
+
+    let mut env_original = env_original;
+    env_original.set_var(var, value);
     assert_eq!(env, env_original);
 }
