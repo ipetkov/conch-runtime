@@ -112,7 +112,6 @@ pub mod tests {
     use runtime::*;
 
     use std::cell::RefCell;
-    use std::fs::OpenOptions;
     use std::rc::Rc;
 
     #[derive(Debug, Default, Copy, Clone)]
@@ -156,12 +155,6 @@ pub mod tests {
             cfg.into()
         }
     }
-
-    #[cfg(unix)]
-    pub const DEV_NULL: &'static str = "/dev/null";
-
-    #[cfg(windows)]
-    pub const DEV_NULL: &'static str = "NUL";
 
     #[derive(Debug)]
     pub struct MockFn<F> {
@@ -230,10 +223,6 @@ pub mod tests {
 
     pub fn word<T: ToString>(s: T) -> MockWord {
         MockWord::Regular(s.to_string())
-    }
-
-    pub fn dev_null() -> FileDesc {
-        OpenOptions::new().read(true).write(true).open(DEV_NULL).unwrap().into()
     }
 
     //#[test]

@@ -1,7 +1,6 @@
 use {Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use io::{dup_stdio, FileDesc, Permissions};
 use env::SubEnvironment;
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result;
@@ -119,7 +118,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<T: Clone + Borrow<FileDesc>> FileDescEnvironment for $Env<T> {
+        impl<T: Clone + Eq> FileDescEnvironment for $Env<T> {
             type FileHandle = T;
 
             fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
@@ -128,8 +127,8 @@ macro_rules! impl_env {
 
             fn set_file_desc(&mut self, fd: Fd, handle: Self::FileHandle, perms: Permissions) {
                 let needs_insert = {
-                    let existing = self.fds.get(&fd).map(|&(ref handle, perms)| (handle.borrow(), perms));
-                    existing != Some((handle.borrow(), perms))
+                    let existing = self.fds.get(&fd).map(|&(ref handle, perms)| (handle, perms));
+                    existing != Some((&handle, perms))
                 };
 
                 if needs_insert {
@@ -169,27 +168,22 @@ mod tests {
     use {RefCounted, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
     use io::Permissions;
     use env::SubEnvironment;
-    use runtime::tests::dev_null;
-    use std::rc::Rc;
     use super::*;
 
     #[test]
     fn test_set_get_and_close_file_desc() {
         let fd = STDIN_FILENO;
         let perms = Permissions::ReadWrite;
-        let file_desc = Rc::new(dev_null());
+        let file_desc = "file_desc";
 
         let mut env = FileDescEnv::new();
         assert_eq!(env.file_desc(fd), None);
 
-        env.set_file_desc(fd, file_desc.clone(), perms);
+        env.set_file_desc(fd, file_desc, perms);
         assert_eq!(env.file_desc(fd), Some((&file_desc, perms)));
 
         env.close_file_desc(fd);
         assert_eq!(env.file_desc(fd), None);
-
-        // Closing a file should drop any copies the env had
-        Rc::try_unwrap(file_desc).expect("unexpected reference to file_desc remains");
     }
 
     #[test]
@@ -197,13 +191,13 @@ mod tests {
         let fd = STDIN_FILENO;
         let fd_not_set = 42;
         let perms = Permissions::ReadWrite;
-        let file_desc = Rc::new(dev_null());
+        let file_desc = "file_desc";
 
-        let env = FileDescEnv::with_fds(vec!((fd, file_desc.clone(), perms)));
+        let env = FileDescEnv::with_fds(vec!((fd, file_desc, perms)));
         assert_eq!(env.file_desc(fd), Some((&file_desc, perms)));
 
         let mut env = env.sub_env();
-        env.set_file_desc(fd, file_desc.clone(), perms);
+        env.set_file_desc(fd, file_desc, perms);
         if env.fds.get_mut().is_some() {
             panic!("needles clone!");
         }
@@ -222,22 +216,22 @@ mod tests {
         let fd_close_in_child = STDERR_FILENO;
 
         let perms = Permissions::Write;
-        let fdes = Rc::new(dev_null());
-        let fdes_close_in_child = Rc::new(dev_null());
+        let fdes = "fdes";
+        let fdes_close_in_child = "fdes_close_in_child";
 
         let parent = FileDescEnv::with_fds(vec!(
-            (fd, fdes.clone(), perms),
-            (fd_close_in_child, fdes_close_in_child.clone(), perms),
+            (fd, fdes, perms),
+            (fd_close_in_child, fdes_close_in_child, perms),
         ));
 
         assert_eq!(parent.file_desc(fd_open_in_child), None);
 
         {
             let child_perms = Permissions::Read;
-            let fdes_open_in_child = Rc::new(dev_null());
+            let fdes_open_in_child = "fdes_open_in_child";
             let mut child = parent.sub_env();
-            child.set_file_desc(fd, fdes_open_in_child.clone(), child_perms);
-            child.set_file_desc(fd_open_in_child, fdes_open_in_child.clone(), child_perms);
+            child.set_file_desc(fd, fdes_open_in_child, child_perms);
+            child.set_file_desc(fd_open_in_child, fdes_open_in_child, child_perms);
             child.close_file_desc(fd_close_in_child);
 
             assert_eq!(child.file_desc(fd), Some((&fdes_open_in_child, child_perms)));
