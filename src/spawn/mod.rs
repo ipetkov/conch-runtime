@@ -135,7 +135,19 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
 /// We can apparently point the compiler in the right direction by adding a
 /// marker trait only when `Spawn` is implemented directly on a reference,
 /// allowing it to avoid the first "owned" implementation on the same type.
-pub trait SpawnRef<E: ?Sized>: Spawn<E> {
+pub trait SpawnRef<E: ?Sized> {
+    /// The future that represents spawning the command.
+    ///
+    /// It represents all computations that may need an environment to
+    /// progress further.
+    type EnvFuture: EnvFuture<E, Item = Self::Future, Error = Self::Error>;
+    /// The future that represents the exit status of a fully bootstrapped
+    /// command, which no longer requires an environment to be driven to completion.
+    type Future: Future<Item = ExitStatus, Error = Self::Error>;
+    /// The type of error that this future will resolve with if it fails in a
+    /// normal fashion.
+    type Error;
+
     /// Identical to `Spawn::spawn` but does not move `self`.
     fn spawn_ref(&self, env: &E) -> Self::EnvFuture;
 }
@@ -147,6 +159,10 @@ impl<'a, T> Ref for &'a T {}
 impl<S, E: ?Sized> SpawnRef<E> for S
     where S: Spawn<E> + Ref,
 {
+    type EnvFuture = S::EnvFuture;
+    type Future = S::Future;
+    type Error = S::Error;
+
     fn spawn_ref(&self, env: &E) -> Self::EnvFuture {
         (*self).spawn(env)
     }

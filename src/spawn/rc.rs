@@ -87,6 +87,10 @@ macro_rules! impl_spawn {
             where T: 'static + SpawnBoxed<E>,
                   E: 'static,
         {
+            type EnvFuture = BoxSpawnEnvFuture<'static, E, Self::Error>;
+            type Future = BoxStatusFuture<'static, Self::Error>;
+            type Error = T::Error;
+
             fn spawn_ref(&self, env: &E) -> Self::EnvFuture {
                 self.spawn(env)
             }
