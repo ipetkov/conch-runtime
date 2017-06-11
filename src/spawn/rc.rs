@@ -1,19 +1,16 @@
 use {ExitStatus, POLLED_TWICE, Spawn};
 use future::{Async, EnvFuture, Poll};
-use future_ext::EnvFutureExt;
 use futures::Future;
 use self::rental_rc::OwnedSpawnRefRc;
 use self::rental_arc::OwnedSpawnRefArc;
-use spawn::SpawnRef;
+use spawn::{BoxSpawnEnvFuture, BoxStatusFuture, SpawnBoxed, SpawnRef};
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
-type BoxedFuture<'a, ERR> = Box<'a + Future<Item = ExitStatus, Error = ERR>>;
-
 pub enum State<'a, ERR, E: ?Sized> {
-    EnvFuture(Box<'a + EnvFuture<E, Item = BoxedFuture<'a, ERR>, Error = ERR>>),
-    Future(BoxedFuture<'a, ERR>),
+    EnvFuture(BoxSpawnEnvFuture<'a, E, ERR>),
+    Future(BoxStatusFuture<'a, ERR>),
 }
 
 impl<'a, ERR, E: ?Sized> fmt::Debug for State<'a, ERR, E> {
@@ -40,60 +37,54 @@ macro_rules! impl_spawn {
             #[allow(unused_qualifications)]
             pub mod $rental_mod_name {
                 use super::{State, $Rc};
+                use spawn::SpawnBoxed;
 
-                // It's pretty unfortunate that the error and environment types have to be
+                // It's pretty unfortunate that the environment type has to be
                 // 'static which is a current limitation in the `rental` crate. I toyed with
-                // the idea of erasing the error/environment types by passing around Box<Any>
-                // and downcasting them back, but unfortunately Any requires 'static bounds
+                // the idea of erasing the environment type by passing around Box<Any>
+                // and downcasting it back, but unfortunately Any requires 'static bounds
                 // as well so we're a bit out of luck here for now...
                 #[rental]
-                pub struct $OwnedSpawnRef<T: 'static, ERR: 'static, E: 'static + ?Sized>
+                pub struct $OwnedSpawnRef<T: 'static + SpawnBoxed<E> + ?Sized, E: 'static + ?Sized>
                 {
                     spawnee: $Rc<T>,
-                    state: State<'spawnee, ERR, E>,
+                    state: State<'spawnee, T::Error, E>,
                 }
             }
         }
 
-        impl<T, ERR, E: ?Sized> Spawn<E> for $Rc<T>
-            where T: 'static,
-                  for<'a> &'a T: Spawn<E, Error = ERR>,
-                  ERR: 'static,
+        impl<T: ?Sized, E: ?Sized> Spawn<E> for $Rc<T>
+            where T: 'static + SpawnBoxed<E>,
                   E: 'static,
         {
-            type EnvFuture = Box<'static + EnvFuture<E, Item = Self::Future, Error = Self::Error>>;
-            type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
-            type Error = ERR;
+            type EnvFuture = BoxSpawnEnvFuture<'static, E, Self::Error>;
+            type Future = BoxStatusFuture<'static, Self::Error>;
+            type Error = T::Error;
 
             fn spawn(self, env: &E) -> Self::EnvFuture {
                 let future = $OwnedSpawnRef::new(self, |spawnee| {
-                    let ef = spawnee.spawn(env).boxed_result();
-                    State::EnvFuture(Box::from(ef))
+                    State::EnvFuture(spawnee.spawn_boxed(env))
                 });
 
                 Box::from(Some(future))
             }
         }
 
-        impl<'b, T, ERR, E: ?Sized> Spawn<E> for &'b $Rc<T>
-            where T: 'static,
-                  for<'a> &'a T: Spawn<E, Error = ERR>,
-                  ERR: 'static,
+        impl<'b, T: ?Sized, E: ?Sized> Spawn<E> for &'b $Rc<T>
+            where T: 'static + SpawnBoxed<E>,
                   E: 'static,
         {
-            type EnvFuture = Box<'static + EnvFuture<E, Item = Self::Future, Error = Self::Error>>;
-            type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
-            type Error = ERR;
+            type EnvFuture = BoxSpawnEnvFuture<'static, E, Self::Error>;
+            type Future = BoxStatusFuture<'static, Self::Error>;
+            type Error = T::Error;
 
             fn spawn(self, env: &E) -> Self::EnvFuture {
                 self.clone().spawn(env)
             }
         }
 
-        impl<T, ERR, E: ?Sized> SpawnRef<E> for $Rc<T>
-            where T: 'static,
-                  for<'a> &'a T: Spawn<E, Error = ERR>,
-                  ERR: 'static,
+        impl<T: ?Sized, E: ?Sized> SpawnRef<E> for $Rc<T>
+            where T: 'static + SpawnBoxed<E>,
                   E: 'static,
         {
             fn spawn_ref(&self, env: &E) -> Self::EnvFuture {
@@ -101,14 +92,12 @@ macro_rules! impl_spawn {
             }
         }
 
-        impl<T, ERR, E: ?Sized> EnvFuture<E> for Option<$OwnedSpawnRef<T, ERR, E>>
-            where T: 'static,
-                  for<'a> &'a T: Spawn<E, Error = ERR>,
-                  ERR: 'static,
+        impl<T: ?Sized, E: ?Sized> EnvFuture<E> for Option<$OwnedSpawnRef<T, E>>
+            where T: 'static + SpawnBoxed<E>,
                   E: 'static,
         {
-            type Item = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
-            type Error = ERR;
+            type Item = BoxStatusFuture<'static, Self::Error>;
+            type Error = T::Error;
 
             fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
                 let ret = self.as_mut().expect(POLLED_TWICE).rent_mut(|state| {
@@ -134,13 +123,12 @@ macro_rules! impl_spawn {
             }
         }
 
-        impl<T, ERR, E: ?Sized> Future for $OwnedSpawnRef<T, ERR, E>
-            where T: 'static,
-                  ERR: 'static,
+        impl<T: ?Sized, E: ?Sized> Future for $OwnedSpawnRef<T, E>
+            where T: 'static + SpawnBoxed<E>,
                   E: 'static,
         {
             type Item = ExitStatus;
-            type Error = ERR;
+            type Error = T::Error;
 
             fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
                 self.rent_mut(|state| match *state {

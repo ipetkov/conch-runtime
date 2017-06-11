@@ -1,4 +1,3 @@
-use {ExitStatus, Spawn};
 use error::IsFatalError;
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
           LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment,
@@ -7,9 +6,9 @@ use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
 use io::FileDesc;
-use spawn::{ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd,
+use spawn::{BoxStatusFuture, ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd,
             LocalRedirections, Loop, loop_cmd, PatternBodyPair, Sequence, sequence,
-            spawn_with_local_redirections, SpawnRef, Subshell, subshell};
+            spawn_with_local_redirections, Spawn, SpawnBoxed, SpawnRef, Subshell, subshell};
 use std::io::Error as IoError;
 use std::fmt;
 use std::slice::Iter;
@@ -131,9 +130,8 @@ impl<W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
     where W: WordEval<E>,
           W::Error: IsFatalError,
           W::EvalResult: Into<E::Var>,
-          S: 'static + Spawn<E>,
-          S::Error: 'static + From<W::Error> + IsFatalError,
-          for<'a> &'a S: SpawnRef<E, Error = S::Error>,
+          S: 'static + Spawn<E> + SpawnBoxed<E, Error = <S as Spawn<E>>::Error>,
+          <S as Spawn<E>>::Error: From<W::Error> + IsFatalError,
           E: 'static + ArgumentsEnvironment
             + LastStatusEnvironment
             + ReportErrorEnvironment
@@ -143,12 +141,8 @@ impl<W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
         E::VarName: Clone,
 {
     type EnvFuture = CompoundCommandKindOwnedFuture<S, W, E>;
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
-    type Future = ExitResult<Either<
-        S::Future,
-        Box<'static + Future<Item = ExitStatus, Error = Self::Error>>>
-    >;
-    type Error = S::Error;
+    type Future = ExitResult<Either<S::Future, BoxStatusFuture<'static, Self::Error>>>;
+    type Error = <S as Spawn<E>>::Error;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
         let state = match self {

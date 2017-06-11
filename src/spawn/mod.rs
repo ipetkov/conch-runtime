@@ -152,6 +152,37 @@ impl<S, E: ?Sized> SpawnRef<E> for S
     }
 }
 
+/// Type alias for boxed futures that represent spawning a command.
+pub type BoxSpawnEnvFuture<'a, E, ERR> = Box<'a + EnvFuture<
+    E,
+    Item = BoxStatusFuture<'a, ERR>,
+    Error = ERR
+>>;
+
+/// Type alias for a boxed future which will resolve to an `ExitStatus`.
+pub type BoxStatusFuture<'a, ERR> = Box<'a + Future<Item = ExitStatus, Error = ERR>>;
+
+/// A trait for spawning commands (without moving ownership) into boxed futures.
+/// Largely useful for having spawnable trait objects.
+pub trait SpawnBoxed<E: ?Sized> {
+    /// The type of error that this future will resolve with if it fails in a
+    /// normal fashion.
+    type Error;
+
+    /// Identical to `Spawn::spawn` but does not move `self` and returns boxed futures.
+    fn spawn_boxed<'a>(&'a self, env: &E) -> BoxSpawnEnvFuture<'a, E, Self::Error> where E: 'a;
+}
+
+impl<S, ERR, E: ?Sized> SpawnBoxed<E> for S
+    where for<'a> &'a S: Spawn<E, Error = ERR>,
+{
+    type Error = ERR;
+
+    fn spawn_boxed<'a>(&'a self, env: &E) -> BoxSpawnEnvFuture<'a, E, Self::Error> where E: 'a {
+        Box::from(self.spawn(env).boxed_result())
+    }
+}
+
 /// Represents either a ready `ExitStatus` or a future that will resolve to one.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
