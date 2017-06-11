@@ -107,14 +107,15 @@ fn run_simple_command<V, W, R, E: ?Sized>(cmd: &SimpleCommand<V, W, R>, env: &mu
 
         // FIXME: look up aliases
 
-        // According to POSIX, functions preceed the build-in utilities, but bash and zsh
-        // treat functions with first priority, so we will follow this precendent.
-        if env.has_function(&cmd) {
-            return match env.run_function(&cmd, args) {
-                Some(ret) => ret.map(CommandPrep::Finished),
-                None => Err(CommandError::NotFound(cmd.into_owned()).into()),
-            };
-        }
+        // NB: deprecated
+        //// According to POSIX, functions preceed the build-in utilities, but bash and zsh
+        //// treat functions with first priority, so we will follow this precendent.
+        //if env.has_function(&cmd) {
+        //    return match env.run_function(&cmd, args) {
+        //        Some(ret) => ret.map(CommandPrep::Finished),
+        //        None => Err(CommandError::NotFound(cmd.into_owned()).into()),
+        //    };
+        //}
 
         // All local redirects here will only be used for spawning this specific command.
         // At the end of the call the local redirects will be dropped by the environment,

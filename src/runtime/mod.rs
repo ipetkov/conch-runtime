@@ -22,6 +22,7 @@ pub mod old_eval;
 pub type Result<T> = result::Result<T, RuntimeError>;
 
 /// An interface for anything that can be executed within an environment context.
+#[deprecated(note = "Use `Spawn` instead")]
 pub trait Run<E: ?Sized> {
     /// Executes `self` in the provided environment.
     fn run(&self, env: &mut E) -> Result<ExitStatus>;
@@ -78,6 +79,7 @@ impl<E: ?Sized, N, S, C, F> Run<E> for PipeableCommand<N, S, C, F>
 
 /// Adds a number of local redirects to the specified environment, runs the provided closure,
 /// then removes the local redirects and restores the previous file descriptors before returning.
+#[deprecated]
 pub fn run_with_local_redirections<'a, I, R: ?Sized, F, E: ?Sized, T>(env: &mut E, redirects: I, closure: F)
     -> Result<T>
     where I: IntoIterator<Item = &'a R>,
@@ -103,164 +105,53 @@ pub fn run_with_local_redirections<'a, I, R: ?Sized, F, E: ?Sized, T>(env: &mut 
     closure(env_wrapper.as_mut())
 }
 
-#[cfg(test)]
-pub mod tests {
-    use env::*;
-    use error::*;
-    use io::FileDesc;
-    use runtime::old_eval::{Fields, WordEval, WordEvalConfig};
-    use runtime::*;
-
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    #[derive(Debug, Default, Copy, Clone)]
-    pub struct DummySubenv;
-    impl SubEnvironment for DummySubenv {
-        fn sub_env(&self) -> Self {
-            *self
-        }
-    }
-
-    pub type DefaultEnvConfig<T> = EnvConfig<
-        ArgsEnv<T>,
-        DummySubenv,
-        FileDescEnv<Rc<FileDesc>>,
-        LastStatusEnv,
-        VarEnv<T, T>,
-        T
-    >;
-
-    pub type DefaultEnv<T> = Env<
-        ArgsEnv<T>,
-        DummySubenv,
-        FileDescEnv<Rc<FileDesc>>,
-        LastStatusEnv,
-        VarEnv<T, T>,
-        T
-    >;
-
-    impl<T> DefaultEnv<T> where T: Eq + ::std::hash::Hash + From<String> {
-        pub fn new_test_env() -> Self {
-            let cfg = EnvConfig {
-                interactive: false,
-                args_env: Default::default(),
-                async_io_env: DummySubenv,
-                file_desc_env: Default::default(),
-                last_status_env: Default::default(),
-                var_env: Default::default(),
-                fn_name: ::std::marker::PhantomData,
-            };
-
-            cfg.into()
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct MockFn<F> {
-        callback: RefCell<F>,
-    }
-
-    impl<F> MockFn<F> {
-        pub fn new<E>(f: F) -> Rc<Self> where F: FnMut(&mut E) -> Result<ExitStatus> {
-            Rc::new(MockFn { callback: RefCell::new(f) })
-        }
-    }
-
-    impl<E, F> Run<E> for MockFn<F> where F: FnMut(&mut E) -> Result<ExitStatus> {
-        fn run(&self, env: &mut E) -> Result<ExitStatus> {
-            (&mut *self.callback.borrow_mut())(env)
-        }
-    }
-
-    #[derive(Clone)]
-    #[allow(missing_debug_implementations)]
-    pub enum MockWord {
-        Regular(String),
-        Multiple(Vec<String>),
-        Error(Rc<Fn() -> RuntimeError + 'static>),
-    }
-
-    impl<E: ?Sized + VariableEnvironment> WordEval<E> for MockWord
-        where E::Var: StringWrapper,
-    {
-        type EvalResult = E::Var;
-        fn eval_with_config(&self, _: &mut E, _: WordEvalConfig) -> Result<Fields<E::Var>> {
-            match *self {
-                MockWord::Regular(ref s) => {
-                    let s: E::Var = s.clone().into();
-                    Ok(s.into())
-                },
-                MockWord::Multiple(ref v) => {
-                    let v: Vec<E::Var> = v.iter()
-                        .cloned()
-                        .map(Into::into)
-                        .collect();
-                    Ok(v.into())
-                },
-                MockWord::Error(ref e) => Err(e()),
-            }
-        }
-    }
-
-    impl<'a> From<&'a str> for MockWord {
-        fn from(s: &'a str) -> Self {
-            MockWord::Regular(s.to_owned())
-        }
-    }
-
-    impl From<String> for MockWord {
-        fn from(s: String) -> Self {
-            MockWord::Regular(s)
-        }
-    }
-
-    impl<F: Fn() -> RuntimeError + 'static> From<F> for MockWord {
-        fn from(f: F) -> Self {
-            MockWord::Error(Rc::new(f))
-        }
-    }
-
-    pub fn word<T: ToString>(s: T) -> MockWord {
-        MockWord::Regular(s.to_string())
-    }
-
-    //#[test]
-    //fn test_run_pipeable_command_error_handling() {
-    //    use syntax::ast::GuardBodyPair;
-
-    //    test_error_handling(false, |cmd, mut env| {
-    //        let pipeable: PipeableCommand = Simple(Box::new(cmd));
-    //        pipeable.run(&mut env)
-    //    }, None);
-
-    //    // Swallow errors because underlying command body will swallow errors
-    //    test_error_handling(true, |cmd, mut env| {
-    //        let pipeable: PipeableCommand = Compound(Box::new(CompoundCommand {
-    //            kind: If {
-    //                conditionals: vec!(GuardBodyPair {
-    //                    guard: vec!(true_cmd()),
-    //                    body: vec!(cmd_from_simple(cmd)),
-    //                }),
-    //                else_branch: None,
-    //            },
-    //            io: vec!()
-    //        }));
-    //        pipeable.run(&mut env)
-    //    }, None);
-
-    //    // NB FunctionDef never returns any errors, untestable at the moment
-    //}
-
-    //#[test]
-    //fn test_run_pipeable_command_function_declaration() {
-    //    let fn_name = "function_name";
-    //    let mut env = Env::new_test_env();
-    //    let func: PipeableCommand = FunctionDef(fn_name.to_owned(), Rc::new(CompoundCommand {
-    //        kind: Brace(vec!(false_cmd())),
-    //        io: vec!(),
-    //    }));
-    //    assert_eq!(func.run(&mut env), Ok(EXIT_SUCCESS));
-    //    assert_eq!(cmd!(fn_name).run(&mut env), Ok(ExitStatus::Code(1)));
-    //}
-}
+//#[cfg(test)]
+//pub mod tests {
+//    use env::*;
+//    use error::*;
+//    use io::FileDesc;
+//    use runtime::old_eval::{Fields, WordEval, WordEvalConfig};
+//    use runtime::*;
+//
+//    use std::cell::RefCell;
+//    use std::rc::Rc;
+//
+//    //#[test]
+//    //fn test_run_pipeable_command_error_handling() {
+//    //    use syntax::ast::GuardBodyPair;
+//
+//    //    test_error_handling(false, |cmd, mut env| {
+//    //        let pipeable: PipeableCommand = Simple(Box::new(cmd));
+//    //        pipeable.run(&mut env)
+//    //    }, None);
+//
+//    //    // Swallow errors because underlying command body will swallow errors
+//    //    test_error_handling(true, |cmd, mut env| {
+//    //        let pipeable: PipeableCommand = Compound(Box::new(CompoundCommand {
+//    //            kind: If {
+//    //                conditionals: vec!(GuardBodyPair {
+//    //                    guard: vec!(true_cmd()),
+//    //                    body: vec!(cmd_from_simple(cmd)),
+//    //                }),
+//    //                else_branch: None,
+//    //            },
+//    //            io: vec!()
+//    //        }));
+//    //        pipeable.run(&mut env)
+//    //    }, None);
+//
+//    //    // NB FunctionDef never returns any errors, untestable at the moment
+//    //}
+//
+//    //#[test]
+//    //fn test_run_pipeable_command_function_declaration() {
+//    //    let fn_name = "function_name";
+//    //    let mut env = Env::new_test_env();
+//    //    let func: PipeableCommand = FunctionDef(fn_name.to_owned(), Rc::new(CompoundCommand {
+//    //        kind: Brace(vec!(false_cmd())),
+//    //        io: vec!(),
+//    //    }));
+//    //    assert_eq!(func.run(&mut env), Ok(EXIT_SUCCESS));
+//    //    assert_eq!(cmd!(fn_name).run(&mut env), Ok(ExitStatus::Code(1)));
+//    //}
+//}
