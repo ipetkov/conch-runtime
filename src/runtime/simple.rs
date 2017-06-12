@@ -7,8 +7,7 @@ use {EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
      ExitStatus, Fd, Result, Run, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
      run_with_local_redirections};
 use error::{CommandError, RuntimeError};
-use env::{FileDescEnvironment, FunctionEnvironment, FunctionExecutorEnvironment,
-                   LastStatusEnvironment, StringWrapper, VariableEnvironment};
+use env::{FileDescEnvironment, LastStatusEnvironment, StringWrapper, VariableEnvironment};
 use io::FileDescWrapper;
 use runtime::old_eval::{RedirectEval, WordEval};
 
@@ -38,7 +37,7 @@ impl<V, W, R, E: ?Sized> Run<E> for SimpleCommand<V, W, R>
           W: WordEval<E>,
           R: RedirectEval<E>,
           E: FileDescEnvironment
-              + FunctionExecutorEnvironment<FnName = W::EvalResult>
+              //+ FunctionExecutorEnvironment<FnName = W::EvalResult>
               + LastStatusEnvironment
               + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
@@ -64,7 +63,7 @@ fn run_simple_command<V, W, R, E: ?Sized>(cmd: &SimpleCommand<V, W, R>, env: &mu
           W: WordEval<E>,
           R: RedirectEval<E>,
           E: FileDescEnvironment
-              + FunctionExecutorEnvironment<FnName = W::EvalResult>
+              //+ FunctionExecutorEnvironment<FnName = W::EvalResult>
               + VariableEnvironment<Var = W::EvalResult>,
           E::FileHandle: FileDescWrapper,
           E::VarName: StringWrapper + From<V>,
