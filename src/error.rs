@@ -1,50 +1,13 @@
 //! A module defining the various kinds of errors that may arise
 //! while executing commands.
 
-use ExitStatus;
 use io::Permissions;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
 use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use super::Fd;
 use void;
-
-/// A macro that accepts a `Result<ExitStatus, _>` and attempts
-/// to unwrap it much like `try!`. If the result is a "fatal" error the macro
-/// immediately returns from the enclosing function. Otherwise, the error is
-/// reported via `FileDescEnvironment::report_error`, and the environment's
-/// last status is returned.
-///
-/// A `RuntimeError::Expansion` is considered fatal, since expansion errors should
-/// result in the exit of a non-interactive shell according to the POSIX standard.
-#[macro_export]
-#[deprecated]
-macro_rules! try_and_swallow_non_fatal {
-    ($result:expr, $env:expr) => {
-        try!($crate::error::try_and_swallow_non_fatal_impl($result, $env))
-    }
-}
-
-#[doc(hidden)]
-#[deprecated]
-pub fn try_and_swallow_non_fatal_impl<E: ?Sized, ER>(result: Result<ExitStatus, ER>, env: &mut E)
-    -> Result<ExitStatus, ER>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
-          ER: IsFatalError,
-{
-    result.or_else(|err| if err.is_fatal() {
-        Err(err)
-    } else {
-        // Whoever returned the error should have been responsible
-        // enough to set the last status as appropriate.
-        env.report_error(&err);
-        let exit = env.last_status();
-        debug_assert_eq!(exit.success(), false);
-        Ok(exit)
-    })
-}
 
 /// Determines whether an error should be treated as "fatal".
 ///
