@@ -32,19 +32,6 @@ extern crate tokio_core;
 extern crate tokio_io;
 extern crate void;
 
-/// Poor man's mktmp. A macro for creating "unique" test directories.
-#[cfg(test)]
-macro_rules! mktmp {
-    () => {{
-        let path = concat!("test-", module_path!(), "-", line!(), "-", column!());
-        if cfg!(windows) {
-            TempDir::new(&path.replace(":", "_")).unwrap()
-        } else {
-            TempDir::new(path).unwrap()
-        }
-    }};
-}
-
 #[macro_use]
 pub mod error;
 pub mod env;
