@@ -2,15 +2,12 @@
 
 #![allow(deprecated)]
 
-use {ExitStatus, EXIT_SUCCESS};
-use env::{FileDescEnvironment, FunctionEnvironment, LastStatusEnvironment};
+use ExitStatus;
+use env::FileDescEnvironment;
 use error::RuntimeError;
-use std::convert::{From, Into};
 use std::iter::IntoIterator;
-use std::rc::Rc;
 use std::result;
 
-use syntax::ast::PipeableCommand;
 use runtime::old_eval::RedirectEval;
 
 mod simple;
@@ -26,55 +23,6 @@ pub type Result<T> = result::Result<T, RuntimeError>;
 pub trait Run<E: ?Sized> {
     /// Executes `self` in the provided environment.
     fn run(&self, env: &mut E) -> Result<ExitStatus>;
-}
-
-impl<'a, E: ?Sized, T: ?Sized> Run<E> for &'a T where T: Run<E> {
-    fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        (**self).run(env)
-    }
-}
-
-impl<E: ?Sized, T: ?Sized> Run<E> for Box<T> where T: Run<E> {
-    fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        (**self).run(env)
-    }
-}
-
-impl<E: ?Sized, T: ?Sized> Run<E> for Rc<T> where T: Run<E> {
-    fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        (**self).run(env)
-    }
-}
-
-impl<E: ?Sized, T: ?Sized> Run<E> for ::std::sync::Arc<T> where T: Run<E> {
-    fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        (**self).run(env)
-    }
-}
-
-impl<E: ?Sized, N, S, C, F> Run<E> for PipeableCommand<N, S, C, F>
-    where E: FunctionEnvironment + LastStatusEnvironment,
-          E::Fn: From<Rc<Run<E>>>,
-          N: Clone + Into<E::FnName>,
-          S: Run<E>,
-          C: Run<E>,
-          F: Clone + Run<E> + 'static,
-
-{
-    fn run(&self, env: &mut E) -> Result<ExitStatus> {
-        match *self {
-            PipeableCommand::Simple(ref cmd) => cmd.run(env),
-            PipeableCommand::Compound(ref cmd) => cmd.run(env),
-            PipeableCommand::FunctionDef(ref name, ref cmd) => {
-                let cmd: Rc<Run<E>> = Rc::new(cmd.clone());
-                env.set_function(name.clone().into(), cmd.into());
-
-                let exit = EXIT_SUCCESS;
-                env.set_last_status(exit);
-                Ok(exit)
-            },
-        }
-    }
 }
 
 /// Adds a number of local redirects to the specified environment, runs the provided closure,
@@ -104,54 +52,3 @@ pub fn run_with_local_redirections<'a, I, R: ?Sized, F, E: ?Sized, T>(env: &mut 
 
     closure(env_wrapper.as_mut())
 }
-
-//#[cfg(test)]
-//pub mod tests {
-//    use env::*;
-//    use error::*;
-//    use io::FileDesc;
-//    use runtime::old_eval::{Fields, WordEval, WordEvalConfig};
-//    use runtime::*;
-//
-//    use std::cell::RefCell;
-//    use std::rc::Rc;
-//
-//    //#[test]
-//    //fn test_run_pipeable_command_error_handling() {
-//    //    use syntax::ast::GuardBodyPair;
-//
-//    //    test_error_handling(false, |cmd, mut env| {
-//    //        let pipeable: PipeableCommand = Simple(Box::new(cmd));
-//    //        pipeable.run(&mut env)
-//    //    }, None);
-//
-//    //    // Swallow errors because underlying command body will swallow errors
-//    //    test_error_handling(true, |cmd, mut env| {
-//    //        let pipeable: PipeableCommand = Compound(Box::new(CompoundCommand {
-//    //            kind: If {
-//    //                conditionals: vec!(GuardBodyPair {
-//    //                    guard: vec!(true_cmd()),
-//    //                    body: vec!(cmd_from_simple(cmd)),
-//    //                }),
-//    //                else_branch: None,
-//    //            },
-//    //            io: vec!()
-//    //        }));
-//    //        pipeable.run(&mut env)
-//    //    }, None);
-//
-//    //    // NB FunctionDef never returns any errors, untestable at the moment
-//    //}
-//
-//    //#[test]
-//    //fn test_run_pipeable_command_function_declaration() {
-//    //    let fn_name = "function_name";
-//    //    let mut env = Env::new_test_env();
-//    //    let func: PipeableCommand = FunctionDef(fn_name.to_owned(), Rc::new(CompoundCommand {
-//    //        kind: Brace(vec!(false_cmd())),
-//    //        io: vec!(),
-//    //    }));
-//    //    assert_eq!(func.run(&mut env), Ok(EXIT_SUCCESS));
-//    //    assert_eq!(cmd!(fn_name).run(&mut env), Ok(ExitStatus::Code(1)));
-//    //}
-//}
