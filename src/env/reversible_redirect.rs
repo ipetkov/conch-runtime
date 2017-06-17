@@ -32,6 +32,14 @@ impl<E: ?Sized> fmt::Debug for RedirectRestorer<E>
     }
 }
 
+impl<E: ?Sized> Default for RedirectRestorer<E>
+    where E: FileDescEnvironment,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<E: ?Sized> RedirectRestorer<E>
     where E: FileDescEnvironment,
 {
