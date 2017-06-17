@@ -91,7 +91,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
             // get a chance to make some progress too.
             num_tries += 1;
             if num_tries > 20 {
-                task::park().unpark();
+                task::current().notify();
                 return Ok(Async::NotReady);
             }
 
