@@ -1,7 +1,7 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
-use {ExitStatus, Fd, Result, STDERR_FILENO};
+use {ExitStatus, Fd, STDERR_FILENO};
 use error::RuntimeError;
 use io::{FileDesc, Permissions};
 use self::atomic::ArgsEnv as AtomicArgsEnv;
@@ -88,20 +88,6 @@ pub trait SubEnvironment: Sized {
     /// Create a new sub-environment, which starts out idential to its parent,
     /// but any changes on the new environment will not be reflected on the parent.
     fn sub_env(&self) -> Self;
-}
-
-/// An interface for executing registered shell functions.
-#[deprecated]
-pub trait FunctionExecutorEnvironment: FunctionEnvironment {
-    /// Attempt to execute a function with a set of arguments if it has been defined.
-    #[deprecated]
-    fn run_function(&mut self, name: &Self::FnName, args: Vec<Self::FnName>) -> Option<Result<ExitStatus>>;
-}
-
-impl<'a, T: ?Sized + FunctionExecutorEnvironment> FunctionExecutorEnvironment for &'a mut T {
-    fn run_function(&mut self, name: &Self::FnName, args: Vec<Self::FnName>) -> Option<Result<ExitStatus>> {
-        (**self).run_function(name, args)
-    }
 }
 
 /// A struct for configuring a new `Env` instance.
@@ -546,25 +532,6 @@ macro_rules! impl_env {
                 self.var_env.unset_var(name)
             }
         }
-
-        // FIXME: reimplement with Spawn
-        //impl<A, IO, FD, L, V, N, ERR> FunctionExecutorEnvironment for $Env<A, IO, FD, L, V, N, ERR>
-        //    where
-        //          A: ArgumentsEnvironment<Arg = N> + SetArgumentsEnvironment,
-        //          A::Args: From<Vec<N>>,
-        //          N: Hash + Eq + Clone,
-        //{
-        //    fn run_function(&mut self, name: &N, args: Vec<N>) -> Option<Result<ExitStatus>> {
-        //        self.function(name)
-        //            .cloned() // Clone to release the borrow of `self`
-        //            .map(|func| {
-        //                let old_args = self.set_args(args.into());
-        //                let ret = func.run(self);
-        //                self.set_args(old_args);
-        //                ret
-        //            })
-        //    }
-        //}
     }
 }
 

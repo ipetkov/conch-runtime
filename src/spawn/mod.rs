@@ -11,6 +11,7 @@ mod case;
 mod command;
 mod compound;
 mod for_cmd;
+mod func_exec;
 mod if_cmd;
 mod listable;
 mod local_redirections;
@@ -32,6 +33,7 @@ pub use self::case::{Case, case, PatternBodyPair};
 pub use self::command::CommandEnvFuture;
 pub use self::compound::{CompoundCommandKindFuture, CompoundCommandKindRefFuture};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
+pub use self::func_exec::{Function, function};
 pub use self::if_cmd::{If, if_cmd};
 pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
                          PinnedFlattenedFuture, Pipeline, pipeline};
@@ -64,7 +66,7 @@ pub trait Spawn<E: ?Sized> {
     /// The future that represents the exit status of a fully bootstrapped
     /// command, which no longer requires an environment to be driven to completion.
     type Future: Future<Item = ExitStatus, Error = Self::Error>;
-    /// The type of error that this future will resolve with if it fails in a
+    /// The type of error that a future will resolve with if it fails in a
     /// normal fashion.
     type Error;
 
@@ -146,7 +148,7 @@ pub trait SpawnRef<E: ?Sized> {
     /// The future that represents the exit status of a fully bootstrapped
     /// command, which no longer requires an environment to be driven to completion.
     type Future: Future<Item = ExitStatus, Error = Self::Error>;
-    /// The type of error that this future will resolve with if it fails in a
+    /// The type of error that a future will resolve with if it fails in a
     /// normal fashion.
     type Error;
 
@@ -183,7 +185,7 @@ pub type BoxStatusFuture<'a, ERR> = Box<'a + Future<Item = ExitStatus, Error = E
 /// A trait for spawning commands (without moving ownership) into boxed futures.
 /// Largely useful for having spawnable trait objects.
 pub trait SpawnBoxed<E: ?Sized> {
-    /// The type of error that this future will resolve with if it fails in a
+    /// The type of error that a future will resolve with if it fails in a
     /// normal fashion.
     type Error;
 
