@@ -43,7 +43,6 @@ pub mod spawn;
 
 mod future_ext;
 mod ref_counted;
-mod runtime;
 #[cfg(unix)]
 #[path="sys/unix/mod.rs"]
 mod sys;
@@ -51,7 +50,6 @@ mod sys;
 #[path="sys/windows/mod.rs"]
 mod sys;
 pub use self::ref_counted::RefCounted;
-pub use self::runtime::*;
 pub use self::spawn::Spawn;
 
 /// Generic panic message for futures which have been polled after completion.
