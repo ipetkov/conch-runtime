@@ -21,6 +21,7 @@ use tokio_core::reactor::Remote;
 
 mod args;
 mod async_io;
+mod executable;
 mod fd;
 mod func;
 mod last_status;
@@ -32,6 +33,7 @@ pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
 pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};
+pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};

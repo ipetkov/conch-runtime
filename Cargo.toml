@@ -14,6 +14,8 @@ mio  = "0.6.2"
 rental = "0.4.10"
 tokio-core  = "0.1.4"
 tokio-io = "0.1"
+# FIXME: switch to "0.1.4" after it is published
+tokio-process = { git = "https://github.com/alexcrichton/tokio-process.git" }
 void = "1"
 
 [target.'cfg(unix)'.dependencies]

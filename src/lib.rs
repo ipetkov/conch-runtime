@@ -30,6 +30,7 @@ extern crate mio;
 #[macro_use] extern crate rental;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate tokio_process;
 extern crate void;
 
 #[macro_use]
