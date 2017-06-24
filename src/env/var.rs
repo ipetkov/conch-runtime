@@ -44,6 +44,26 @@ impl<'a, T: ?Sized + VariableEnvironment> VariableEnvironment for &'a mut T {
     }
 }
 
+/// An interface for setting and getting shell and environment variables and
+/// controlling whether or not they can appear as environment variables to
+/// subprocesses.
+pub trait ExportedVariableEnvironment: VariableEnvironment {
+    /// Get the value of some variable and whether it is exported.
+    fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)>;
+    /// Set the value of some variable, and set it's exported status as specified.
+    fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool);
+}
+
+impl<'a, T: ?Sized + ExportedVariableEnvironment> ExportedVariableEnvironment for &'a mut T {
+    fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)> {
+        (**self).exported_var(name)
+    }
+
+    fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool) {
+        (**self).set_exported_var(name, val, exported)
+    }
+}
+
 /// An interface for unsetting shell and envrironment variables.
 pub trait UnsetVariableEnvironment: VariableEnvironment {
     /// Unset the value of some variable (including environment variables).
@@ -129,6 +149,23 @@ macro_rules! impl_env {
                 .collect();
 
                 Cow::Owned(ret)
+            }
+        }
+
+        impl<N: Eq + Hash + Clone, V: Clone + Eq> ExportedVariableEnvironment for $Env<N, V> {
+            fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)> {
+                self.vars.get(name).map(|&(ref val, exported)| (val, exported))
+            }
+
+            fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool) {
+                let needs_insert = match self.vars.get(&name) {
+                    Some(&(ref existing_val, _)) => val != *existing_val,
+                    None => true,
+                };
+
+                if needs_insert {
+                    self.vars.make_mut().insert(name, (val, exported));
+                }
             }
         }
 
@@ -220,6 +257,28 @@ mod tests {
         assert_eq!(env.var(name), Some(&value));
         env.unset_var(name);
         assert_eq!(env.var(name), None);
+    }
+
+    #[test]
+    fn test_set_get_unset_exported_var() {
+        let exported = "exported";
+        let exported_value = "exported_value";
+        let name = "var";
+        let value = "value";
+
+        let mut env = VarEnv::with_env_vars(vec!((exported, exported_value)));
+        assert_eq!(env.exported_var(&exported), Some((&exported_value, true)));
+
+        assert_eq!(env.var(&name), None);
+        env.set_exported_var(name, value, false);
+        assert_eq!(env.exported_var(&name), Some((&value, false)));
+
+        // Regular insert maintains exported value
+        let new_value = "new_value";
+        env.set_var(exported, new_value);
+        assert_eq!(env.exported_var(&exported), Some((&new_value, true)));
+        env.set_var(name, new_value);
+        assert_eq!(env.exported_var(&name), Some((&new_value, false)));
     }
 
     #[test]

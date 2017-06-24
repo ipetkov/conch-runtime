@@ -26,6 +26,7 @@ mod fd;
 mod func;
 mod last_status;
 mod reversible_redirect;
+mod reversible_var;
 mod string_wrapper;
 mod var;
 
@@ -38,8 +39,10 @@ pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::reversible_redirect::RedirectRestorer;
+pub use self::reversible_var::VarRestorer;
 pub use self::string_wrapper::StringWrapper;
-pub use self::var::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
+pub use self::var::{ExportedVariableEnvironment, VarEnv, VariableEnvironment,
+                    UnsetVariableEnvironment};
 
 /// A module which provides atomic implementations (which can be `Send` and
 /// `Sync`) of the various environment interfaces.
@@ -521,6 +524,19 @@ macro_rules! impl_env {
 
             fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
                 self.var_env.env_vars()
+            }
+        }
+
+        impl<A, IO, FD, L, V, N, ERR> ExportedVariableEnvironment for $Env<A, IO, FD, L, V, N, ERR>
+            where V: ExportedVariableEnvironment,
+                  N: Hash + Eq,
+        {
+            fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)> {
+                self.var_env.exported_var(name)
+            }
+
+            fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool) {
+                self.var_env.set_exported_var(name, val, exported)
             }
         }
 
