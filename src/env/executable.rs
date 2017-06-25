@@ -1,6 +1,6 @@
 use ExitStatus;
 use env::SubEnvironment;
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, IntoFuture, Poll};
 use futures::sync::oneshot;
 use io::FileDesc;
 use std::borrow::Cow;
@@ -9,7 +9,7 @@ use std::fmt;
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
-use tokio_process::{CommandExt, StatusAsync};
+use tokio_process::{CommandExt, StatusAsync2};
 
 /// Any data required to execute a child process.
 #[derive(Debug, PartialEq, Eq)]
@@ -62,7 +62,7 @@ pub trait ExecutableEnvironment {
     type Future: Future<Item = ExitStatus, Error = IoError>;
 
     /// Attempt to spawn the executable command.
-    fn spawn_executable(&mut self, data: ExecutableData) -> Self::Future;
+    fn spawn_executable(&mut self, data: ExecutableData) -> IoResult<Self::Future>;
 }
 
 /// An `ExecutableEnvironment` implementation that uses a `tokio` event loop
@@ -101,7 +101,7 @@ impl ExecEnv {
     }
 }
 
-fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> StatusAsync {
+fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> IoResult<StatusAsync2> {
     let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
     let mut cmd = Command::new(data.name);
@@ -116,21 +116,21 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> StatusAsync {
         cmd.env(k, v);
     }
 
-    cmd.status_async(handle)
+    cmd.status_async2(handle)
 }
 
 impl ExecutableEnvironment for ExecEnv {
     type Future = Child;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> Self::Future {
+    fn spawn_executable(&mut self, data: ExecutableData) -> IoResult<Self::Future> {
         let inner = match self.remote.handle() {
-            Some(handle) => Inner::Child(Box::new(spawn_child(data, &handle))),
+            Some(handle) => Inner::Child(Box::new(try!(spawn_child(data, &handle)))),
             None => {
                 let (tx, rx) = oneshot::channel();
 
                 let data = data.into_owned();
                 self.remote.spawn(move |handle| {
-                    spawn_child(data, handle).then(|status| {
+                    spawn_child(data, handle).into_future().flatten().then(|status| {
                         // If receiver has hung up we'll just give up
                         tx.send(status).map_err(|_| ())
                     })
@@ -140,9 +140,9 @@ impl ExecutableEnvironment for ExecEnv {
             },
         };
 
-        Child {
+        Ok(Child {
             inner: inner,
-        }
+        })
     }
 }
 
@@ -159,7 +159,7 @@ enum Inner {
     // Box to lower the size of this struct and avoid a clippy warning:
     // StatusAsync is ~300 bytes, the Receiver is ~8
     // Plus this will avoid potential bloat with any parent futures
-    Child(Box<StatusAsync>),
+    Child(Box<StatusAsync2>),
     Remote(oneshot::Receiver<IoResult<process::ExitStatus>>),
 }
 
