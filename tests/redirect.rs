@@ -16,6 +16,7 @@ use std::fs::File;
 use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -380,7 +381,7 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
 
     let path = mock_word_fields(Fields::Single("foo".to_string()));
-    let err = Err(MockErr::RedirectionError(BadFdSrc("foo".to_string().into())));
+    let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc("foo".to_string().into()))));
     assert_eq!(env.file_desc(src_fd), None);
     assert_eq!(eval!(DupRead(None, path.clone()), lp, env), err.clone());
     assert_eq!(eval!(DupWrite(None, path.clone()), lp, env), err.clone());
@@ -388,11 +389,11 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     let path = mock_word_fields(Fields::Single(src_fd.to_string()));
     let fdes = dev_null();
 
-    let err = Err(MockErr::RedirectionError(BadFdPerms(src_fd, Permissions::Read)));
+    let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Read))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Read);
     assert_eq!(eval!(DupWrite(Some(fd), path.clone()), lp, env), err);
 
-    let err = Err(MockErr::RedirectionError(BadFdPerms(src_fd, Permissions::Write)));
+    let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Write))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Write);
     assert_eq!(eval!(DupRead(Some(fd), path.clone()), lp, env), err);
 }
@@ -410,7 +411,7 @@ fn eval_ambiguous_path() {
     );
 
     for (path, err) in cases {
-        let err = Err(MockErr::RedirectionError(err.clone()));
+        let err = Err(MockErr::RedirectionError(Arc::new(err)));
 
         assert_eq!(eval!(Read(None, path.clone())), err.clone());
         assert_eq!(eval!(ReadWrite(None, path.clone())), err.clone());

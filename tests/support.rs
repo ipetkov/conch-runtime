@@ -16,6 +16,7 @@ use self::void::{unreachable, Void};
 use std::borrow::Borrow;
 use std::fs::OpenOptions;
 use std::rc::Rc;
+use std::sync::Arc;
 
 // Convenience re-exports
 pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
@@ -76,7 +77,7 @@ pub fn dev_null() -> Rc<FileDesc> {
 pub enum MockErr {
     Fatal(bool),
     ExpansionError(ExpansionError),
-    RedirectionError(RedirectionError),
+    RedirectionError(Arc<RedirectionError>),
 }
 
 impl self::conch_runtime::error::IsFatalError for MockErr {
@@ -115,7 +116,7 @@ impl From<ExpansionError> for MockErr {
 
 impl From<RedirectionError> for MockErr {
     fn from(err: RedirectionError) -> Self {
-        MockErr::RedirectionError(err)
+        MockErr::RedirectionError(Arc::new(err))
     }
 }
 

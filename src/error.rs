@@ -78,7 +78,7 @@ impl IsFatalError for ExpansionError {
 }
 
 /// An error which may arise during redirection.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(Debug)]
 pub enum RedirectionError {
     /// A redirect path evaluated to multiple fields.
     Ambiguous(Vec<String>),
@@ -87,6 +87,24 @@ pub enum RedirectionError {
     /// Attempted to duplicate a file descriptor with Read/Write
     /// access that differs from the original.
     BadFdPerms(Fd, Permissions /* new perms */),
+    /// Any I/O error returned by the OS during execution and the
+    /// file that caused the error if applicable.
+    Io(IoError, Option<String>),
+}
+
+impl Eq for RedirectionError {}
+impl PartialEq for RedirectionError {
+    fn eq(&self, other: &Self) -> bool {
+        use self::RedirectionError::*;
+
+        match (self, other) {
+            (&Io(ref e1, ref a),         &Io(ref e2, ref b))         => e1.kind() == e2.kind() && a == b,
+            (&Ambiguous(ref a),          &Ambiguous(ref b))          => a == b,
+            (&BadFdSrc(ref a),           &BadFdSrc(ref b))           => a == b,
+            (&BadFdPerms(fd_a, perms_a), &BadFdPerms(fd_b, perms_b)) => fd_a == fd_b && perms_a == perms_b,
+            _ => false,
+        }
+    }
 }
 
 impl Error for RedirectionError {
@@ -96,6 +114,16 @@ impl Error for RedirectionError {
             RedirectionError::BadFdSrc(_)    => "attempted to duplicate an invalid file descriptor",
             RedirectionError::BadFdPerms(..) =>
                 "attmpted to duplicate a file descritpr with Read/Write access that differs from the original",
+            RedirectionError::Io(ref e, _)   => e.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            RedirectionError::Ambiguous(_) |
+            RedirectionError::BadFdSrc(_) |
+            RedirectionError::BadFdPerms(..) => None,
+            RedirectionError::Io(ref e, _) => Some(e),
         }
     }
 }
@@ -114,6 +142,9 @@ impl Display for RedirectionError {
             RedirectionError::BadFdSrc(ref fd) => write!(fmt, "{}: {}", self.description(), fd),
             RedirectionError::BadFdPerms(fd, perms) =>
                 write!(fmt, "{}: {}, desired permissions: {}", self.description(), fd, perms),
+
+            RedirectionError::Io(ref e, None)           => write!(fmt, "{}", e),
+            RedirectionError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
         }
     }
 }
@@ -123,7 +154,8 @@ impl IsFatalError for RedirectionError {
         match *self {
             RedirectionError::Ambiguous(_) |
             RedirectionError::BadFdSrc(_) |
-            RedirectionError::BadFdPerms(_, _) => false,
+            RedirectionError::BadFdPerms(_, _) |
+            RedirectionError::Io(_, _) => false,
         }
     }
 }

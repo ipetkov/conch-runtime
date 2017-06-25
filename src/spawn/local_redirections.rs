@@ -1,10 +1,10 @@
 use {CANCELLED_TWICE, POLLED_TWICE, Spawn};
 use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectRestorer};
+use error::RedirectionError;
 use eval::RedirectEval;
 use io::FileDesc;
 use future::{Async, EnvFuture, Poll};
 use std::fmt;
-use std::io::Error as IoError;
 
 /// A future representing the spawning of a command with some local redirections.
 #[must_use = "futures do nothing unless polled"]
@@ -83,7 +83,7 @@ impl<R, I, S, E: ?Sized> EnvFuture<E> for LocalRedirections<I, S, E>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           I: Iterator<Item = R>,
           S: Spawn<E>,
-          S::Error: From<IoError> + From<R::Error>,
+          S::Error: From<RedirectionError> + From<R::Error>,
           E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
@@ -134,7 +134,8 @@ impl<R, I, S, E: ?Sized> EnvFuture<E> for LocalRedirections<I, S, E>
                             let action = try_ready_restore!(rf.poll(env));
                             let action_result = self.restorer.as_mut()
                                 .expect(POLLED_TWICE)
-                                .apply_action(action, env);
+                                .apply_action(action, env)
+                                .map_err(|err| RedirectionError::Io(err, None));
 
                             try_restore!(action_result);
                             true

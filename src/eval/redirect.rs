@@ -7,7 +7,7 @@ use error::RedirectionError;
 use future::{Async, EnvFuture, Poll};
 use io::{FileDesc, Permissions, Pipe};
 use std::fs::OpenOptions;
-use std::io::{Error as IoError, Result as IoResult};
+use std::io::Result as IoResult;
 use syntax::ast;
 
 /// Indicates what changes should be made to the environment as a result
@@ -223,7 +223,7 @@ enum State<F> {
 impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
     where T: StringWrapper,
           F: EnvFuture<E, Item = Fields<T>>,
-          F::Error: From<IoError> + From<RedirectionError>,
+          F::Error: From<RedirectionError>,
           E: FileDescEnvironment + IsInteractiveEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
@@ -258,7 +258,8 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
                     .expect(POLLED_TWICE)
                     .open(path.as_str())
                     .map(FileDesc::from)
-                    .map(|fdesc| RedirectAction::Open(fd, fdesc.into(), perms));
+                    .map(|fdesc| RedirectAction::Open(fd, fdesc.into(), perms))
+                    .map_err(|err| RedirectionError::Io(err, Some(path.into_owned())));
 
                 try!(action)
             },
@@ -329,7 +330,7 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
 
 impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
     where W: WordEval<E>,
-          W::Error: From<IoError> + From<RedirectionError>,
+          W::Error: From<RedirectionError>,
           E: FileDescEnvironment + IsInteractiveEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
@@ -353,7 +354,7 @@ impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
 
 impl<'a, W, E: ?Sized> RedirectEval<E> for &'a ast::Redirect<W>
     where &'a W: WordEval<E>,
-          <&'a W as WordEval<E>>::Error: From<IoError> + From<RedirectionError>,
+          <&'a W as WordEval<E>>::Error: From<RedirectionError>,
           E: FileDescEnvironment + IsInteractiveEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {

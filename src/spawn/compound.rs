@@ -1,7 +1,7 @@
-use error::IsFatalError;
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
           LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment,
           VariableEnvironment};
+use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
@@ -9,7 +9,6 @@ use io::FileDesc;
 use spawn::{BoxStatusFuture, ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd,
             LocalRedirections, Loop, loop_cmd, PatternBodyPair, Sequence, sequence,
             spawn_with_local_redirections, Spawn, SpawnBoxed, SpawnRef, Subshell, subshell};
-use std::io::Error as IoError;
 use std::fmt;
 use std::slice::Iter;
 use std::sync::Arc;
@@ -97,7 +96,7 @@ enum State<Seq, If, Loop, For, Case, Sub> {
 impl<S, R, E: ?Sized> Spawn<E> for CompoundCommand<S, R>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           S: Spawn<E>,
-          S::Error: From<IoError> + From<R::Error>,
+          S::Error: From<RedirectionError> + From<R::Error>,
           E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
@@ -113,7 +112,7 @@ impl<S, R, E: ?Sized> Spawn<E> for CompoundCommand<S, R>
 impl<'a, S, R, E: ?Sized> Spawn<E> for &'a CompoundCommand<S, R>
     where &'a R: RedirectEval<E, Handle = E::FileHandle>,
           &'a S: Spawn<E>,
-          <&'a S as Spawn<E>>::Error: From<IoError> + From<<&'a R as RedirectEval<E>>::Error>,
+          <&'a S as Spawn<E>>::Error: From<RedirectionError> + From<<&'a R as RedirectEval<E>>::Error>,
           E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
