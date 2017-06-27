@@ -1,12 +1,13 @@
 use ExitStatus;
 use env::SubEnvironment;
+use error::CommandError;
 use futures::{Async, Future, IntoFuture, Poll};
 use futures::sync::oneshot;
 use io::FileDesc;
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt;
-use std::io::{Error as IoError, ErrorKind, Result as IoResult};
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
 use tokio_process::{CommandExt, StatusAsync2};
@@ -59,10 +60,10 @@ impl<'a> ExecutableData<'a> {
 /// An interface for asynchronously spawning executables.
 pub trait ExecutableEnvironment {
     /// A future which will resolve to the executable's exit status.
-    type Future: Future<Item = ExitStatus, Error = IoError>;
+    type Future: Future<Item = ExitStatus, Error = CommandError>;
 
     /// Attempt to spawn the executable command.
-    fn spawn_executable(&mut self, data: ExecutableData) -> IoResult<Self::Future>;
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError>;
 }
 
 /// An `ExecutableEnvironment` implementation that uses a `tokio` event loop
@@ -101,10 +102,13 @@ impl ExecEnv {
     }
 }
 
-fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> IoResult<StatusAsync2> {
+fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
+    -> Result<StatusAsync2, CommandError>
+{
     let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
-    let mut cmd = Command::new(data.name);
+    let name = data.name;
+    let mut cmd = Command::new(&name);
     cmd.args(data.args)
         .env_clear() // Ensure we don't inherit from the process
         // FIXME: set cur_dir based on environment, not process!
@@ -116,13 +120,42 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> IoResult<Status
         cmd.env(k, v);
     }
 
-    cmd.status_async2(handle)
+    cmd.status_async2(handle).map_err(|err| map_io_err(err, convert_to_string(name)))
+}
+
+fn convert_to_string(os_str: Cow<OsStr>) -> String {
+    match os_str {
+        Cow::Borrowed(s) => s.to_string_lossy().into_owned(),
+        Cow::Owned(string) => string.into_string().unwrap_or_else(|s| {
+            s.as_os_str().to_string_lossy().into_owned()
+        }),
+    }
+}
+
+fn map_io_err(err: IoError, name: String) -> CommandError {
+    #[cfg(unix)]
+    fn is_enoexec(err: &IoError) -> bool {
+        Some(::libc::ENOEXEC) == err.raw_os_error()
+    }
+
+    #[cfg(windows)]
+    fn is_enoexec(_err: &IoError) -> bool {
+        false
+    }
+
+    if IoErrorKind::NotFound == err.kind() {
+        CommandError::NotFound(name)
+    } else if is_enoexec(&err) {
+        CommandError::NotExecutable(name)
+    } else {
+        CommandError::Io(err, Some(name))
+    }
 }
 
 impl ExecutableEnvironment for ExecEnv {
     type Future = Child;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> IoResult<Self::Future> {
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError> {
         let inner = match self.remote.handle() {
             Some(handle) => Inner::Child(Box::new(try!(spawn_child(data, &handle)))),
             None => {
@@ -130,10 +163,12 @@ impl ExecutableEnvironment for ExecEnv {
 
                 let data = data.into_owned();
                 self.remote.spawn(move |handle| {
-                    spawn_child(data, handle).into_future().flatten().then(|status| {
-                        // If receiver has hung up we'll just give up
-                        tx.send(status).map_err(|_| ())
-                    })
+                    spawn_child(data, handle).into_future()
+                        .and_then(|child| child.map_err(|err| CommandError::Io(err, None)))
+                        .then(|status| {
+                            // If receiver has hung up we'll just give up
+                            tx.send(status).map_err(|_| ())
+                        })
                 });
 
                 Inner::Remote(rx)
@@ -157,10 +192,10 @@ pub struct Child {
 
 enum Inner {
     // Box to lower the size of this struct and avoid a clippy warning:
-    // StatusAsync is ~300 bytes, the Receiver is ~8
+    // StatusAsync2 is ~300 bytes, the Receiver is ~8
     // Plus this will avoid potential bloat with any parent futures
     Child(Box<StatusAsync2>),
-    Remote(oneshot::Receiver<IoResult<process::ExitStatus>>),
+    Remote(oneshot::Receiver<Result<process::ExitStatus, CommandError>>),
 }
 
 impl fmt::Debug for Inner {
@@ -182,18 +217,25 @@ impl fmt::Debug for Inner {
 
 impl Future for Child {
     type Item = ExitStatus;
-    type Error = IoError;
+    type Error = CommandError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let status = match self.inner {
-            Inner::Child(ref mut inner) => try_ready!(inner.poll()),
-            Inner::Remote(ref mut rx) => match rx.poll() {
-                Ok(Async::Ready(status)) => try!(status),
+        let result = match self.inner {
+            Inner::Child(ref mut inner) => match inner.poll() {
+                Ok(Async::Ready(status)) => Ok(status),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(cancelled) => return Err(IoError::new(ErrorKind::Other, cancelled)),
+                Err(err) => Err(err),
+            },
+
+            Inner::Remote(ref mut rx) => match rx.poll() {
+                Ok(Async::Ready(status)) => Ok(try!(status)),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(cancelled) => Err(IoError::new(IoErrorKind::Other, cancelled)),
             },
         };
 
-        Ok(Async::Ready(ExitStatus::from(status)))
+        result.map(ExitStatus::from)
+            .map(Async::Ready)
+            .map_err(|err| CommandError::Io(err, None))
     }
 }

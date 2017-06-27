@@ -161,13 +161,30 @@ impl IsFatalError for RedirectionError {
 }
 
 /// An error which may arise when spawning a command process.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(Debug)]
 #[cfg_attr(feature = "clippy", allow(enum_variant_names))]
 pub enum CommandError {
     /// Unable to find a command/function/builtin to execute.
     NotFound(String),
     /// Utility or script does not have executable permissions.
     NotExecutable(String),
+    /// Any I/O error returned by the OS during execution and the
+    /// file that caused the error if applicable.
+    Io(IoError, Option<String>),
+}
+
+impl Eq for CommandError {}
+impl PartialEq for CommandError {
+    fn eq(&self, other: &Self) -> bool {
+        use self::CommandError::*;
+
+        match (self, other) {
+            (&NotFound(ref a),      &NotFound(ref b))      |
+            (&NotExecutable(ref a), &NotExecutable(ref b)) => a == b,
+            (&Io(ref e1, ref a),    &Io(ref e2, ref b))    => e1.kind() == e2.kind() && a == b,
+            _ => false,
+        }
+    }
 }
 
 impl Error for CommandError {
@@ -175,6 +192,15 @@ impl Error for CommandError {
         match *self {
             CommandError::NotFound(_)      => "command not found",
             CommandError::NotExecutable(_) => "command not executable",
+            CommandError::Io(ref e, _)     => e.description(),
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            CommandError::NotFound(_) |
+            CommandError::NotExecutable(_) => None,
+            CommandError::Io(ref e, _) => Some(e),
         }
     }
 }
@@ -184,6 +210,8 @@ impl Display for CommandError {
         match *self {
             CommandError::NotFound(ref c)      |
             CommandError::NotExecutable(ref c) => write!(fmt, "{}: {}", c, self.description()),
+            CommandError::Io(ref e, None) => write!(fmt, "{}", e),
+            CommandError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
         }
     }
 }
@@ -192,7 +220,8 @@ impl IsFatalError for CommandError {
     fn is_fatal(&self) -> bool {
         match *self {
             CommandError::NotFound(_) |
-            CommandError::NotExecutable(_) => false,
+            CommandError::NotExecutable(_) |
+            CommandError::Io(_, _) => false,
         }
     }
 }
