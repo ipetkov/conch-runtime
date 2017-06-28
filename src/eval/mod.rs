@@ -12,6 +12,7 @@ mod fields;
 mod parameter;
 mod param_subst;
 mod redirect;
+mod redirect_or_cmd_word;
 mod redirect_or_var_assig;
 mod simple_word;
 mod word;
@@ -29,8 +30,10 @@ pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError,
 pub use self::redirect::{RedirectAction, RedirectEval,
                          redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write,
                          redirect_heredoc, redirect_read, redirect_readwrite, redirect_write};
+pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError,
+                                    RedirectOrCmdWord, eval_redirects_or_cmd_words};
 pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
-                                    RedirectOrVarAssig, eval_redirects_or_var_assigments};
+                                      RedirectOrVarAssig, eval_redirects_or_var_assignments};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 

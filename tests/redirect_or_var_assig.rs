@@ -21,12 +21,13 @@ fn smoke() {
 
     let key = Rc::new("key".to_owned());
     let key_empty = Rc::new("key_empty".to_owned());
+    let key_empty2 = Rc::new("key_empty2".to_owned());
     let key_split = Rc::new("key_split".to_owned());
     let val = "val".to_owned();
 
     {
         let env = env.sub_env();
-        let future = eval_redirects_or_var_assigments::<MockRedirect<_>, Rc<String>, MockWord, _, _>(vec!(), &env)
+        let future = eval_redirects_or_var_assignments::<MockRedirect<_>, Rc<String>, MockWord, _, _>(vec!(), &env)
             .pin_env(env);
         let (_restorer, vars) = lp.run(future).unwrap();
         assert!(vars.is_empty());
@@ -34,7 +35,7 @@ fn smoke() {
 
     assert_eq!(env.file_desc(1), None);
     let fdes = dev_null();
-    let mut future = eval_redirects_or_var_assigments(
+    let mut future = eval_redirects_or_var_assignments(
         vec!(
             RedirectOrVarAssig::Redirect(mock_redirect(
                 RedirectAction::Open(1, fdes.clone(), Permissions::Write)
@@ -45,6 +46,7 @@ fn smoke() {
                 "bar".to_owned(),
             ))))),
             RedirectOrVarAssig::VarAssig(key_empty.clone(), None),
+            RedirectOrVarAssig::VarAssig(key_empty2.clone(), Some(mock_word_fields(Fields::Zero))),
         ),
         &env
     );
@@ -62,6 +64,7 @@ fn smoke() {
     let mut expected_vars = HashMap::new();
     expected_vars.insert(key, val);
     expected_vars.insert(key_empty, String::new());
+    expected_vars.insert(key_empty2, String::new());
     expected_vars.insert(key_split, "foo bar".to_owned());
 
     assert_eq!(vars, expected_vars);
@@ -77,7 +80,7 @@ fn should_propagate_errors_and_restore_redirects() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_var_assigments(
+        let mut future = eval_redirects_or_var_assignments(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
@@ -96,7 +99,7 @@ fn should_propagate_errors_and_restore_redirects() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_var_assigments(
+        let mut future = eval_redirects_or_var_assignments(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
@@ -121,7 +124,7 @@ fn should_propagate_cancel_and_restore_redirects() {
     let key = Rc::new("key".to_owned());
 
     test_cancel!(
-        eval_redirects_or_var_assigments::<MockRedirect<_>, _, _, _, _>(
+        eval_redirects_or_var_assignments::<MockRedirect<_>, _, _, _, _>(
             vec!(RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_must_cancel()))),
             &env,
         ),
@@ -130,7 +133,7 @@ fn should_propagate_cancel_and_restore_redirects() {
 
     assert_eq!(env.file_desc(1), None);
     test_cancel!(
-        eval_redirects_or_var_assigments(
+        eval_redirects_or_var_assignments(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)

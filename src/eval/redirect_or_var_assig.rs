@@ -100,7 +100,7 @@ type RedirectOrVarAssigFuture<RF, V, WF> = RedirectOrVarAssig<RF, Option<V>, Ass
 /// returned on successful evaluation. These will **not** be applied to the
 /// environment at any point as that is left up to the caller.
 #[must_use = "futures do nothing unless polled"]
-pub struct EvalRedirectOrVarAssig<R, V, W, IV, E: ?Sized>
+pub struct EvalRedirectOrVarAssig<R, V, W, I, E: ?Sized>
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
@@ -109,11 +109,11 @@ pub struct EvalRedirectOrVarAssig<R, V, W, IV, E: ?Sized>
     redirect_restorer: Option<RedirectRestorer<E>>,
     vars: HashMap<V, W::EvalResult>,
     current: Option<RedirectOrVarAssigFuture<R::EvalFuture, V, W::EvalFuture>>,
-    rest: IV,
+    rest: I,
 }
 
-impl<R, V, W, IV, E: ?Sized> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, IV, E>
-    where IV: fmt::Debug,
+impl<R, V, W, I, E: ?Sized> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, I, E>
+    where I: fmt::Debug,
           R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
@@ -142,9 +142,9 @@ impl<R, V, W, IV, E: ?Sized> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, IV, 
 ///
 /// In addition, all evaluated variable names and values to be assigned will be
 /// returned on successful evaluation. These will **not** be applied to the
-pub fn eval_redirects_or_var_assigments<R, V, W, IV, E: ?Sized>(vars: IV, env: &E)
-    -> EvalRedirectOrVarAssig<R, V, W, IV::IntoIter, E>
-    where IV: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
+pub fn eval_redirects_or_var_assignments<R, V, W, I, E: ?Sized>(vars: I, env: &E)
+    -> EvalRedirectOrVarAssig<R, V, W, I::IntoIter, E>
+    where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
           R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
@@ -182,8 +182,8 @@ fn spawn<R, V, W, E: ?Sized>(var: RedirectOrVarAssig<R, V, W>, env: &E)
     }
 }
 
-impl<R, V, W, IV, E: ?Sized> EnvFuture<E> for EvalRedirectOrVarAssig<R, V, W, IV, E>
-    where IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
+impl<R, V, W, I, E: ?Sized> EnvFuture<E> for EvalRedirectOrVarAssig<R, V, W, I, E>
+    where I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
           R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           V: Hash + Eq,
