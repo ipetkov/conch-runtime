@@ -78,6 +78,7 @@ pub enum MockErr {
     Fatal(bool),
     ExpansionError(ExpansionError),
     RedirectionError(Arc<RedirectionError>),
+    CommandError(Arc<CommandError>),
 }
 
 impl self::conch_runtime::error::IsFatalError for MockErr {
@@ -86,6 +87,7 @@ impl self::conch_runtime::error::IsFatalError for MockErr {
             MockErr::Fatal(fatal) => fatal,
             MockErr::ExpansionError(ref e) => e.is_fatal(),
             MockErr::RedirectionError(ref e) => e.is_fatal(),
+            MockErr::CommandError(ref e) => e.is_fatal(),
         }
     }
 }
@@ -117,6 +119,12 @@ impl From<ExpansionError> for MockErr {
 impl From<RedirectionError> for MockErr {
     fn from(err: RedirectionError) -> Self {
         MockErr::RedirectionError(Arc::new(err))
+    }
+}
+
+impl From<CommandError> for MockErr {
+    fn from(err: CommandError) -> Self {
+        MockErr::CommandError(Arc::new(err))
     }
 }
 
@@ -582,4 +590,14 @@ pub fn eval_word<W: WordEval<DefaultEnv<String>>>(word: W, cfg: WordEvalConfig)
         .pin_env(env);
 
     lp.run(future)
+}
+
+pub fn bin_path(s: &str) -> ::std::path::PathBuf {
+    let mut me = ::std::env::current_exe().unwrap();
+    me.pop();
+    if me.ends_with("deps") {
+        me.pop();
+    }
+    me.push(s);
+    me
 }

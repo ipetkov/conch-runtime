@@ -19,6 +19,7 @@ type TestEnv = Env<
     FileDescEnv<Rc<FileDesc>>,
     LastStatusEnv,
     VarEnv<String, String>,
+    ExecEnv,
     String,
     MockErr,
 >;
@@ -32,6 +33,7 @@ fn new_test_env() -> (Core, TestEnv) {
         file_desc_env: Default::default(),
         last_status_env: Default::default(),
         var_env: Default::default(),
+        exec_env: ExecEnv::new(lp.remote()),
         fn_name: PhantomData,
         fn_error: PhantomData,
     });

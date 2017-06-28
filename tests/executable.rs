@@ -6,9 +6,7 @@ extern crate tokio_io;
 use conch_runtime::io::Pipe;
 use futures::future::{Future, lazy};
 use std::borrow::Cow;
-use std::env;
 use std::ffi::OsStr;
-use std::path::PathBuf;
 use tokio_core::reactor::Core;
 
 #[macro_use]
@@ -20,16 +18,6 @@ const SH: &'static str = "sh";
 
 #[cfg(windows)]
 const SH: &'static str = "cmd";
-
-fn cmd_path(s: &str) -> PathBuf {
-    let mut me = env::current_exe().unwrap();
-    me.pop();
-    if me.ends_with("deps") {
-        me.pop();
-    }
-    me.push(s);
-    me
-}
 
 #[test]
 fn spawn_executable_with_io() {
@@ -83,9 +71,9 @@ fn env_vars_set_from_data_without_inheriting_from_process() {
     let (status, ()) = lp.run(lazy(move || {
         let pipe_out = Pipe::new().unwrap();
 
-        let cmd_path = cmd_path("env");
+        let bin_path = bin_path("env");
         let data = ExecutableData {
-            name: Cow::Borrowed(OsStr::new(&cmd_path)),
+            name: Cow::Borrowed(OsStr::new(&bin_path)),
             args: vec!(),
             env_vars: vec!(
                 (Cow::Borrowed(OsStr::new("foo")), Cow::Borrowed(OsStr::new("bar"))),
@@ -112,9 +100,9 @@ fn remote_spawn_smoke() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
 
-    let cmd_path = cmd_path("env");
+    let bin_path = bin_path("env");
     let data = ExecutableData {
-        name: Cow::Borrowed(OsStr::new(&cmd_path)),
+        name: Cow::Borrowed(OsStr::new(&bin_path)),
         args: vec!(),
         env_vars: vec!(),
         stdin: None,

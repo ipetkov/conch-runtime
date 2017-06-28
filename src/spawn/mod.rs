@@ -19,6 +19,7 @@ mod loop_cmd;
 mod pipeable;
 mod rc;
 mod sequence;
+mod simple;
 mod subshell;
 mod substitution;
 mod swallow_non_fatal;
@@ -41,6 +42,7 @@ pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirecti
 pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::pipeable::PipeableEnvFuture;
 pub use self::sequence::{Sequence, sequence};
+pub use self::simple::{SimpleCommand, simple_command, SimpleCommandEnvFuture, SpawnedSimpleCommand};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
 pub use self::swallow_non_fatal::{SwallowNonFatal, swallow_non_fatal_errors};
