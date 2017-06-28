@@ -31,9 +31,11 @@ pub use self::redirect::{RedirectAction, RedirectEval,
                          redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write,
                          redirect_heredoc, redirect_read, redirect_readwrite, redirect_write};
 pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError,
-                                    RedirectOrCmdWord, eval_redirects_or_cmd_words};
+                                    RedirectOrCmdWord, eval_redirects_or_cmd_words,
+                                    eval_redirects_or_cmd_words_with_restorer};
 pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
-                                      RedirectOrVarAssig, eval_redirects_or_var_assignments};
+                                      RedirectOrVarAssig, eval_redirects_or_var_assignments,
+                                      eval_redirects_or_var_assignments_with_restorer};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 

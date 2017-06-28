@@ -72,6 +72,11 @@ impl<E: ?Sized> RedirectRestorer<E>
         }
     }
 
+    /// Reserves capacity for at least `additional` more redirects to be backed up.
+    pub fn reserve(&mut self, additional: usize) {
+        self.overrides.reserve(additional);
+    }
+
     /// Applies changes to a given environment after backing up as appropriate.
     pub fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E)
         -> IoResult<()>

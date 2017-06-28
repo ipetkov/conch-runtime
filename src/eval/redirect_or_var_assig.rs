@@ -132,7 +132,6 @@ impl<R, V, W, I, E: ?Sized> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, I, E>
             .finish()
     }
 }
-
 /// Create a a future which will evaluate a series of redirections and variable assignments.
 ///
 /// All redirections will be applied to the environment. On successful completion,
@@ -153,13 +152,41 @@ pub fn eval_redirects_or_var_assignments<R, V, W, I, E: ?Sized>(vars: I, env: &E
           E::VarName: Borrow<String>,
           E::Var: Borrow<String>,
 {
+    eval_redirects_or_var_assignments_with_restorer(RedirectRestorer::new(), vars, env)
+}
+
+/// Create a a future which will evaluate a series of redirections and variable assignments.
+///
+/// All redirections will be applied to the environment. On successful completion,
+/// a `RedirectRestorer` will be returned which allows the caller to reverse the
+/// changes from applying these redirections. On error, the redirections will
+/// be automatically restored.
+///
+/// In addition, all evaluated variable names and values to be assigned will be
+/// returned on successful evaluation. These will **not** be applied to the
+pub fn eval_redirects_or_var_assignments_with_restorer<R, V, W, I, E: ?Sized>(
+    mut restorer: RedirectRestorer<E>,
+    vars: I,
+    env: &E
+) -> EvalRedirectOrVarAssig<R, V, W, I::IntoIter, E>
+    where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
+          R: RedirectEval<E>,
+          V: Hash + Eq,
+          W: WordEval<E>,
+          E: FileDescEnvironment + VariableEnvironment,
+          E::FileHandle: FileDescWrapper,
+          E::VarName: Borrow<String>,
+          E::Var: Borrow<String>,
+{
     let mut vars = vars.into_iter();
 
     let (lo, hi) = vars.size_hint();
     let size_hint = hi.unwrap_or(lo);
 
+    restorer.reserve(size_hint);
+
     EvalRedirectOrVarAssig {
-        redirect_restorer: Some(RedirectRestorer::with_capacity(size_hint)),
+        redirect_restorer: Some(restorer),
         vars: HashMap::with_capacity(size_hint),
         current: vars.next().map(|n| spawn(n, env)),
         rest: vars,

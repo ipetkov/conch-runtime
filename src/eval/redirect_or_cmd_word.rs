@@ -135,13 +135,35 @@ pub fn eval_redirects_or_cmd_words<R, W, I, E: ?Sized>(words: I, env: &E)
           E: FileDescEnvironment,
           E::FileHandle: FileDescWrapper,
 {
+    eval_redirects_or_cmd_words_with_restorer(RedirectRestorer::new(), words, env)
+}
+
+/// Create a future which will evaluate a series of redirections and shell words, and supply a `RedirectRestorer` to use.
+///
+/// All redirections will be applied to the environment. On successful completion,
+/// a `RedirectRestorer` will be returned which allows the caller to reverse the
+/// changes from applying these redirections. On error, the redirections will
+/// be automatically restored.
+pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized>(
+    mut restorer: RedirectRestorer<E>,
+    words: I,
+    env: &E
+) -> EvalRedirectOrCmdWord<R, W, I::IntoIter, E>
+    where I: IntoIterator<Item = RedirectOrCmdWord<R, W>>,
+          R: RedirectEval<E>,
+          W: WordEval<E>,
+          E: FileDescEnvironment,
+          E::FileHandle: FileDescWrapper,
+{
     let mut words = words.into_iter();
 
     let (lo, hi) = words.size_hint();
     let size_hint = hi.unwrap_or(lo);
 
+    restorer.reserve(size_hint);
+
     EvalRedirectOrCmdWord {
-        redirect_restorer: Some(RedirectRestorer::with_capacity(size_hint)),
+        redirect_restorer: Some(restorer),
         words: Vec::with_capacity(size_hint),
         current: words.next().map(|n| spawn(n, env)),
         rest: words,
