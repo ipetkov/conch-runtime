@@ -39,8 +39,28 @@ impl<'a, T: ?Sized + ArgumentsEnvironment> ArgumentsEnvironment for &'a T {
     }
 }
 
+impl<'a, T: ?Sized + ArgumentsEnvironment> ArgumentsEnvironment for &'a mut T {
+    type Arg = T::Arg;
+
+    fn name(&self) -> &Self::Arg {
+        (**self).name()
+    }
+
+    fn arg(&self, idx: usize) -> Option<&Self::Arg> {
+        (**self).arg(idx)
+    }
+
+    fn args_len(&self) -> usize {
+        (**self).args_len()
+    }
+
+    fn args(&self) -> Cow<[Self::Arg]> {
+        (**self).args()
+    }
+}
+
 /// An interface for setting shell and function arguments.
-pub trait SetArgumentsEnvironment {
+pub trait SetArgumentsEnvironment: ArgumentsEnvironment {
     /// A collection of arguments to set.
     type Args;
     /// Changes the environment's arguments to `new_args` and returns the old arguments.
@@ -140,7 +160,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<T> SetArgumentsEnvironment for $Env<T>
+        impl<T: Clone> SetArgumentsEnvironment for $Env<T>
         {
             type Args = $Rc<Vec<T>>;
 

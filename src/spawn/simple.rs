@@ -1,8 +1,8 @@
 use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
-          FileDescEnvironment, FunctionEnvironment, RedirectRestorer, VarRestorer, VariableEnvironment,
-          UnsetVariableEnvironment};
+          FileDescEnvironment, FunctionEnvironment, RedirectRestorer, SetArgumentsEnvironment,
+          VarRestorer, VariableEnvironment, UnsetVariableEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments,
            EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig,
@@ -11,7 +11,7 @@ use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assi
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
 use io::{FileDesc, FileDescWrapper};
-use spawn::{ExitResult, Spawn};
+use spawn::{ExitResult, Function, function, Spawn};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt;
@@ -50,12 +50,16 @@ pub struct SimpleCommand<R, V, W, IV, IW, E: ?Sized>
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: FileDescEnvironment,
+          E: ExportedVariableEnvironment
+              + FileDescEnvironment
+              + FunctionEnvironment
+              + SetArgumentsEnvironment,
+          E::Fn: Spawn<E>,
 {
-    state: EvalState<R, V, W, IV, IW, E>,
+    state: State<R, V, W, IV, IW, E>,
 }
 
-impl<R, V, W, IV, IW, E: ?Sized> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E>
+impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E>
     where R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
@@ -64,13 +68,79 @@ impl<R, V, W, IV, IW, E: ?Sized> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E
           W::EvalResult: fmt::Debug,
           IV: fmt::Debug,
           IW: fmt::Debug,
-          E: FileDescEnvironment,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          E: ExportedVariableEnvironment
+              + FileDescEnvironment
+              + FunctionEnvironment<Fn = S>
+              + SetArgumentsEnvironment,
+          E::Args: fmt::Debug,
           E::FileHandle: fmt::Debug,
+          E::VarName: fmt::Debug,
+          E::Var: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SimpleCommand")
             .field("state", &self.state)
             .finish()
+    }
+}
+
+enum State<R, V, W, IV, IW, E: ?Sized>
+    where R: RedirectEval<E>,
+          V: Hash + Eq,
+          W: WordEval<E>,
+          E: ExportedVariableEnvironment
+              + FileDescEnvironment
+              + FunctionEnvironment
+              + SetArgumentsEnvironment,
+          E::Fn: Spawn<E>,
+{
+    Eval(EvalState<R, V, W, IV, IW, E>),
+    Func(Option<(RedirectRestorer<E>, VarRestorer<E>)>, Function<E::Fn, E>),
+    Gone,
+}
+
+impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for State<R, V, W, IV, IW, E>
+    where R: RedirectEval<E>,
+          R::EvalFuture: fmt::Debug,
+          V: Hash + Eq + fmt::Debug,
+          W: WordEval<E>,
+          W::EvalFuture: fmt::Debug,
+          W::EvalResult: fmt::Debug,
+          IV: fmt::Debug,
+          IW: fmt::Debug,
+          S: Spawn<E> + fmt::Debug,
+          S::EnvFuture: fmt::Debug,
+          E: ExportedVariableEnvironment
+              + FileDescEnvironment
+              + FunctionEnvironment<Fn = S>
+              + SetArgumentsEnvironment,
+          E::Args: fmt::Debug,
+          E::FileHandle: fmt::Debug,
+          E::VarName: fmt::Debug,
+          E::Var: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            State::Eval(ref evaluator) => {
+                fmt.debug_tuple("State::Eval")
+                    .field(evaluator)
+                    .finish()
+            },
+
+            State::Func(ref restorers, ref f) => {
+                fmt.debug_tuple("State::Func")
+                    .field(f)
+                    .field(restorers)
+                    .finish()
+            },
+
+            State::Gone => {
+                fmt.debug_tuple("State::Gone")
+                    .finish()
+            },
+        }
     }
 }
 
@@ -100,21 +170,21 @@ impl<R, V, W, IV, IW, E: ?Sized> fmt::Debug for EvalState<R, V, W, IV, IW, E>
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             EvalState::InitVars(ref evaluator, ref words) => {
-                fmt.debug_tuple("State::InitVars")
+                fmt.debug_tuple("EvalState::InitVars")
                     .field(evaluator)
                     .field(words)
                     .finish()
             },
 
             EvalState::InitWords(ref vars, ref evaluator) => {
-                fmt.debug_tuple("State::InitWords")
+                fmt.debug_tuple("EvalState::InitWords")
                     .field(vars)
                     .field(evaluator)
                     .finish()
             },
 
             EvalState::Gone => {
-                fmt.debug_tuple("State::Gone")
+                fmt.debug_tuple("EvalState::Gone")
                     .finish()
             },
         }
@@ -143,16 +213,21 @@ pub fn simple_command<R, V, W, IV, IW, E: ?Sized>(vars: IV, words: IW, env: &E)
           R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: ExecutableEnvironment + FileDescEnvironment + VariableEnvironment,
+          E: ExecutableEnvironment
+              + ExportedVariableEnvironment
+              + FileDescEnvironment
+              + FunctionEnvironment
+              + SetArgumentsEnvironment,
           E::FileHandle: FileDescWrapper,
+          E::Fn: Spawn<E>,
           E::VarName: Borrow<String>,
           E::Var: Borrow<String>,
 {
     SimpleCommand {
-        state: EvalState::InitVars(
+        state: State::Eval(EvalState::InitVars(
             eval_redirects_or_var_assignments(vars, env),
             Some(words.into_iter())
-        ),
+        )),
     }
 }
 
@@ -163,14 +238,19 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
           R::Error: From<RedirectionError>,
           V: Hash + Eq + Borrow<String>,
           W: WordEval<E>,
-          S: Spawn<E>,
+          S: Clone + Spawn<E>,
           S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
+              + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
-              + VariableEnvironment,
+              + SetArgumentsEnvironment
+              + UnsetVariableEnvironment,
+          E::Arg: From<W::EvalResult>,
+          E::Args: From<Vec<E::Arg>>,
           E::FileHandle: FileDescWrapper,
+          E::FnName: From<W::EvalResult>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
 {
@@ -178,25 +258,85 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let (redirect_restorer, vars, mut words) = match self.state.poll(env) {
-            Ok(Async::Ready(ret)) => ret,
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(RedirectOrWordError::Redirect(e)) => return Err(e.into()),
-            Err(RedirectOrWordError::Word(e)) => return Err(e.into()),
-        };
+        let redirect_restorer;
+        let vars;
+        let words;
+        let name;
+        loop {
+            let next_state = match self.state {
+                State::Eval(ref mut eval) => match eval.poll(env) {
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err(RedirectOrWordError::Redirect(e)) => return Err(e.into()),
+                    Err(RedirectOrWordError::Word(e)) => return Err(e.into()),
 
-        if words.is_empty() {
-            // "Empty" command which is probably just assigning variables.
-            // Any redirect side effects have already been applied.
-            for (key, val) in vars {
-                // Variables should maintain an exported status if they had one
-                // or default to non-exported!
-                env.set_var(key.into(), val.into());
-            }
+                    Ok(Async::Ready((red_restorer_inner, vars_inner, mut words_inner))) => {
+                        if words_inner.is_empty() {
+                            // "Empty" command which is probably just assigning variables.
+                            // Any redirect side effects have already been applied.
+                            for (key, val) in vars_inner {
+                                // Variables should maintain an exported status if they had one
+                                // or default to non-exported!
+                                env.set_var(key.into(), val.into());
+                            }
 
-            redirect_restorer.restore(env);
-            return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
+                            red_restorer_inner.restore(env);
+                            return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
+                        }
+
+                        // FIXME: look up aliases
+                        let name_inner = words_inner.remove(0);
+
+                        let fn_name = name_inner.clone().into();
+                        if env.has_function(&fn_name) {
+                            let mut var_restorer = VarRestorer::with_capacity(vars_inner.len());
+                            for (key, val) in vars_inner {
+                                // Setting local vars for commands or functions should
+                                // behave as if the variables were exported
+                                var_restorer.set_exported_var(key.into(), val.into(), true, env);
+                            }
+
+                            let args = words_inner.into_iter().map(Into::into).collect();
+                            let func = function(&fn_name, args, env)
+                                .expect("env indicated function present, but unable to spawn");
+
+                            State::Func(Some((red_restorer_inner, var_restorer)), func)
+                        } else {
+                            redirect_restorer = red_restorer_inner;
+                            words = words_inner;
+                            vars = vars_inner;
+                            name = name_inner;
+                            break;
+                        }
+                    },
+                },
+
+                State::Func(ref mut restorers, ref mut f) => {
+                    match f.poll(env) {
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        ret => {
+                            let (redirect_restorer, var_restorer) = restorers.take()
+                                .expect(POLLED_TWICE);
+
+                            redirect_restorer.restore(env);
+                            var_restorer.restore(env);
+                            return ret.map(|async| async.map(|f| {
+                                ExitResult::Pending(SpawnedSimpleCommand {
+                                    state: SpawnedState::Func(f),
+                                })
+                            }));
+                        },
+                    }
+                },
+
+                State::Gone => panic!(POLLED_TWICE),
+            };
+
+            self.state = next_state;
         }
+
+        // At this point we're fully bootstrapped and will resolve soon
+        // so we'll erase the state as a sanity check.
+        self.state = State::Gone;
 
         // FIXME: inherit all open file descriptors on UNIX systems
         let io = [STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO].iter()
@@ -207,8 +347,6 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
         // child inherit, we can do the environment cleanup right now.
         redirect_restorer.restore(env);
 
-        // FIXME: look up aliases
-        let name = words.remove(0);
         let original_env_vars = env.env_vars().iter()
             .map(|&(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<_>>();
@@ -225,7 +363,18 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.state.cancel(env)
+        match self.state {
+            State::Eval(ref mut eval) => eval.cancel(env),
+            State::Func(ref mut restorers, ref mut f) => {
+                f.cancel(env);
+                let (redirect_restorer, var_restorer) = restorers.take().expect(CANCELLED_TWICE);
+                redirect_restorer.restore(env);
+                var_restorer.restore(env);
+            },
+            State::Gone => panic!(CANCELLED_TWICE),
+        }
+
+        self.state = State::Gone;
     }
 }
 
@@ -393,14 +542,19 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
           R::Error: From<RedirectionError>,
           V: Hash + Eq + Borrow<String>,
           W: WordEval<E>,
-          S: Spawn<E>,
+          S: Clone + Spawn<E>,
           S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
+              + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
-              + VariableEnvironment,
+              + SetArgumentsEnvironment
+              + UnsetVariableEnvironment,
+          E::Arg: From<W::EvalResult>,
+          E::Args: From<Vec<E::Arg>>,
           E::FileHandle: FileDescWrapper,
+          E::FnName: From<W::EvalResult>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
 {
@@ -421,17 +575,22 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
           <&'a R as RedirectEval<E>>::Error: From<RedirectionError>,
           V: Hash + Eq + Borrow<String> + Clone,
           &'a W: WordEval<E>,
-          S: Spawn<E>,
+          S: Clone + Spawn<E>,
           S::Error: From<CommandError>
               + From<RedirectionError>
               + From<<&'a R as RedirectEval<E>>::Error>
               + From<<&'a W as WordEval<E>>::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
+              + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
-              + VariableEnvironment,
+              + SetArgumentsEnvironment
+              + UnsetVariableEnvironment,
+          E::Arg: From<<&'a W as WordEval<E>>::EvalResult>,
+          E::Args: From<Vec<E::Arg>>,
           E::FileHandle: FileDescWrapper,
+          E::FnName: From<<&'a W as WordEval<E>>::EvalResult>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<<&'a W as WordEval<E>>::EvalResult>,
 {

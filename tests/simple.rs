@@ -9,7 +9,7 @@ use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions, Pipe};
 use conch_runtime::spawn::simple_command;
-use futures::future::poll_fn;
+use futures::future::{FutureResult, ok, poll_fn};
 use tokio_core::reactor::Core;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -74,6 +74,65 @@ fn ast_node_smoke_test() {
     let ret = run(cmd);
     assert_eq!(ret_ref, ret);
     assert_eq!(ret, Ok(EXIT_SUCCESS));
+}
+
+#[test]
+fn function_smoke() {
+    const KEY: &'static str = "key";
+    const VAL: &'static str = "val";
+    const EXIT: ExitStatus = ExitStatus::Code(42);
+
+    #[derive(Debug, Clone, Copy)]
+    struct MockFn;
+
+    impl<'a, E: ?Sized> Spawn<E> for &'a MockFn
+        where E: VariableEnvironment<VarName = Rc<String>, Var = Rc<String>>,
+    {
+        type Error = MockErr;
+        type EnvFuture = MockFn;
+        type Future = FutureResult<ExitStatus, Self::Error>;
+
+        fn spawn(self, _: &E) -> Self::EnvFuture {
+            *self
+        }
+    }
+
+    impl<E: VariableEnvironment + ?Sized> EnvFuture<E> for MockFn
+        where E: VariableEnvironment<VarName = Rc<String>, Var = Rc<String>>,
+    {
+        type Item = FutureResult<ExitStatus, Self::Error>;
+        type Error = MockErr;
+
+        fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+            assert_eq!(&***env.var(&KEY.to_owned()).unwrap(), VAL);
+            Ok(Async::Ready(ok(EXIT)))
+        }
+
+        fn cancel(&mut self, _env: &mut E) {
+            unimplemented!()
+        }
+    }
+
+    let (mut lp, mut env) = new_test_env();
+
+    let key = Rc::new(KEY.to_owned());
+    let fn_name = "fn_name".to_owned();
+    assert_eq!(env.var(&key), None);
+
+    env.set_function(Rc::new(fn_name.clone()), Rc::new(MockFn));
+
+    let mut future = simple_command::<MockRedirect<_>, _, _, _, _, _>(
+        vec!(
+            RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(Fields::Single(VAL.to_owned())))),
+        ),
+        vec!(
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(fn_name))),
+        ),
+        &env,
+    );
+
+    assert_eq!(lp.run(poll_fn(|| future.poll(&mut env)).flatten()), Ok(EXIT));
+    assert_eq!(env.var(&key), None);
 }
 
 #[test]
