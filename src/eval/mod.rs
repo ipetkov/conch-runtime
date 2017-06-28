@@ -12,6 +12,7 @@ mod fields;
 mod parameter;
 mod param_subst;
 mod redirect;
+mod redirect_or_var_assig;
 mod simple_word;
 mod word;
 
@@ -28,6 +29,8 @@ pub use self::param_subst::{EvalAlternative, EvalAssign, EvalDefault, EvalError,
 pub use self::redirect::{RedirectAction, RedirectEval,
                          redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write,
                          redirect_heredoc, redirect_read, redirect_readwrite, redirect_write};
+pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
+                                    RedirectOrVarAssig, eval_redirects_or_var_assigments};
 pub use self::simple_word::EvalSimpleWord;
 pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 
@@ -84,7 +87,7 @@ pub trait WordEval<E: ?Sized>: Sized {
     fn eval_as_assignment(self, env: &E) -> Assignment<Self::EvalFuture>
         where E: VariableEnvironment,
               E::VarName: Borrow<String>,
-              E::Var: StringWrapper,
+              E::Var: Borrow<String>,
     {
         Assignment {
             f: self.eval_with_config(env, WordEvalConfig {
