@@ -17,6 +17,22 @@ pub struct VarRestorer<E: ?Sized>
     overrides: HashMap<E::VarName, Option<(E::Var, bool)>>,
 }
 
+impl<E: ?Sized> Eq for VarRestorer<E>
+    where E: ExportedVariableEnvironment,
+          E::VarName: Eq,
+          E::Var: Eq,
+{}
+
+impl<E: ?Sized> PartialEq<Self> for VarRestorer<E>
+    where E: ExportedVariableEnvironment,
+          E::VarName: Eq,
+          E::Var: Eq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.overrides == other.overrides
+    }
+}
+
 impl<E: ?Sized> fmt::Debug for VarRestorer<E>
     where E: ExportedVariableEnvironment,
           E::VarName: fmt::Debug,

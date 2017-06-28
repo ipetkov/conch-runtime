@@ -21,6 +21,20 @@ pub struct RedirectRestorer<E: ?Sized>
     overrides: HashMap<Fd, Option<(E::FileHandle, Permissions)>>,
 }
 
+impl<E: ?Sized> Eq for RedirectRestorer<E>
+    where E: FileDescEnvironment,
+          E::FileHandle: Eq,
+{}
+
+impl<E: ?Sized> PartialEq<Self> for RedirectRestorer<E>
+    where E: FileDescEnvironment,
+          E::FileHandle: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.overrides == other.overrides
+    }
+}
+
 impl<E: ?Sized> fmt::Debug for RedirectRestorer<E>
     where E: FileDescEnvironment,
           E::FileHandle: fmt::Debug,

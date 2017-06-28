@@ -89,7 +89,7 @@ fn should_propagate_errors_and_restore_redirects() {
         );
 
         let err = EvalRedirectOrVarAssigError::VarAssig(MockErr::Fatal(false));
-        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))).unwrap_err(), err);
+        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
         assert_eq!(env.file_desc(1), None);
     }
 
@@ -108,7 +108,7 @@ fn should_propagate_errors_and_restore_redirects() {
         );
 
         let err = EvalRedirectOrVarAssigError::Redirect(MockErr::Fatal(false));
-        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))).unwrap_err(), err);
+        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
         assert_eq!(env.file_desc(1), None);
     }
 }
