@@ -134,6 +134,19 @@ impl<E: ?Sized, W: WordEval<E>> WordEval<E> for Box<W> {
     }
 }
 
+impl<'a, E: ?Sized, W: 'a> WordEval<E> for &'a Box<W>
+    where &'a W: WordEval<E>,
+{
+    type EvalResult = <&'a W as WordEval<E>>::EvalResult;
+    type Error = <&'a W as WordEval<E>>::Error;
+    type EvalFuture = <&'a W as WordEval<E>>::EvalFuture;
+
+    #[cfg_attr(feature = "clippy", allow(boxed_local))]
+    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        (&**self).eval_with_config(env, cfg)
+    }
+}
+
 /// A future representing a word evaluation without doing field and pathname expansions.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
