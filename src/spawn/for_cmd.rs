@@ -14,12 +14,13 @@ use std::vec;
 ///
 /// For each element in the environment's arguments, `name` will be assigned
 /// with its value and `body` will be executed.
-pub fn for_loop<I, S, E: ?Sized>(name: E::VarName, words: Option<I>, body: Vec<S>, env: &E)
+pub fn for_loop<T, I, S, E: ?Sized>(name: T, words: Option<I>, body: Vec<S>, env: &E)
     -> For<I::IntoIter, S, E>
     where I: IntoIterator,
           I::Item: WordEval<E>,
           S: SpawnRef<E>,
           E: ArgumentsEnvironment + VariableEnvironment,
+          E::VarName: From<T>,
           E::Var: From<E::Arg>,
 {
     let kind = match words {
@@ -31,7 +32,7 @@ pub fn for_loop<I, S, E: ?Sized>(name: E::VarName, words: Option<I>, body: Vec<S
                 values: Vec::with_capacity(hi.unwrap_or(lo)),
                 current: None,
                 words: words,
-                name: Some(name),
+                name: Some(name.into()),
                 body: body,
             }
         },
@@ -47,10 +48,11 @@ pub fn for_loop<I, S, E: ?Sized>(name: E::VarName, words: Option<I>, body: Vec<S
 ///
 /// For each element in the environment's arguments, `name` will be assigned
 /// with its value and `body` will be executed.
-pub fn for_args<S, E: ?Sized>(name: E::VarName, body: Vec<S>, env: &E)
+pub fn for_args<T, S, E: ?Sized>(name: T, body: Vec<S>, env: &E)
     -> ForArgs<vec::IntoIter<E::Var>, S, E>
     where S: SpawnRef<E>,
           E: ArgumentsEnvironment + VariableEnvironment,
+          E::VarName: From<T>,
           E::Var: From<E::Arg>,
 {
     let args = env.args()
@@ -66,14 +68,15 @@ pub fn for_args<S, E: ?Sized>(name: E::VarName, body: Vec<S>, env: &E)
 ///
 /// For each element in `args`, `name` will be assigned with its value and
 /// `body` will be executed.
-pub fn for_with_args<I, S, E: ?Sized>(name: E::VarName, args: I, body: Vec<S>)
+pub fn for_with_args<T, I, S, E: ?Sized>(name: T, args: I, body: Vec<S>)
     -> ForArgs<I::IntoIter, S, E>
     where I: IntoIterator<Item = E::Var>,
           S: SpawnRef<E>,
           E: VariableEnvironment,
+          E::VarName: From<T>,
 {
     ForArgs {
-        name: Some(name),
+        name: Some(name.into()),
         args: args.into_iter().peekable(),
         body: body,
         state: None,

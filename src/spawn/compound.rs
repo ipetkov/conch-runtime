@@ -125,7 +125,7 @@ impl<'a, S, R, E: ?Sized> Spawn<E> for &'a CompoundCommand<S, R>
     }
 }
 
-impl<W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
+impl<T, W, S, E> Spawn<E> for CompoundCommandKind<T, W, S>
     where W: WordEval<E>,
           W::Error: IsFatalError,
           W::EvalResult: Into<E::Var>,
@@ -137,7 +137,7 @@ impl<W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
             + VariableEnvironment
             + SubEnvironment,
         E::Var: From<E::Arg>,
-        E::VarName: Clone,
+        E::VarName: Clone + From<T>,
 {
     type EnvFuture = CompoundCommandKindOwnedFuture<S, W, E>;
     type Future = ExitResult<Either<S::Future, BoxStatusFuture<'static, Self::Error>>>;
@@ -202,8 +202,9 @@ impl<W, S, E> Spawn<E> for CompoundCommandKind<E::VarName, W, S>
     }
 }
 
-impl<'a, W, S, E> Spawn<E> for &'a CompoundCommandKind<E::VarName, W, S>
-    where &'a W: WordEval<E>,
+impl<'a, T, W, S, E> Spawn<E> for &'a CompoundCommandKind<T, W, S>
+    where T: Clone,
+          &'a W: WordEval<E>,
           <&'a W as WordEval<E>>::Error: IsFatalError,
           <&'a W as WordEval<E>>::EvalResult: Into<E::Var>,
           &'a S: Spawn<E>,
@@ -215,7 +216,7 @@ impl<'a, W, S, E> Spawn<E> for &'a CompoundCommandKind<E::VarName, W, S>
             + VariableEnvironment
             + SubEnvironment,
         E::Var: From<E::Arg>,
-        E::VarName: Clone,
+        E::VarName: Clone + From<T>,
 {
     type EnvFuture = CompoundCommandKindRefFuture<'a, S, W, E>;
     #[cfg_attr(feature = "clippy", allow(type_complexity))]
