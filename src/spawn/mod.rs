@@ -110,6 +110,19 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     }
 }
 
+#[cfg_attr(feature = "clippy", allow(boxed_local))]
+impl<'a, E: ?Sized, T: 'a> Spawn<E> for &'a Box<T>
+    where &'a T: Spawn<E>,
+{
+    type EnvFuture = <&'a T as Spawn<E>>::EnvFuture;
+    type Future = <&'a T as Spawn<E>>::Future;
+    type Error = <&'a T as Spawn<E>>::Error;
+
+    fn spawn(self, env: &E) -> Self::EnvFuture {
+        Spawn::spawn(&**self, env)
+    }
+}
+
 /// A marker trait for denoting that the receiver of a `Spawn` implementation
 /// can also be `spawn`ed by reference without moving. Automatically derived
 /// for any `&'a T: Spawn`.
