@@ -22,14 +22,16 @@ impl<'a, T: ?Sized + ArithEval<E>, E: ?Sized> ArithEval<E> for &'a T {
 }
 
 impl<T, E: ?Sized> ArithEval<E> for Arithmetic<T>
-    where T: Clone + ::std::hash::Hash + ::std::cmp::Eq,
+    where T: Borrow<String> + Clone,
           E: VariableEnvironment,
-          E::VarName: Borrow<T> + From<T>,
+          E::VarName: Borrow<String> + From<T>,
           E::Var: Borrow<String> + From<String>,
 {
     fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
-        let get_var = |env: &E, var| {
-            env.var(var)
+        // FIXME: interesting observation: bash and zsh seem to recursively expand vars to other vars
+        // FIXME: e.g. x=3, y=x, z=y, $(( $z *= 5 ))
+        let get_var = |env: &E, var: &T| {
+            env.var(var.borrow())
                 .and_then(|s| s.borrow().as_str().parse().ok())
                 .unwrap_or(0)
         };
