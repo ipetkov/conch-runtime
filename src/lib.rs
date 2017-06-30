@@ -50,6 +50,8 @@ mod sys;
 #[cfg(windows)]
 #[path="sys/windows/mod.rs"]
 mod sys;
+mod top_level_impl;
+
 pub use self::ref_counted::RefCounted;
 pub use self::spawn::Spawn;
 

@@ -55,20 +55,20 @@ impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableEnvFuture<N, S, C, F>
 }
 
 macro_rules! impl_spawn {
-    ($Rc:ident) => {
+    ($Rc:ident, $($extra_bounds:tt)*) => {
         impl<ERR, N, S, C, F, E: ?Sized> Spawn<E> for PipeableCommand<N, S, C, $Rc<F>>
             where S: Spawn<E, Error = ERR>,
                   C: Spawn<E, Error = ERR>,
-                  F: 'static + SpawnBoxed<E, Error = ERR>,
+                  F: 'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*,
                   E: FunctionEnvironment,
                   E::FnName: From<N>,
-                  E::Fn: From<$Rc<'static + SpawnBoxed<E, Error = ERR>>>,
+                  E::Fn: From<$Rc<'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*>>,
         {
             type EnvFuture = PipeableEnvFuture<
                 N,
                 S::EnvFuture,
                 C::EnvFuture,
-                $Rc<'static + SpawnBoxed<E, Error = ERR>>
+                $Rc<'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*>
             >;
             type Future = ExitResult<Either<S::Future, C::Future>>;
             type Error = ERR;
@@ -78,7 +78,7 @@ macro_rules! impl_spawn {
                     PipeableCommand::Simple(s) => State::Simple(s.spawn(env)),
                     PipeableCommand::Compound(c) => State::Compound(c.spawn(env)),
                     PipeableCommand::FunctionDef(name, body) => {
-                        let body: $Rc<SpawnBoxed<E, Error = ERR>> = body;
+                        let body: $Rc<SpawnBoxed<E, Error = ERR> $($extra_bounds)*> = body;
                         State::FnDef(Some((name, body)))
                     },
                 };
@@ -93,16 +93,16 @@ macro_rules! impl_spawn {
             where N: Clone,
                   &'a S: Spawn<E, Error = ERR>,
                   &'a C: Spawn<E, Error = ERR>,
-                  F: 'static + SpawnBoxed<E, Error = ERR>,
+                  F: 'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*,
                   E: FunctionEnvironment,
                   E::FnName: From<N>,
-                  E::Fn: From<$Rc<'static + SpawnBoxed<E, Error = ERR>>>,
+                  E::Fn: From<$Rc<'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*>>,
         {
             type EnvFuture = PipeableEnvFuture<
                 N,
                 <&'a S as Spawn<E>>::EnvFuture,
                 <&'a C as Spawn<E>>::EnvFuture,
-                $Rc<'static + SpawnBoxed<E, Error = ERR>>
+                $Rc<'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*>
             >;
             type Future = ExitResult<
                 Either<<&'a S as Spawn<E>>::Future, <&'a C as Spawn<E>>::Future>
@@ -114,7 +114,7 @@ macro_rules! impl_spawn {
                     PipeableCommand::Simple(ref s) => State::Simple(s.spawn(env)),
                     PipeableCommand::Compound(ref c) => State::Compound(c.spawn(env)),
                     PipeableCommand::FunctionDef(ref name, ref body) => {
-                        let body: $Rc<SpawnBoxed<E, Error = ERR>> = body.clone();
+                        let body: $Rc<SpawnBoxed<E, Error = ERR> $($extra_bounds)*> = body.clone();
                         State::FnDef(Some((name.clone(), body)))
                     },
                 };
@@ -127,5 +127,5 @@ macro_rules! impl_spawn {
     }
 }
 
-impl_spawn!(Rc);
-impl_spawn!(Arc);
+impl_spawn!(Rc,);
+impl_spawn!(Arc, + Send + Sync);

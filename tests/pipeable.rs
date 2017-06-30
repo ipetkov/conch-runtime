@@ -18,10 +18,10 @@ type CmdRc = PipeableCommand<&'static str, MockCmd, MockCmd, Rc<MockCmd>>;
 type CmdArc = PipeableCommand<&'static str, MockCmd, MockCmd, Arc<MockCmd>>;
 
 macro_rules! impl_env {
-    ($MockEnvRc:ident, $Rc:ident) => {
+    ($MockEnvRc:ident, $Rc:ident, $($extra_bounds:tt)*) => {
         #[derive(Clone)]
         struct $MockEnvRc {
-            inner: HashMap<&'static str, $Rc<SpawnBoxed<$MockEnvRc, Error = MockErr>>>,
+            inner: HashMap<&'static str, $Rc<'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>>,
         }
 
         impl $MockEnvRc {
@@ -34,7 +34,7 @@ macro_rules! impl_env {
 
         impl FunctionEnvironment for $MockEnvRc {
             type FnName = &'static str;
-            type Fn = $Rc<SpawnBoxed<$MockEnvRc, Error = MockErr>>;
+            type Fn = $Rc<'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>;
 
             fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
                 self.inner.get(name)
@@ -47,8 +47,8 @@ macro_rules! impl_env {
     }
 }
 
-impl_env!(MockEnvRc, Rc);
-impl_env!(MockEnvArc, Arc);
+impl_env!(MockEnvRc, Rc,);
+impl_env!(MockEnvArc, Arc, + Send + Sync);
 
 macro_rules! run_all {
     ($cmd:expr) => {{

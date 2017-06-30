@@ -11,7 +11,6 @@ use self::futures::BoxFuture;
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
-use self::tokio_core::reactor::Core;
 use self::void::{unreachable, Void};
 use std::borrow::Borrow;
 use std::fs::OpenOptions;
@@ -25,6 +24,7 @@ pub use self::conch_runtime::error::*;
 pub use self::conch_runtime::eval::*;
 pub use self::conch_runtime::future::*;
 pub use self::futures::{Async, Future, Poll};
+pub use self::tokio_core::reactor::Core;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[macro_export]
@@ -517,21 +517,29 @@ impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
 #[macro_export]
 macro_rules! run {
     ($cmd:expr) => {{
+        let lp = Core::new().expect("failed to create Core loop");
+        let env = DefaultEnvRc::new(lp.remote(), Some(1));
+        run!($cmd, lp, env)
+    }};
+
+    ($cmd:expr, $lp:expr, $env:expr) => {{
+        let mut lp = $lp;
+        let env = $env;
         let cmd = $cmd;
+
         #[allow(deprecated)]
-        let ret_ref = run(&cmd);
+        let ret_ref = run(&cmd, env.sub_env(), &mut lp);
         #[allow(deprecated)]
-        let ret = run(cmd);
+        let ret = run(cmd, env, &mut lp);
+
         assert_eq!(ret_ref, ret);
         ret
-    }}
+    }};
 }
 
 /// Spawns and syncronously runs the provided command to completion.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
-pub fn run<T: Spawn<DefaultEnvRc>>(cmd: T) -> Result<ExitStatus, T::Error> {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+pub fn run<T: Spawn<E>, E>(cmd: T, env: E, lp: &mut Core) -> Result<ExitStatus, T::Error> {
     let future = cmd.spawn(&env)
         .pin_env(env)
         .flatten();
