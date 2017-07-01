@@ -1,11 +1,14 @@
 //! This module defines various traits and adapters for bridging command
 //! execution with futures.
+use futures::Future;
 
+mod boxed_result;
 mod invert;
 mod fuse;
 mod pinned;
 
 pub use futures::{Async, Poll};
+pub use self::boxed_result::BoxedResult;
 pub use self::invert::InvertStatus;
 pub use self::fuse::Fuse;
 pub use self::pinned::Pinned;
@@ -99,6 +102,18 @@ pub trait EnvFuture<E: ?Sized> {
     /// unlike the trait's `poll` and `cancel` methods, is guaranteed.
     fn fuse(self) -> Fuse<Self> where Self: Sized {
         fuse::new(self)
+    }
+
+    /// Converts the resulting future into a boxed trait object.
+    ///
+    /// In other words, instead of returning a concrete type, this
+    /// adapter will return `Box<Future>` which is useful when type
+    /// erasure is desired.
+    fn boxed_result<'a>(self) -> BoxedResult<'a, Self>
+        where Self: Sized,
+              Self::Item: 'a + Future,
+    {
+        boxed_result::new(self)
     }
 }
 

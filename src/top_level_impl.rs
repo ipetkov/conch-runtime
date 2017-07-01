@@ -5,7 +5,6 @@ use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
 use error::RuntimeError;
 use eval::{Fields, WordEval, WordEvalConfig};
 use future::EnvFuture;
-use future_ext::EnvFutureExt;
 use io::FileDescWrapper;
 use spawn::{BoxSpawnEnvFuture, BoxStatusFuture, Spawn, SpawnBoxed};
 use std::fmt::Display;
