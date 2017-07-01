@@ -53,7 +53,7 @@ macro_rules! impl_env {
 
             /// Constructs a new environment and initializes it with duplicated
             /// stdio file descriptors or handles of the current process.
-            pub fn with_process_fds() -> Result<Self> where T: From<FileDesc> {
+            pub fn with_process_stdio() -> Result<Self> where T: From<FileDesc> {
                 let (stdin, stdout, stderr) = try!(dup_stdio());
                 Ok(Self::with_fds(vec!(
                     (STDIN_FILENO,  stdin.into(),  Permissions::Read),

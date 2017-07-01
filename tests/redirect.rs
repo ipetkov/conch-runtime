@@ -72,7 +72,7 @@ fn test_open_redirect<F1, F2>(
 {
     let mut lp = Core::new().expect("failed to create Core loop");
     let mut env = DefaultEnvRc::with_config(DefaultEnvConfig {
-        file_desc_env: FileDescEnv::with_process_fds().unwrap(),
+        file_desc_env: FileDescEnv::with_process_stdio().unwrap(),
         .. DefaultEnvConfigRc::new(lp.remote(), Some(1))
     });
 

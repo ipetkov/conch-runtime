@@ -45,7 +45,7 @@ fn main() {
         interactive: false,
         args_env: ArgsEnv::new(),
         async_io_env: PlatformSpecificAsyncIoEnv::new(lp.remote(), None),
-        file_desc_env: FileDescEnv::with_process_fds().expect("failed to copy stdio"),
+        file_desc_env: FileDescEnv::with_process_stdio().expect("failed to copy stdio"),
         last_status_env: LastStatusEnv::new(),
         var_env: VarEnv::with_process_env_vars(),
         exec_env: ExecEnv::new(lp.remote()),
