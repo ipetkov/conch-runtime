@@ -1,4 +1,4 @@
-// A utility that can be used as a subprocess to test env var setting.
+//! A utility that can be used as a subprocess to test env var setting.
 use std::collections::BTreeMap;
 use std::env;
 use std::io::{self, Write};
