@@ -18,7 +18,7 @@ mod simple_word;
 mod word;
 
 pub use self::arith::ArithEval;
-pub use self::complex_word::EvalComplexWord;
+pub use self::complex_word::{Concat, EvalComplexWord, concat};
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
 pub use self::param_subst::{alternative, assign, default, error, len,

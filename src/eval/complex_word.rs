@@ -1,6 +1,7 @@
 use env::StringWrapper;
 use future::{Async, EnvFuture, Poll};
 use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use std::fmt;
 use std::iter::Fuse;
 use std::mem;
 use std::slice;
@@ -12,7 +13,7 @@ impl<W, E: ?Sized> WordEval<E> for ComplexWord<W>
 {
     type EvalResult = W::EvalResult;
     type Error = W::Error;
-    type EvalFuture = EvalComplexWord<W, W::EvalResult, W::EvalFuture, vec::IntoIter<W>>;
+    type EvalFuture = EvalComplexWord<W, vec::IntoIter<W>, E>;
 
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let state = match self {
@@ -31,12 +32,7 @@ impl<'a, W, E: ?Sized> WordEval<E> for &'a ComplexWord<W>
 {
     type EvalResult = <&'a W as WordEval<E>>::EvalResult;
     type Error = <&'a W as WordEval<E>>::Error;
-    type EvalFuture = EvalComplexWord<
-        &'a W,
-        <&'a W as WordEval<E>>::EvalResult,
-        <&'a W as WordEval<E>>::EvalFuture,
-        slice::Iter<'a, W>
-    >;
+    type EvalFuture = EvalComplexWord<&'a W, slice::Iter<'a, W>, E>;
 
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         let state = match *self {
@@ -50,8 +46,14 @@ impl<'a, W, E: ?Sized> WordEval<E> for &'a ComplexWord<W>
     }
 }
 
-fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig)
-    -> Concat<W, W::EvalResult, W::EvalFuture, I::IntoIter>
+/// Creates a future adapter which concatenates multiple words together.
+///
+/// All words will be concatenated together in the same field, however,
+/// intermediate `At`, `Star`, and `Split` fields will be handled as follows:
+/// the first newly generated field will be concatenated to the last existing
+/// field, and the remainder of the newly generated fields will form their own
+/// distinct fields.
+pub fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig) -> Concat<W, I::IntoIter, E>
     where W: WordEval<E>,
           I: IntoIterator<Item = W>,
 {
@@ -68,26 +70,92 @@ fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig)
 
 /// A future representing the evaluation of a `ComplexWord`.
 #[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct EvalComplexWord<W, T, F, I> where I: Iterator<Item = W> {
-    state: State<W, T, F, I>,
+pub struct EvalComplexWord<W, I, E: ?Sized>
+    where W: WordEval<E>,
+          I: Iterator<Item = W>
+{
+    state: State<W, I, E>,
 }
 
-#[derive(Debug)]
-enum State<W, T, F, I> where I: Iterator<Item = W> {
-    Single(F),
-    Concat(Concat<W, T, F, I>),
+impl<W, I, E: ?Sized> fmt::Debug for EvalComplexWord<W, I, E>
+    where W: WordEval<E> + fmt::Debug,
+          W::EvalResult: fmt::Debug,
+          W::EvalFuture: fmt::Debug,
+          I: Iterator<Item = W> + fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("EvalComplexWord")
+            .field("state", &self.state)
+            .finish()
+    }
 }
 
-#[derive(Debug)]
-struct Concat<W, T, F, I> where I: Iterator<Item = W> {
+enum State<W, I, E: ?Sized>
+    where W: WordEval<E>,
+          I: Iterator<Item = W>,
+{
+    Single(W::EvalFuture),
+    Concat(Concat<W, I, E>),
+}
+
+impl<W, I, E: ?Sized> fmt::Debug for State<W, I, E>
+    where W: WordEval<E> + fmt::Debug,
+          W::EvalResult: fmt::Debug,
+          W::EvalFuture: fmt::Debug,
+          I: Iterator<Item = W> + fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            State::Single(ref f) => {
+                fmt.debug_tuple("State::Single")
+                    .field(f)
+                    .finish()
+            },
+
+            State::Concat(ref f) => {
+                fmt.debug_tuple("State::Concat")
+                    .field(f)
+                    .finish()
+            },
+        }
+    }
+}
+
+/// A future adapter which concatenates multiple words together.
+///
+/// All words will be concatenated together in the same field, however,
+/// intermediate `At`, `Star`, and `Split` fields will be handled as follows:
+/// the first newly generated field will be concatenated to the last existing
+/// field, and the remainder of the newly generated fields will form their own
+/// distinct fields.
+#[must_use = "futures do nothing unless polled"]
+pub struct Concat<W, I, E: ?Sized>
+    where W: WordEval<E>,
+          I: Iterator<Item = W>,
+{
     split_fields_further: bool,
-    fields: Vec<T>,
-    future: Option<F>,
+    fields: Vec<W::EvalResult>,
+    future: Option<W::EvalFuture>,
     rest: Fuse<I>,
 }
 
-impl<W, I, E: ?Sized> EnvFuture<E> for EvalComplexWord<W, W::EvalResult, W::EvalFuture, I>
+impl<W, I, E: ?Sized> fmt::Debug for Concat<W, I, E>
+    where W: WordEval<E> + fmt::Debug,
+          W::EvalResult: fmt::Debug,
+          W::EvalFuture: fmt::Debug,
+          I: Iterator<Item = W> + fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Concat")
+            .field("split_fields_further", &self.split_fields_further)
+            .field("fields", &self.fields)
+            .field("future", &self.future)
+            .field("rest", &self.rest)
+            .finish()
+    }
+}
+
+impl<W, I, E: ?Sized> EnvFuture<E> for EvalComplexWord<W, I, E>
     where W: WordEval<E>,
           I: Iterator<Item = W>,
 {
@@ -109,7 +177,7 @@ impl<W, I, E: ?Sized> EnvFuture<E> for EvalComplexWord<W, W::EvalResult, W::Eval
     }
 }
 
-impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, W::EvalResult, W::EvalFuture, I>
+impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, I, E>
     where W: WordEval<E>,
           I: Iterator<Item = W>,
 {
