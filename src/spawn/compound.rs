@@ -1,3 +1,4 @@
+use {CANCELLED_TWICE, POLLED_TWICE};
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
           LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment,
           VariableEnvironment};
@@ -91,6 +92,7 @@ enum State<Seq, If, Loop, For, Case, Sub> {
     For(For),
     Case(Case),
     Subshell(Sub),
+    Gone,
 }
 
 impl<S, R, E: ?Sized> Spawn<E> for CompoundCommand<S, R>
@@ -319,6 +321,8 @@ impl<S, W, IS, IW, IG, IP, SR, E> EnvFuture<E> for CompoundCommandKindFuture<IS,
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(void) => void::unreachable(void),
             },
+
+            State::Gone => panic!(POLLED_TWICE),
         };
 
         let ret = match ret {
@@ -337,6 +341,9 @@ impl<S, W, IS, IW, IG, IP, SR, E> EnvFuture<E> for CompoundCommandKindFuture<IS,
             State::Case(ref mut f)     => f.cancel(env),
             State::For(ref mut f)      => f.cancel(env),
             State::Loop(ref mut f)     => f.cancel(env),
-        }
+            State::Gone => panic!(CANCELLED_TWICE),
+        };
+
+        self.state = State::Gone;
     }
 }

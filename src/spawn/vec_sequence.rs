@@ -1,4 +1,4 @@
-use {EXIT_SUCCESS, ExitStatus};
+use {EXIT_SUCCESS, ExitStatus, POLLED_TWICE};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
 use env::{LastStatusEnvironment, ReportErrorEnvironment};
@@ -9,7 +9,7 @@ use std::mem;
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-struct Bridge<F>(F);
+struct Bridge<F>(Option<F>);
 
 impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
     where F: Future<Item = ExitStatus>
@@ -18,11 +18,13 @@ impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
     type Error = F::Error;
 
     fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+        self.0.as_mut().expect(POLLED_TWICE).poll()
     }
 
     fn cancel(&mut self, _: &mut E) {
-        // Nothing to cancel
+        // Nothing to cancel, but drop inner future to ensure
+        // it gets cleaned up immediately
+        self.0.take();
     }
 }
 
@@ -72,7 +74,7 @@ impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
             let next_state = match self.state {
                 State::Init(ref mut f) => {
                     let (body, last) = try_ready!(f.poll(env));
-                    State::Last(body, swallow_non_fatal_errors(Bridge(last)))
+                    State::Last(body, swallow_non_fatal_errors(Bridge(Some(last))))
                 },
 
                 State::Last(ref mut body, ref mut last) => {

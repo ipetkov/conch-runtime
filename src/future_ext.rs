@@ -1,3 +1,4 @@
+use {CANCELLED_TWICE, POLLED_TWICE};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
 
@@ -32,16 +33,16 @@ impl<E: ?Sized, T> EnvFutureExt<E> for T where T: EnvFuture<E> {}
 pub enum FlattenedEnvFuture<E, F> {
     EnvFuture(E),
     Future(F),
-    Done,
+    Gone,
 }
 
 impl<E, F> FlattenedEnvFuture<E, F> {
     /// Unwraps the underlying future if `self` is `Future(_)` and replaces
-    /// it with `Done`. Panics otherwise.
+    /// it with `Gone`. Panics otherwise.
     pub fn take_future(&mut self) -> F {
         use std::mem;
 
-        match mem::replace(self, FlattenedEnvFuture::Done) {
+        match mem::replace(self, FlattenedEnvFuture::Gone) {
             FlattenedEnvFuture::Future(f) => f,
             _ => panic!("can only unwrap `Future` variant"),
         }
@@ -60,7 +61,7 @@ impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
         let mut f = match *self {
             FlattenedEnvFuture::EnvFuture(ref mut e) => try_ready!(e.poll(env)),
             FlattenedEnvFuture::Future(ref mut f) => return Ok(Async::Ready(try_ready!(f.poll()))),
-            FlattenedEnvFuture::Done => panic!("invalid state"),
+            FlattenedEnvFuture::Gone => panic!(POLLED_TWICE),
         };
 
         let ret = f.poll();
@@ -71,8 +72,10 @@ impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
     fn cancel(&mut self, env: &mut E) {
         match *self {
             FlattenedEnvFuture::EnvFuture(ref mut e) => e.cancel(env),
-            FlattenedEnvFuture::Future(_) |
-            FlattenedEnvFuture::Done => {}
+            FlattenedEnvFuture::Future(_) => {},
+            FlattenedEnvFuture::Gone => panic!(CANCELLED_TWICE),
         }
+
+        *self = FlattenedEnvFuture::Gone;
     }
 }

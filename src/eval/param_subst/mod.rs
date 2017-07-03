@@ -1,3 +1,4 @@
+use {CANCELLED_TWICE, POLLED_TWICE};
 use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment,
           ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, IsFatalError};
@@ -216,6 +217,7 @@ enum Inner<T, F, I, A, E, R>
     RemoveLargestSuffix(RemoveLargestSuffix<T, F>),
     RemoveSmallestPrefix(RemoveSmallestPrefix<T, F>),
     RemoveLargestPrefix(RemoveLargestPrefix<T, F>),
+    Gone,
 }
 
 impl<T, I, A, E, R, S> fmt::Debug for Inner<T, S::Future, I, A, E, R>
@@ -289,6 +291,10 @@ impl<T, I, A, E, R, S> fmt::Debug for Inner<T, S::Future, I, A, E, R>
             Inner::RemoveLargestPrefix(ref inner) => {
                 fmt.debug_tuple("Inner::RemoveLargestPrefix")
                     .field(inner)
+                    .finish()
+            },
+            Inner::Gone => {
+                fmt.debug_tuple("Inner::Gone")
                     .finish()
             },
         }
@@ -373,6 +379,7 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
                 Inner::RemoveLargestSuffix(ref mut f)  => return f.poll(env),
                 Inner::RemoveSmallestPrefix(ref mut f) => return f.poll(env),
                 Inner::RemoveLargestPrefix(ref mut f)  => return f.poll(env),
+                Inner::Gone => panic!(POLLED_TWICE),
             };
 
             *self = next_state;
@@ -394,6 +401,9 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
             Inner::RemoveLargestSuffix(ref mut f)  => f.cancel(env),
             Inner::RemoveSmallestPrefix(ref mut f) => f.cancel(env),
             Inner::RemoveLargestPrefix(ref mut f)  => f.cancel(env),
+            Inner::Gone => panic!(CANCELLED_TWICE),
         };
+
+        *self = Inner::Gone;
     }
 }
