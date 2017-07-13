@@ -1,3 +1,4 @@
+use IFS_DEFAULT;
 use env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 use std::vec;
@@ -5,8 +6,6 @@ use std::vec;
 lazy_static! {
     static ref IFS: String = { String::from("IFS") };
 }
-
-const IFS_DEFAULT: &'static str = " \t\n";
 
 /// Represents the types of fields that may result from evaluating a word.
 /// It is important to maintain such distinctions because evaluating parameters

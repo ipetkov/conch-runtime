@@ -138,6 +138,7 @@ fn function_smoke() {
 #[test]
 fn command_redirect_and_env_var_overrides() {
     let (mut lp, mut env) = new_test_env();
+    env.unset_var(&"SHLVL".to_owned());
 
     let key = Rc::new("key".to_owned());
     let key_existing = Rc::new("key_existing".to_owned());

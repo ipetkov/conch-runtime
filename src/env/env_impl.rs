@@ -1,4 +1,4 @@
-use {ExitStatus, Fd, STDERR_FILENO};
+use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use error::{CommandError, RuntimeError};
 use io::{FileDesc, Permissions};
 use spawn::SpawnBoxed;
@@ -18,7 +18,7 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ExecEnv, Executable
           ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnv, FileDescEnvironment,
           FnEnv, FunctionEnvironment, IsInteractiveEnvironment, LastStatusEnv,
           LastStatusEnvironment, PlatformSpecificAsyncIoEnv, ReportErrorEnvironment,
-          SetArgumentsEnvironment, SubEnvironment, UnsetFunctionEnvironment,
+          SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment};
 
 /// A struct for configuring a new `Env` instance.
@@ -213,8 +213,12 @@ macro_rules! impl_env {
             /// get around borrow restrictions and potential recursive executions and
             /// (re-)definitions. Since this type is probably an AST (which may be
             /// arbitrarily large), `Rc` and `Arc` are your friends.
-            pub fn with_config(cfg: EnvConfig<A, IO, FD, L, V, EX, N, ERR>) -> Self {
-                $Env {
+            pub fn with_config(cfg: EnvConfig<A, IO, FD, L, V, EX, N, ERR>) -> Self
+                where V: ExportedVariableEnvironment,
+                      V::VarName: From<String>,
+                      V::Var: Borrow<String> + From<String>,
+            {
+                let mut env = $Env {
                     interactive: cfg.interactive,
                     args_env: cfg.args_env,
                     async_io_env: cfg.async_io_env,
@@ -223,7 +227,17 @@ macro_rules! impl_env {
                     last_status_env: cfg.last_status_env,
                     var_env: cfg.var_env,
                     exec_env: cfg.exec_env,
-                }
+                };
+
+                let sh_lvl = "SHLVL".to_owned().into();
+                let level = env.var(&sh_lvl)
+                    .and_then(|lvl| lvl.borrow().parse::<isize>().ok().map(|l| l+1))
+                    .unwrap_or(1);
+
+                // FIXME: set/update $PWD, $OLDPWD
+                env.set_exported_var(sh_lvl.into(), level.to_string().into(), true);
+                env.set_var("IFS".to_owned().into(), IFS_DEFAULT.to_owned().into());
+                env
             }
         }
 
@@ -279,6 +293,9 @@ macro_rules! impl_env {
 
         impl<A, IO, FD, L, V, EX, N, ERR> From<EnvConfig<A, IO, FD, L, V, EX, N, ERR>> for $Env<A, IO, FD, L, V, EX, N, ERR>
             where N: Hash + Eq,
+                  V: ExportedVariableEnvironment,
+                  V::VarName: From<String>,
+                  V::Var: Borrow<String> + From<String>,
         {
             fn from(cfg: EnvConfig<A, IO, FD, L, V, EX, N, ERR>) -> Self {
                 Self::with_config(cfg)
@@ -601,7 +618,7 @@ pub type DefaultAtomicEnv<T> =
 /// and uses `Arc<String>` to represent shell values.
 pub type DefaultAtomicEnvArc = DefaultAtomicEnv<Arc<String>>;
 
-impl<T> DefaultEnv<T> where T: Eq + Hash + From<String> {
+impl<T> DefaultEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
@@ -610,7 +627,7 @@ impl<T> DefaultEnv<T> where T: Eq + Hash + From<String> {
     }
 }
 
-impl<T> DefaultAtomicEnv<T> where T: Eq + Hash + From<String> {
+impl<T> DefaultAtomicEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `atomic::DefaultEnvConfig` for what configuration will be used.

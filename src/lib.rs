@@ -60,6 +60,9 @@ const POLLED_TWICE: &'static str = "this future cannot be polled again after com
 /// Generic panic message for futures which have been cancelled after completion.
 const CANCELLED_TWICE: &'static str = "this future cannot be cancelled again after completion!";
 
+/// The default value of `$IFS` unless overriden.
+const IFS_DEFAULT: &'static str = " \t\n";
+
 /// Exit code for commands that exited successfully.
 pub const EXIT_SUCCESS:            ExitStatus = ExitStatus::Code(0);
 /// Exit code for commands that did not exit successfully.
