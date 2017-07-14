@@ -119,7 +119,7 @@ impl<'a> Seek for &'a FileDesc {
     }
 }
 
-#[doc(hidden)]
+#[doc(hidden)] // FIXME: pub(crate)?
 /// Duplicates handles for (stdin, stdout, stderr) and returns them in that order.
 pub fn dup_stdio() -> Result<(FileDesc, FileDesc, FileDesc)> {
     let (stdin, stdout, stderr) = try!(sys::io::dup_stdio());

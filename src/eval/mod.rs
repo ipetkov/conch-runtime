@@ -60,6 +60,8 @@ pub struct WordEvalConfig {
 }
 
 /// A trait for evaluating shell words with various rules for expansion.
+// FIXME: should Assignment and Pattern be associated types? Currently there is no way to override
+// the assignment/pattern behavior since the trait requires an explicit adapter be returned...
 pub trait WordEval<E: ?Sized>: Sized {
     /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
     type EvalResult: StringWrapper;
@@ -103,6 +105,8 @@ pub trait WordEval<E: ?Sized>: Sized {
     }
 
     /// Evaluates a word just like `eval`, but converts the result into a `glob::Pattern`.
+    // FIXME: implement patterns according to spec
+    // FIXME: globbing should be done relative to the shell's cwd WITHOUT changing the process's cwd
     fn eval_as_pattern(self, env: &E) -> Pattern<Self::EvalFuture> {
         Pattern {
             f: self.eval_with_config(env, WordEvalConfig {
