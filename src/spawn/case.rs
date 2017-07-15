@@ -7,7 +7,6 @@ use glob::MatchOptions;
 use spawn::{ExitResult, Sequence, sequence};
 use std::fmt;
 use std::mem;
-use syntax::ast;
 
 /// A grouping of patterns and body commands.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -18,8 +17,9 @@ pub struct PatternBodyPair<W, C> {
     pub body: C,
 }
 
-impl<W, C> From<ast::PatternBodyPair<W, C>> for PatternBodyPair<Vec<W>, Vec<C>> {
-    fn from(ast: ast::PatternBodyPair<W, C>) -> Self {
+#[cfg(feature = "conch-parser")]
+impl<W, C> From<::conch_parser::ast::PatternBodyPair<W, C>> for PatternBodyPair<Vec<W>, Vec<C>> {
+    fn from(ast: ::conch_parser::ast::PatternBodyPair<W, C>) -> Self {
         PatternBodyPair {
             patterns: ast.patterns,
             body: ast.body,

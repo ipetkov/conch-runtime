@@ -7,7 +7,6 @@ use io::FileDescWrapper;
 use std::error::Error;
 use std::fmt;
 use std::mem;
-use syntax::ast;
 
 /// Represents a redirect or a command word.
 ///
@@ -22,11 +21,12 @@ pub enum RedirectOrCmdWord<R, W> {
     CmdWord(W),
 }
 
-impl<R, W> From<ast::RedirectOrCmdWord<R, W>> for RedirectOrCmdWord<R, W> {
-    fn from(from: ast::RedirectOrCmdWord<R, W>) -> Self {
+#[cfg(feature = "conch-parser")]
+impl<R, W> From<::conch_parser::ast::RedirectOrCmdWord<R, W>> for RedirectOrCmdWord<R, W> {
+    fn from(from: ::conch_parser::ast::RedirectOrCmdWord<R, W>) -> Self {
         match from {
-            ast::RedirectOrCmdWord::Redirect(r) => RedirectOrCmdWord::Redirect(r),
-            ast::RedirectOrCmdWord::CmdWord(w) => RedirectOrCmdWord::CmdWord(w),
+            ::conch_parser::ast::RedirectOrCmdWord::Redirect(r) => RedirectOrCmdWord::Redirect(r),
+            ::conch_parser::ast::RedirectOrCmdWord::CmdWord(w) => RedirectOrCmdWord::CmdWord(w),
         }
     }
 }

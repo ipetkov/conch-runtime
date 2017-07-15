@@ -3,8 +3,6 @@
 use env::VariableEnvironment;
 use error::ExpansionError;
 use std::borrow::Borrow;
-use syntax::ast::Arithmetic;
-use syntax::ast::Arithmetic::*;
 
 /// A trait for evaluating arithmetic expansions.
 pub trait ArithEval<E: ?Sized> {
@@ -21,13 +19,16 @@ impl<'a, T: ?Sized + ArithEval<E>, E: ?Sized> ArithEval<E> for &'a T {
     }
 }
 
-impl<T, E: ?Sized> ArithEval<E> for Arithmetic<T>
+#[cfg(feature = "conch-parser")]
+impl<T, E: ?Sized> ArithEval<E> for ::conch_parser::ast::Arithmetic<T>
     where T: Borrow<String> + Clone,
           E: VariableEnvironment,
           E::VarName: Borrow<String> + From<T>,
           E::Var: Borrow<String> + From<String>,
 {
     fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
+        use conch_parser::ast::Arithmetic::*;
+
         // FIXME: interesting observation: bash and zsh seem to recursively expand vars to other vars
         // FIXME: e.g. x=3, y=x, z=y, $(( $z *= 5 ))
         let get_var = |env: &E, var: &T| {

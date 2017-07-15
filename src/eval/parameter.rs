@@ -5,7 +5,6 @@ use env::{ArgumentsEnvironment, LastStatusEnvironment, StringWrapper, VariableEn
 use eval::Fields;
 use io::getpid;
 use std::borrow::Borrow;
-use syntax::ast::Parameter;
 
 const EXIT_SIGNAL_OFFSET: u32 = 128;
 
@@ -36,7 +35,8 @@ impl<'a, E: ?Sized, P: ?Sized + ParamEval<E>> ParamEval<E> for &'a P {
     }
 }
 
-impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
+#[cfg(feature = "conch-parser")]
+impl<T, E: ?Sized> ParamEval<E> for ::conch_parser::ast::Parameter<T>
     where T: StringWrapper,
           E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
@@ -44,6 +44,8 @@ impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
     type EvalResult = T;
 
     fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
+        use conch_parser::ast::Parameter;
+
         let get_args = || {
             let args = env.args();
             if args.is_empty() {
@@ -82,6 +84,8 @@ impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
     }
 
     fn assig_name(&self) -> Option<Self::EvalResult> {
+        use conch_parser::ast::Parameter;
+
         match *self {
             Parameter::At            |
             Parameter::Star          |

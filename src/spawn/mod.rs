@@ -4,7 +4,6 @@ use ExitStatus;
 use future::{Async, EnvFuture, Poll};
 use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
-use syntax::ast;
 
 mod and_or;
 mod case;
@@ -258,8 +257,9 @@ pub struct GuardBodyPair<T> {
     pub body: T,
 }
 
-impl<T> From<ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
-    fn from(guard_body_pair: ast::GuardBodyPair<T>) -> Self {
+#[cfg(feature = "conch-parser")]
+impl<T> From<::conch_parser::ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
+    fn from(guard_body_pair: ::conch_parser::ast::GuardBodyPair<T>) -> Self {
         GuardBodyPair {
             guard: guard_body_pair.guard,
             body: guard_body_pair.body,

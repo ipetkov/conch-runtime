@@ -8,7 +8,6 @@ use future::{Async, EnvFuture, Poll};
 use io::{FileDesc, Permissions, Pipe};
 use std::fs::OpenOptions;
 use std::io::Result as IoResult;
-use syntax::ast;
 
 /// Indicates what changes should be made to the environment as a result
 /// of a successful `Redirect` evaluation.
@@ -328,7 +327,8 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
     }
 }
 
-impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
+#[cfg(feature = "conch-parser")]
+impl<W, E: ?Sized> RedirectEval<E> for ::conch_parser::ast::Redirect<W>
     where W: WordEval<E>,
           W::Error: From<RedirectionError>,
           E: FileDescEnvironment + IsInteractiveEnvironment,
@@ -339,6 +339,8 @@ impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
     type EvalFuture = Redirect<W::EvalFuture>;
 
     fn eval(self, env: &E) -> Self::EvalFuture {
+        use conch_parser::ast;
+
         match self {
             ast::Redirect::Read(fd, w)        => redirect_read(fd, w, env),
             ast::Redirect::ReadWrite(fd, w)   => redirect_readwrite(fd, w, env),
@@ -352,7 +354,8 @@ impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
     }
 }
 
-impl<'a, W, E: ?Sized> RedirectEval<E> for &'a ast::Redirect<W>
+#[cfg(feature = "conch-parser")]
+impl<'a, W, E: ?Sized> RedirectEval<E> for &'a ::conch_parser::ast::Redirect<W>
     where &'a W: WordEval<E>,
           <&'a W as WordEval<E>>::Error: From<RedirectionError>,
           E: FileDescEnvironment + IsInteractiveEnvironment,
@@ -363,6 +366,8 @@ impl<'a, W, E: ?Sized> RedirectEval<E> for &'a ast::Redirect<W>
     type EvalFuture = Redirect<<&'a W as WordEval<E>>::EvalFuture>;
 
     fn eval(self, env: &E) -> Self::EvalFuture {
+        use conch_parser::ast;
+
         match *self {
             ast::Redirect::Read(fd, ref w)        => redirect_read(fd, w, env),
             ast::Redirect::ReadWrite(fd, ref w)   => redirect_readwrite(fd, w, env),

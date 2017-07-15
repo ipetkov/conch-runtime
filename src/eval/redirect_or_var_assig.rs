@@ -10,7 +10,6 @@ use std::error::Error;
 use std::fmt;
 use std::hash::Hash;
 use std::mem;
-use syntax::ast;
 
 /// Represents a redirect or a defined environment variable at the start of a
 /// command.
@@ -26,11 +25,12 @@ pub enum RedirectOrVarAssig<R, V, W> {
     VarAssig(V, Option<W>),
 }
 
-impl<R, V, W> From<ast::RedirectOrEnvVar<R, V, W>> for RedirectOrVarAssig<R, V, W> {
-    fn from(from: ast::RedirectOrEnvVar<R, V, W>) -> Self {
+#[cfg(feature = "conch-parser")]
+impl<R, V, W> From<::conch_parser::ast::RedirectOrEnvVar<R, V, W>> for RedirectOrVarAssig<R, V, W> {
+    fn from(from: ::conch_parser::ast::RedirectOrEnvVar<R, V, W>) -> Self {
         match from {
-            ast::RedirectOrEnvVar::Redirect(r) => RedirectOrVarAssig::Redirect(r),
-            ast::RedirectOrEnvVar::EnvVar(k, v) => RedirectOrVarAssig::VarAssig(k, v),
+            ::conch_parser::ast::RedirectOrEnvVar::Redirect(r) => RedirectOrVarAssig::Redirect(r),
+            ::conch_parser::ast::RedirectOrEnvVar::EnvVar(k, v) => RedirectOrVarAssig::VarAssig(k, v),
         }
     }
 }

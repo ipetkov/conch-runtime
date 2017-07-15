@@ -1,3 +1,5 @@
+#![cfg(feature = "conch-parser")]
+
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
           ExportedVariableEnvironment, FileDescEnvironment, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
@@ -10,7 +12,7 @@ use spawn::{BoxSpawnEnvFuture, BoxStatusFuture, Spawn, SpawnBoxed};
 use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::Arc;
-use syntax::ast::{AtomicTopLevelCommand, AtomicTopLevelWord, TopLevelCommand, TopLevelWord};
+use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord, TopLevelCommand, TopLevelWord};
 
 macro_rules! impl_top_level_cmd {
     ($type: ident, $Rc:ident, $($extra_bounds:tt)*) => {
