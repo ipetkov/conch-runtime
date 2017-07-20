@@ -13,7 +13,6 @@ mod if_cmd;
 mod listable;
 mod local_redirections;
 mod loop_cmd;
-mod pipeable;
 mod rc;
 mod sequence;
 mod simple;
@@ -38,7 +37,6 @@ pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
                          PinnedFlattenedFuture, Pipeline, pipeline};
 pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirections};
 pub use self::loop_cmd::{Loop, loop_cmd};
-pub use self::pipeable::PipeableEnvFuture;
 pub use self::sequence::{Sequence, sequence};
 pub use self::simple::{SimpleCommand, simple_command, SimpleCommandEnvFuture, SpawnedSimpleCommand};
 pub use self::subshell::{Subshell, subshell};

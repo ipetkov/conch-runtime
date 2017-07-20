@@ -1,16 +1,16 @@
 use {EXIT_SUCCESS, POLLED_TWICE};
+use conch_parser::ast;
 use env::FunctionEnvironment;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Either;
 use spawn::{ExitResult, Spawn, SpawnBoxed};
 use std::rc::Rc;
 use std::sync::Arc;
-use syntax::ast::PipeableCommand;
 
 /// A future representing the spawning of a `PipeableCommand`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct PipeableEnvFuture<N, S, C, F> {
+pub struct PipeableCommand<N, S, C, F> {
     state: State<N, S, C, F>,
 }
 
@@ -21,7 +21,7 @@ enum State<N, S, C, F> {
     FnDef(Option<(N, F)>),
 }
 
-impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableEnvFuture<N, S, C, F>
+impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableCommand<N, S, C, F>
     where S: EnvFuture<E>,
           C: EnvFuture<E, Error = S::Error>,
           E: FunctionEnvironment,
@@ -56,7 +56,7 @@ impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableEnvFuture<N, S, C, F>
 
 macro_rules! impl_spawn {
     ($Rc:ident, $($extra_bounds:tt)*) => {
-        impl<ERR, N, S, C, F, E: ?Sized> Spawn<E> for PipeableCommand<N, S, C, $Rc<F>>
+        impl<ERR, N, S, C, F, E: ?Sized> Spawn<E> for ast::PipeableCommand<N, S, C, $Rc<F>>
             where S: Spawn<E, Error = ERR>,
                   C: Spawn<E, Error = ERR>,
                   F: 'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*,
@@ -64,7 +64,7 @@ macro_rules! impl_spawn {
                   E::FnName: From<N>,
                   E::Fn: From<$Rc<'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*>>,
         {
-            type EnvFuture = PipeableEnvFuture<
+            type EnvFuture = PipeableCommand<
                 N,
                 S::EnvFuture,
                 C::EnvFuture,
@@ -75,21 +75,21 @@ macro_rules! impl_spawn {
 
             fn spawn(self, env: &E) -> Self::EnvFuture {
                 let state = match self {
-                    PipeableCommand::Simple(s) => State::Simple(s.spawn(env)),
-                    PipeableCommand::Compound(c) => State::Compound(c.spawn(env)),
-                    PipeableCommand::FunctionDef(name, body) => {
+                    ast::PipeableCommand::Simple(s) => State::Simple(s.spawn(env)),
+                    ast::PipeableCommand::Compound(c) => State::Compound(c.spawn(env)),
+                    ast::PipeableCommand::FunctionDef(name, body) => {
                         let body: $Rc<SpawnBoxed<E, Error = ERR> $($extra_bounds)*> = body;
                         State::FnDef(Some((name, body)))
                     },
                 };
 
-                PipeableEnvFuture {
+                PipeableCommand {
                     state: state,
                 }
             }
         }
 
-        impl<'a, ERR, N, S, C, F, E: ?Sized> Spawn<E> for &'a PipeableCommand<N, S, C, $Rc<F>>
+        impl<'a, ERR, N, S, C, F, E: ?Sized> Spawn<E> for &'a ast::PipeableCommand<N, S, C, $Rc<F>>
             where N: Clone,
                   &'a S: Spawn<E, Error = ERR>,
                   &'a C: Spawn<E, Error = ERR>,
@@ -98,7 +98,7 @@ macro_rules! impl_spawn {
                   E::FnName: From<N>,
                   E::Fn: From<$Rc<'static + SpawnBoxed<E, Error = ERR> $($extra_bounds)*>>,
         {
-            type EnvFuture = PipeableEnvFuture<
+            type EnvFuture = PipeableCommand<
                 N,
                 <&'a S as Spawn<E>>::EnvFuture,
                 <&'a C as Spawn<E>>::EnvFuture,
@@ -111,15 +111,15 @@ macro_rules! impl_spawn {
 
             fn spawn(self, env: &E) -> Self::EnvFuture {
                 let state = match *self {
-                    PipeableCommand::Simple(ref s) => State::Simple(s.spawn(env)),
-                    PipeableCommand::Compound(ref c) => State::Compound(c.spawn(env)),
-                    PipeableCommand::FunctionDef(ref name, ref body) => {
+                    ast::PipeableCommand::Simple(ref s) => State::Simple(s.spawn(env)),
+                    ast::PipeableCommand::Compound(ref c) => State::Compound(c.spawn(env)),
+                    ast::PipeableCommand::FunctionDef(ref name, ref body) => {
                         let body: $Rc<SpawnBoxed<E, Error = ERR> $($extra_bounds)*> = body.clone();
                         State::FnDef(Some((name.clone(), body)))
                     },
                 };
 
-                PipeableEnvFuture {
+                PipeableCommand {
                     state: state,
                 }
             }
