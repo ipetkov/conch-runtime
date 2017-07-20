@@ -7,7 +7,6 @@ use futures::Future;
 
 mod and_or;
 mod case;
-mod command;
 mod compound;
 mod for_cmd;
 mod func_exec;
@@ -24,13 +23,15 @@ mod substitution;
 mod swallow_non_fatal;
 mod vec_sequence;
 
+#[cfg(feature = "conch-parser")]
+pub mod ast_impl;
+
 // Private definitions
 use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 
 // Pub reexports
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
-pub use self::command::CommandEnvFuture;
 pub use self::compound::{CompoundCommandKindFuture, CompoundCommandKindRefFuture};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::func_exec::{Function, function};

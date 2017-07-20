@@ -1,13 +1,13 @@
 use {EXIT_ERROR, Spawn};
+use conch_parser::ast;
 use error::RuntimeError;
 use env::LastStatusEnvironment;
 use future::{EnvFuture, Poll};
-use syntax::ast::Command;
 
 /// A future representing the execution of a `Command`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct CommandEnvFuture<F> {
+pub struct Command<F> {
     inner: Inner<F>,
 }
 
@@ -18,49 +18,49 @@ enum Inner<F> {
     Unimplemented,
 }
 
-impl<E: ?Sized, T> Spawn<E> for Command<T>
+impl<E: ?Sized, T> Spawn<E> for ast::Command<T>
     where E: LastStatusEnvironment,
           T: Spawn<E>,
           T::Error: From<RuntimeError>,
 {
     type Error = T::Error;
-    type EnvFuture = CommandEnvFuture<T::EnvFuture>;
+    type EnvFuture = Command<T::EnvFuture>;
     type Future = T::Future;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
         let inner = match self {
-            Command::Job(_) => Inner::Unimplemented,
-            Command::List(cmd) => Inner::Pending(cmd.spawn(env)),
+            ast::Command::Job(_) => Inner::Unimplemented,
+            ast::Command::List(cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
-        CommandEnvFuture {
+        Command {
             inner: inner,
         }
     }
 }
 
-impl<'a, E: ?Sized, T> Spawn<E> for &'a Command<T>
+impl<'a, E: ?Sized, T> Spawn<E> for &'a ast::Command<T>
     where E: LastStatusEnvironment,
           &'a T: Spawn<E>,
           <&'a T as Spawn<E>>::Error: From<RuntimeError>,
 {
     type Error = <&'a T as Spawn<E>>::Error;
-    type EnvFuture = CommandEnvFuture<<&'a T as Spawn<E>>::EnvFuture>;
+    type EnvFuture = Command<<&'a T as Spawn<E>>::EnvFuture>;
     type Future = <&'a T as Spawn<E>>::Future;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
         let inner = match *self {
-            Command::Job(_) => Inner::Unimplemented,
-            Command::List(ref cmd) => Inner::Pending(cmd.spawn(env)),
+            ast::Command::Job(_) => Inner::Unimplemented,
+            ast::Command::List(ref cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
-        CommandEnvFuture {
+        Command {
             inner: inner,
         }
     }
 }
 
-impl<E: ?Sized, F> EnvFuture<E> for CommandEnvFuture<F>
+impl<E: ?Sized, F> EnvFuture<E> for Command<F>
     where F: EnvFuture<E>,
           F::Error: From<RuntimeError>,
           E: LastStatusEnvironment,
