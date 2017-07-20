@@ -2,5 +2,6 @@
 //! the `conch-parser` crate.
 
 mod command;
+mod top_level_impl;
 
 pub use self::command::Command;

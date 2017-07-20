@@ -1,5 +1,3 @@
-#![cfg(feature = "conch-parser")]
-
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
           ExportedVariableEnvironment, FileDescEnvironment, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
