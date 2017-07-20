@@ -1,3 +1,5 @@
+#![cfg(feature = "conch-parser")]
+
 extern crate conch_parser as syntax;
 
 use std::rc::Rc;

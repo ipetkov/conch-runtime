@@ -7,7 +7,6 @@ use futures::Future;
 
 mod and_or;
 mod case;
-mod compound;
 mod for_cmd;
 mod func_exec;
 mod if_cmd;
@@ -32,7 +31,6 @@ use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 // Pub reexports
 pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
-pub use self::compound::{CompoundCommandKindFuture, CompoundCommandKindRefFuture};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::func_exec::{Function, function};
 pub use self::if_cmd::{If, if_cmd};

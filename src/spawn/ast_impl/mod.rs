@@ -2,6 +2,8 @@
 //! the `conch-parser` crate.
 
 mod command;
+mod compound;
 mod top_level_impl;
 
 pub use self::command::Command;
+pub use self::compound::{CompoundCommandKindFuture, CompoundCommandKindRefFuture};

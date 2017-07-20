@@ -1,4 +1,5 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
+use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
           LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment,
           VariableEnvironment};
@@ -14,7 +15,6 @@ use std::fmt;
 use std::slice::Iter;
 use std::sync::Arc;
 use std::vec::IntoIter;
-use syntax::ast::{self, CompoundCommand, CompoundCommandKind};
 use void;
 
 /// A type alias for the `CompoundCommandKindFuture` created by spawning a `CompoundCommand`.
