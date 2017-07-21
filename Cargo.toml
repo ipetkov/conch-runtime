@@ -4,7 +4,8 @@ version = "0.1.0"
 authors = ["Ivan Petkov <ivanppetkov@gmail.com>"]
 
 [features]
-default = ["conch-parser"]
+default = ["conch-parser", "top-level"]
+top-level = ["conch-parser"]
 
 [dependencies]
 conch-parser = { path = "../conch-parser", optional = true }

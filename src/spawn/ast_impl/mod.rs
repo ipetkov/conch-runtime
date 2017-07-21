@@ -6,6 +6,7 @@ mod command;
 mod compound;
 mod pipeable;
 mod simple;
+#[cfg(feature = "top-level")]
 mod top_level_impl;
 
 pub use self::and_or::AndOrRefIter;

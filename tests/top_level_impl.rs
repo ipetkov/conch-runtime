@@ -1,4 +1,4 @@
-#![cfg(feature = "conch-parser")]
+#![cfg(all(feature = "conch-parser", feature = "top-level"))]
 
 extern crate conch_parser;
 extern crate conch_runtime;

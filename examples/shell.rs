@@ -1,12 +1,15 @@
+#![cfg_attr(
+    not(all(feature = "conch-parser", feature = "top-level")),
+    allow(dead_code, unused_imports)
+)]
+
+#[cfg(feature = "conch-parser")]
 extern crate conch_parser;
 extern crate conch_runtime;
 extern crate futures;
 extern crate owned_chars;
 extern crate tokio_core;
 
-use conch_parser::ast::builder::RcBuilder;
-use conch_parser::lexer::Lexer;
-use conch_parser::parse::Parser;
 use conch_runtime::{EXIT_ERROR, ExitStatus};
 use conch_runtime::env::{ArgsEnv, DefaultEnvRc, EnvConfig, ExecEnv, FileDescEnv,
                          LastStatusEnv, PlatformSpecificAsyncIoEnv, VarEnv};
@@ -19,7 +22,15 @@ use std::marker::PhantomData;
 use std::process::exit;
 use tokio_core::reactor::Core;
 
+#[cfg(not(all(feature = "conch-parser", feature = "top-level")))]
+fn main() {}
+
+#[cfg(all(feature = "conch-parser", feature = "top-level"))]
 fn main() {
+    use conch_parser::ast::builder::RcBuilder;
+    use conch_parser::lexer::Lexer;
+    use conch_parser::parse::Parser;
+
     let stdin = BufReader::new(stdin()).lines()
         .map(Result::unwrap)
         .flat_map(|mut line| {
@@ -62,7 +73,7 @@ fn main() {
             .flatten()
     }));
 
-    exit_with_status(status.unwrap_or(EXIT_ERROR));
+   exit_with_status(status.unwrap_or(EXIT_ERROR));
 }
 
 fn exit_with_status(status: ExitStatus) -> ! {
