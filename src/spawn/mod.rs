@@ -38,7 +38,7 @@ pub use self::listable::{ListableCommandEnvFuture, ListableCommandFuture,
 pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirections};
 pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::sequence::{Sequence, sequence};
-pub use self::simple::{SimpleCommand, simple_command, SimpleCommandEnvFuture, SpawnedSimpleCommand};
+pub use self::simple::{SimpleCommand, simple_command, SpawnedSimpleCommand};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
 pub use self::swallow_non_fatal::{SwallowNonFatal, swallow_non_fatal_errors};
