@@ -28,7 +28,7 @@ pub mod ast_impl;
 use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 
 // Pub reexports
-pub use self::and_or::{AndOrListEnvFuture, AndOrRefIter, and_or_list};
+pub use self::and_or::{AndOr, AndOrList, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::func_exec::{Function, function};

@@ -5,14 +5,20 @@ use future::{Async, EnvFuture, Poll};
 use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal,
             swallow_non_fatal_errors};
 use std::iter::Peekable;
-use std::slice;
-use std::vec;
-use syntax::ast::{AndOr, AndOrList};
+
+/// A command which conditionally runs based on the exit status of the previous command.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum AndOr<T> {
+    /// A compound command which should run only if the previously run command succeeded.
+    And(T),
+    /// A compound command which should run only if the previously run command failed.
+    Or(T),
+}
 
 /// A future representing the execution of a list of `And`/`Or` commands.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct AndOrListEnvFuture<T, I, E: ?Sized>
+pub struct AndOrList<T, I, E: ?Sized>
     where I: Iterator<Item = AndOr<T>>,
           T: Spawn<E>
 {
@@ -21,71 +27,22 @@ pub struct AndOrListEnvFuture<T, I, E: ?Sized>
     rest: Peekable<I>,
 }
 
-/// An iterator that converts `&AndOr<T>` to `AndOr<&T>`.
-#[must_use = "iterators do nothing unless polled"]
-#[derive(Debug)]
-pub struct AndOrRefIter<I> {
-    iter: I,
-}
-
-impl<E: ?Sized, T> Spawn<E> for AndOrList<T>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
-          T: Spawn<E>,
-          T::Error: IsFatalError,
-{
-    type Error = T::Error;
-    type EnvFuture = AndOrListEnvFuture<T, vec::IntoIter<AndOr<T>>, E>;
-    type Future = ExitResult<T::Future>;
-
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        and_or_list(self.first, self.rest.into_iter(), env)
-    }
-}
-
-impl<'a, E: ?Sized, T> Spawn<E> for &'a AndOrList<T>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
-          &'a T: Spawn<E>,
-          <&'a T as Spawn<E>>::Error: IsFatalError,
-{
-    type Error = <&'a T as Spawn<E>>::Error;
-    type EnvFuture = AndOrListEnvFuture<&'a T, AndOrRefIter<slice::Iter<'a, AndOr<T>>>, E>;
-    type Future = ExitResult<<&'a T as Spawn<E>>::Future>;
-
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        let iter = AndOrRefIter { iter: self.rest.iter() };
-        and_or_list(&self.first, iter, env)
-    }
-}
-
 /// Spawns an `And`/`Or` list of commands from an initial command and an iterator.
 pub fn and_or_list<T, I, E: ?Sized>(first: T, rest: I, env: &E)
-    -> AndOrListEnvFuture<T, I::IntoIter, E>
+    -> AndOrList<T, I::IntoIter, E>
     where E: LastStatusEnvironment + ReportErrorEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
           I: IntoIterator<Item = AndOr<T>>,
 {
-    AndOrListEnvFuture {
+    AndOrList {
         last_status: EXIT_SUCCESS,
         current: swallow_non_fatal_errors(first.spawn(env).flatten_future()),
         rest: rest.into_iter().peekable(),
     }
 }
 
-impl<'a, I, T: 'a> Iterator for AndOrRefIter<I>
-    where I: Iterator<Item = &'a AndOr<T>>,
-{
-    type Item = AndOr<&'a T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|and_or| match *and_or {
-            AndOr::And(ref t) => AndOr::And(t),
-            AndOr::Or(ref t) => AndOr::Or(t),
-        })
-    }
-}
-
-impl<T, I, E: ?Sized> EnvFuture<E> for AndOrListEnvFuture<T, I, E>
+impl<T, I, E: ?Sized> EnvFuture<E> for AndOrList<T, I, E>
     where T: Spawn<E>,
           T::Error: IsFatalError,
           I: Iterator<Item = AndOr<T>>,
