@@ -1,3 +1,5 @@
+#![cfg(feature = "conch-parser")]
+
 extern crate conch_parser as syntax;
 extern crate conch_runtime as runtime;
 extern crate futures;
