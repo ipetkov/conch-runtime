@@ -4,9 +4,9 @@
 use future::{Async, EnvFuture, Poll};
 use glob;
 use env::{StringWrapper, VariableEnvironment};
+use error::ExpansionError;
 use std::borrow::Borrow;
 
-mod arith;
 mod complex_word;
 mod fields;
 mod parameter;
@@ -19,7 +19,6 @@ mod word;
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
 
-pub use self::arith::ArithEval;
 pub use self::complex_word::{Concat, EvalComplexWord, concat};
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
@@ -39,6 +38,21 @@ pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarA
                                       RedirectOrVarAssig, eval_redirects_or_var_assignments,
                                       eval_redirects_or_var_assignments_with_restorer};
 pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
+
+/// A trait for evaluating arithmetic expansions.
+pub trait ArithEval<E: ?Sized> {
+    /// Evaluates an arithmetic expression in the context of an environment.
+    ///
+    /// A mutable reference to the environment is needed since an arithmetic
+    /// expression could mutate environment variables.
+    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError>;
+}
+
+impl<'a, T: ?Sized + ArithEval<E>, E: ?Sized> ArithEval<E> for &'a T {
+    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
+        (**self).eval(env)
+    }
+}
 
 /// An enum representing how tildes (`~`) are expanded.
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]

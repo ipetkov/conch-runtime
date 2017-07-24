@@ -1,33 +1,17 @@
-//! A module that defines evaluating parameters and parameter subsitutions.
-
+use conch_parser::ast::Arithmetic;
+use conch_parser::ast::Arithmetic::*;
 use env::VariableEnvironment;
 use error::ExpansionError;
+use eval::ArithEval;
 use std::borrow::Borrow;
 
-/// A trait for evaluating arithmetic expansions.
-pub trait ArithEval<E: ?Sized> {
-    /// Evaluates an arithmetic expression in the context of an environment.
-    ///
-    /// A mutable reference to the environment is needed since an arithmetic
-    /// expression could mutate environment variables.
-    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError>;
-}
-
-impl<'a, T: ?Sized + ArithEval<E>, E: ?Sized> ArithEval<E> for &'a T {
-    fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
-        (**self).eval(env)
-    }
-}
-
-#[cfg(feature = "conch-parser")]
-impl<T, E: ?Sized> ArithEval<E> for ::conch_parser::ast::Arithmetic<T>
+impl<T, E: ?Sized> ArithEval<E> for Arithmetic<T>
     where T: Borrow<String> + Clone,
           E: VariableEnvironment,
           E::VarName: Borrow<String> + From<T>,
           E::Var: Borrow<String> + From<String>,
 {
     fn eval(&self, env: &mut E) -> Result<isize, ExpansionError> {
-        use conch_parser::ast::Arithmetic::*;
 
         // FIXME: interesting observation: bash and zsh seem to recursively expand vars to other vars
         // FIXME: e.g. x=3, y=x, z=y, $(( $z *= 5 ))
