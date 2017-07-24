@@ -8,18 +8,19 @@ use error::ExpansionError;
 use std::borrow::Borrow;
 
 mod concat;
+mod double_quoted;
 mod fields;
 mod parameter;
 mod param_subst;
 mod redirect;
 mod redirect_or_cmd_word;
 mod redirect_or_var_assig;
-mod word;
 
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
 
 pub use self::concat::{Concat, concat};
+pub use self::double_quoted::{double_quoted, DoubleQuoted};
 pub use self::fields::Fields;
 pub use self::parameter::ParamEval;
 pub use self::param_subst::{alternative, assign, default, error, len,
@@ -37,7 +38,6 @@ pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWor
 pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
                                       RedirectOrVarAssig, eval_redirects_or_var_assignments,
                                       eval_redirects_or_var_assignments_with_restorer};
-pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 
 /// A trait for evaluating arithmetic expansions.
 pub trait ArithEval<E: ?Sized> {

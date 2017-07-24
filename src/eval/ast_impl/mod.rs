@@ -4,6 +4,8 @@
 mod arith;
 mod complex_word;
 mod simple_word;
+mod word;
 
 pub use self::complex_word::ComplexWord;
 pub use self::simple_word::SimpleWord;
+pub use self::word::Word;
