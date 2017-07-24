@@ -1,14 +1,15 @@
+use POLLED_TWICE;
+use conch_parser::ast;
 use env::{StringWrapper, VariableEnvironment};
 use future::{Async, EnvFuture, Poll};
 use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use std::borrow::Borrow;
-use syntax::ast::SimpleWord;
 
 lazy_static! {
     static ref HOME: String = { String::from("HOME") };
 }
 
-impl<T, P, S, E: ?Sized> WordEval<E> for SimpleWord<T, P, S>
+impl<T, P, S, E: ?Sized> WordEval<E> for ast::SimpleWord<T, P, S>
     where T: StringWrapper,
           P: ParamEval<E, EvalResult = T>,
           S: WordEval<E, EvalResult = T>,
@@ -17,33 +18,35 @@ impl<T, P, S, E: ?Sized> WordEval<E> for SimpleWord<T, P, S>
 {
     type EvalResult = T;
     type Error = S::Error;
-    type EvalFuture = EvalSimpleWord<Self::EvalResult, S::EvalFuture>;
+    type EvalFuture = SimpleWord<Self::EvalResult, S::EvalFuture>;
 
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        use self::ast::SimpleWord::*;
+
         let done = match self {
-            SimpleWord::Literal(s) |
-            SimpleWord::Escaped(s) => Fields::Single(s),
+            Literal(s) |
+            Escaped(s) => Fields::Single(s),
 
-            ref s@SimpleWord::Star        |
-            ref s@SimpleWord::Question    |
-            ref s@SimpleWord::SquareOpen  |
-            ref s@SimpleWord::SquareClose |
-            ref s@SimpleWord::Colon       |
-            ref s@SimpleWord::Tilde       => eval_constant_or_panic(s, cfg.tilde_expansion, env),
+            ref s@Star        |
+            ref s@Question    |
+            ref s@SquareOpen  |
+            ref s@SquareClose |
+            ref s@Colon       |
+            ref s@Tilde       => eval_constant_or_panic(s, cfg.tilde_expansion, env),
 
-            SimpleWord::Param(p) => p.eval(cfg.split_fields_further, env).unwrap_or(Fields::Zero),
-            SimpleWord::Subst(s) => return EvalSimpleWord {
+            Param(p) => p.eval(cfg.split_fields_further, env).unwrap_or(Fields::Zero),
+            Subst(s) => return SimpleWord {
                 state: State::Subst(s.eval_with_config(env, cfg)),
             },
         };
 
-        EvalSimpleWord {
+        SimpleWord {
             state: State::Done(Some(done)),
         }
     }
 }
 
-impl<'a, T, P, S, E: ?Sized> WordEval<E> for &'a SimpleWord<T, P, S>
+impl<'a, T, P, S, E: ?Sized> WordEval<E> for &'a ast::SimpleWord<T, P, S>
     where T: StringWrapper,
           P: ParamEval<E, EvalResult = T>,
           &'a S: WordEval<E, EvalResult = T>,
@@ -52,34 +55,36 @@ impl<'a, T, P, S, E: ?Sized> WordEval<E> for &'a SimpleWord<T, P, S>
 {
     type EvalResult = T;
     type Error = <&'a S as WordEval<E>>::Error;
-    type EvalFuture = EvalSimpleWord<Self::EvalResult, <&'a S as WordEval<E>>::EvalFuture>;
+    type EvalFuture = SimpleWord<Self::EvalResult, <&'a S as WordEval<E>>::EvalFuture>;
 
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
+        use self::ast::SimpleWord::*;
+
         let done = match *self {
-            SimpleWord::Literal(ref s) |
-            SimpleWord::Escaped(ref s) => Fields::Single(s.clone()),
+            Literal(ref s) |
+            Escaped(ref s) => Fields::Single(s.clone()),
 
-            ref s@SimpleWord::Star        |
-            ref s@SimpleWord::Question    |
-            ref s@SimpleWord::SquareOpen  |
-            ref s@SimpleWord::SquareClose |
-            ref s@SimpleWord::Colon       |
-            ref s@SimpleWord::Tilde       => eval_constant_or_panic(s, cfg.tilde_expansion, env),
+            ref s@Star        |
+            ref s@Question    |
+            ref s@SquareOpen  |
+            ref s@SquareClose |
+            ref s@Colon       |
+            ref s@Tilde       => eval_constant_or_panic(s, cfg.tilde_expansion, env),
 
-            SimpleWord::Param(ref p) => p.eval(cfg.split_fields_further, env).unwrap_or(Fields::Zero),
-            SimpleWord::Subst(ref s) => return EvalSimpleWord {
+            Param(ref p) => p.eval(cfg.split_fields_further, env).unwrap_or(Fields::Zero),
+            Subst(ref s) => return SimpleWord {
                 state: State::Subst(s.eval_with_config(env, cfg)),
             },
         };
 
-        EvalSimpleWord {
+        SimpleWord {
             state: State::Done(Some(done)),
         }
     }
 }
 
 fn eval_constant_or_panic<T, P, S, E: ?Sized>(
-    simple: &SimpleWord<T, P, S>,
+    simple: &ast::SimpleWord<T, P, S>,
     tilde_expansion: TildeExpansion,
     env: &E,
 ) -> Fields<T>
@@ -87,14 +92,16 @@ fn eval_constant_or_panic<T, P, S, E: ?Sized>(
           E: VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,
 {
-    match *simple {
-        SimpleWord::Star        => Fields::Single(String::from("*").into()),
-        SimpleWord::Question    => Fields::Single(String::from("?").into()),
-        SimpleWord::SquareOpen  => Fields::Single(String::from("[").into()),
-        SimpleWord::SquareClose => Fields::Single(String::from("]").into()),
-        SimpleWord::Colon       => Fields::Single(String::from(":").into()),
+    use self::ast::SimpleWord::*;
 
-        SimpleWord::Tilde => match tilde_expansion {
+    match *simple {
+        Star        => Fields::Single(String::from("*").into()),
+        Question    => Fields::Single(String::from("?").into()),
+        SquareOpen  => Fields::Single(String::from("[").into()),
+        SquareClose => Fields::Single(String::from("]").into()),
+        Colon       => Fields::Single(String::from(":").into()),
+
+        Tilde => match tilde_expansion {
             TildeExpansion::None => Fields::Single(String::from("~").into()),
             TildeExpansion::All |
             TildeExpansion::First => {
@@ -106,17 +113,17 @@ fn eval_constant_or_panic<T, P, S, E: ?Sized>(
             },
         },
 
-        SimpleWord::Literal(_) |
-        SimpleWord::Escaped(_) |
-        SimpleWord::Param(_) |
-        SimpleWord::Subst(_) => panic!("not a constant variant, cannot eval this way!"),
+        Literal(_) |
+        Escaped(_) |
+        Param(_) |
+        Subst(_) => panic!("not a constant variant, cannot eval this way!"),
     }
 }
 
 /// A future representing the evaluation of a `SimpleWord`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalSimpleWord<T, F> {
+pub struct SimpleWord<T, F> {
     state: State<Fields<T>, F>,
 }
 
@@ -126,7 +133,7 @@ enum State<T, F> {
     Subst(F),
 }
 
-impl<E: ?Sized, T, F> EnvFuture<E> for EvalSimpleWord<T, F>
+impl<E: ?Sized, T, F> EnvFuture<E> for SimpleWord<T, F>
     where F: EnvFuture<E, Item = Fields<T>>,
 {
     type Item = Fields<T>;
@@ -134,7 +141,7 @@ impl<E: ?Sized, T, F> EnvFuture<E> for EvalSimpleWord<T, F>
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         match self.state {
-            State::Done(ref mut d) => Ok(Async::Ready(d.take().expect("polled twice"))),
+            State::Done(ref mut d) => Ok(Async::Ready(d.take().expect(POLLED_TWICE))),
             State::Subst(ref mut f) => f.poll(env),
         }
     }

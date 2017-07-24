@@ -14,8 +14,10 @@ mod param_subst;
 mod redirect;
 mod redirect_or_cmd_word;
 mod redirect_or_var_assig;
-mod simple_word;
 mod word;
+
+#[cfg(feature = "conch-parser")]
+pub mod ast_impl;
 
 pub use self::arith::ArithEval;
 pub use self::complex_word::{Concat, EvalComplexWord, concat};
@@ -36,7 +38,6 @@ pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWor
 pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
                                       RedirectOrVarAssig, eval_redirects_or_var_assignments,
                                       eval_redirects_or_var_assignments_with_restorer};
-pub use self::simple_word::EvalSimpleWord;
 pub use self::word::{double_quoted, DoubleQuoted, EvalWord};
 
 /// An enum representing how tildes (`~`) are expanded.
