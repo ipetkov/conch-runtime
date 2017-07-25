@@ -1,42 +1,13 @@
-//! A module that defines evaluating parameters.
-
 use ExitStatus;
+use conch_parser::ast::Parameter;
 use env::{ArgumentsEnvironment, LastStatusEnvironment, StringWrapper, VariableEnvironment};
-use eval::Fields;
+use eval::{Fields, ParamEval};
 use io::getpid;
 use std::borrow::Borrow;
 
 const EXIT_SIGNAL_OFFSET: u32 = 128;
 
-/// A trait for evaluating parameters.
-pub trait ParamEval<E: ?Sized> {
-    /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
-    type EvalResult: StringWrapper;
-
-    /// Evaluates a parameter in the context of some environment,
-    /// optionally splitting fields.
-    ///
-    /// A `None` value indicates that the parameter is unset.
-    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>>;
-
-    /// Returns the (variable) name of the parameter to be used for assignments, if applicable.
-    fn assig_name(&self) -> Option<Self::EvalResult>;
-}
-
-impl<'a, E: ?Sized, P: ?Sized + ParamEval<E>> ParamEval<E> for &'a P {
-    type EvalResult = P::EvalResult;
-
-    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
-        (**self).eval(split_fields_further, env)
-    }
-
-    fn assig_name(&self) -> Option<Self::EvalResult> {
-        (**self).assig_name()
-    }
-}
-
-#[cfg(feature = "conch-parser")]
-impl<T, E: ?Sized> ParamEval<E> for ::conch_parser::ast::Parameter<T>
+impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
     where T: StringWrapper,
           E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
           E::VarName: Borrow<String>,

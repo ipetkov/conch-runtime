@@ -3,6 +3,7 @@
 
 mod arith;
 mod complex_word;
+mod parameter;
 mod param_subst;
 mod simple_word;
 mod word;
