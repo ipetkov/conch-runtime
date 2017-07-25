@@ -17,16 +17,6 @@ pub struct PatternBodyPair<W, C> {
     pub body: C,
 }
 
-#[cfg(feature = "conch-parser")]
-impl<W, C> From<::conch_parser::ast::PatternBodyPair<W, C>> for PatternBodyPair<Vec<W>, Vec<C>> {
-    fn from(ast: ::conch_parser::ast::PatternBodyPair<W, C>) -> Self {
-        PatternBodyPair {
-            patterns: ast.patterns,
-            body: ast.body,
-        }
-    }
-}
-
 /// Spawns a `Case` commands from a word to match number of case arms.
 ///
 /// First the provided `word` will be evaluated and compared to each

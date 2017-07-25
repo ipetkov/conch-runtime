@@ -252,13 +252,3 @@ pub struct GuardBodyPair<T> {
     /// The body commands to execute if the guard is successful.
     pub body: T,
 }
-
-#[cfg(feature = "conch-parser")]
-impl<T> From<::conch_parser::ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
-    fn from(guard_body_pair: ::conch_parser::ast::GuardBodyPair<T>) -> Self {
-        GuardBodyPair {
-            guard: guard_body_pair.guard,
-            body: guard_body_pair.body,
-        }
-    }
-}

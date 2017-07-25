@@ -23,7 +23,6 @@
 
 #[cfg(feature = "conch-parser")]
 extern crate conch_parser;
-extern crate conch_parser as syntax;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate glob;

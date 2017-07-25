@@ -25,16 +25,6 @@ pub enum RedirectOrVarAssig<R, V, W> {
     VarAssig(V, Option<W>),
 }
 
-#[cfg(feature = "conch-parser")]
-impl<R, V, W> From<::conch_parser::ast::RedirectOrEnvVar<R, V, W>> for RedirectOrVarAssig<R, V, W> {
-    fn from(from: ::conch_parser::ast::RedirectOrEnvVar<R, V, W>) -> Self {
-        match from {
-            ::conch_parser::ast::RedirectOrEnvVar::Redirect(r) => RedirectOrVarAssig::Redirect(r),
-            ::conch_parser::ast::RedirectOrEnvVar::EnvVar(k, v) => RedirectOrVarAssig::VarAssig(k, v),
-        }
-    }
-}
-
 /// An error which may arise when evaluating a redirect or a variable assignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalRedirectOrVarAssigError<R, V> {

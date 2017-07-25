@@ -21,16 +21,6 @@ pub enum RedirectOrCmdWord<R, W> {
     CmdWord(W),
 }
 
-#[cfg(feature = "conch-parser")]
-impl<R, W> From<::conch_parser::ast::RedirectOrCmdWord<R, W>> for RedirectOrCmdWord<R, W> {
-    fn from(from: ::conch_parser::ast::RedirectOrCmdWord<R, W>) -> Self {
-        match from {
-            ::conch_parser::ast::RedirectOrCmdWord::Redirect(r) => RedirectOrCmdWord::Redirect(r),
-            ::conch_parser::ast::RedirectOrCmdWord::CmdWord(w) => RedirectOrCmdWord::CmdWord(w),
-        }
-    }
-}
-
 /// An error which may arise when evaluating a redirect or a shell word.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalRedirectOrCmdWordError<R, V> {
