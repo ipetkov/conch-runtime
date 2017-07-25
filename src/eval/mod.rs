@@ -26,7 +26,7 @@ pub use self::param_subst::{alternative, assign, default, error, len,
                             remove_smallest_suffix, split};
 pub use self::param_subst::{Alternative, Assign, EvalDefault, Error, RemoveLargestPrefix,
                             RemoveLargestSuffix, RemoveSmallestPrefix, RemoveSmallestSuffix, Split};
-pub use self::redirect::{RedirectAction, RedirectEval,
+pub use self::redirect::{Redirect, RedirectAction, RedirectEval,
                          redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write,
                          redirect_heredoc, redirect_read, redirect_readwrite, redirect_write};
 pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError,
