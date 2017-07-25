@@ -8,7 +8,7 @@ use super::is_present;
 /// A future representing a `Assign` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalAssign<T, F> {
+pub struct Assign<T, F> {
     state: State<T, F>,
 }
 
@@ -35,7 +35,7 @@ pub fn assign<P: ?Sized, W, E: ?Sized>(
     assign: Option<W>,
     env: &E,
     cfg: TildeExpansion
-) -> EvalAssign<W::EvalResult, W::EvalFuture>
+) -> Assign<W::EvalResult, W::EvalFuture>
     where P: ParamEval<E, EvalResult = W::EvalResult> + Display,
           W: WordEval<E>,
 {
@@ -58,12 +58,12 @@ pub fn assign<P: ?Sized, W, E: ?Sized>(
         },
     };
 
-    EvalAssign {
+    Assign {
         state: state,
     }
 }
 
-impl<T, F, E: ?Sized> EnvFuture<E> for EvalAssign<T, F>
+impl<T, F, E: ?Sized> EnvFuture<E> for Assign<T, F>
     where T: StringWrapper,
           F: EnvFuture<E, Item = Fields<T>>,
           F::Error: From<ExpansionError>,

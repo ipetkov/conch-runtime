@@ -8,7 +8,7 @@ use super::is_present;
 /// A future representing a `Error` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalError<T, F> {
+pub struct Error<T, F> {
     state: State<T, F>,
 }
 
@@ -34,7 +34,7 @@ pub fn error<P: ?Sized, W, E: ?Sized>(
     error: Option<W>,
     env: &E,
     cfg: TildeExpansion
-) -> EvalError<P::EvalResult, W::EvalFuture>
+) -> Error<P::EvalResult, W::EvalFuture>
     where P: ParamEval<E> + Display,
           W: WordEval<E>,
 {
@@ -56,12 +56,12 @@ pub fn error<P: ?Sized, W, E: ?Sized>(
         },
     };
 
-    EvalError {
+    Error {
         state: state,
     }
 }
 
-impl<T, FT, F, E: ?Sized> EnvFuture<E> for EvalError<T, F>
+impl<T, FT, F, E: ?Sized> EnvFuture<E> for Error<T, F>
     where FT: StringWrapper,
           F: EnvFuture<E, Item = Fields<FT>>,
           F::Error: From<ExpansionError>,

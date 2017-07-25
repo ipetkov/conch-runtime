@@ -5,7 +5,7 @@ use super::is_present;
 /// A future representing a `Alternative` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct EvalAlternative<F> {
+pub struct Alternative<F> {
     state: State<F>,
 }
 
@@ -30,7 +30,7 @@ pub fn alternative<P: ?Sized, W, E: ?Sized>(
     alternative: Option<W>,
     env: &E,
     cfg: TildeExpansion
-) -> EvalAlternative<W::EvalFuture>
+) -> Alternative<W::EvalFuture>
     where P: ParamEval<E, EvalResult = W::EvalResult>,
           W: WordEval<E>,
 {
@@ -47,12 +47,12 @@ pub fn alternative<P: ?Sized, W, E: ?Sized>(
         (false, _) => State::Zero,
     };
 
-    EvalAlternative {
+    Alternative {
         state: state,
     }
 }
 
-impl<T, F, E: ?Sized> EnvFuture<E> for EvalAlternative<F>
+impl<T, F, E: ?Sized> EnvFuture<E> for Alternative<F>
     where F: EnvFuture<E, Item = Fields<T>>,
 {
     type Item = F::Item;

@@ -3,9 +3,11 @@
 
 mod arith;
 mod complex_word;
+mod param_subst;
 mod simple_word;
 mod word;
 
 pub use self::complex_word::ComplexWord;
+pub use self::param_subst::ParameterSubstitution;
 pub use self::simple_word::SimpleWord;
 pub use self::word::Word;

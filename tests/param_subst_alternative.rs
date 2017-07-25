@@ -1,3 +1,5 @@
+#![cfg(feature = "conch-parser")]
+
 extern crate conch_runtime;
 
 use conch_runtime::eval::{alternative, Fields, TildeExpansion, WordEvalConfig};

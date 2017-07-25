@@ -1,3 +1,5 @@
+#![cfg(feature = "conch-parser")]
+
 extern crate conch_runtime;
 
 use conch_runtime::env::{VarEnv, VariableEnvironment};
