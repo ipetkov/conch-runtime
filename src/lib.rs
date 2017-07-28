@@ -1,4 +1,34 @@
 //! A library for executing programs written in the shell programming language.
+//!
+//! This library offers executing already parsed shell commands as defined by the
+//! [POSIX.1-2008][POSIX] standard. This runtime attempts to remain agnostic to the
+//! specific Abstract Syntax Tree format a parser could produce, as well as agnostic
+//! to features supported by the OS to be as cross platform as possible.
+//!
+//! Specifically implementations are provided for all the default AST nodes produced
+//! by the [`conch-parser`] crate. Unlike other Unix shells, this
+//! library supports Windows<sup>1</sup> and can likely be extended for other
+//! operating systems as well.
+//!
+//! <sup>1</sup>Major features are reasonably supported in Windows to the extent
+//! possible. Due to OS differences (e.g. async I/O models) and inherent implementation
+//! exepectations of the shell programming language, certain features may require
+//! additional runtime costs, or may be limited in nature (e.g. inheriting arbitrary
+//! numbered file descriptors [other than stdio] is difficult/impossible due to the
+//! way Windows addresses file handles).
+//!
+//! [POSIX]: http://pubs.opengroup.org/onlinepubs/9699919799/
+//! [`conch-parser`]: https://docs.rs/conch-parser
+//!
+//! # Supported Cargo Features
+//!
+//! * `clippy`: compile with clippy lints enabled
+//! * `conch-oarser`: enable implementations on the default AST types provided
+//! by the `conch-parser` crate
+//! * `top-level`: enable compiling implementations on thte `TopLevel{Command,Word}`
+//! provided by the `conch-parser` crate (useful for disabling to speed up compile
+//! times during local development)
+
 #![cfg_attr(feature = "clippy", feature(plugin))]
 #![cfg_attr(feature = "clippy", plugin(clippy))]
 
