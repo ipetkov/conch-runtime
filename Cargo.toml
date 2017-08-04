@@ -41,3 +41,10 @@ winapi          = "0.2.5"
 [dev-dependencies]
 owned_chars = "0.2.1"
 tempdir = "0.3"
+
+[badges]
+travis-ci = { repository = "ipetkov/conch-runtime" }
+appveyor = { repository = "ipetkov/conch-runtime" }
+is-it-maintained-issue-resolution = { repository = "ipetkov/conch-runtime" }
+is-it-maintained-open-issues = { repository = "ipetkov/conch-runtime" }
+codecov = { repository = "ipetkov/conch-runtime" }
