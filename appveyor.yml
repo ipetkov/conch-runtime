@@ -1,13 +1,9 @@
 environment:
   matrix:
   - TARGET: x86_64-pc-windows-msvc
-    RUST_VERSION: nightly
-  - TARGET: x86_64-pc-windows-msvc
-    RUST_VERSION: beta
-  - TARGET: x86_64-pc-windows-msvc
-    RUST_VERSION: stable
+    RUST: nightly
   - TARGET: x86_64-pc-windows-gnu
-    RUST_VERSION: stable
+    RUST: nightly
 
 install:
   - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
