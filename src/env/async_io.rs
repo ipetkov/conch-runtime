@@ -115,7 +115,7 @@ impl PlatformSpecificAsyncIoEnv {
         };
 
         #[cfg(not(unix))]
-        let get_inner = |_: Remote, num_threads| {
+        let get_inner = |_: Remote, num_threads: Option<usize>| {
             num_threads.map_or_else(
                 || ThreadPoolAsyncIoEnv::new_num_cpus(),
                 ThreadPoolAsyncIoEnv::new
@@ -347,6 +347,6 @@ fn try_set_blocking(fd: &FileDesc) -> Result<()> {
 }
 
 #[cfg(not(unix))]
-fn try_set_blocking(fd: &FileDesc) -> Result<()> {
+fn try_set_blocking(_fd: &FileDesc) -> Result<()> {
     Ok(())
 }
