@@ -34,7 +34,11 @@ fn should_evaluate_appropriately() {
     let word = Some(mock_word_fields(Fields::Single("some word val".to_owned())));
 
     let subst: ParamSubst = Command(vec!(MockOutCmd::Out("foo bar")));
-    assert_eq!(eval!(subst, CFG), Ok(Fields::Split(vec!("foo".to_owned(), "bar".to_owned()))));
+    assert_eq!(
+        eval_with_thread_pool!(subst, CFG, 2),
+        Ok(Fields::Split(vec!("foo".to_owned(), "bar".to_owned())))
+    );
+
     let subst: ParamSubst = Len(param.clone());
     assert_eq!(eval!(subst, CFG), Ok(Fields::Single(param_val.len().to_string())));
     let subst: ParamSubst = Arith(None);

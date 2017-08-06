@@ -16,7 +16,7 @@ fn run_substitution<I, S>(cmds: I) -> Result<String, S::Error>
           S::Error: IsFatalError + From<IoError>,
 {
     let mut lp = Core::new().unwrap();
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let env = DefaultEnvRc::new(lp.remote(), Some(2));
     let future = substitution(cmds)
         .pin_env(env)
         .flatten();

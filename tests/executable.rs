@@ -13,11 +13,7 @@ use tokio_core::reactor::Core;
 mod support;
 pub use self::support::*;
 
-#[cfg(unix)]
-const SH: &'static str = "sh";
-
-#[cfg(windows)]
-const SH: &'static str = "cmd";
+const EXECUTABLE_WITH_IO_MSG: &'static str = "hello\nworld!\n";
 
 #[test]
 fn spawn_executable_with_io() {
@@ -29,8 +25,10 @@ fn spawn_executable_with_io() {
     let pipe_out = Pipe::new().unwrap();
     let pipe_err = Pipe::new().unwrap();
 
+    let bin_path = bin_path("cat-dup");
+
     let data = ExecutableData {
-        name: Cow::Borrowed(OsStr::new(SH)),
+        name: Cow::Borrowed(OsStr::new(&bin_path)),
         args: vec!(),
         env_vars: vec!(),
         stdin: Some(pipe_in.reader),
@@ -45,16 +43,15 @@ fn spawn_executable_with_io() {
     let (status, (), (), ()) = lp.run(lazy(move || {
         let child = env.spawn_executable(data).expect("spawn failed");
 
-        let script = "echo hello; echo world >&2".to_owned().into_bytes();
-        let stdin = io_env.write_all(pipe_in_writer, script)
+        let stdin = io_env.write_all(pipe_in_writer, Vec::from(EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdin failed: {}", e));
 
         let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out_reader), Vec::new())
-            .map(|(_, msg)| assert_eq!(msg, b"hello\n"))
+            .map(|(_, msg)| assert_eq!(msg, EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdout failed: {}", e));
 
         let stderr = tokio_io::io::read_to_end(io_env.read_async(pipe_err_reader), Vec::new())
-            .map(|(_, msg)| assert_eq!(msg, b"world\n"))
+            .map(|(_, msg)| assert_eq!(msg, EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdout failed: {}", e));
 
         child.join4(stdin, stdout, stderr)
@@ -87,7 +84,13 @@ fn env_vars_set_from_data_without_inheriting_from_process() {
         let child = env.spawn_executable(data).expect("spawn failed");
 
         let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out.reader), Vec::new())
-            .map(|(_, msg)| assert_eq!(msg, b"baz=qux\nfoo=bar\n"))
+            .map(|(_, msg)| {
+                if cfg!(windows) {
+                    assert_eq!(msg, b"BAZ=qux\nFOO=bar\n")
+                } else {
+                    assert_eq!(msg, b"baz=qux\nfoo=bar\n")
+                }
+            })
             .map_err(|e| panic!("stdout failed: {}", e));
 
         child.join(stdout)
@@ -101,6 +104,7 @@ fn remote_spawn_smoke() {
     let mut env = ExecEnv::new(lp.remote());
 
     let bin_path = bin_path("env");
+
     let data = ExecutableData {
         name: Cow::Borrowed(OsStr::new(&bin_path)),
         args: vec!(),
@@ -114,5 +118,6 @@ fn remote_spawn_smoke() {
     // a future in a separate thread than the loop that's running.
     let child = env.spawn_executable(data).expect("spawn failed");
     let status = lp.run(child).expect("failed to run child");
+
     assert!(status.success());
 }

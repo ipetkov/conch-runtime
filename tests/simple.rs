@@ -167,7 +167,13 @@ fn command_redirect_and_env_var_overrides() {
     );
 
     let stdout = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
-        .map(|(_, msg)| assert_eq!(msg, "key=val\nkey_existing=val_existing\n".as_bytes()))
+        .map(|(_, msg)| {
+            if cfg!(windows) {
+                assert_eq!(msg, "KEY=val\nKEY_EXISTING=val_existing\n".as_bytes());
+            } else {
+                assert_eq!(msg, "key=val\nkey_existing=val_existing\n".as_bytes());
+            }
+        })
         .map_err(|e| panic!("stdout failed: {}", e));
 
     let status = lp.run(poll_fn(|| future.poll(&mut env)).flatten().join(stdout));
