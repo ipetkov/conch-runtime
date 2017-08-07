@@ -79,9 +79,7 @@ fn evented_is_async() {
 
     join_handle.join().expect("thread did not exit successfully");
 
-    let msg_len = msg.as_bytes().len();
     assert_eq!(data, msg);
-
 
     // NB: we used to assert the number of times read equals the number of bytes
     // in the message, but due to seeing some sporadic failures here in the CI,
