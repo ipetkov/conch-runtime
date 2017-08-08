@@ -69,8 +69,7 @@ macro_rules! impl_env {
                 }
             }
 
-            #[doc(hidden)] // FIXME: pub(crate)?
-            pub fn fn_names(&self) -> ::std::collections::hash_map::Keys<N, F> {
+            pub(crate) fn fn_names(&self) -> ::std::collections::hash_map::Keys<N, F> {
                 self.functions.keys()
             }
         }
