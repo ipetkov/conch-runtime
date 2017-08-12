@@ -16,11 +16,12 @@ use tokio_core::reactor::Remote;
 
 use env::atomic;
 use env::atomic::FnEnv as AtomicFnEnv;
-use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ExecEnv, ExecutableData,
-          ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnv, FileDescEnvironment,
-          FnEnv, FunctionEnvironment, IsInteractiveEnvironment, LastStatusEnv,
-          LastStatusEnvironment, PlatformSpecificAsyncIoEnv, ReportErrorEnvironment,
-          SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
+use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
+          ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
+          FileDescEnv, FileDescEnvironment, FnEnv, FunctionEnvironment,
+          IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment,
+          PlatformSpecificAsyncIoEnv, ReportErrorEnvironment, SetArgumentsEnvironment,
+          StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
           WorkingDirectoryEnvironment};
 
@@ -562,6 +563,20 @@ macro_rules! impl_env {
         {
             fn path_relative_to_working_dir<'a>(&self, path: Cow<'a, Path>) -> Cow<'a, Path> {
                 self.working_dir_env.path_relative_to_working_dir(path)
+            }
+
+            fn current_working_dir(&self) -> &Path {
+                self.working_dir_env.current_working_dir()
+            }
+        }
+
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> ChangeWorkingDirectoryEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
+            where N: Hash + Eq,
+                  WD: ChangeWorkingDirectoryEnvironment,
+        {
+            fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> IoResult<()> {
+                self.working_dir_env.change_working_dir(path)
             }
         }
     }

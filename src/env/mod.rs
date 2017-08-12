@@ -20,7 +20,8 @@ pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
 pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};
-pub use self::cur_dir::{VirtualWorkingDirEnv, WorkingDirectoryEnvironment};
+pub use self::cur_dir::{ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv,
+                        WorkingDirectoryEnvironment};
 pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, DefaultEnvRc, EnvConfig,
                          Env};
 pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};

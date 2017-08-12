@@ -13,12 +13,13 @@ use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment};
 use conch_runtime::eval::{RedirectAction, RedirectEval};
 use conch_runtime::io::{FileDesc, FileDescWrapper, Permissions};
 use futures::future::poll_fn;
-use tokio_core::reactor::Core;
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
+use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -68,7 +69,7 @@ fn test_open_redirect<F1, F2>(
     mut before: F1,
     mut after: F2
 )
-    where F1: FnMut(),
+    where for<'a> F1: FnMut(&'a mut DefaultEnvRc),
           F2: FnMut(FileDesc)
 {
     let (mut lp, mut env) = new_env_with_no_fds();
@@ -96,14 +97,14 @@ fn test_open_redirect<F1, F2>(
     };
 
     for &(correct_fd, ref redirect) in &cases {
-        before();
+        before(&mut env);
         let action = eval_with_env(redirect, &mut lp, &mut env)
             .expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 
     for (correct_fd, redirect) in cases {
-        before();
+        before(&mut env);
         let action = eval_with_env(redirect, &mut lp, &mut env)
             .expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
@@ -129,7 +130,37 @@ fn eval_read() {
     test_open_redirect(
         cases,
         Permissions::Read,
-        || {
+        |_| {
+            let mut file = File::create(&file_path).unwrap();
+            file.write_all(msg.as_bytes()).unwrap();
+            file.flush().unwrap();
+        },
+        |mut file_desc| {
+            let mut read = String::new();
+            file_desc.read_to_string(&mut read).unwrap();
+            assert_eq!(read, msg);
+        }
+    );
+}
+
+#[test]
+fn eval_path_is_relative_to_cwd() {
+    let msg = "hello world";
+    let tempdir = mktmp!();
+
+    let path = mock_word_fields(Fields::Single("out".to_owned()));
+    let cases = vec!((STDIN_FILENO, Read(None, path)));
+
+    test_open_redirect(
+        cases,
+        Permissions::Read,
+        |env| {
+            env.change_working_dir(Cow::Borrowed(tempdir.path())).unwrap();
+
+            let mut file_path = PathBuf::new();
+            file_path.push(tempdir.path());
+            file_path.push("out");
+
             let mut file = File::create(&file_path).unwrap();
             file.write_all(msg.as_bytes()).unwrap();
             file.flush().unwrap();
@@ -164,7 +195,7 @@ fn eval_write_and_clobber() {
     test_open_redirect(
         cases,
         Permissions::Write,
-        || {
+        |_| {
             let mut file = File::create(&file_path).unwrap();
             file.write_all(b"should be overwritten").unwrap();
             file.flush().unwrap();
@@ -202,7 +233,7 @@ fn eval_read_write() {
     test_open_redirect(
         cases,
         Permissions::ReadWrite,
-        || {
+        |_| {
             let mut file = File::create(&file_path).unwrap();
             file.write_all(original.as_bytes()).unwrap();
             file.flush().unwrap();
@@ -244,7 +275,7 @@ fn eval_append() {
     test_open_redirect(
         cases,
         Permissions::Write,
-        || {
+        |_| {
             let mut file = File::create(&file_path).unwrap();
             file.write_all(msg1.as_bytes()).unwrap();
             file.flush().unwrap();
