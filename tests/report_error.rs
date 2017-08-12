@@ -39,7 +39,7 @@ fn smoke() {
         let writer = Rc::new(writer);
 
         let lp = Core::new().expect("failed to create Core loop");
-        let mut env = DefaultEnv::<String>::new(lp.remote(), Some(1));
+        let mut env = DefaultEnv::<String>::new(lp.remote(), Some(1)).expect("failed to create env");
         env.set_file_desc(STDERR_FILENO, writer.clone(), Permissions::Write);
 
         let name = env.name().clone();

@@ -99,7 +99,7 @@ fn should_propagate_errors_from_word_if_applicable() {
 #[test]
 fn should_propagate_cancel_if_required() {
     let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnv::new(lp.remote(), Some(1));
+    let mut env = DefaultEnv::new(lp.remote(), Some(1)).expect("failed to create env");
 
     let must_cancel = Some(mock_word_must_cancel());
 

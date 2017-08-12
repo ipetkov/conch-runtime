@@ -1,12 +1,10 @@
 extern crate conch_runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::Permissions;
 use futures::future::poll_fn;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -14,8 +12,7 @@ pub use self::support::*;
 
 #[test]
 fn smoke() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env_with_no_fds();
 
     {
         let env = env.sub_env();
@@ -53,8 +50,7 @@ fn smoke() {
 
 #[test]
 fn should_propagate_errors_and_restore_redirects() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env_with_no_fds();
 
     {
         assert_eq!(env.file_desc(1), None);
@@ -97,8 +93,7 @@ fn should_propagate_errors_and_restore_redirects() {
 
 #[test]
 fn should_propagate_cancel_and_restore_redirects() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env_with_no_fds();
 
     test_cancel!(
         eval_redirects_or_cmd_words::<MockRedirect<_>, _, _, _>(

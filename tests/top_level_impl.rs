@@ -51,6 +51,6 @@ fn smoke_atomic() {
     }));
 
     let lp = Core::new().expect("failed to create Core loop");
-    let env = conch_runtime::env::atomic::DefaultEnvArc::new_atomic(lp.remote(), Some(1));
+    let env = conch_runtime::env::atomic::DefaultEnvArc::new_atomic(lp.remote(), Some(1)).unwrap();
     assert_eq!(run!(cmd, lp, env), Ok(EXIT_SUCCESS));
 }

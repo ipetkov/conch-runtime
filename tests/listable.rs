@@ -3,7 +3,6 @@
 extern crate conch_parser as syntax;
 extern crate conch_runtime as runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use futures::{Async, Poll};
 use futures::future::{FutureResult, ok};
@@ -11,7 +10,6 @@ use runtime::io::Permissions;
 use runtime::{STDIN_FILENO, STDOUT_FILENO};
 use std::rc::Rc;
 use syntax::ast::ListableCommand;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -87,8 +85,7 @@ fn single_command_env_changes_remain() {
     }
 
     let var = VAR.to_owned();
-    let lp = Core::new().unwrap();
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env();
     assert_eq!(env.var(&var), None);
 
     MockCmdWithSideEffects.spawn(&env).poll(&mut env).unwrap();

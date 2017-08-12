@@ -1,11 +1,9 @@
 extern crate conch_runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use conch_runtime::RefCounted;
 use conch_runtime::spawn::{for_args, for_loop, for_with_args};
 use futures::future::{FutureResult, ok};
-use tokio_core::reactor::Core;
 use std::rc::Rc;
 
 #[macro_use]
@@ -60,8 +58,7 @@ impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
 
 #[test]
 fn should_run_with_appropriate_args() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env();
     env.set_args(Rc::new(vec!(
         Rc::new("arg_foo".to_owned()),
         Rc::new("arg_bar".to_owned()),
@@ -135,8 +132,7 @@ fn should_run_with_appropriate_args() {
 
 #[test]
 fn should_swallow_non_fatal_errors_in_body() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env();
     env.set_args(Rc::new(vec!(
         Rc::new("arg_foo".to_owned()),
         Rc::new("arg_bar".to_owned()),
@@ -174,8 +170,7 @@ fn should_swallow_non_fatal_errors_in_body() {
 
 #[test]
 fn should_not_run_body_args_are_empty() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env();
     env.set_args(Rc::new(vec!()));
 
     let should_not_run = mock_panic("must not run");
@@ -208,8 +203,7 @@ fn should_not_run_body_args_are_empty() {
 
 #[test]
 fn should_propagate_all_word_errors() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, env) = new_env();
 
     let should_not_run = mock_panic("must not run");
     let name = Rc::new("name".to_owned());
@@ -233,8 +227,7 @@ fn should_propagate_all_word_errors() {
 
 #[test]
 fn should_propagate_fatal_errors_in_body() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env();
     env.set_args(Rc::new(vec!(
         Rc::new("foo".to_owned()),
         Rc::new("bar".to_owned()),
@@ -272,8 +265,7 @@ fn should_propagate_fatal_errors_in_body() {
 
 #[test]
 fn should_propagate_cancel() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env();
     env.set_args(Rc::new(vec!(
         Rc::new("foo".to_owned()),
         Rc::new("bar".to_owned()),

@@ -3,7 +3,6 @@
 extern crate conch_runtime;
 extern crate conch_parser;
 extern crate futures;
-extern crate tokio_core;
 
 use conch_runtime::{EXIT_SUCCESS, Fd, STDIN_FILENO, STDOUT_FILENO};
 use conch_runtime::io::{FileDesc, Permissions};
@@ -14,7 +13,6 @@ use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -129,8 +127,7 @@ impl EnvFuture<MockEnv> for MockCmd2 {
 fn run_with_local_redirections(redirects: Vec<MockRedirect<Rc<FileDesc>>>, cmd: MockCmd)
     -> Result<ExitStatus, MockErr>
 {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, env) = new_env();
     let future = spawn_with_local_redirections(redirects, cmd)
         .pin_env(env)
         .flatten();
@@ -152,8 +149,7 @@ fn should_propagate_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env();
 
     let should_not_run = mock_panic("must not run");
 

@@ -1,10 +1,8 @@
 extern crate conch_runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use conch_runtime::spawn::swallow_non_fatal_errors;
 use futures::future::result;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -48,8 +46,7 @@ impl<E: ?Sized> EnvFuture<E> for MustCancelBridge {
 }
 
 fn eval(inner: Result<ExitStatus, MockErr>) -> Result<ExitStatus, MockErr> {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, env) = new_env();
     lp.run(swallow_non_fatal_errors(Bridge(result(inner))).pin_env(env))
 }
 
@@ -72,9 +69,7 @@ fn should_propagate_fatal_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-
-    let lp = Core::new().expect("failed to create Core loop");
-    let env = &mut DefaultEnvRc::new(lp.remote(), Some(1));
+    let (ref _lp, ref mut env) = new_env();
 
     let mut future = swallow_non_fatal_errors(MustCancelBridge::new());
 

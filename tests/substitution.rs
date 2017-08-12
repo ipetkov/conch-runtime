@@ -1,11 +1,9 @@
 extern crate conch_runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use conch_runtime::error::IsFatalError;
 use conch_runtime::spawn::substitution;
 use std::io::Error as IoError;
-use tokio_core::reactor::Core;
 
 mod support;
 pub use self::support::*;
@@ -15,8 +13,7 @@ fn run_substitution<I, S>(cmds: I) -> Result<String, S::Error>
           S: Spawn<DefaultEnvRc>,
           S::Error: IsFatalError + From<IoError>,
 {
-    let mut lp = Core::new().unwrap();
-    let env = DefaultEnvRc::new(lp.remote(), Some(2));
+    let (mut lp, env) = new_env_with_threads(2);
     let future = substitution(cmds)
         .pin_env(env)
         .flatten();

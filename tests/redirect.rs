@@ -51,8 +51,7 @@ macro_rules! eval_no_compare {
 fn eval<T: RedirectEval<DefaultEnvRc>>(redirect: T)
     -> Result<RedirectAction<T::Handle>, T::Error>
 {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env();
     eval_with_env(redirect, &mut lp, &mut env)
 }
 
@@ -72,11 +71,7 @@ fn test_open_redirect<F1, F2>(
     where F1: FnMut(),
           F2: FnMut(FileDesc)
 {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::with_config(DefaultEnvConfig {
-        file_desc_env: FileDescEnv::with_process_stdio().unwrap(),
-        .. DefaultEnvConfigRc::new(lp.remote(), Some(1))
-    });
+    let (mut lp, mut env) = new_env_with_no_fds();
 
     let get_file_desc = |action: RedirectAction<Rc<FileDesc>>, correct_fd, env: &mut DefaultEnvRc| {
         let action_fdes = match action {
@@ -292,8 +287,7 @@ fn eval_heredoc() {
 
 #[test]
 fn apply_redirect_action() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env_with_no_fds();
 
     let fd = 0;
     assert_eq!(env.file_desc(fd), None);
@@ -330,7 +324,7 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     let mut lp = Core::new().expect("failed to create Core loop");
 
     for &interactive in &[true, false] {
-        let mut env_cfg = DefaultEnvConfigRc::new(lp.remote(), Some(1));
+        let mut env_cfg = DefaultEnvConfigRc::new(lp.remote(), Some(1)).unwrap();
         env_cfg.interactive = interactive;
 
         let mut env = DefaultEnvRc::with_config(env_cfg);
@@ -379,8 +373,7 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     let fd = 42;
     let src_fd = 5;
 
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env();
 
     let path = mock_word_fields(Fields::Single("foo".to_string()));
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc("foo".to_string().into()))));
@@ -443,7 +436,7 @@ fn should_propagate_errors() {
 #[test]
 fn should_propagate_cancel() {
     let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let mut env = DefaultEnvRc::new(lp.remote(), Some(1)).expect("failed to create env");
 
     macro_rules! test_cancel_redirect {
         ($redirect:expr) => { test_cancel!($redirect.eval(&env), env) }

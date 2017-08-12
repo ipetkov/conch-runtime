@@ -1,12 +1,10 @@
 extern crate conch_runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::Permissions;
 use futures::future::poll_fn;
-use tokio_core::reactor::Core;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -16,8 +14,7 @@ pub use self::support::*;
 
 #[test]
 fn smoke() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
     let key_empty = Rc::new("key_empty".to_owned());
@@ -72,8 +69,7 @@ fn smoke() {
 
 #[test]
 fn should_propagate_errors_and_restore_redirects() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, mut env) = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
 
@@ -118,8 +114,7 @@ fn should_propagate_errors_and_restore_redirects() {
 
 #[test]
 fn should_propagate_cancel_and_restore_redirects() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
 

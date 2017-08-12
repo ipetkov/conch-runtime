@@ -514,11 +514,28 @@ impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
     }
 }
 
+pub fn new_env() -> (Core, DefaultEnvRc) {
+    new_env_with_threads(1)
+}
+
+pub fn new_env_with_threads(threads: usize) -> (Core, DefaultEnvRc) {
+    let lp = Core::new().expect("failed to create Core loop");
+    let env = DefaultEnvRc::new(lp.remote(), Some(threads)).expect("failed to create env");
+    (lp, env)
+}
+
+pub fn new_env_with_no_fds() -> (Core, DefaultEnvRc) {
+    let lp = Core::new().expect("failed to create Core loop");
+    let mut cfg = DefaultEnvConfigRc::new(lp.remote(), Some(1)).expect("failed to create env cfg");
+    cfg.file_desc_env = FileDescEnv::new();
+    let env = DefaultEnvRc::with_config(cfg);
+    (lp, env)
+}
+
 #[macro_export]
 macro_rules! run {
     ($cmd:expr) => {{
-        let lp = Core::new().expect("failed to create Core loop");
-        let env = DefaultEnvRc::new(lp.remote(), Some(1));
+        let (lp, env) = ::support::new_env();
         run!($cmd, lp, env)
     }};
 
@@ -567,8 +584,7 @@ macro_rules! run_cancel {
 /// propagate cancel messages results in a panic.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
 pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_, mut env) = new_env();
     let env_future = cmd.spawn(&env);
     test_cancel_impl(env_future, &mut env);
 }
@@ -592,14 +608,13 @@ macro_rules! eval_with_thread_pool {
     }}
 }
 
-
 /// Evaluates a word to completion.
 #[deprecated(note = "use `eval!` macro instead, to cover spawning T and &T")]
 pub fn eval_word<W: WordEval<DefaultEnv<String>>>(word: W, cfg: WordEvalConfig, threads: usize)
     -> Result<Fields<W::EvalResult>, W::Error>
 {
     let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnv::<String>::new(lp.remote(), Some(threads));
+    let env = DefaultEnv::<String>::new(lp.remote(), Some(threads)).expect("failed to create env");
     let future = word.eval_with_config(&env, cfg)
         .pin_env(env);
 

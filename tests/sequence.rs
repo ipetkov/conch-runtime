@@ -1,11 +1,9 @@
 extern crate conch_runtime as runtime;
 extern crate futures;
-extern crate tokio_core;
 
 use futures::Future;
 use runtime::error::IsFatalError;
 use runtime::spawn::sequence;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -16,8 +14,7 @@ fn run_sequence<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc
           I::Item: Spawn<DefaultEnvRc>,
           <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
-    let mut lp = Core::new().unwrap();
-    let env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (mut lp, env) = new_env();
     let future = sequence(cmds)
         .pin_env(env)
         .flatten();
@@ -30,8 +27,7 @@ fn run_cancel_sequence<I>(cmds: I)
           I::Item: Spawn<DefaultEnvRc>,
           <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
-    let lp = Core::new().unwrap();
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env();
     test_cancel!(sequence(cmds), env);
 }
 

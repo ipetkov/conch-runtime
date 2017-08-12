@@ -5,8 +5,9 @@ use spawn::SpawnBoxed;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
 use std::hash::Hash;
-use std::fmt;
 use std::error::Error;
+use std::fmt;
+use std::io::Result as IoResult;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::rc::Rc;
@@ -36,7 +37,7 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ExecEnv, Executable
 /// let lp = tokio_core::reactor::Core::new().unwrap();
 /// let env = Env::with_config(EnvConfig {
 ///     args_env: ArgsEnv::with_name(Rc::new(String::from("my_shell"))),
-///     .. DefaultEnvConfig::new(lp.remote(), None)
+///     .. DefaultEnvConfig::new(lp.remote(), None).expect("failed to create config")
 /// });
 ///
 /// assert_eq!(**env.name(), "my_shell");
@@ -143,18 +144,18 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
-        DefaultEnvConfig {
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+        Ok(DefaultEnvConfig {
             interactive: false,
-            args_env: Default::default(),
+            args_env: ArgsEnv::new(),
             async_io_env: PlatformSpecificAsyncIoEnv::new(remote.clone(), fallback_num_threads),
-            file_desc_env: Default::default(),
-            last_status_env: Default::default(),
-            var_env: Default::default(),
+            file_desc_env: try!(FileDescEnv::with_process_stdio()),
+            last_status_env: LastStatusEnv::new(),
+            var_env: VarEnv::with_process_env_vars(),
             exec_env: ExecEnv::new(remote),
             fn_name: PhantomData,
             fn_error: PhantomData,
-        }
+        })
     }
 }
 
@@ -165,18 +166,18 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
-        DefaultAtomicEnvConfig {
+    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+        Ok(DefaultAtomicEnvConfig {
             interactive: false,
-            args_env: Default::default(),
+            args_env: atomic::ArgsEnv::new(),
             async_io_env: PlatformSpecificAsyncIoEnv::new(remote.clone(), fallback_num_threads),
-            file_desc_env: Default::default(),
-            last_status_env: Default::default(),
-            var_env: Default::default(),
+            file_desc_env: try!(atomic::FileDescEnv::with_process_stdio()),
+            last_status_env: LastStatusEnv::new(),
+            var_env: atomic::VarEnv::with_process_env_vars(),
             exec_env: ExecEnv::new(remote),
             fn_name: PhantomData,
             fn_error: PhantomData,
-        }
+        })
     }
 }
 
@@ -622,8 +623,8 @@ impl<T> DefaultEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
-    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
-        Self::with_config(DefaultEnvConfig::new(remote, fallback_num_threads))
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+        DefaultEnvConfig::new(remote, fallback_num_threads).map(Self::with_config)
     }
 }
 
@@ -631,8 +632,8 @@ impl<T> DefaultAtomicEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `atomic::DefaultEnvConfig` for what configuration will be used.
-    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> Self {
-        Self::with_config(DefaultAtomicEnvConfig::new_atomic(remote, fallback_num_threads))
+    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+        DefaultAtomicEnvConfig::new_atomic(remote, fallback_num_threads).map(Self::with_config)
     }
 }
 
@@ -648,7 +649,7 @@ mod tests {
         for &interactive in &[true, false] {
             let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
                 interactive: interactive,
-                ..DefaultEnvConfigRc::new(lp.remote(), Some(1))
+                ..DefaultEnvConfigRc::new(lp.remote(), Some(1)).unwrap()
             });
             assert_eq!(env.is_interactive(), interactive);
         }

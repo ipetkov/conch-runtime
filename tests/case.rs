@@ -1,8 +1,6 @@
 extern crate conch_runtime;
-extern crate tokio_core;
 
 use conch_runtime::spawn::{PatternBodyPair, case};
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -10,8 +8,7 @@ pub use self::support::*;
 
 macro_rules! run_env {
     ($future:expr) => {{
-        let mut lp = Core::new().expect("failed to create Core loop");
-        let env = DefaultEnvRc::new(lp.remote(), Some(1));
+        let (mut lp, env) = new_env();
         lp.run($future.pin_env(env).flatten())
     }}
 }
@@ -154,8 +151,7 @@ fn should_propagate_fatal_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1));
+    let (_lp, mut env) = new_env();
 
     let should_not_run = mock_panic("must not run");
     let should_not_run_word = mock_word_panic("word must not run");
