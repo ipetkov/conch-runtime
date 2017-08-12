@@ -5,6 +5,7 @@ use std::error::Error;
 
 mod args;
 mod async_io;
+mod cur_dir;
 mod env_impl;
 mod executable;
 mod fd;
@@ -19,6 +20,7 @@ pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
 pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};
+pub use self::cur_dir::{VirtualWorkingDirEnv, WorkingDirectoryEnvironment};
 pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, DefaultEnvRc, EnvConfig,
                          Env};
 pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
@@ -35,6 +37,7 @@ pub use self::var::{ExportedVariableEnvironment, VarEnv, VariableEnvironment,
 /// `Sync`) of the various environment interfaces.
 pub mod atomic {
     pub use super::args::AtomicArgsEnv as ArgsEnv;
+    pub use super::cur_dir::AtomicVirtualWorkingDirEnv as VirtualWorkingDirEnv;
     pub use super::env_impl::AtomicEnv as Env;
     pub use super::env_impl::DefaultAtomicEnv as DefaultEnv;
     pub use super::env_impl::DefaultAtomicEnvArc as DefaultEnvArc;

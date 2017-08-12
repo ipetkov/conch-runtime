@@ -1,11 +1,14 @@
 //! A module which defines evaluating any kind of redirection.
 
 use {Fd, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO};
-use env::{AsyncIoEnvironment, FileDescEnvironment, IsInteractiveEnvironment, StringWrapper};
+use env::{AsyncIoEnvironment, FileDescEnvironment, IsInteractiveEnvironment, StringWrapper,
+          WorkingDirectoryEnvironment};
 use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use error::RedirectionError;
 use future::{Async, EnvFuture, Poll};
 use io::{FileDesc, Permissions, Pipe};
+use std::borrow::Cow;
+use std::path::Path;
 use std::fs::OpenOptions;
 use std::io::Result as IoResult;
 
@@ -30,7 +33,6 @@ impl<T> RedirectAction<T> {
         where T: From<FileDesc>,
               E: AsyncIoEnvironment + FileDescEnvironment<FileHandle = T>,
     {
-        // FIXME: when opening files it should be done relative to cwd of environment, not process!
         match self {
             RedirectAction::Close(fd) => env.close_file_desc(fd),
             RedirectAction::Open(fd, file_desc, perms) => env.set_file_desc(fd, file_desc, perms),
@@ -223,7 +225,7 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
     where T: StringWrapper,
           F: EnvFuture<E, Item = Fields<T>>,
           F::Error: From<RedirectionError>,
-          E: FileDescEnvironment + IsInteractiveEnvironment,
+          E: FileDescEnvironment + IsInteractiveEnvironment + WorkingDirectoryEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
     type Item = RedirectAction<E::FileHandle>;
@@ -253,9 +255,10 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
             // FIXME: on unix set file permission bits based on umask
             State::Open(fd, ref mut f, ref mut opts, perms) => {
                 let path = poll_path!(f, env);
+
                 let action = opts.take()
                     .expect(POLLED_TWICE)
-                    .open(path.as_str())
+                    .open(env.path_relative_to_working_dir(Cow::Borrowed(Path::new(path.as_str()))))
                     .map(FileDesc::from)
                     .map(|fdesc| RedirectAction::Open(fd, fdesc.into(), perms))
                     .map_err(|err| RedirectionError::Io(err, Some(path.into_owned())));

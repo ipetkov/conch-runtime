@@ -1,5 +1,5 @@
 use conch_parser::ast;
-use env::{FileDescEnvironment, IsInteractiveEnvironment};
+use env::{FileDescEnvironment, IsInteractiveEnvironment, WorkingDirectoryEnvironment};
 use eval::{Redirect, RedirectEval, WordEval, redirect_append, redirect_clobber,
            redirect_dup_read, redirect_dup_write, redirect_heredoc, redirect_read,
            redirect_readwrite, redirect_write};
@@ -9,7 +9,7 @@ use io::FileDesc;
 impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
     where W: WordEval<E>,
           W::Error: From<RedirectionError>,
-          E: FileDescEnvironment + IsInteractiveEnvironment,
+          E: FileDescEnvironment + IsInteractiveEnvironment + WorkingDirectoryEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
     type Handle = E::FileHandle;
@@ -35,7 +35,7 @@ impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
 impl<'a, W, E: ?Sized> RedirectEval<E> for &'a ast::Redirect<W>
     where &'a W: WordEval<E>,
           <&'a W as WordEval<E>>::Error: From<RedirectionError>,
-          E: FileDescEnvironment + IsInteractiveEnvironment,
+          E: FileDescEnvironment + IsInteractiveEnvironment + WorkingDirectoryEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
     type Handle = E::FileHandle;

@@ -9,6 +9,7 @@ use std::error::Error;
 use std::fmt;
 use std::io::Result as IoResult;
 use std::marker::PhantomData;
+use std::path::Path;
 use std::sync::Arc;
 use std::rc::Rc;
 use tokio_core::reactor::Remote;
@@ -20,7 +21,8 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ExecEnv, Executable
           FnEnv, FunctionEnvironment, IsInteractiveEnvironment, LastStatusEnv,
           LastStatusEnvironment, PlatformSpecificAsyncIoEnv, ReportErrorEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
-          UnsetVariableEnvironment, VarEnv, VariableEnvironment};
+          UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
+          WorkingDirectoryEnvironment};
 
 /// A struct for configuring a new `Env` instance.
 ///
@@ -44,7 +46,7 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ExecEnv, Executable
 /// # }
 /// ```
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct EnvConfig<A, IO, FD, L, V, EX, N, ERR> {
+pub struct EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR> {
     /// Specify if the environment is running in interactive mode.
     pub interactive: bool,
     /// An implementation of `ArgumentsEnvironment` and possibly `SetArgumentsEnvironment`.
@@ -60,6 +62,8 @@ pub struct EnvConfig<A, IO, FD, L, V, EX, N, ERR> {
     pub var_env: V,
     /// An implementation of `ExecutableEnvironment`.
     pub exec_env: EX,
+    /// An implementation of `WorkingDirectoryEnvironment`.
+    pub working_dir_env: WD,
     /// A marker to indicate the type used for function names.
     pub fn_name: PhantomData<N>,
     /// A marker to indicate the type used for function errors.
@@ -94,6 +98,7 @@ pub type DefaultEnvConfig<T> =
         LastStatusEnv,
         VarEnv<T, T>,
         ExecEnv,
+        VirtualWorkingDirEnv,
         T,
         RuntimeError,
     >;
@@ -129,6 +134,7 @@ pub type DefaultAtomicEnvConfig<T> =
         LastStatusEnv,
         atomic::VarEnv<T, T>,
         ExecEnv,
+        atomic::VirtualWorkingDirEnv,
         T,
         RuntimeError,
     >;
@@ -153,6 +159,7 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
             exec_env: ExecEnv::new(remote),
+            working_dir_env: try!(VirtualWorkingDirEnv::with_process_working_dir()),
             fn_name: PhantomData,
             fn_error: PhantomData,
         })
@@ -175,6 +182,7 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
             last_status_env: LastStatusEnv::new(),
             var_env: atomic::VarEnv::with_process_env_vars(),
             exec_env: ExecEnv::new(remote),
+            working_dir_env: try!(atomic::VirtualWorkingDirEnv::with_process_working_dir()),
             fn_name: PhantomData,
             fn_error: PhantomData,
         })
@@ -184,19 +192,20 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
 macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $FnEnv:ident, $Rc:ident, $($extra:tt)*) => {
         $(#[$attr])*
-        pub struct $Env<A, IO, FD, L, V, EX, N: Eq + Hash, ERR> {
+        pub struct $Env<A, IO, FD, L, V, EX, WD, N: Eq + Hash, ERR> {
             /// If the shell is running in interactive mode
             interactive: bool,
             args_env: A,
             async_io_env: IO,
             file_desc_env: FD,
-            fn_env: $FnEnv<N, $Rc<SpawnBoxed<$Env<A, IO, FD, L, V, EX, N, ERR>, Error = ERR> $($extra)*>>,
+            fn_env: $FnEnv<N, $Rc<SpawnBoxed<$Env<A, IO, FD, L, V, EX, WD, N, ERR>, Error = ERR> $($extra)*>>,
             last_status_env: L,
             var_env: V,
             exec_env: EX,
+            working_dir_env: WD,
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where N: Hash + Eq,
         {
             /// Creates an environment using the provided configuration of subcomponents.
@@ -214,7 +223,7 @@ macro_rules! impl_env {
             /// get around borrow restrictions and potential recursive executions and
             /// (re-)definitions. Since this type is probably an AST (which may be
             /// arbitrarily large), `Rc` and `Arc` are your friends.
-            pub fn with_config(cfg: EnvConfig<A, IO, FD, L, V, EX, N, ERR>) -> Self
+            pub fn with_config(cfg: EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR>) -> Self
                 where V: ExportedVariableEnvironment,
                       V::VarName: From<String>,
                       V::Var: Borrow<String> + From<String>,
@@ -228,6 +237,7 @@ macro_rules! impl_env {
                     last_status_env: cfg.last_status_env,
                     var_env: cfg.var_env,
                     exec_env: cfg.exec_env,
+                    working_dir_env: cfg.working_dir_env,
                 };
 
                 let sh_lvl = "SHLVL".to_owned().into();
@@ -242,7 +252,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> Clone for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> Clone for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where A: Clone,
                   FD: Clone,
                   L: Clone,
@@ -250,6 +260,7 @@ macro_rules! impl_env {
                   N: Hash + Eq,
                   IO: Clone,
                   EX: Clone,
+                  WD: Clone,
         {
             fn clone(&self) -> Self {
                 $Env {
@@ -261,11 +272,12 @@ macro_rules! impl_env {
                     last_status_env: self.last_status_env.clone(),
                     var_env: self.var_env.clone(),
                     exec_env: self.exec_env.clone(),
+                    working_dir_env: self.working_dir_env.clone(),
                 }
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> fmt::Debug for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> fmt::Debug for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where A: fmt::Debug,
                   FD: fmt::Debug,
                   L: fmt::Debug,
@@ -273,6 +285,7 @@ macro_rules! impl_env {
                   N: Hash + Eq + Ord + fmt::Debug,
                   IO: fmt::Debug,
                   EX: fmt::Debug,
+                  WD: fmt::Debug,
         {
             fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
                 use std::collections::BTreeSet;
@@ -288,22 +301,25 @@ macro_rules! impl_env {
                     .field("last_status_env", &self.last_status_env)
                     .field("var_env", &self.var_env)
                     .field("exec_env", &self.exec_env)
+                    .field("working_dir_env", &self.working_dir_env)
                     .finish()
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> From<EnvConfig<A, IO, FD, L, V, EX, N, ERR>> for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> From<EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR>>
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where N: Hash + Eq,
                   V: ExportedVariableEnvironment,
                   V::VarName: From<String>,
                   V::Var: Borrow<String> + From<String>,
         {
-            fn from(cfg: EnvConfig<A, IO, FD, L, V, EX, N, ERR>) -> Self {
+            fn from(cfg: EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR>) -> Self {
                 Self::with_config(cfg)
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> IsInteractiveEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> IsInteractiveEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where N: Hash + Eq,
         {
             fn is_interactive(&self) -> bool {
@@ -311,7 +327,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> SubEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> SubEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where A: SubEnvironment,
                   FD: SubEnvironment,
                   L: SubEnvironment,
@@ -319,6 +336,7 @@ macro_rules! impl_env {
                   N: Hash + Eq,
                   IO: SubEnvironment,
                   EX: SubEnvironment,
+                  WD: SubEnvironment,
         {
             fn sub_env(&self) -> Self {
                 $Env {
@@ -330,11 +348,13 @@ macro_rules! impl_env {
                     last_status_env: self.last_status_env.sub_env(),
                     var_env: self.var_env.sub_env(),
                     exec_env: self.exec_env.sub_env(),
+                    working_dir_env: self.working_dir_env.sub_env(),
                 }
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> ArgumentsEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> ArgumentsEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where A: ArgumentsEnvironment,
                   A::Arg: Clone,
                   N: Hash + Eq,
@@ -358,7 +378,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> SetArgumentsEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> SetArgumentsEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where A: SetArgumentsEnvironment,
                   N: Hash + Eq,
         {
@@ -369,7 +390,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> AsyncIoEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> AsyncIoEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where IO: AsyncIoEnvironment,
                   N: Hash + Eq,
         {
@@ -389,7 +411,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> FileDescEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> FileDescEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where FD: FileDescEnvironment,
                   N: Hash + Eq,
         {
@@ -408,7 +431,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> ReportErrorEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> ReportErrorEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where A: ArgumentsEnvironment,
                   A::Arg: fmt::Display,
                   FD: FileDescEnvironment,
@@ -424,7 +448,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> FunctionEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> FunctionEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where N: Hash + Eq + Clone,
         {
             type FnName = N;
@@ -443,7 +468,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> UnsetFunctionEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> UnsetFunctionEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where N: Hash + Eq + Clone,
         {
             fn unset_function(&mut self, name: &Self::FnName) {
@@ -451,7 +477,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> LastStatusEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> LastStatusEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where L: LastStatusEnvironment,
                   N: Hash + Eq,
         {
@@ -464,7 +491,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> VariableEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> VariableEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where V: VariableEnvironment,
                   N: Hash + Eq,
         {
@@ -486,7 +514,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> ExportedVariableEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> ExportedVariableEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where V: ExportedVariableEnvironment,
                   N: Hash + Eq,
         {
@@ -499,7 +528,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> UnsetVariableEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> UnsetVariableEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where V: UnsetVariableEnvironment,
                   N: Hash + Eq,
         {
@@ -510,22 +540,36 @@ macro_rules! impl_env {
             }
         }
 
-        impl<A, IO, FD, L, V, EX, N, ERR> ExecutableEnvironment for $Env<A, IO, FD, L, V, EX, N, ERR>
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> ExecutableEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where V: UnsetVariableEnvironment,
                   N: Hash + Eq,
                   EX: ExecutableEnvironment,
         {
             type Future = EX::Future;
 
-            fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError> {
+            fn spawn_executable(&mut self, data: ExecutableData)
+                -> Result<Self::Future, CommandError>
+            {
                 self.exec_env.spawn_executable(data)
+            }
+        }
+
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> WorkingDirectoryEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
+            where N: Hash + Eq,
+                  WD: WorkingDirectoryEnvironment,
+        {
+            fn path_relative_to_working_dir<'a>(&self, path: Cow<'a, Path>) -> Cow<'a, Path> {
+                self.working_dir_env.path_relative_to_working_dir(path)
             }
         }
     }
 }
 
 impl_env!(
-    /// A shell environment implementation which delegates work to other environment implementations.
+    /// A shell environment implementation which delegates work to other
+    /// environment implementations.
     ///
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
     /// see `atomic::Env`.
@@ -535,7 +579,8 @@ impl_env!(
 );
 
 impl_env!(
-    /// A shell environment implementation which delegates work to other environment implementations.
+    /// A shell environment implementation which delegates work to other
+    /// environment implementations.
     ///
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
     /// see `Env` as a cheaper alternative.
@@ -574,6 +619,7 @@ pub type DefaultEnv<T> =
         LastStatusEnv,
         VarEnv<T, T>,
         ExecEnv,
+        VirtualWorkingDirEnv,
         T,
         RuntimeError,
     >;
@@ -611,6 +657,7 @@ pub type DefaultAtomicEnv<T> =
         LastStatusEnv,
         atomic::VarEnv<T, T>,
         ExecEnv,
+        atomic::VirtualWorkingDirEnv,
         T,
         RuntimeError,
     >;

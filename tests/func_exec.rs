@@ -20,6 +20,7 @@ type TestEnv = Env<
     LastStatusEnv,
     VarEnv<String, String>,
     ExecEnv,
+    VirtualWorkingDirEnv,
     String,
     MockErr,
 >;
@@ -34,6 +35,7 @@ fn new_test_env() -> (Core, TestEnv) {
         last_status_env: Default::default(),
         var_env: Default::default(),
         exec_env: ExecEnv::new(lp.remote()),
+        working_dir_env: VirtualWorkingDirEnv::with_process_working_dir().unwrap(),
         fn_name: PhantomData,
         fn_error: PhantomData,
     });

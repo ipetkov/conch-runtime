@@ -11,14 +11,12 @@ extern crate owned_chars;
 extern crate tokio_core;
 
 use conch_runtime::{EXIT_ERROR, ExitStatus};
-use conch_runtime::env::{ArgsEnv, DefaultEnvRc, EnvConfig, ExecEnv, FileDescEnv,
-                         LastStatusEnv, PlatformSpecificAsyncIoEnv, VarEnv};
+use conch_runtime::env::DefaultEnvRc;
 use conch_runtime::future::EnvFuture;
 use conch_runtime::spawn::sequence;
 use futures::future::{Future, lazy};
 use owned_chars::OwnedCharsExt;
 use std::io::{BufRead, BufReader, Write, stdin, stderr};
-use std::marker::PhantomData;
 use std::process::exit;
 use tokio_core::reactor::Core;
 
@@ -52,17 +50,7 @@ fn main() {
 
     // Instantiate our environment and event loop for executing commands
     let mut lp = Core::new().expect("failed to create event loop");
-    let env = DefaultEnvRc::with_config(EnvConfig {
-        interactive: false,
-        args_env: ArgsEnv::new(),
-        async_io_env: PlatformSpecificAsyncIoEnv::new(lp.remote(), None),
-        file_desc_env: FileDescEnv::with_process_stdio().expect("failed to copy stdio"),
-        last_status_env: LastStatusEnv::new(),
-        var_env: VarEnv::with_process_env_vars(),
-        exec_env: ExecEnv::new(lp.remote()),
-        fn_name: PhantomData,
-        fn_error: PhantomData,
-    });
+    let env = DefaultEnvRc::new(lp.remote(), None).expect("failed to create environment");
 
     // Use a lazy future adapter here to ensure that all commands are
     // spawned directly in the event loop, to avoid paying extra costs

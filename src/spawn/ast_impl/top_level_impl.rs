@@ -1,7 +1,8 @@
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
           ExportedVariableEnvironment, FileDescEnvironment, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
-          SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment};
+          SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment,
+          WorkingDirectoryEnvironment};
 use error::RuntimeError;
 use eval::{Fields, WordEval, WordEvalConfig};
 use future::EnvFuture;
@@ -27,7 +28,8 @@ macro_rules! impl_top_level_cmd {
                     + ReportErrorEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
-                    + UnsetVariableEnvironment,
+                    + UnsetVariableEnvironment
+                    + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
                   E::FileHandle: FileDescWrapper,
                   E::FnName: From<T>,
@@ -57,7 +59,8 @@ macro_rules! impl_top_level_cmd {
                     + ReportErrorEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
-                    + UnsetVariableEnvironment,
+                    + UnsetVariableEnvironment
+                    + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
                   E::FileHandle: FileDescWrapper,
                   E::FnName: From<T>,
@@ -91,7 +94,8 @@ macro_rules! impl_top_level_word {
                     + ReportErrorEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
-                    + UnsetVariableEnvironment,
+                    + UnsetVariableEnvironment
+                    + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
                   E::FileHandle: FileDescWrapper,
                   E::FnName: From<T>,
@@ -121,7 +125,8 @@ macro_rules! impl_top_level_word {
                     + ReportErrorEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
-                    + UnsetVariableEnvironment,
+                    + UnsetVariableEnvironment
+                    + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
                   E::FileHandle: FileDescWrapper,
                   E::FnName: From<T>,
