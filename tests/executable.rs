@@ -6,6 +6,7 @@ extern crate tokio_io;
 use conch_runtime::io::Pipe;
 use futures::future::{Future, lazy};
 use std::borrow::Cow;
+use std::env::current_dir;
 use std::ffi::OsStr;
 use tokio_core::reactor::Core;
 
@@ -31,6 +32,7 @@ fn spawn_executable_with_io() {
         name: Cow::Borrowed(OsStr::new(&bin_path)),
         args: vec!(),
         env_vars: vec!(),
+        current_dir: Cow::Owned(current_dir().expect("failed to get current_dir")),
         stdin: Some(pipe_in.reader),
         stdout: Some(pipe_out.writer),
         stderr: Some(pipe_err.writer),
@@ -76,6 +78,7 @@ fn env_vars_set_from_data_without_inheriting_from_process() {
                 (Cow::Borrowed(OsStr::new("foo")), Cow::Borrowed(OsStr::new("bar"))),
                 (Cow::Borrowed(OsStr::new("baz")), Cow::Borrowed(OsStr::new("qux"))),
             ),
+            current_dir: Cow::Owned(current_dir().expect("failed to get current_dir")),
             stdin: None,
             stdout: Some(pipe_out.writer),
             stderr: None,
@@ -109,6 +112,7 @@ fn remote_spawn_smoke() {
         name: Cow::Borrowed(OsStr::new(&bin_path)),
         args: vec!(),
         env_vars: vec!(),
+        current_dir: Cow::Owned(current_dir().expect("failed to get current_dir")),
         stdin: None,
         stdout: None,
         stderr: None,

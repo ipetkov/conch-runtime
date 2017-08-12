@@ -2,7 +2,7 @@ use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERRO
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
           FileDescEnvironment, FunctionEnvironment, RedirectRestorer, SetArgumentsEnvironment,
-          VarRestorer, VariableEnvironment, UnsetVariableEnvironment};
+          VarRestorer, VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments,
            EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig,
@@ -244,7 +244,8 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment
-              + UnsetVariableEnvironment,
+              + UnsetVariableEnvironment
+              + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: FileDescWrapper,
@@ -390,7 +391,7 @@ fn spawn_process<T, F, OVN, OV, VN, V, E: ?Sized>(
           OV: Borrow<String>,
           VN: Borrow<String> + Hash + Eq,
           V: Borrow<String>,
-          E: ExecutableEnvironment,
+          E: ExecutableEnvironment + WorkingDirectoryEnvironment,
 {
     let name = Cow::Borrowed(OsStr::new(name.borrow()));
     let args = args.iter().map(|a| Cow::Borrowed(OsStr::new(a.borrow()))).collect();
@@ -430,12 +431,14 @@ fn spawn_process<T, F, OVN, OV, VN, V, E: ?Sized>(
     };
 
     // FIXME: ensure that command name is an absolute path (i.e. based on env
-    // cwd, not the process' cwd)
+    // cwd, not the process' cwd) so spawning does not end up using the process cwd
+    // to select the executable
     // FIXME: also need to honor $PATH variable here
     let data = ExecutableData {
         name: name,
         args: args,
         env_vars: env_vars,
+        current_dir: Cow::Owned(env.current_working_dir().to_owned()),
         stdin: try!(get_io(STDIN_FILENO)),
         stdout: try!(get_io(STDOUT_FILENO)),
         stderr: try!(get_io(STDERR_FILENO)),

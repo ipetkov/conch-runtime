@@ -247,7 +247,7 @@ impl<R, V, W, I, E: ?Sized> EnvFuture<E> for EvalRedirectOrVarAssig<R, V, W, I, 
                     RedirectOrVarAssig::VarAssig(ref mut key, ref mut val) => {
                         let val = match val.as_mut() {
                             None => String::new().into(),
-                            Some(mut f) => match f.poll(env) {
+                            Some(f) => match f.poll(env) {
                                 Ok(Async::Ready(val)) => val.into(),
                                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                                 Err(e) => {

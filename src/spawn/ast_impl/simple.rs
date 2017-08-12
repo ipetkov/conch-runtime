@@ -1,7 +1,7 @@
 use conch_parser::ast;
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnvironment, FunctionEnvironment, SetArgumentsEnvironment,
-          UnsetVariableEnvironment};
+          UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
 use io::FileDescWrapper;
@@ -32,7 +32,8 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment
-              + UnsetVariableEnvironment,
+              + UnsetVariableEnvironment
+              + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: FileDescWrapper,
@@ -68,7 +69,8 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment
-              + UnsetVariableEnvironment,
+              + UnsetVariableEnvironment
+              + WorkingDirectoryEnvironment,
           E::Arg: From<<&'a W as WordEval<E>>::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: FileDescWrapper,

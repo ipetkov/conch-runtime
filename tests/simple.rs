@@ -12,9 +12,9 @@ use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions, Pipe};
 use conch_runtime::spawn::simple_command;
 use futures::future::{FutureResult, ok, poll_fn};
-use tokio_core::reactor::Core;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -137,6 +137,40 @@ fn function_smoke() {
 
     assert_eq!(lp.run(poll_fn(|| future.poll(&mut env)).flatten()), Ok(EXIT));
     assert_eq!(env.var(&key), None);
+}
+
+#[test]
+fn should_set_executable_cwd_same_as_env() {
+    let (mut lp, mut env) = new_test_env();
+
+    let pipe = Pipe::new().unwrap();
+
+    let bin_path = bin_path("pwd").to_str().unwrap().to_owned();
+    let mut future = simple_command::<MockRedirect<_>, Rc<String>, _, _, _, _>(
+        vec!(),
+        vec!(
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(bin_path))),
+            RedirectOrCmdWord::Redirect(mock_redirect(
+                RedirectAction::Open(1, Rc::new(pipe.writer), Permissions::Write)
+            )),
+        ),
+        &env,
+    );
+
+    let cwd = format!("{}\n", ::std::env::current_dir()
+        .expect("failed to get current dir")
+        .canonicalize()
+        .expect("failed to canonicalize current dir")
+        .display()
+        .to_string()
+    );
+
+    let stdout = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
+        .map(move |(_, msg)| assert_eq!(String::from_utf8_lossy(&msg), cwd))
+        .map_err(|e| panic!("stdout failed: {}", e));
+
+    let status = lp.run(poll_fn(|| future.poll(&mut env)).flatten().join(stdout));
+    assert_eq!(status, Ok((EXIT_SUCCESS, ())));
 }
 
 #[test]

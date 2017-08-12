@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::path::Path;
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
 use tokio_process::{CommandExt, StatusAsync2};
@@ -23,6 +24,8 @@ pub struct ExecutableData<'a> {
     /// Environment variables from the current process must **NOT** be inherited
     /// if they do not appear in this collection.
     pub env_vars: Vec<(Cow<'a, OsStr>, Cow<'a, OsStr>)>,
+    /// The current working directory the executable should start out with.
+    pub current_dir: Cow<'a, Path>,
     /// The executable's standard input will be redirected to this descriptor
     /// or the equivalent of `/dev/null` if not specified.
     pub stdin: Option<FileDesc>,
@@ -50,6 +53,7 @@ impl<'a> ExecutableData<'a> {
             name: Cow::Owned(self.name.into_owned()),
             args: args,
             env_vars: env_vars,
+            current_dir: Cow::Owned(self.current_dir.into_owned()),
             stdin: self.stdin,
             stdout: self.stdout,
             stderr: self.stderr,
@@ -111,7 +115,7 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
     let mut cmd = Command::new(&name);
     cmd.args(data.args)
         .env_clear() // Ensure we don't inherit from the process
-        // FIXME: set cur_dir based on environment, not process!
+        .current_dir(&data.current_dir)
         .stdin(stdio(data.stdin))
         .stdout(stdio(data.stdout))
         .stderr(stdio(data.stderr));
