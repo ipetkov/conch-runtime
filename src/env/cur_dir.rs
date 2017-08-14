@@ -1,10 +1,58 @@
 use env::SubEnvironment;
+use self::normalized::NormalizedPath;
 use std::borrow::Cow;
 use std::env;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
+
+mod normalized {
+    use std::ops::Deref;
+    use std::path::{Component, Path, PathBuf};
+
+    #[derive(PartialEq, Eq, Clone, Debug)]
+    pub struct NormalizedPath(PathBuf);
+
+    impl NormalizedPath {
+        pub fn new(path: &Path) -> Self {
+            let mut new = NormalizedPath(PathBuf::new());
+            new.join_normalized(path);
+            new
+        }
+
+        pub fn join_normalized(&mut self, path: &Path) {
+            if path.is_absolute() {
+                self.0 = PathBuf::new()
+            }
+
+            for component in path.components() {
+                match component {
+                    c@Component::Prefix(_) |
+                    c@Component::RootDir |
+                    c@Component::Normal(_) => self.0.push(c.as_os_str()),
+
+                    Component::CurDir => {},
+                    Component::ParentDir => {
+                        self.0.pop();
+                    },
+                }
+            }
+        }
+
+        pub fn into_inner(self) -> PathBuf {
+            self.0
+        }
+    }
+
+    impl Deref for NormalizedPath {
+        type Target = PathBuf;
+
+        fn deref(&self) -> &PathBuf {
+            &self.0
+        }
+    }
+}
 
 /// An interface for working with the shell's current working directory.
 pub trait WorkingDirectoryEnvironment {
@@ -57,15 +105,33 @@ macro_rules! impl_env {
         $(#[$attr])*
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $Env {
-            cwd: $Rc<PathBuf>,
+            cwd: $Rc<NormalizedPath>,
         }
 
         impl $Env {
             /// Constructs a new environment with a provided working directory
+            ///
+            /// The specified `path` *must* be an absolute path or an error will result.
             pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-                Ok($Env {
-                    cwd: $Rc::new(try!(path.as_ref().canonicalize())),
-                })
+                Self::new_(path.as_ref())
+            }
+
+            fn new_(path: &Path) -> io::Result<Self> {
+                if path.is_absolute() {
+                    let normalized = NormalizedPath::new(path);
+
+                    if normalized.is_dir() {
+                        Ok($Env {
+                            cwd: $Rc::new(normalized),
+                        })
+                    } else {
+                        let msg = format!("not a directory: {}", normalized.display());
+                        Err(io::Error::new(io::ErrorKind::NotFound, msg))
+                    }
+                } else {
+                    let msg = format!("specified path not absolute: {}", path.display());
+                    Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+                }
             }
 
             /// Constructs a new environment and initializes it with the current
@@ -80,7 +146,10 @@ macro_rules! impl_env {
                 if path.is_absolute() {
                     path
                 } else {
-                    Cow::Owned(self.cwd.join(path))
+                    let mut new_cwd = (*self.cwd).clone();
+                    new_cwd.join_normalized(&path);
+
+                    Cow::Owned(new_cwd.into_inner())
                 }
             }
 
@@ -91,14 +160,16 @@ macro_rules! impl_env {
 
         impl ChangeWorkingDirectoryEnvironment for $Env {
             fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> io::Result<()> {
-                let new_cwd = if path.is_absolute() {
-                    path
-                } else {
-                    Cow::Owned(self.cwd.join(path))
-                };
+                let mut new_cwd = (*self.cwd).clone();
+                new_cwd.join_normalized(&path);
 
-                self.cwd = $Rc::new(try!(new_cwd.canonicalize()));
-                Ok(())
+                if new_cwd.is_dir() {
+                    self.cwd = $Rc::new(new_cwd);
+                    Ok(())
+                } else {
+                    let msg = format!("not a directory: {}", new_cwd.display());
+                    Err(io::Error::new(io::ErrorKind::NotFound, msg))
+                }
             }
         }
 

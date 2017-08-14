@@ -8,8 +8,9 @@ pub use self::support::*;
 #[test]
 fn get_cur_dir() {
     let tempdir = mktmp!();
-    let env = VirtualWorkingDirEnv::new(tempdir.path()).unwrap();
-    assert_eq!(env.current_working_dir(), tempdir.path().canonicalize().unwrap());
+    let path = tempdir.path();
+    let env = VirtualWorkingDirEnv::new(path).unwrap();
+    assert_eq!(env.current_working_dir(), path);
 }
 
 #[test]
@@ -30,7 +31,10 @@ fn cur_dir_should_prefix_relative_paths_with_cwd() {
     let env = VirtualWorkingDirEnv::new(tempdir.path()).unwrap();
 
     let path = Cow::Borrowed(Path::new("../bar"));
-    let expected = tempdir.path().canonicalize().unwrap().join("../bar");
+    let mut expected = PathBuf::new();
+    expected.push(tempdir.path());
+    expected.pop();
+    expected.push("bar");
     assert_eq!(env.path_relative_to_working_dir(path), expected);
 }
 
@@ -41,7 +45,7 @@ fn change_cur_dir_should_accept_absolute_paths() {
     let mut env = VirtualWorkingDirEnv::with_process_working_dir().unwrap();
 
     env.change_working_dir(Cow::Borrowed(tempdir.path())).expect("change_working_dir failed");
-    assert_eq!(env.current_working_dir(), tempdir.path().canonicalize().unwrap());
+    assert_eq!(env.current_working_dir(), tempdir.path());
 }
 
 #[test]
@@ -51,5 +55,9 @@ fn change_cur_dir_should_accept_relative_paths() {
     let mut env = VirtualWorkingDirEnv::new(PathBuf::from(tempdir.path())).unwrap();
 
     env.change_working_dir(Cow::Borrowed(Path::new(".."))).expect("change_working_dir failed");
-    assert_eq!(env.current_working_dir(), tempdir.path().join("..").canonicalize().unwrap());
+
+    let mut expected = PathBuf::new();
+    expected.push(tempdir.path());
+    expected.pop();
+    assert_eq!(env.current_working_dir(), expected);
 }

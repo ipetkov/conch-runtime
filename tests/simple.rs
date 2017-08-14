@@ -159,14 +159,15 @@ fn should_set_executable_cwd_same_as_env() {
 
     let cwd = format!("{}\n", ::std::env::current_dir()
         .expect("failed to get current dir")
-        .canonicalize()
-        .expect("failed to canonicalize current dir")
         .display()
         .to_string()
     );
 
     let stdout = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
-        .map(move |(_, msg)| assert_eq!(String::from_utf8_lossy(&msg), cwd))
+        // NB: on windows cwd will have the prefix but msg won't, so we'll
+        // just hack around this by doing a "ends_with" check to avoid having
+        // to strip the UNC prefix
+        .map(move |(_, msg)| assert!(cwd.ends_with(&*String::from_utf8_lossy(&msg))))
         .map_err(|e| panic!("stdout failed: {}", e));
 
     let status = lp.run(poll_fn(|| future.poll(&mut env)).flatten().join(stdout));
