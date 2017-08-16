@@ -17,4 +17,4 @@ build: false
 
 test_script:
   - cargo build
-  - cargo test
+  - cargo test --no-fail-fast
