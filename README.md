@@ -4,8 +4,8 @@
 [![Documentation](https://docs.rs/conch-runtime/badge.svg)](https://docs.rs/conch-runtime)
 [![Documentation Master](https://img.shields.io/badge/docs-master-blue.svg)](https://ipetkov.github.io/conch-runtime)
 [![Build Status](https://travis-ci.org/ipetkov/conch-runtime.svg?branch=master)](https://travis-ci.org/ipetkov/conch-runtime)
-[![Build Status](https://img.shields.io/appveyor/ci/ipetkov/conch-runtime.svg)](https://ci.appveyor.com/project/ipetkov/conch-runtime)
-[![Coverage](https://img.shields.io/codecov/c/github/ipetkov/conch-runtime.svg)](https://codecov.io/gh/ipetkov/conch-runtime)
+[![Build Status](https://img.shields.io/appveyor/ci/ipetkov/conch-runtime/master.svg)](https://ci.appveyor.com/project/ipetkov/conch-runtime)
+[![Coverage](https://img.shields.io/codecov/c/github/ipetkov/conch-runtime/master.svg)](https://codecov.io/gh/ipetkov/conch-runtime)
 
 A Rust library/runtime for executing Unix shell commands.
 
