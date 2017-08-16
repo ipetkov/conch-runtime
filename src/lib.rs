@@ -23,7 +23,7 @@
 //! # Supported Cargo Features
 //!
 //! * `clippy`: compile with clippy lints enabled
-//! * `conch-oarser`: enable implementations on the default AST types provided
+//! * `conch-parser`: enable implementations on the default AST types provided
 //! by the `conch-parser` crate
 //! * `top-level`: enable compiling implementations on thte `TopLevel{Command,Word}`
 //! provided by the `conch-parser` crate (useful for disabling to speed up compile
