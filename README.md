@@ -26,7 +26,7 @@ specific Abstract Syntax Tree format a parser could produce, as well as agnostic
 to features supported by the OS to be as cross platform as possible.
 
 Specifically implementations are provided for all the default AST nodes produced
-by the [`conch-parser`][conch-prarser] crate. Unlike other Unix shells, this
+by the [`conch-parser`][conch-parser] crate. Unlike other Unix shells, this
 library supports Windows<sup>1</sup> and can likely be extended for other
 operating systems as well.
 
