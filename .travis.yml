@@ -22,7 +22,7 @@ before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$PATH:$HOME/.local/bin
   - export PATH=$PATH:~/.cargo/bin
     # Avoid issues with on beta/nightly, see https://github.com/rust-lang/cargo/issues/4415
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then NJOBS='-j1'; else NJOBS=''; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then NJOBS='-j1 --verbose'; else NJOBS=''; fi
 
 script:
   - cargo build --no-default-features
