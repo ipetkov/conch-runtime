@@ -39,7 +39,7 @@ way Windows addresses file handles).
 
 [POSIX]: http://pubs.opengroup.org/onlinepubs/9699919799/
 [conch-parser]: https://docs.rs/conch-parser
-[shell-example]: examples/shell.rs
+[shell-example]: https://github.com/ipetkov/conch-runtime/blob/master/examples/shell.rs
 
 ### Goals
 * Provide efficient, modularized implementations of executing parts of the shell
