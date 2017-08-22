@@ -21,13 +21,17 @@ rust:
 before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$PATH:$HOME/.local/bin
   - export PATH=$PATH:~/.cargo/bin
-    # Avoid issues with on beta/nightly, see https://github.com/rust-lang/cargo/issues/4415
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then NJOBS='-j1 --verbose'; else NJOBS=''; fi
 
 script:
   - cargo build --no-default-features
   - cargo build
-  - cargo test $NJOBS --no-fail-fast
+    # Retry with fewer cores if the initial `cargo test` fails to work around possible OOM errors
+    # for more details see https://github.com/rust-lang/cargo/issues/4415
+  - cargo test --no-fail-fast ||
+    (
+      echo 'initial `cargo test` failed, retrying with fewer cores to work around OOM issues' &&
+      cargo test --no-fail-fast --verbose -j 1
+    )
   - cargo doc --no-deps
 after_success:
   # NB: only upload linux master docs to avoid conflicting with the osx build
