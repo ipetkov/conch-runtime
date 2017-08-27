@@ -7,7 +7,6 @@ extern crate void;
 use self::conch_runtime::STDOUT_FILENO;
 use self::conch_runtime::error::IsFatalError;
 use self::conch_runtime::io::{FileDesc, FileDescWrapper};
-use self::futures::BoxFuture;
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
@@ -383,11 +382,11 @@ pub enum MockOutCmd {
 impl<E: ?Sized> Spawn<E> for MockOutCmd
     where E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: Send + 'static,
+          E::WriteAll: 'static + Send + Sync,
 {
     type Error = MockErr;
     type EnvFuture = Self;
-    type Future = BoxFuture<ExitStatus, Self::Error>;
+    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error> + Send + Sync>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self
@@ -397,11 +396,11 @@ impl<E: ?Sized> Spawn<E> for MockOutCmd
 impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
     where E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: Send + 'static,
+          E::WriteAll: 'static + Send + Sync,
 {
     type Error = MockErr;
     type EnvFuture = MockOutCmd;
-    type Future = BoxFuture<ExitStatus, Self::Error>;
+    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error> + Send + Sync>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self.clone()
@@ -411,16 +410,16 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
 impl<E: ?Sized> EnvFuture<E> for MockOutCmd
     where E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: Send + 'static,
+          E::WriteAll: 'static + Send + Sync,
 {
-    type Item = BoxFuture<ExitStatus, Self::Error>;
+    type Item = Box<'static + Future<Item = ExitStatus, Error = Self::Error> + Send + Sync>;
     type Error = MockErr;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let msg = match *self {
             MockOutCmd::Out(ref m) => m,
             MockOutCmd::Cmd(ref mut c) => match c.poll(env) {
-                Ok(Async::Ready(f)) => return Ok(Async::Ready(f.boxed())),
+                Ok(Async::Ready(f)) => return Ok(Async::Ready(Box::new(f))),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(e) => return Err(e),
             },
@@ -437,10 +436,9 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
             .then(|result| {
                 result.expect("unexpected failure");
                 Ok(EXIT_SUCCESS)
-            })
-            .boxed();
+            });
 
-        Ok(Async::Ready(future))
+        Ok(Async::Ready(Box::new(future)))
     }
 
     fn cancel(&mut self, env: &mut E) {
