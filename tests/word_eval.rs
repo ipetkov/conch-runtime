@@ -1,5 +1,4 @@
 extern crate conch_runtime;
-extern crate futures;
 
 use conch_runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use conch_runtime::future::{Async, EnvFuture, Poll};

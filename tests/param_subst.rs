@@ -1,8 +1,6 @@
 #![cfg(feature = "conch-parser")]
 
 extern crate conch_parser;
-extern crate conch_runtime;
-extern crate futures;
 extern crate tokio_core;
 
 use conch_parser::ast::{Arithmetic, ParameterSubstitution};

@@ -1,6 +1,3 @@
-extern crate conch_runtime;
-extern crate tokio_core;
-
 use std::borrow::Cow;
 
 #[macro_use]

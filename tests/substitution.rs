@@ -1,5 +1,4 @@
 extern crate conch_runtime;
-extern crate futures;
 
 use conch_runtime::error::IsFatalError;
 use conch_runtime::spawn::substitution;

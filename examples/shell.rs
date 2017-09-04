@@ -3,8 +3,6 @@
     allow(dead_code, unused_imports)
 )]
 
-#[cfg(feature = "conch-parser")]
-extern crate conch_parser;
 extern crate conch_runtime;
 extern crate futures;
 extern crate owned_chars;
@@ -25,6 +23,8 @@ fn main() {}
 
 #[cfg(all(feature = "conch-parser", feature = "top-level"))]
 fn main() {
+    extern crate conch_parser;
+
     use conch_parser::ast::builder::RcBuilder;
     use conch_parser::lexer::Lexer;
     use conch_parser::parse::Parser;
