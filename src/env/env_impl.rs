@@ -227,8 +227,7 @@ macro_rules! impl_env {
             pub fn with_config(cfg: EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR>) -> Self
                 where V: ExportedVariableEnvironment,
                       V::VarName: From<String>,
-                      V::Var: Borrow<String> + From<String> + Clone,
-                      WD: WorkingDirectoryEnvironment,
+                      V::Var: Borrow<String> + From<String>,
             {
                 let mut env = $Env {
                     interactive: cfg.interactive,
@@ -245,18 +244,10 @@ macro_rules! impl_env {
                 let sh_lvl = "SHLVL".to_owned().into();
                 let level = env.var(&sh_lvl)
                     .and_then(|lvl| lvl.borrow().parse::<isize>().ok().map(|l| l+1))
-                    .unwrap_or(1)
-                    .to_string()
-                    .into();
+                    .unwrap_or(1);
 
-                let cwd: V::Var = env.current_working_dir()
-                    .to_string_lossy()
-                    .into_owned()
-                    .into();
-
-                env.set_exported_var(sh_lvl, level, true);
-                env.set_exported_var("PWD".to_owned().into(), cwd.clone(), true);
-                env.set_exported_var("OLDPWD".to_owned().into(), cwd, true);
+                // FIXME: set/update $PWD, $OLDPWD
+                env.set_exported_var(sh_lvl.into(), level.to_string().into(), true);
                 env.set_var("IFS".to_owned().into(), IFS_DEFAULT.to_owned().into());
                 env
             }
@@ -321,8 +312,7 @@ macro_rules! impl_env {
             where N: Hash + Eq,
                   V: ExportedVariableEnvironment,
                   V::VarName: From<String>,
-                  V::Var: Borrow<String> + From<String> + Clone,
-                  WD: WorkingDirectoryEnvironment,
+                  V::Var: Borrow<String> + From<String>,
         {
             fn from(cfg: EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR>) -> Self {
                 Self::with_config(cfg)
@@ -583,29 +573,10 @@ macro_rules! impl_env {
         impl<A, IO, FD, L, V, EX, WD, N, ERR> ChangeWorkingDirectoryEnvironment
             for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where N: Hash + Eq,
-                  V: VariableEnvironment,
-                  V::VarName: From<String>,
-                  V::Var: From<String>,
-                  WD: WorkingDirectoryEnvironment,
                   WD: ChangeWorkingDirectoryEnvironment,
         {
             fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> IoResult<()> {
-                let old_cwd = self.current_working_dir()
-                    .to_string_lossy()
-                    .into_owned()
-                    .into();
-
-                try!(self.working_dir_env.change_working_dir(path));
-
-                let new_cwd = self.current_working_dir()
-                    .to_string_lossy()
-                    .into_owned()
-                    .into();
-
-                self.set_var("PWD".to_owned().into(), new_cwd);
-                self.set_var("OLDPWD".to_owned().into(), old_cwd);
-
-                Ok(())
+                self.working_dir_env.change_working_dir(path)
             }
         }
     }
@@ -725,5 +696,24 @@ impl<T> DefaultAtomicEnv<T> where T: StringWrapper {
     /// See the definition of `atomic::DefaultEnvConfig` for what configuration will be used.
     pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
         DefaultAtomicEnvConfig::new_atomic(remote, fallback_num_threads).map(Self::with_config)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate tokio_core;
+    use env::{DefaultEnvConfigRc, DefaultEnvRc, IsInteractiveEnvironment};
+
+    #[test]
+    fn test_env_is_interactive() {
+        let lp = tokio_core::reactor::Core::new().unwrap();
+
+        for &interactive in &[true, false] {
+            let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
+                interactive: interactive,
+                ..DefaultEnvConfigRc::new(lp.remote(), Some(1)).unwrap()
+            });
+            assert_eq!(env.is_interactive(), interactive);
+        }
     }
 }
