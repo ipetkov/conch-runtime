@@ -2,8 +2,8 @@ use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERRO
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
           FileDescEnvironment, FunctionEnvironment, RedirectEnvRestorer, RedirectRestorer,
-          SetArgumentsEnvironment, VarRestorer, VariableEnvironment, UnsetVariableEnvironment,
-          WorkingDirectoryEnvironment};
+          SetArgumentsEnvironment, VarEnvRestorer, VarRestorer, VariableEnvironment,
+          UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments,
            EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig,
@@ -314,7 +314,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                     match f.poll(env) {
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         ret => {
-                            let (mut redirect_restorer, var_restorer) = restorers.take()
+                            let (mut redirect_restorer, mut var_restorer) = restorers.take()
                                 .expect(POLLED_TWICE);
 
                             redirect_restorer.restore(env);
@@ -368,7 +368,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
             State::Eval(ref mut eval) => eval.cancel(env),
             State::Func(ref mut restorers, ref mut f) => {
                 f.cancel(env);
-                let (mut redirect_restorer, var_restorer) = restorers.take().expect(CANCELLED_TWICE);
+                let (mut redirect_restorer, mut var_restorer) = restorers.take().expect(CANCELLED_TWICE);
                 redirect_restorer.restore(env);
                 var_restorer.restore(env);
             },

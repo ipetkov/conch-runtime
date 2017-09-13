@@ -5,6 +5,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Added `RedirectEnvRestorer` trait to abstract over `RedirectRestorer` and other implementations
 - Added `spawn_with_local_redirections_and_restorer` to allow specifying a specific `RedirectEnvRestorer` implementation
+- Added `VarEnvRestorer` trait to abstract over `VarRestorer` and other implementations
 
 ### Changed
 - `eval_redirects_or_cmd_words_with_restorer` is now generic over a `RedirectEnvRestorer`
@@ -15,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Deprecated
 - Deprecated most of the direct methods on `RedirectRestorer` in favor of the `RedirectEnvRestorer` trait
+- Deprecated most of the direct methods on `VarRestorer` in favor of the `VarEnvRestorer` trait
 
 ### Removed
 ### Fixed
