@@ -6,6 +6,57 @@ use std::collections::HashMap;
 use std::fmt;
 use std::io::Result as IoResult;
 
+/// An interface for maintaining a state of all file descriptors that have been
+/// modified so that they can be restored later.
+///
+/// > *Note*: the caller should take care that a restorer instance is always
+/// > called with the same environment for its entire lifetime. Using different
+/// > environments with the same restorer instance will undoubtedly do the wrong
+/// > thing eventually, and no guarantees can be made.
+pub trait RedirectEnvRestorer<E: ?Sized> {
+    /// Reserves capacity for at least `additional` more redirects to be backed up.
+    fn reserve(&mut self, additional: usize);
+
+    /// Applies changes to a given environment after backing up as appropriate.
+    fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
+        where E: AsyncIoEnvironment + FileDescEnvironment,
+              E::FileHandle: From<FileDesc>;
+
+    /// Backs up the original handle of specified file descriptor.
+    ///
+    /// The original value of the file descriptor is the one the environment
+    /// held before it was passed into this wrapper. That is, if a file
+    /// descriptor is backed up multiple times, only the value before the first
+    /// call could be restored later.
+    fn backup(&mut self, fd: Fd, env: &mut E);
+
+    /// Restore all file descriptors to their original state.
+    fn restore(&mut self, env: &mut E);
+}
+
+impl<'a, T, E: ?Sized> RedirectEnvRestorer<E> for &'a mut T
+    where T: RedirectEnvRestorer<E>
+{
+    fn reserve(&mut self, additional: usize) {
+        (**self).reserve(additional);
+    }
+
+    fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
+        where E: AsyncIoEnvironment + FileDescEnvironment,
+              E::FileHandle: From<FileDesc>
+    {
+        (**self).apply_action(action, env)
+    }
+
+    fn backup(&mut self, fd: Fd, env: &mut E) {
+        (**self).backup(fd, env)
+    }
+
+    fn restore(&mut self, env: &mut E) {
+        (**self).restore(env)
+    }
+}
+
 /// Maintains a state of all file descriptors that have been modified so that
 /// they can be restored later.
 ///
@@ -73,15 +124,61 @@ impl<E: ?Sized> RedirectRestorer<E>
     }
 
     /// Reserves capacity for at least `additional` more redirects to be backed up.
+    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
     pub fn reserve(&mut self, additional: usize) {
         self.overrides.reserve(additional);
     }
 
     /// Applies changes to a given environment after backing up as appropriate.
+    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
     pub fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E)
         -> IoResult<()>
         where E: AsyncIoEnvironment,
               E::FileHandle: Clone + From<FileDesc>,
+    {
+        RedirectEnvRestorer::apply_action(self, action, env)
+    }
+
+    /// Backs up the original handle of specified file descriptor.
+    ///
+    /// The original value of the file descriptor is the one the environment
+    /// held before it was passed into this wrapper. That is, if a file
+    /// descriptor is backed up multiple times, only the value before the first
+    /// call could be restored later.
+    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
+    pub fn backup(&mut self, fd: Fd, env: &mut E)
+        where E::FileHandle: Clone,
+    {
+        RedirectEnvRestorer::backup(self, fd, env);
+    }
+
+    /// Restore all file descriptors to their original state.
+    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
+    pub fn restore(mut self, env: &mut E) {
+        self._restore(env)
+    }
+
+    fn _restore(&mut self, env: &mut E) {
+        for (fd, backup) in self.overrides.drain() {
+            match backup {
+                Some((handle, perms)) => env.set_file_desc(fd, handle, perms),
+                None => env.close_file_desc(fd),
+            }
+        }
+    }
+}
+
+impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
+    where E: FileDescEnvironment,
+          E::FileHandle: Clone
+{
+    fn reserve(&mut self, additional: usize) {
+        self.overrides.reserve(additional);
+    }
+
+    fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
+        where E: AsyncIoEnvironment + FileDescEnvironment,
+              E::FileHandle: From<FileDesc>
     {
         match action {
             RedirectAction::Close(fd) |
@@ -92,27 +189,13 @@ impl<E: ?Sized> RedirectRestorer<E>
         action.apply(env)
     }
 
-    /// Backs up the original handle of specified file descriptor.
-    ///
-    /// The original value of the file descriptor is the one the environment
-    /// held before it was passed into this wrapper. That is, if a file
-    /// descriptor is backed up multiple times, only the value before the first
-    /// call could be restored later.
-    pub fn backup(&mut self, fd: Fd, env: &mut E)
-        where E::FileHandle: Clone,
-    {
+    fn backup(&mut self, fd: Fd, env: &mut E) {
         self.overrides.entry(fd).or_insert_with(|| {
             env.file_desc(fd).map(|(handle, perms)| (handle.clone(), perms))
         });
     }
 
-    /// Restore all file descriptors to their original state.
-    pub fn restore(self, env: &mut E) {
-        for (fd, backup) in self.overrides {
-            match backup {
-                Some((handle, perms)) => env.set_file_desc(fd, handle, perms),
-                None => env.close_file_desc(fd),
-            }
-        }
+    fn restore(&mut self, env: &mut E) {
+        self._restore(env)
     }
 }

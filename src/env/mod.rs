@@ -28,7 +28,7 @@ pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
-pub use self::reversible_redirect::RedirectRestorer;
+pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 pub use self::reversible_var::VarRestorer;
 pub use self::string_wrapper::StringWrapper;
 pub use self::var::{ExportedVariableEnvironment, VarEnv, VariableEnvironment,

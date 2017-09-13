@@ -1,9 +1,9 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectRestorer};
+use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer, RedirectRestorer};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
-use io::FileDescWrapper;
+use io::FileDesc;
 use std::error::Error;
 use std::fmt;
 use std::mem;
@@ -76,30 +76,28 @@ impl<R, V> IsFatalError for EvalRedirectOrCmdWordError<R, V>
 /// A future which will evaluate a series of redirections and shell words.
 ///
 /// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
+/// a `RedirectEnvRestorer` will be returned which allows the caller to reverse the
 /// changes from applying these redirections. On error, the redirections will
 /// be automatically restored.
 #[must_use = "futures do nothing unless polled"]
-pub struct EvalRedirectOrCmdWord<R, W, I, E: ?Sized>
+pub struct EvalRedirectOrCmdWord<R, W, I, E: ?Sized, RR = RedirectRestorer<E>>
     where R: RedirectEval<E>,
           W: WordEval<E>,
-          E: FileDescEnvironment,
 {
-        redirect_restorer: Option<RedirectRestorer<E>>,
+        redirect_restorer: Option<RR>,
         words: Vec<W::EvalResult>,
         current: Option<RedirectOrCmdWord<R::EvalFuture, W::EvalFuture>>,
         rest: I,
 }
 
-impl<R, W, I, E: ?Sized> fmt::Debug for EvalRedirectOrCmdWord<R, W, I, E>
+impl<R, W, I, E: ?Sized, RR> fmt::Debug for EvalRedirectOrCmdWord<R, W, I, E, RR>
     where I: fmt::Debug,
           R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
           W: WordEval<E>,
           W::EvalFuture: fmt::Debug,
           W::EvalResult: fmt::Debug,
-          E: FileDescEnvironment,
-          E::FileHandle: fmt::Debug,
+          RR: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("EvalRedirectOrCmdWord")
@@ -118,32 +116,34 @@ impl<R, W, I, E: ?Sized> fmt::Debug for EvalRedirectOrCmdWord<R, W, I, E>
 /// changes from applying these redirections. On error, the redirections will
 /// be automatically restored.
 pub fn eval_redirects_or_cmd_words<R, W, I, E: ?Sized>(words: I, env: &E)
-    -> EvalRedirectOrCmdWord<R, W, I::IntoIter, E>
+    -> EvalRedirectOrCmdWord<R, W, I::IntoIter, E, RedirectRestorer<E>>
     where I: IntoIterator<Item = RedirectOrCmdWord<R, W>>,
           R: RedirectEval<E>,
           W: WordEval<E>,
           E: FileDescEnvironment,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: Clone + From<FileDesc>,
 {
     eval_redirects_or_cmd_words_with_restorer(RedirectRestorer::new(), words, env)
 }
 
-/// Create a future which will evaluate a series of redirections and shell words, and supply a `RedirectRestorer` to use.
+/// Create a future which will evaluate a series of redirections and shell words,
+/// and supply a `RedirectEnvRestorer` to use.
 ///
 /// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
+/// a `RedirectEnvRestorer` will be returned which allows the caller to reverse the
 /// changes from applying these redirections. On error, the redirections will
 /// be automatically restored.
-pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized>(
-    mut restorer: RedirectRestorer<E>,
+pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized, RR>(
+    mut restorer: RR,
     words: I,
     env: &E
-) -> EvalRedirectOrCmdWord<R, W, I::IntoIter, E>
+) -> EvalRedirectOrCmdWord<R, W, I::IntoIter, E, RR>
     where I: IntoIterator<Item = RedirectOrCmdWord<R, W>>,
           R: RedirectEval<E>,
           W: WordEval<E>,
           E: FileDescEnvironment,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: From<FileDesc>,
+          RR: RedirectEnvRestorer<E>,
 {
     let mut words = words.into_iter();
 
@@ -171,15 +171,16 @@ fn spawn<R, W, E: ?Sized>(var: RedirectOrCmdWord<R, W>, env: &E)
     }
 }
 
-impl<R, W, I, E: ?Sized> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E>
+impl<R, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E, RR>
     where I: Iterator<Item = RedirectOrCmdWord<R, W>>,
           R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           W: WordEval<E>,
           E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: From<FileDesc>,
+          RR: RedirectEnvRestorer<E>,
 {
-    type Item = (RedirectRestorer<E>, Vec<W::EvalResult>);
+    type Item = (RR, Vec<W::EvalResult>);
     type Error = EvalRedirectOrCmdWordError<R::Error, W::Error>;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -233,7 +234,7 @@ impl<R, W, I, E: ?Sized> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E>
             self.current = None;
         }
 
-        let restorer = self.redirect_restorer.take().expect(POLLED_TWICE);
+        let mut restorer = self.redirect_restorer.take().expect(POLLED_TWICE);
 
         match err {
             Some(e) => {
