@@ -3,6 +3,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+### Breaking
+
+## [0.1.1] - 2017-09-13
+### Added
 - Added `RedirectEnvRestorer` trait to abstract over `RedirectRestorer` and other implementations
 - Added `spawn_with_local_redirections_and_restorer` to allow specifying a specific `RedirectEnvRestorer` implementation
 - Added `VarEnvRestorer` trait to abstract over `VarRestorer` and other implementations
@@ -18,13 +27,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Deprecated most of the direct methods on `RedirectRestorer` in favor of the `RedirectEnvRestorer` trait
 - Deprecated most of the direct methods on `VarRestorer` in favor of the `VarEnvRestorer` trait
 
-### Removed
-### Fixed
-### Security
-### Breaking
-
 ## [0.1.0] - 2017-08-21
 - First release!
 
-[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
+[0.1.0]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1

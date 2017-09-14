@@ -13,7 +13,7 @@ First, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-conch-runtime = "0.1.0"
+conch-runtime = "0.1"
 ```
 
 Next, you can get started with by looking at [the barebones shell example][shell-example].
