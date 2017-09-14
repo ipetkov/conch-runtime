@@ -1,5 +1,5 @@
 use {CANCELLED_TWICE, POLLED_TWICE, Spawn};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectRestorer};
+use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer, RedirectRestorer};
 use error::RedirectionError;
 use eval::RedirectEval;
 use io::FileDesc;
@@ -8,24 +8,22 @@ use std::fmt;
 
 /// A future representing the spawning of a command with some local redirections.
 #[must_use = "futures do nothing unless polled"]
-pub struct LocalRedirections<I, S, E: ?Sized>
+pub struct LocalRedirections<I, S, E: ?Sized, RR = RedirectRestorer<E>>
     where I: Iterator,
           I::Item: RedirectEval<E>,
           S: Spawn<E>,
-          E: FileDescEnvironment,
 {
-    restorer: Option<RedirectRestorer<E>>,
+    restorer: Option<RR>,
     state: State<I, <I::Item as RedirectEval<E>>::EvalFuture, S, S::EnvFuture>,
 }
 
-impl<R, I, S, E: ?Sized> fmt::Debug for LocalRedirections<I, S, E>
+impl<R, I, S, E: ?Sized, RR> fmt::Debug for LocalRedirections<I, S, E, RR>
     where I: Iterator<Item = R> + fmt::Debug,
           R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
-          E: FileDescEnvironment,
-          E::FileHandle: fmt::Debug,
+          RR: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("LocalRedirections")
@@ -59,18 +57,47 @@ enum State<I, RF, S, SEF> {
 /// > *Note*: any other file descriptor changes that may be applied to the
 /// > environment externally will **NOT** be captured or restored here.
 pub fn spawn_with_local_redirections<I, S, E: ?Sized>(redirects: I, cmd: S)
-    -> LocalRedirections<I::IntoIter, S, E>
+    -> LocalRedirections<I::IntoIter, S, E, RedirectRestorer<E>>
     where I: IntoIterator,
           I::Item: RedirectEval<E>,
           S: Spawn<E>,
           E: FileDescEnvironment,
+          E::FileHandle: Clone,
+{
+    spawn_with_local_redirections_and_restorer(RedirectRestorer::new(), redirects, cmd)
+}
+
+/// Creates a future which will evaluate a number of local redirects before
+/// spawning the inner command.
+///
+/// The local redirects will be evaluated and applied to the environment one by
+/// one, after which the inner command will be spawned and polled.
+///
+/// Upon resolution of the inner future (successful or with an error), or if
+/// this future is cancelled, the local redirects will be removed and restored
+/// with their previous file descriptors using the provided `RedirectEnvRestorer`
+/// implementation.
+///
+/// > *Note*: any other file descriptor changes that may be applied to the
+/// > environment externally will **NOT** be captured or restored here.
+pub fn spawn_with_local_redirections_and_restorer<RR, I, S, E: ?Sized>(
+    mut restorer: RR,
+    redirects: I,
+    cmd: S,
+) -> LocalRedirections<I::IntoIter, S, E, RR>
+    where I: IntoIterator,
+          I::Item: RedirectEval<E>,
+          S: Spawn<E>,
+          RR: RedirectEnvRestorer<E>,
 {
     let iter = redirects.into_iter();
     let (lo, hi) = iter.size_hint();
     let capacity = hi.unwrap_or(lo);
 
+    restorer.reserve(capacity);
+
     LocalRedirections {
-        restorer: Some(RedirectRestorer::with_capacity(capacity)),
+        restorer: Some(restorer),
         state: State::Redirections {
             cur_redirect: None,
             remaining_redirects: iter,
@@ -79,13 +106,14 @@ pub fn spawn_with_local_redirections<I, S, E: ?Sized>(redirects: I, cmd: S)
     }
 }
 
-impl<R, I, S, E: ?Sized> EnvFuture<E> for LocalRedirections<I, S, E>
+impl<R, I, S, E: ?Sized, RR> EnvFuture<E> for LocalRedirections<I, S, E, RR>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           I: Iterator<Item = R>,
           S: Spawn<E>,
           S::Error: From<RedirectionError> + From<R::Error>,
           E: AsyncIoEnvironment + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
+          RR: RedirectEnvRestorer<E>,
 {
     type Item = S::Future;
     type Error = S::Error;
@@ -175,6 +203,6 @@ impl<R, I, S, E: ?Sized> EnvFuture<E> for LocalRedirections<I, S, E>
         }
 
         self.state = State::Gone;
-        self.restorer.take().map(|restorer| restorer.restore(env));
+        self.restorer.take().map(|mut restorer| restorer.restore(env));
     }
 }

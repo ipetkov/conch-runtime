@@ -39,7 +39,7 @@ fn smoke() {
         &env
     );
 
-    let (restorer, words) = lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
+    let (mut restorer, words) = lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
     restorer.restore(&mut env);

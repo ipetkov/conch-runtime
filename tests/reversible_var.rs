@@ -1,6 +1,6 @@
 extern crate conch_runtime;
 
-use conch_runtime::env::{VarEnv, VarRestorer, VariableEnvironment, UnsetVariableEnvironment};
+use conch_runtime::env::{VarEnv, VarEnvRestorer, VarRestorer, VariableEnvironment, UnsetVariableEnvironment};
 
 #[test]
 fn smoke() {
@@ -19,7 +19,7 @@ fn smoke() {
 
     // Existing values set to multiple other values
     {
-        let mut restorer = VarRestorer::new();
+        let restorer: &mut VarEnvRestorer<_> = &mut VarRestorer::new();
 
         restorer.set_exported_var(key_exported, "some other exported value", true, &mut env);
         restorer.set_exported_var(key_existing, "some other value", false, &mut env);
@@ -31,7 +31,7 @@ fn smoke() {
 
     // Unset existing values
     {
-        let mut restorer = VarRestorer::new();
+        let restorer: &mut VarEnvRestorer<_> = &mut VarRestorer::new();
 
         restorer.unset_var(key_exported, &mut env);
         restorer.unset_var(key_existing, &mut env);
@@ -43,7 +43,7 @@ fn smoke() {
 
     // Unset then set existing values
     {
-        let mut restorer = VarRestorer::new();
+        let restorer: &mut VarEnvRestorer<_> = &mut VarRestorer::new();
 
         restorer.unset_var(key_exported, &mut env);
         restorer.unset_var(key_existing, &mut env);

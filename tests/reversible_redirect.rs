@@ -3,7 +3,7 @@ extern crate conch_runtime;
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::Fd;
 use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, PlatformSpecificRead,
-                         PlatformSpecificWriteAll, RedirectRestorer};
+                         PlatformSpecificWriteAll, RedirectRestorer, RedirectEnvRestorer};
 use conch_runtime::eval::RedirectAction;
 use std::collections::HashMap;
 
@@ -73,7 +73,7 @@ fn smoke() {
 
     let env_original = env.clone();
 
-    let mut restorer = RedirectRestorer::new();
+    let restorer: &mut RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
 
     // Existing fd set to multiple other values
     restorer.apply_action(RedirectAction::Open(1, S("x"), Permissions::Read), &mut env).unwrap();
