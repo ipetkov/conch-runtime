@@ -150,7 +150,7 @@ enum EvalState<R, V, W, IV, IW, E: ?Sized>
           E: FileDescEnvironment,
 {
     InitVars(EvalRedirectOrVarAssig<R, V, W, IV, E, RedirectRestorer<E>>, Option<IW>),
-    InitWords(Option<HashMap<V, W::EvalResult>>, EvalRedirectOrCmdWord<R, W, IW, E>),
+    InitWords(Option<HashMap<V, W::EvalResult>>, EvalRedirectOrCmdWord<R, W, IW, E, RedirectRestorer<E>>),
     Gone,
 }
 

@@ -148,7 +148,7 @@ pub fn eval_redirects_or_var_assignments<R, V, W, I, E: ?Sized>(vars: I, env: &E
 /// Create a a future which will evaluate a series of redirections and variable assignments.
 ///
 /// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
+/// a `RedirectEnvRestorer` will be returned which allows the caller to reverse the
 /// changes from applying these redirections. On error, the redirections will
 /// be automatically restored.
 ///
