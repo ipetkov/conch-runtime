@@ -1,3 +1,4 @@
+#![allow(deprecated)] // FIXME: delete this test suite when deprecations removed
 extern crate conch_runtime;
 extern crate futures;
 
@@ -5,6 +6,7 @@ use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::Permissions;
 use futures::future::poll_fn;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[macro_use]
@@ -21,37 +23,17 @@ fn smoke() {
     let key_split = Rc::new("key_split".to_owned());
     let val = "val".to_owned();
 
-    let all_keys = vec!(
-        key.clone(),
-        key_empty.clone(),
-        key_empty2.clone(),
-        key_split.clone(),
-    );
-
-    let assert_empty_vars = |env: &DefaultEnvRc| {
-        for var in &all_keys {
-            assert_eq!(env.var(var), None);
-        }
-    };
-
     {
-        let mut env = env.sub_env();
-        let mut future =
-            eval_redirects_or_var_assignments2::<MockRedirect<_>, Rc<String>, MockWord, _, _>(
-                vec!(),
-                &env
-            );
-
-        let (_redirect_restorer, _var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
-            .unwrap();
-        assert_empty_vars(&env);
+        let env = env.sub_env();
+        let future = eval_redirects_or_var_assignments::<MockRedirect<_>, Rc<String>, MockWord, _, _>(vec!(), &env)
+            .pin_env(env);
+        let (_restorer, vars) = lp.run(future).unwrap();
+        assert!(vars.is_empty());
     }
 
     assert_eq!(env.file_desc(1), None);
-    assert_empty_vars(&env);
-
     let fdes = dev_null();
-    let mut future = eval_redirects_or_var_assignments2(
+    let mut future = eval_redirects_or_var_assignments(
         vec!(
             RedirectOrVarAssig::Redirect(mock_redirect(
                 RedirectAction::Open(1, fdes.clone(), Permissions::Write)
@@ -67,24 +49,27 @@ fn smoke() {
         &env
     );
 
-    let (mut redirect_restorer, mut var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
-        .unwrap();
+    let (mut restorer, vars) = lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
-    redirect_restorer.restore(&mut env);
+    restorer.restore(&mut env);
     assert_eq!(env.file_desc(1), None);
 
-    assert_eq!(env.var(&key), Some(&Rc::new(val)));
-    assert_eq!(env.var(&key_empty), Some(&Rc::new(String::new())));
-    assert_eq!(env.var(&key_empty2), Some(&Rc::new(String::new())));
-    assert_eq!(env.var(&key_split), Some(&Rc::new("foo bar".to_owned())));
+    assert_eq!(env.var(&key), None);
+    assert_eq!(env.var(&key_empty), None);
+    assert_eq!(env.var(&key_split), None);
 
-    var_restorer.restore(&mut env);
-    assert_empty_vars(&env);
+    let mut expected_vars = HashMap::new();
+    expected_vars.insert(key, val);
+    expected_vars.insert(key_empty, String::new());
+    expected_vars.insert(key_empty2, String::new());
+    expected_vars.insert(key_split, "foo bar".to_owned());
+
+    assert_eq!(vars, expected_vars);
 }
 
 #[test]
-fn should_propagate_errors_and_restore_redirects_and_vars() {
+fn should_propagate_errors_and_restore_redirects() {
     let (mut lp, mut env) = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
@@ -92,14 +77,11 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_var_assignments2(
+        let mut future = eval_redirects_or_var_assignments(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
                 )),
-                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(
-                    Fields::Single("val".to_owned())
-                ))),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_error(false))),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
@@ -109,20 +91,16 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
         let err = EvalRedirectOrVarAssigError::VarAssig(MockErr::Fatal(false));
         assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
         assert_eq!(env.file_desc(1), None);
-        assert_eq!(env.var(&key), None);
     }
 
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_var_assignments2(
+        let mut future = eval_redirects_or_var_assignments(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
                 )),
-                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(
-                    Fields::Single("val".to_owned())
-                ))),
                 RedirectOrVarAssig::Redirect(mock_redirect_error(false)),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
@@ -132,18 +110,17 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
         let err = EvalRedirectOrVarAssigError::Redirect(MockErr::Fatal(false));
         assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
         assert_eq!(env.file_desc(1), None);
-        assert_eq!(env.var(&key), None);
     }
 }
 
 #[test]
-fn should_propagate_cancel_and_restore_redirects_and_vars() {
+fn should_propagate_cancel_and_restore_redirects() {
     let (_lp, mut env) = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
 
     test_cancel!(
-        eval_redirects_or_var_assignments2::<MockRedirect<_>, _, _, _, _>(
+        eval_redirects_or_var_assignments::<MockRedirect<_>, _, _, _, _>(
             vec!(RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_must_cancel()))),
             &env,
         ),
@@ -152,14 +129,11 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
 
     assert_eq!(env.file_desc(1), None);
     test_cancel!(
-        eval_redirects_or_var_assignments2(
+        eval_redirects_or_var_assignments(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
                 )),
-                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(
-                    Fields::Single("val".to_owned())
-                ))),
                 RedirectOrVarAssig::Redirect(mock_redirect_must_cancel()),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
@@ -168,5 +142,4 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
         env
     );
     assert_eq!(env.file_desc(1), None);
-    assert_eq!(env.var(&key), None);
 }

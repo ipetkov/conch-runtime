@@ -3,8 +3,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
+- Added `eval_redirects_or_var_assignments2` and `EvalRedirectOrVarAssig2` implementations
+which behave similar to their predecessors, except they apply variables directly into the
+environment and provide a `VarRestorer` when finished
+- Added `eval_redirects_or_var_assignments_with_restorers` which allows evaluating any
+`RedirectOrVarAssig` with a specified `RedirectEnvRestorer` and `VarEnvRestorer` instances
+
 ### Changed
 ### Deprecated
+- Deprecated `eval_redirects_or_var_assignments`, `eval_redirects_or_cmd_words_with_restorer`
+and `EvalRedirectOrVarAssig`: the existing implementation does not handle referencing earlier
+variable assignments (e.g. `var1=foo var2=${bar:-$var1} env`) but cannot be ammended without
+introducing breaking changes
+
 ### Removed
 ### Fixed
 ### Security
