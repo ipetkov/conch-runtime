@@ -1,4 +1,4 @@
-use env::{ExportedVariableEnvironment, UnsetVariableEnvironment};
+use env::{ExportedVariableEnvironment, VariableEnvironment, UnsetVariableEnvironment};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -9,7 +9,7 @@ use std::fmt;
 /// > called with the same environment for its entire lifetime. Using different
 /// > environments with the same restorer instance will undoubtedly do the wrong
 /// > thing eventually, and no guarantees can be made.
-pub trait VarEnvRestorer<E: ?Sized + ExportedVariableEnvironment + UnsetVariableEnvironment> {
+pub trait VarEnvRestorer<E: ?Sized + VariableEnvironment> {
     /// Reserves capacity for at least `additional` more variables to be backed up.
     fn reserve(&mut self, additional: usize);
 
@@ -34,7 +34,7 @@ pub trait VarEnvRestorer<E: ?Sized + ExportedVariableEnvironment + UnsetVariable
 
 impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
     where T: VarEnvRestorer<E>,
-          E: ExportedVariableEnvironment + UnsetVariableEnvironment,
+          E: VariableEnvironment,
 {
     fn reserve(&mut self, additional: usize) {
         (**self).reserve(additional);
@@ -66,20 +66,20 @@ impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
 /// > thing eventually, and no guarantees can be made.
 #[derive(Clone)]
 pub struct VarRestorer<E: ?Sized>
-    where E: ExportedVariableEnvironment,
+    where E: VariableEnvironment,
 {
     /// Any overrides that have been applied (and be undone).
     overrides: HashMap<E::VarName, Option<(E::Var, bool)>>,
 }
 
 impl<E: ?Sized> Eq for VarRestorer<E>
-    where E: ExportedVariableEnvironment,
+    where E: VariableEnvironment,
           E::VarName: Eq,
           E::Var: Eq,
 {}
 
 impl<E: ?Sized> PartialEq<Self> for VarRestorer<E>
-    where E: ExportedVariableEnvironment,
+    where E: VariableEnvironment,
           E::VarName: Eq,
           E::Var: Eq,
 {
@@ -89,7 +89,7 @@ impl<E: ?Sized> PartialEq<Self> for VarRestorer<E>
 }
 
 impl<E: ?Sized> fmt::Debug for VarRestorer<E>
-    where E: ExportedVariableEnvironment,
+    where E: VariableEnvironment,
           E::VarName: fmt::Debug,
           E::Var: fmt::Debug,
 {
@@ -101,7 +101,7 @@ impl<E: ?Sized> fmt::Debug for VarRestorer<E>
 }
 
 impl<E: ?Sized> Default for VarRestorer<E>
-    where E: ExportedVariableEnvironment,
+    where E: VariableEnvironment,
 {
     fn default() -> Self {
         Self::new()
@@ -109,7 +109,7 @@ impl<E: ?Sized> Default for VarRestorer<E>
 }
 
 impl<E: ?Sized> VarRestorer<E>
-    where E: ExportedVariableEnvironment,
+    where E: VariableEnvironment,
 {
     /// Create a new wrapper.
     pub fn new() -> Self {
@@ -129,13 +129,13 @@ impl<E: ?Sized> VarRestorer<E>
     /// Restore all variable definitions to their original state.
     #[deprecated(note = "use the `VarEnvRestorer` trait instead")]
     pub fn restore(mut self, env: &mut E)
-        where E: UnsetVariableEnvironment,
+        where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
     {
         self._restore(env);
     }
 
     fn _restore(&mut self, env: &mut E)
-        where E: UnsetVariableEnvironment,
+        where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
     {
         for (key, val) in self.overrides.drain() {
             match val {

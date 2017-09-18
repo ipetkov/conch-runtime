@@ -10,6 +10,8 @@ environment and provide a `VarRestorer` when finished
 `RedirectOrVarAssig` with a specified `RedirectEnvRestorer` and `VarEnvRestorer` instances
 
 ### Changed
+- Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
+
 ### Deprecated
 - Deprecated `eval_redirects_or_var_assignments`, `eval_redirects_or_cmd_words_with_restorer`
 and `EvalRedirectOrVarAssig`: the existing implementation does not handle referencing earlier
