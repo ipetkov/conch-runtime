@@ -57,7 +57,7 @@ impl Error for ExpansionError {
 impl Display for ExpansionError {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
-            ExpansionError::DivideByZero                   => write!(fmt, "{}", self.description()),
+            ExpansionError::DivideByZero                   |
             ExpansionError::NegativeExponent               => write!(fmt, "{}", self.description()),
             ExpansionError::BadAssig(ref p)                => write!(fmt, "{}: cannot assign in this way", p),
             ExpansionError::EmptyParameter(ref p, ref msg) => write!(fmt, "{}: {}", p, msg),
