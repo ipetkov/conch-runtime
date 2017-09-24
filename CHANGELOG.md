@@ -8,6 +8,8 @@ which behave similar to their predecessors, except they apply variables directly
 environment and provide a `VarRestorer` when finished
 - Added `eval_redirects_or_var_assignments_with_restorers` which allows evaluating any
 `RedirectOrVarAssig` with a specified `RedirectEnvRestorer` and `VarEnvRestorer` instances
+- Added `VarEnvRestorer2` trait as a correction to the `VarEnvRestorer` interface in a
+backwards compatible manner.
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
@@ -40,9 +42,8 @@ introducing breaking changes
 - Deprecated most of the direct methods on `RedirectRestorer` in favor of the `RedirectEnvRestorer` trait
 - Deprecated most of the direct methods on `VarRestorer` in favor of the `VarEnvRestorer` trait
 
-## [0.1.0] - 2017-08-21
+## 0.1.0 - 2017-08-21
 - First release!
 
 [Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
-[0.1.0]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1
+[0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1

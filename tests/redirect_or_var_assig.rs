@@ -39,6 +39,7 @@ fn smoke() {
         let mut future =
             eval_redirects_or_var_assignments2::<MockRedirect<_>, Rc<String>, MockWord, _, _>(
                 vec!(),
+                None,
                 &env
             );
 
@@ -64,6 +65,7 @@ fn smoke() {
             RedirectOrVarAssig::VarAssig(key_empty.clone(), None),
             RedirectOrVarAssig::VarAssig(key_empty2.clone(), Some(mock_word_fields(Fields::Zero))),
         ),
+        None,
         &env
     );
 
@@ -81,6 +83,59 @@ fn smoke() {
 
     var_restorer.restore(&mut env);
     assert_empty_vars(&env);
+}
+
+#[test]
+fn should_honor_export_vars_config() {
+    let (mut lp, mut env) = new_env_with_no_fds();
+
+    let key = Rc::new("key".to_owned());
+    let key_existing = Rc::new("key_existing".to_owned());
+    let key_existing_exported = Rc::new("key_existing_exported".to_owned());
+
+    let val_existing = Rc::new("val_existing".to_owned());
+    let val_existing_exported = Rc::new("val_existing_exported".to_owned());
+    let val = Rc::new("val".to_owned());
+    let val_new = Rc::new("val_new".to_owned());
+    let val_new_alt = Rc::new("val_new_alt".to_owned());
+
+    env.set_exported_var(key_existing.clone(), val_existing.clone().into(), false);
+    env.set_exported_var(key_existing_exported.clone(), val_existing_exported.clone().into(), true);
+
+    let cases = vec!(
+        (Some(true), true, true, true),
+        (Some(false), false, false, false),
+        (None, false, false, true),
+    );
+
+    for (case, new, existing, existing_exported) in cases {
+        let mut env = env.sub_env();
+        let mut future = eval_redirects_or_var_assignments2::<MockRedirect<_>, _, _, _, _>(
+            vec!(
+                RedirectOrVarAssig::VarAssig(
+                    key.clone(),
+                    Some(mock_word_fields(Fields::Single((*val).clone())))
+                ),
+                RedirectOrVarAssig::VarAssig(
+                    key_existing.clone(),
+                    Some(mock_word_fields(Fields::Single((*val_new).clone())))
+                ),
+                RedirectOrVarAssig::VarAssig(
+                    key_existing_exported.clone(),
+                    Some(mock_word_fields(Fields::Single((*val_new_alt).clone())))
+                ),
+            ),
+            case,
+            &env
+        );
+
+        let (_redirect_restorer, _var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
+            .unwrap();
+
+        assert_eq!(env.exported_var(&key), Some((&val, new)));
+        assert_eq!(env.exported_var(&key_existing), Some((&val_new, existing)));
+        assert_eq!(env.exported_var(&key_existing_exported), Some((&val_new_alt, existing_exported)));
+    }
 }
 
 #[test]
@@ -103,6 +158,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_error(false))),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
+            None,
             &env
         );
 
@@ -126,6 +182,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
                 RedirectOrVarAssig::Redirect(mock_redirect_error(false)),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
+            None,
             &env
         );
 
@@ -145,6 +202,7 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
     test_cancel!(
         eval_redirects_or_var_assignments2::<MockRedirect<_>, _, _, _, _>(
             vec!(RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_must_cancel()))),
+            None,
             &env,
         ),
         env
@@ -163,6 +221,7 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
                 RedirectOrVarAssig::Redirect(mock_redirect_must_cancel()),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
+            None,
             &env,
         ),
         env

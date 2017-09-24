@@ -1,6 +1,7 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use env::{AsyncIoEnvironment, ExportedVariableEnvironment, FileDescEnvironment, RedirectEnvRestorer,
-          RedirectRestorer, VarEnvRestorer, VariableEnvironment, VarRestorer, UnsetVariableEnvironment};
+          RedirectRestorer, VarEnvRestorer2, VariableEnvironment, VarRestorer,
+          UnsetVariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
@@ -145,6 +146,7 @@ pub struct EvalRedirectOrVarAssig2<R, V, W, I, E: ?Sized, RR, VR>
 {
     redirect_restorer: Option<RR>,
     var_restorer: Option<VR>,
+    export_vars: Option<bool>,
     current: Option<RedirectOrVarAssigFuture<R::EvalFuture, V, W::EvalFuture>>,
     rest: I,
 }
@@ -164,6 +166,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> fmt::Debug for EvalRedirectOrVarAssig2<R, V,
         fmt.debug_struct("EvalRedirectOrVarAssig2")
             .field("redirect_restorer", &self.redirect_restorer)
             .field("var_restorer", &self.var_restorer)
+            .field("export_vars", &self.export_vars)
             .field("current", &self.current)
             .field("rest", &self.rest)
             .finish()
@@ -248,11 +251,13 @@ pub fn eval_redirects_or_var_assignments_with_restorer<R, V, W, I, E: ?Sized, RR
 /// be automatically restored.
 ///
 /// In addition, all evaluated variable names and values to be assigned will be
-/// evaluated and added to the environment. On successful completeion, a
-/// `VarRestorer` will be returned which allows the caller to reverse the
-/// changes from applying those assignments. On error, the assignments will be
-/// automatically restored.
-pub fn eval_redirects_or_var_assignments2<R, V, W, I, E: ?Sized>(vars: I, env: &E)
+/// evaluated and added to the environment. If `export_vars` is specified, any
+/// variables to be inserted or updated will have their exported status set as
+/// specified. Otherwise, variables will use their existing exported status.
+/// On successful completion, a `VarRestorer` will be returned which allows the
+/// caller to reverse the changes from applying those assignments. On error, the
+/// assignments will be automatically restored.
+pub fn eval_redirects_or_var_assignments2<R, V, W, I, E: ?Sized>(vars: I, export_vars: Option<bool>, env: &E)
     -> EvalRedirectOrVarAssig2<R, V, W, I::IntoIter, E, RedirectRestorer<E>, VarRestorer<E>>
     where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
           R: RedirectEval<E>,
@@ -263,7 +268,13 @@ pub fn eval_redirects_or_var_assignments2<R, V, W, I, E: ?Sized>(vars: I, env: &
           E::VarName: Borrow<String> + Clone,
           E::Var: Borrow<String> + Clone,
 {
-    eval_redirects_or_var_assignments_with_restorers(RedirectRestorer::new(), VarRestorer::new(), vars, env)
+    eval_redirects_or_var_assignments_with_restorers(
+        RedirectRestorer::new(),
+        VarRestorer::new(),
+        export_vars,
+        vars,
+        env
+    )
 }
 
 /// Create a a future which will evaluate a series of redirections and variable assignments.
@@ -274,13 +285,16 @@ pub fn eval_redirects_or_var_assignments2<R, V, W, I, E: ?Sized>(vars: I, env: &
 /// be automatically restored.
 ///
 /// In addition, all evaluated variable names and values to be assigned will be
-/// evaluated and added to the environment. On successful completeion, a
-/// `VarEnvRestorer` will be returned which allows the caller to reverse the
-/// changes from applying those assignments. On error, the assignments will be
-/// automatically restored.
+/// evaluated and added to the environment. If `export_vars` is specified, any
+/// variables to be inserted or updated will have their exported status set as
+/// specified. Otherwise, variables will use their existing exported status.
+/// On successful completion, a `VarRestorer` will be returned which allows the
+/// caller to reverse the changes from applying those assignments. On error, the
+/// assignments will be automatically restored.
 pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, RR, VR>(
     mut redirect_restorer: RR,
     mut var_restorer: VR,
+    export_vars: Option<bool>,
     vars: I,
     env: &E
 ) -> EvalRedirectOrVarAssig2<R, V, W, I::IntoIter, E, RR, VR>
@@ -288,12 +302,11 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
           R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: ExportedVariableEnvironment + FileDescEnvironment + UnsetVariableEnvironment,
-          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
+          E: VariableEnvironment,
           E::VarName: Borrow<String>,
           E::Var: Borrow<String>,
           RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer<E>,
+          VR: VarEnvRestorer2<E>,
 {
     let mut vars = vars.into_iter();
 
@@ -306,6 +319,7 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
     EvalRedirectOrVarAssig2 {
         redirect_restorer: Some(redirect_restorer),
         var_restorer: Some(var_restorer),
+        export_vars: export_vars,
         current: vars.next().map(|n| spawn(n, env)),
         rest: vars,
     }
@@ -463,7 +477,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig2<R, 
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,
           RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer<E>,
+          VR: VarEnvRestorer2<E>,
 {
     type Item = (RR, VR);
     type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
@@ -476,7 +490,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig2<R, 
             |slf: &mut Self, env: &mut E, key, val: W::EvalResult| {
                 slf.var_restorer.as_mut()
                     .expect(POLLED_TWICE)
-                    .set_exported_var(key, val.into(), true, env);
+                    .set_exported_var2(key, val.into(), slf.export_vars, env);
             },
             |slf: &mut Self, env: &mut E| {
                 slf.var_restorer.as_mut()
