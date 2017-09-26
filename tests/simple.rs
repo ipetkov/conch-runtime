@@ -1,12 +1,10 @@
-#![cfg(feature = "conch-parser")]
-
+#[cfg(feature = "conch-parser")]
 extern crate conch_parser;
 extern crate conch_runtime;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 
-use conch_parser::ast;
 use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions, Pipe};
@@ -50,8 +48,11 @@ fn new_test_env() -> (Core, TestEnv) {
     (lp, env)
 }
 
+#[cfg(feature = "conch-parser")]
 #[test]
 fn ast_node_smoke_test() {
+    use conch_parser::ast;
+
     pub fn run<T: Spawn<TestEnv>>(cmd: T) -> Result<ExitStatus, T::Error> {
         let (mut lp, env) = new_test_env();
         let future = cmd.spawn(&env)
@@ -91,6 +92,7 @@ fn function_smoke() {
 
     impl<'a, E: ?Sized> Spawn<E> for &'a MockFn
         where E: VariableEnvironment<VarName = Rc<String>, Var = Rc<String>>,
+              E: FileDescEnvironment,
     {
         type Error = MockErr;
         type EnvFuture = MockFn;
@@ -101,14 +103,16 @@ fn function_smoke() {
         }
     }
 
-    impl<E: VariableEnvironment + ?Sized> EnvFuture<E> for MockFn
+    impl<E: ?Sized> EnvFuture<E> for MockFn
         where E: VariableEnvironment<VarName = Rc<String>, Var = Rc<String>>,
+              E: FileDescEnvironment,
     {
         type Item = FutureResult<ExitStatus, Self::Error>;
         type Error = MockErr;
 
         fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
             assert_eq!(&***env.var(&KEY.to_owned()).unwrap(), VAL);
+            assert!(env.file_desc(1).is_some());
             Ok(Async::Ready(ok(EXIT)))
         }
 
@@ -130,6 +134,10 @@ fn function_smoke() {
             RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(Fields::Single(VAL.to_owned())))),
         ),
         vec!(
+            // NB: ensure we handle situation where the first item here isn't a word
+            RedirectOrCmdWord::Redirect(mock_redirect(
+                RedirectAction::Open(1, dev_null(), Permissions::Write)
+            )),
             RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(fn_name))),
         ),
         &env,
@@ -195,10 +203,11 @@ fn command_redirect_and_env_var_overrides() {
             RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(Fields::Single(val.clone())))),
         ),
         vec!(
-            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(bin_path))),
+            // NB: ensure we handle situation where the first item here isn't a word
             RedirectOrCmdWord::Redirect(mock_redirect(
                 RedirectAction::Open(1, Rc::new(pipe.writer), Permissions::Write)
             )),
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(bin_path))),
         ),
         &env,
     );
@@ -233,7 +242,7 @@ fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
     assert_eq!(env.file_desc(2), None);
     env.set_exported_var(key_exported.clone(), Rc::new("old".to_owned()), true);
 
-    let mut future = simple_command::<MockRedirect<_>, _, _, _, _, _>(
+    let mut future = simple_command(
         vec!(
             RedirectOrVarAssig::Redirect(mock_redirect(
                 RedirectAction::Open(1, dev_null(), Permissions::Write)
@@ -241,7 +250,15 @@ fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
             RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(Fields::Single(val.clone())))),
             RedirectOrVarAssig::VarAssig(key_exported.clone(), Some(mock_word_fields(Fields::Single(val_exported.clone())))),
         ),
-        vec!(),
+        vec!(
+            // NB: ensure we handle situation where the first item here isn't a word
+            RedirectOrCmdWord::Redirect(mock_redirect(
+                RedirectAction::Open(2, dev_null(), Permissions::Write)
+            )),
+            RedirectOrCmdWord::Redirect(mock_redirect(
+                RedirectAction::Open(3, dev_null(), Permissions::Write)
+            )),
+        ),
         &env,
     );
 
@@ -311,8 +328,10 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = simple_command::<_, Rc<String>, _, _, _, _>(
-            vec!(),
+        let mut future = simple_command(
+            vec!(
+                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(Fields::Single(val.clone())))),
+            ),
             vec!(
                 RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single("foo".to_string()))),
                 RedirectOrCmdWord::Redirect(mock_redirect(
@@ -334,8 +353,10 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = simple_command::<_, Rc<String>, _, _, _, _>(
-            vec!(),
+        let mut future = simple_command(
+            vec!(
+                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(Fields::Single(val.clone())))),
+            ),
             vec!(
                 RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single("foo".to_string()))),
                 RedirectOrCmdWord::Redirect(mock_redirect(
@@ -356,14 +377,16 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
 }
 
 #[test]
-fn should_propagate_cancel_and_restore_redirects_without_assigning_vars() {
+fn should_propagate_cancel_and_restore_redirects_and_vars() {
     let (_lp, mut env) = new_test_env();
 
     let key = Rc::new("key".to_owned());
+    let val = Fields::Single("foo".to_owned());
 
     test_cancel!(
-        simple_command::<MockRedirect<_>, Rc<String>, _, _, _, _>(
+        simple_command::<MockRedirect<_>, _, _, _, _, _>(
             vec!(
+                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(val.clone()))),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_must_cancel())),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ),
@@ -378,6 +401,7 @@ fn should_propagate_cancel_and_restore_redirects_without_assigning_vars() {
     test_cancel!(
         simple_command(
             vec!(
+                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(val.clone()))),
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
                 )),
@@ -393,8 +417,10 @@ fn should_propagate_cancel_and_restore_redirects_without_assigning_vars() {
     assert_eq!(env.var(&key), None);
 
     test_cancel!(
-        simple_command::<_, Rc<String>, _, _, _, _>(
-            vec!(),
+        simple_command(
+            vec!(
+                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(val.clone()))),
+            ),
             vec!(
                 RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single("foo".to_string()))),
                 RedirectOrCmdWord::Redirect(mock_redirect(
@@ -410,8 +436,10 @@ fn should_propagate_cancel_and_restore_redirects_without_assigning_vars() {
     assert_eq!(env.var(&key), None);
 
     test_cancel!(
-        simple_command::<_, Rc<String>, _, _, _, _>(
-            vec!(),
+        simple_command(
+            vec!(
+                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(val.clone()))),
+            ),
             vec!(
                 RedirectOrCmdWord::Redirect(mock_redirect_must_cancel()),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),

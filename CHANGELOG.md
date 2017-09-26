@@ -13,6 +13,8 @@ backwards compatible manner.
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
+- Spawning a simple command now (more) correctly evaluates variable assignments where one
+assignment depends on an earlier one (e.g. `var1=foo var2=${bar:-$var1} env`)
 
 ### Deprecated
 - Deprecated `eval_redirects_or_var_assignments`, `eval_redirects_or_cmd_words_with_restorer`
