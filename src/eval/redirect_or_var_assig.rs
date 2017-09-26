@@ -1,7 +1,6 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
-use env::{AsyncIoEnvironment, ExportedVariableEnvironment, FileDescEnvironment, RedirectEnvRestorer,
-          RedirectRestorer, VarEnvRestorer2, VariableEnvironment, VarRestorer,
-          UnsetVariableEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer,
+          RedirectRestorer, VarEnvRestorer2, VariableEnvironment, VarRestorer};
 use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
@@ -185,7 +184,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> fmt::Debug for EvalRedirectOrVarAssig2<R, V,
 /// environment at any point as that is left up to the caller.
 #[allow(deprecated)]
 #[deprecated(note = "does not properly handle references to earlier assignments, \
-use `eval_redirects_or_var_assignments2` instead")]
+use `eval_redirects_or_var_assignments_with_restorers` instead")]
 pub fn eval_redirects_or_var_assignments<R, V, W, I, E: ?Sized>(vars: I, env: &E)
     -> EvalRedirectOrVarAssig<R, V, W, I::IntoIter, E, RedirectRestorer<E>>
     where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
@@ -241,40 +240,6 @@ pub fn eval_redirects_or_var_assignments_with_restorer<R, V, W, I, E: ?Sized, RR
         current: vars.next().map(|n| spawn(n, env)),
         rest: vars,
     }
-}
-
-/// Create a a future which will evaluate a series of redirections and variable assignments.
-///
-/// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
-/// changes from applying these redirections. On error, the redirections will
-/// be automatically restored.
-///
-/// In addition, all evaluated variable names and values to be assigned will be
-/// evaluated and added to the environment. If `export_vars` is specified, any
-/// variables to be inserted or updated will have their exported status set as
-/// specified. Otherwise, variables will use their existing exported status.
-/// On successful completion, a `VarRestorer` will be returned which allows the
-/// caller to reverse the changes from applying those assignments. On error, the
-/// assignments will be automatically restored.
-pub fn eval_redirects_or_var_assignments2<R, V, W, I, E: ?Sized>(vars: I, export_vars: Option<bool>, env: &E)
-    -> EvalRedirectOrVarAssig2<R, V, W, I::IntoIter, E, RedirectRestorer<E>, VarRestorer<E>>
-    where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
-          R: RedirectEval<E>,
-          V: Hash + Eq,
-          W: WordEval<E>,
-          E: ExportedVariableEnvironment + FileDescEnvironment + UnsetVariableEnvironment,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: Borrow<String> + Clone,
-          E::Var: Borrow<String> + Clone,
-{
-    eval_redirects_or_var_assignments_with_restorers(
-        RedirectRestorer::new(),
-        VarRestorer::new(),
-        export_vars,
-        vars,
-        env
-    )
 }
 
 /// Create a a future which will evaluate a series of redirections and variable assignments.

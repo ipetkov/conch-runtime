@@ -3,13 +3,38 @@ extern crate futures;
 
 use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
-use conch_runtime::io::Permissions;
+use conch_runtime::io::{FileDesc, Permissions};
 use futures::future::poll_fn;
 use std::rc::Rc;
 
 #[macro_use]
 mod support;
 pub use self::support::*;
+
+type MockRedirectOrVarAssig =
+    RedirectOrVarAssig<MockRedirect<Rc<FileDesc>>, Rc<String>, MockWord>;
+
+fn eval(
+    vars: Vec<MockRedirectOrVarAssig>,
+    export_vars: Option<bool>,
+    env: &DefaultEnvRc
+) -> EvalRedirectOrVarAssig2<
+    MockRedirect<Rc<FileDesc>>,
+    Rc<String>,
+    MockWord,
+    ::std::vec::IntoIter<MockRedirectOrVarAssig>,
+    DefaultEnvRc,
+    RedirectRestorer<DefaultEnvRc>,
+    VarRestorer<DefaultEnvRc>
+> {
+    eval_redirects_or_var_assignments_with_restorers(
+        RedirectRestorer::new(),
+        VarRestorer::new(),
+        export_vars,
+        vars,
+        env
+    )
+}
 
 #[test]
 fn smoke() {
@@ -37,7 +62,7 @@ fn smoke() {
     {
         let mut env = env.sub_env();
         let mut future =
-            eval_redirects_or_var_assignments2::<MockRedirect<_>, Rc<String>, MockWord, _, _>(
+            eval(
                 vec!(),
                 None,
                 &env
@@ -52,7 +77,7 @@ fn smoke() {
     assert_empty_vars(&env);
 
     let fdes = dev_null();
-    let mut future = eval_redirects_or_var_assignments2(
+    let mut future = eval(
         vec!(
             RedirectOrVarAssig::Redirect(mock_redirect(
                 RedirectAction::Open(1, fdes.clone(), Permissions::Write)
@@ -110,7 +135,7 @@ fn should_honor_export_vars_config() {
 
     for (case, new, existing, existing_exported) in cases {
         let mut env = env.sub_env();
-        let mut future = eval_redirects_or_var_assignments2::<MockRedirect<_>, _, _, _, _>(
+        let mut future = eval(
             vec!(
                 RedirectOrVarAssig::VarAssig(
                     key.clone(),
@@ -147,7 +172,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_var_assignments2(
+        let mut future = eval(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
@@ -171,7 +196,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_var_assignments2(
+        let mut future = eval(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)
@@ -200,7 +225,7 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
     let key = Rc::new("key".to_owned());
 
     test_cancel!(
-        eval_redirects_or_var_assignments2::<MockRedirect<_>, _, _, _, _>(
+        eval(
             vec!(RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_must_cancel()))),
             None,
             &env,
@@ -210,7 +235,7 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
 
     assert_eq!(env.file_desc(1), None);
     test_cancel!(
-        eval_redirects_or_var_assignments2(
+        eval(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
                     RedirectAction::Open(1, dev_null(), Permissions::Write)

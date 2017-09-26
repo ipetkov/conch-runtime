@@ -36,7 +36,7 @@ pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWor
 pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, eval_redirects_or_var_assignments,
                                       eval_redirects_or_var_assignments_with_restorer};
 pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig2, EvalRedirectOrVarAssigError,
-                                      RedirectOrVarAssig, eval_redirects_or_var_assignments2,
+                                      RedirectOrVarAssig,
                                       eval_redirects_or_var_assignments_with_restorers};
 
 /// A trait for evaluating parameters.

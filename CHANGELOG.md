@@ -3,9 +3,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
-- Added `eval_redirects_or_var_assignments2` and `EvalRedirectOrVarAssig2` implementations
-which behave similar to their predecessors, except they apply variables directly into the
-environment and provide a `VarRestorer` when finished
+- Added a `EvalRedirectOrVarAssig2` implementation which behaves similar to its predecessor,
+except it applies variables directly into the environment and provide a `VarRestorer` when finished
 - Added `eval_redirects_or_var_assignments_with_restorers` which allows evaluating any
 `RedirectOrVarAssig` with a specified `RedirectEnvRestorer` and `VarEnvRestorer` instances
 - Added `VarEnvRestorer2` trait as a correction to the `VarEnvRestorer` interface in a
