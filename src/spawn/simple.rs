@@ -2,13 +2,12 @@ use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERRO
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
           FileDescEnvironment, FunctionEnvironment, RedirectEnvRestorer, RedirectRestorer,
-          SetArgumentsEnvironment, VarEnvRestorer, VarRestorer, VariableEnvironment,
-          UnsetVariableEnvironment, WorkingDirectoryEnvironment};
+          SetArgumentsEnvironment, VarEnvRestorer, VarEnvRestorer2, VarRestorer,
+          VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
-use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments,
-           EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig,
-           EvalRedirectOrVarAssigError, RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig,
-           WordEval};
+use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
+           EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig2, EvalRedirectOrVarAssigError,
+           RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
 use io::{FileDesc, FileDescWrapper};
@@ -18,6 +17,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ffi::OsStr;
 use std::hash::Hash;
+use std::iter;
+use std::option;
+use std::vec;
 
 #[derive(Debug)]
 enum RedirectOrWordError<R, V> {
@@ -55,7 +57,7 @@ pub struct SimpleCommand<R, V, W, IV, IW, E: ?Sized>
               + SetArgumentsEnvironment,
           E::Fn: Spawn<E>,
 {
-    state: State<R, V, W, IV, IW, E>,
+    state: State<R, V, W, IV, IW, E, RedirectRestorer<E>, VarRestorer<E>>,
 }
 
 impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E>
@@ -85,22 +87,24 @@ impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for SimpleCommand<R, V, W, IV, IW
     }
 }
 
-enum State<R, V, W, IV, IW, E: ?Sized>
+type PeekedWords<R, W, I> = iter::Chain<option::IntoIter<RedirectOrCmdWord<R, W>>, iter::Fuse<I>>;
+type VarsIter<R, V, W, I> = iter::Chain<I, vec::IntoIter<RedirectOrVarAssig<R, V, W>>>;
+
+enum State<R, V, W, IV, IW, E: ?Sized, RR, VR>
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: ExportedVariableEnvironment
-              + FileDescEnvironment
-              + FunctionEnvironment
-              + SetArgumentsEnvironment,
+          E: FunctionEnvironment + SetArgumentsEnvironment,
           E::Fn: Spawn<E>,
 {
-    Eval(EvalState<R, V, W, IV, IW, E>),
-    Func(Option<(RedirectRestorer<E>, VarRestorer<E>)>, Function<E::Fn, E>),
+    Init(Option<IV>, Option<IW>),
+    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    Eval(EvalState<R, V, W, VarsIter<R, V, W, IV>, PeekedWords<R, W, IW>, E, RR, VR>),
+    Func(Option<(RR, VR)>, Function<E::Fn, E>),
     Gone,
 }
 
-impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for State<R, V, W, IV, IW, E>
+impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW, E, RR, VR>
     where R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
@@ -111,20 +115,24 @@ impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for State<R, V, W, IV, IW, E>
           IW: fmt::Debug,
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
-          E: ExportedVariableEnvironment
-              + FileDescEnvironment
-              + FunctionEnvironment<Fn = S>
-              + SetArgumentsEnvironment,
+          E: FunctionEnvironment<Fn = S> + SetArgumentsEnvironment,
           E::Args: fmt::Debug,
-          E::FileHandle: fmt::Debug,
-          E::VarName: fmt::Debug,
-          E::Var: fmt::Debug,
+          RR: fmt::Debug,
+          VR: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            State::Eval(ref evaluator) => {
+            State::Init(ref vars, ref words) => {
+                fmt.debug_tuple("State::Init")
+                    .field(vars)
+                    .field(words)
+                    .finish()
+            },
+
+            State::Eval(ref _evaluator) => {
                 fmt.debug_tuple("State::Eval")
-                    .field(evaluator)
+                    //.field(evaluator) // FIXME:(breaking) debug print this
+                    .field(&"..")
                     .finish()
             },
 
@@ -143,18 +151,17 @@ impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for State<R, V, W, IV, IW, E>
     }
 }
 
-enum EvalState<R, V, W, IV, IW, E: ?Sized>
+enum EvalState<R, V, W, IV, IW, E: ?Sized, RR, VR>
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: FileDescEnvironment,
 {
-    InitVars(EvalRedirectOrVarAssig<R, V, W, IV, E, RedirectRestorer<E>>, Option<IW>),
-    InitWords(Option<HashMap<V, W::EvalResult>>, EvalRedirectOrCmdWord<R, W, IW, E>),
+    InitVars(EvalRedirectOrVarAssig2<R, V, W, IV, E, RR, VR>, Option<IW>),
+    InitWords(Option<VR>, EvalRedirectOrCmdWord<R, W, IW, E, RR>),
     Gone,
 }
 
-impl<R, V, W, IV, IW, E: ?Sized> fmt::Debug for EvalState<R, V, W, IV, IW, E>
+impl<R, V, W, IV, IW, E: ?Sized, RR, VR> fmt::Debug for EvalState<R, V, W, IV, IW, E, RR, VR>
     where R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
@@ -163,8 +170,8 @@ impl<R, V, W, IV, IW, E: ?Sized> fmt::Debug for EvalState<R, V, W, IV, IW, E>
           W::EvalResult: fmt::Debug,
           IV: fmt::Debug,
           IW: fmt::Debug,
-          E: FileDescEnvironment,
-          E::FileHandle: fmt::Debug,
+          RR: fmt::Debug,
+          VR: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -222,11 +229,9 @@ pub fn simple_command<R, V, W, IV, IW, E: ?Sized>(vars: IV, words: IW, env: &E)
           E::VarName: Borrow<String>,
           E::Var: Borrow<String>,
 {
+    let _env = env;
     SimpleCommand {
-        state: State::Eval(EvalState::InitVars(
-            eval_redirects_or_var_assignments(vars, env),
-            Some(words.into_iter())
-        )),
+        state: State::Init(Some(vars.into_iter()), Some(words.into_iter())),
     }
 }
 
@@ -259,26 +264,67 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let redirect_restorer;
-        let vars;
+        let var_restorer;
         let words;
         let name;
         loop {
             let next_state = match self.state {
+                State::Init(ref mut vars_init, ref mut words_init) => {
+                    let mut words_init: iter::Fuse<IW> = words_init.take()
+                        .expect(POLLED_TWICE)
+                        .fuse();
+
+                    // Any other redirects encountered before we found a command word
+                    let mut other_redirects = Vec::new();
+                    let mut first_word = None;
+
+                    while let Some(w) = words_init.next() {
+                        match w {
+                            w@RedirectOrCmdWord::CmdWord(_) => {
+                                first_word = Some(w);
+                                break;
+                            },
+                            RedirectOrCmdWord::Redirect(r) => {
+                                other_redirects.push(RedirectOrVarAssig::Redirect(r));
+                            },
+                        }
+                    }
+
+                    // Setting local vars for commands or functions should
+                    // behave as if the variables were exported. Otherwise
+                    // variables should maintain an exported status if they had one
+                    // or default to non-exported!
+                    let export_vars = first_word.as_ref().map(|_| true);
+
+                    let vars_iter = vars_init.take()
+                        .expect(POLLED_TWICE)
+                        .chain(other_redirects.into_iter());
+
+                    let words_iter = first_word.into_iter().chain(words_init);
+
+                    State::Eval(EvalState::InitVars(
+                        eval_redirects_or_var_assignments_with_restorers(
+                            RedirectRestorer::new(),
+                            VarRestorer::new(),
+                            export_vars,
+                            vars_iter,
+                            env
+                        ),
+                        Some(words_iter),
+                    ))
+                },
+
                 State::Eval(ref mut eval) => match eval.poll(env) {
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(RedirectOrWordError::Redirect(e)) => return Err(e.into()),
                     Err(RedirectOrWordError::Word(e)) => return Err(e.into()),
 
-                    Ok(Async::Ready((mut red_restorer_inner, vars_inner, mut words_inner))) => {
+                    Ok(Async::Ready((mut red_restorer_inner, var_restorer_inner, mut words_inner))) => {
                         if words_inner.is_empty() {
                             // "Empty" command which is probably just assigning variables.
-                            // Any redirect side effects have already been applied.
-                            for (key, val) in vars_inner {
-                                // Variables should maintain an exported status if they had one
-                                // or default to non-exported!
-                                env.set_var(key.into(), val.into());
-                            }
-
+                            // Any redirect side effects have already been applied, but ensure
+                            // we keep the actual variable values.
+                            drop(var_restorer_inner);
                             red_restorer_inner.restore(env);
                             return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
                         }
@@ -288,22 +334,15 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
 
                         let fn_name = name_inner.clone().into();
                         if env.has_function(&fn_name) {
-                            let mut var_restorer = VarRestorer::with_capacity(vars_inner.len());
-                            for (key, val) in vars_inner {
-                                // Setting local vars for commands or functions should
-                                // behave as if the variables were exported
-                                var_restorer.set_exported_var(key.into(), val.into(), true, env);
-                            }
-
                             let args = words_inner.into_iter().map(Into::into).collect();
                             let func = function(&fn_name, args, env)
                                 .expect("env indicated function present, but unable to spawn");
 
-                            State::Func(Some((red_restorer_inner, var_restorer)), func)
+                            State::Func(Some((red_restorer_inner, var_restorer_inner)), func)
                         } else {
                             redirect_restorer = red_restorer_inner;
+                            var_restorer = var_restorer_inner;
                             words = words_inner;
-                            vars = vars_inner;
                             name = name_inner;
                             break;
                         }
@@ -348,23 +387,28 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
         let mut redirect_restorer = redirect_restorer;
         redirect_restorer.restore(env);
 
-        let original_env_vars = env.env_vars().iter()
+        let env_vars = env.env_vars().iter()
             .map(|&(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<_>>();
 
-        let child = match spawn_process(name, &words, &original_env_vars, &vars, io, env) {
-            Ok(child) => child,
-            Err(Either::A(e)) => return Err(e.into()),
-            Err(Either::B(e)) => return Err(e.into()),
-        };
+        let child = spawn_process(name, &words, &env_vars, io, env);
 
-        Ok(Async::Ready(ExitResult::Pending(SpawnedSimpleCommand {
-            state: SpawnedState::Child(child),
-        })))
+        // Once the child is fully bootstrapped (and we are no longer borrowing
+        // env vars) we can do the var cleanup.
+        var_restorer.restore(env);
+
+        match child {
+            Ok(child) => Ok(Async::Ready(ExitResult::Pending(SpawnedSimpleCommand {
+                state: SpawnedState::Child(child),
+            }))),
+            Err(Either::A(e)) => Err(e.into()),
+            Err(Either::B(e)) => Err(e.into()),
+        }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
+            State::Init(_, _) => {},
             State::Eval(ref mut eval) => eval.cancel(env),
             State::Func(ref mut restorers, ref mut f) => {
                 f.cancel(env);
@@ -379,37 +423,29 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
     }
 }
 
-fn spawn_process<T, F, OVN, OV, VN, V, E: ?Sized>(
+fn spawn_process<T, F, VN, V, E: ?Sized>(
     name: T,
     args: &[T],
-    original_env_vars: &[(OVN, OV)],
-    new_env_vars: &HashMap<VN, V>,
+    env_vars: &[(VN, V)],
     mut io: HashMap<Fd, F>,
     env: &mut E
 ) -> Result<E::Future, Either<CommandError, RedirectionError>>
     where T: Borrow<String>,
           F: FileDescWrapper,
-          OVN: Borrow<String>,
-          OV: Borrow<String>,
-          VN: Borrow<String> + Hash + Eq,
+          VN: Borrow<String>,
           V: Borrow<String>,
           E: ExecutableEnvironment + WorkingDirectoryEnvironment,
 {
     let name = Cow::Borrowed(OsStr::new(name.borrow()));
     let args = args.iter().map(|a| Cow::Borrowed(OsStr::new(a.borrow()))).collect();
 
-    let mut env_vars = Vec::with_capacity(original_env_vars.len() + new_env_vars.len());
-    for &(ref key, ref val) in original_env_vars {
-        let key = Cow::Borrowed(OsStr::new(key.borrow()));
-        let val = Cow::Borrowed(OsStr::new(val.borrow()));
-        env_vars.push((key, val));
-    }
-
-    for (key, val) in new_env_vars.iter() {
-        let key = Cow::Borrowed(OsStr::new(key.borrow()));
-        let val = Cow::Borrowed(OsStr::new(val.borrow()));
-        env_vars.push((key, val));
-    }
+    let env_vars = env_vars.iter()
+        .map(|&(ref key, ref val)| {
+            let key = Cow::Borrowed(OsStr::new(key.borrow()));
+            let val = Cow::Borrowed(OsStr::new(val.borrow()));
+            (key, val)
+        })
+        .collect();
 
     // Now that we've restore the environment's redirects, hopefully most of
     // the Rc/Arc counts should be just one here and we can cheaply unwrap
@@ -450,23 +486,21 @@ fn spawn_process<T, F, OVN, OV, VN, V, E: ?Sized>(
         .map_err(Either::A)
 }
 
-type EvaluatedWords<E, V, T> = (RedirectRestorer<E>, HashMap<V, T>, Vec<T>);
-
-impl<'a, R, V, W, IV, IW, E: ?Sized> EnvFuture<E> for EvalState<R, V, W, IV, IW, E>
+impl<'a, R, V, W, IV, IW, E: ?Sized, RR, VR> EnvFuture<E> for EvalState<R, V, W, IV, IW, E, RR, VR>
     where IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
           IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
           R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: AsyncIoEnvironment
-              + FileDescEnvironment
-              + VariableEnvironment,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
+          E: AsyncIoEnvironment + FileDescEnvironment + VariableEnvironment,
+          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
+          E::VarName: Borrow<String> + From<V>,
+          E::Var: Borrow<String> + From<W::EvalResult>,
+          RR: RedirectEnvRestorer<E>,
+          VR: VarEnvRestorer2<E>,
 {
-    type Item = EvaluatedWords<E, V, W::EvalResult>;
+    type Item = (RR, VR, Vec<W::EvalResult>);
     type Error = RedirectOrWordError<R::Error, W::Error>;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -476,16 +510,24 @@ impl<'a, R, V, W, IV, IW, E: ?Sized> EnvFuture<E> for EvalState<R, V, W, IV, IW,
         loop {
             let next_state = match *self {
                 EvalState::InitVars(ref mut evaluator, ref mut words) => {
-                    let (restorer, vars) = try_ready!(evaluator.poll(env));
+                    let (redirect_restorer, var_restorer) = try_ready!(evaluator.poll(env));
                     let words = words.take().expect(POLLED_TWICE);
-                    let evaluator = eval_redirects_or_cmd_words_with_restorer(restorer, words, env);
-                    EvalState::InitWords(Some(vars), evaluator)
+                    let evaluator = eval_redirects_or_cmd_words_with_restorer(redirect_restorer, words, env);
+                    EvalState::InitWords(Some(var_restorer), evaluator)
                 },
 
-                EvalState::InitWords(ref mut vars, ref mut evaluator) => {
-                    let (restorer, words) = try_ready!(evaluator.poll(env));
-                    let vars = vars.take().expect(POLLED_TWICE);
-                    return Ok(Async::Ready((restorer, vars, words)));
+                EvalState::InitWords(ref mut var_restorer, ref mut evaluator) => {
+                    let (redirect_restorer, words) = match evaluator.poll(env) {
+                        Ok(Async::Ready(ret)) => ret,
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(e) => {
+                            var_restorer.take().as_mut().map(|vr| vr.restore(env));
+                            return Err(e.into());
+                        },
+                    };
+
+                    let var_restorer = var_restorer.take().expect(POLLED_TWICE);
+                    return Ok(Async::Ready((redirect_restorer, var_restorer, words)));
                 },
 
                 EvalState::Gone => panic!(POLLED_TWICE),
@@ -498,7 +540,10 @@ impl<'a, R, V, W, IV, IW, E: ?Sized> EnvFuture<E> for EvalState<R, V, W, IV, IW,
     fn cancel(&mut self, env: &mut E) {
         match *self {
             EvalState::InitVars(ref mut evaluator, _) => evaluator.cancel(env),
-            EvalState::InitWords(_, ref mut evaluator) => evaluator.cancel(env),
+            EvalState::InitWords(ref mut var_restorer, ref mut evaluator) => {
+                evaluator.cancel(env);
+                var_restorer.take().expect(CANCELLED_TWICE).restore(env);
+            },
             EvalState::Gone => panic!(CANCELLED_TWICE),
         }
 

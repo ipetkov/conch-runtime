@@ -3,8 +3,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
+- Added a `EvalRedirectOrVarAssig2` implementation which behaves similar to its predecessor,
+except it applies variables directly into the environment and provide a `VarRestorer` when finished
+- Added `eval_redirects_or_var_assignments_with_restorers` which allows evaluating any
+`RedirectOrVarAssig` with a specified `RedirectEnvRestorer` and `VarEnvRestorer` instances
+- Added `VarEnvRestorer2` trait as a correction to the `VarEnvRestorer` interface in a
+backwards compatible manner.
+
 ### Changed
+- Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
+- Spawning a simple command now (more) correctly evaluates variable assignments where one
+assignment depends on an earlier one (e.g. `var1=foo var2=${bar:-$var1} env`)
+
 ### Deprecated
+- Deprecated `eval_redirects_or_var_assignments`, `eval_redirects_or_cmd_words_with_restorer`
+and `EvalRedirectOrVarAssig`: the existing implementation does not handle referencing earlier
+variable assignments (e.g. `var1=foo var2=${bar:-$var1} env`) but cannot be ammended without
+introducing breaking changes
+
 ### Removed
 ### Fixed
 ### Security
@@ -27,9 +43,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Deprecated most of the direct methods on `RedirectRestorer` in favor of the `RedirectEnvRestorer` trait
 - Deprecated most of the direct methods on `VarRestorer` in favor of the `VarEnvRestorer` trait
 
-## [0.1.0] - 2017-08-21
+## 0.1.0 - 2017-08-21
 - First release!
 
 [Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
-[0.1.0]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1
+[0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1
