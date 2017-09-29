@@ -27,7 +27,7 @@ before_script:
   - export PATH=$PATH:~/.cargo/bin
 
 script:
-  - cargo build --no-default-features
+  - cargo check --no-default-features
   - cargo build
     # Retry with fewer cores if the initial `cargo test` fails to work around possible OOM errors
     # for more details see https://github.com/rust-lang/cargo/issues/4415
