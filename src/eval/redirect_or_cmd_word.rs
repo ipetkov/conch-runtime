@@ -150,8 +150,6 @@ pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized, RR>(
     let (lo, hi) = words.size_hint();
     let size_hint = hi.unwrap_or(lo);
 
-    restorer.reserve(size_hint);
-
     EvalRedirectOrCmdWord {
         redirect_restorer: Some(restorer),
         words: Vec::with_capacity(size_hint),

@@ -14,6 +14,9 @@ backwards compatible manner.
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
 - Spawning a simple command now (more) correctly evaluates variable assignments where one
 assignment depends on an earlier one (e.g. `var1=foo var2=${bar:-$var1} env`)
+- Removed aggressive redirect restorer pre-allocations when evaluating redirects: most shell
+scripts will not apply redirects to the majority of commands, nor will they have obscene
+amounts of redirects when they do occur, so we can avoid allocating memory until we really need it.
 
 ### Deprecated
 - Deprecated `eval_redirects_or_var_assignments`, `eval_redirects_or_cmd_words_with_restorer`

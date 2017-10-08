@@ -278,7 +278,6 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
     let (lo, hi) = vars.size_hint();
     let size_hint = hi.unwrap_or(lo);
 
-    redirect_restorer.reserve(size_hint);
     var_restorer.reserve(size_hint);
 
     EvalRedirectOrVarAssig2 {
