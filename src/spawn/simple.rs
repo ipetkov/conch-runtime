@@ -265,7 +265,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let redirect_restorer;
         let var_restorer;
-        let words;
+        let words_iter;
         let name;
         loop {
             let next_state = match self.state {
@@ -319,22 +319,23 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                     Err(RedirectOrWordError::Redirect(e)) => return Err(e.into()),
                     Err(RedirectOrWordError::Word(e)) => return Err(e.into()),
 
-                    Ok(Async::Ready((mut red_restorer_inner, var_restorer_inner, mut words_inner))) => {
-                        if words_inner.is_empty() {
-                            // "Empty" command which is probably just assigning variables.
-                            // Any redirect side effects have already been applied, but ensure
-                            // we keep the actual variable values.
-                            drop(var_restorer_inner);
-                            red_restorer_inner.restore(env);
-                            return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
-                        }
-
-                        // FIXME: look up aliases
-                        let name_inner = words_inner.remove(0);
+                    Ok(Async::Ready((mut red_restorer_inner, var_restorer_inner, words_inner))) => {
+                        let mut words_inner_iter = words_inner.into_iter();
+                        let name_inner = match words_inner_iter.next() {
+                            Some(n) => n,
+                            None => {
+                                // "Empty" command which is probably just assigning variables.
+                                // Any redirect side effects have already been applied, but ensure
+                                // we keep the actual variable values.
+                                drop(var_restorer_inner);
+                                red_restorer_inner.restore(env);
+                                return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
+                            },
+                        };
 
                         let fn_name = name_inner.clone().into();
                         if env.has_function(&fn_name) {
-                            let args = words_inner.into_iter().map(Into::into).collect();
+                            let args = words_inner_iter.map(Into::into).collect();
                             let func = function(&fn_name, args, env)
                                 .expect("env indicated function present, but unable to spawn");
 
@@ -342,7 +343,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                         } else {
                             redirect_restorer = red_restorer_inner;
                             var_restorer = var_restorer_inner;
-                            words = words_inner;
+                            words_iter = words_inner_iter;
                             name = name_inner;
                             break;
                         }
@@ -391,7 +392,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
             .map(|&(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<_>>();
 
-        let child = spawn_process(name, &words, &env_vars, io, env);
+        let child = spawn_process(name, words_iter.as_slice(), &env_vars, io, env);
 
         // Once the child is fully bootstrapped (and we are no longer borrowing
         // env vars) we can do the var cleanup.
