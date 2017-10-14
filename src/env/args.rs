@@ -75,6 +75,22 @@ impl<'a, T: ?Sized + SetArgumentsEnvironment> SetArgumentsEnvironment for &'a mu
     }
 }
 
+/// An interface for shifting positional shell and function arguments.
+pub trait ShiftArgumentsEnvironment {
+    /// Shift parameters such that the positional parameter `n` will hold
+    /// the value of the positional parameter `n + amt`.
+    ///
+    /// If `amt == 0`, then no change to the positional parameters
+    /// should be made.
+    fn shift_args(&mut self, amt: usize);
+}
+
+impl<'a, T: ?Sized + ShiftArgumentsEnvironment> ShiftArgumentsEnvironment for &'a mut T {
+    fn shift_args(&mut self, amt: usize) {
+        (**self).shift_args(amt)
+    }
+}
+
 macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
         $(#[$attr])*
@@ -162,10 +178,85 @@ macro_rules! impl_env {
 
         impl<T: Clone> SetArgumentsEnvironment for $Env<T>
         {
+            // FIXME(breaking): change this to VecDequeue for efficient shifts
             type Args = $Rc<Vec<T>>;
 
             fn set_args(&mut self, new_args: Self::Args) -> Self::Args {
                 ::std::mem::replace(&mut self.args, new_args)
+            }
+        }
+
+        impl<T: Clone> ShiftArgumentsEnvironment for $Env<T> {
+            fn shift_args(&mut self, amt: usize) {
+                if amt == 0 {
+                    return;
+                }
+
+                if amt >= self.args.len() {
+                    // Keep around the already allocated memory if we're the only owner.
+                    if let Some(args) = $Rc::get_mut(&mut self.args) {
+                        args.clear();
+                        return;
+                    }
+
+                    // Otherwise just pretend we no longer have any arguments
+                    self.args = $Rc::new(Vec::new());
+                }
+
+                if let Some(args) = $Rc::get_mut(&mut self.args) {
+                    // FIXME: consider using an internal VecDeque for more
+                    // efficient shift operations? This may require other costs
+                    // from converting to/from Vec, or breaking changes to
+                    // implemented interfaces...
+                    //
+                    // Did some benchmark testing with various strategies
+                    // on removing elements from the front of a vec:
+                    // (1) using a repeated `.remove(0)`
+                    // (2) swapping elements up until the elements to pop off are
+                    //     completely in the back, followed by `.truncate()`
+                    // (3) unsafely dropping in place the elements to pop off
+                    //     followed by an (overlapping) pointer copy operation
+                    //     generally naive, no consideration of alignment, etc.
+                    // (4) reversing the elements in place, calling `.truncate()`
+                    //     and then reversing the result
+                    //
+                    // Tested with various arg sizes and amounts to pop. All
+                    // the strategies were pretty comperable to each other
+                    // given the variance, but the genral results are roughly as follows:
+                    // (1) if amount == 1 it is as fast as any other strategy,
+                    //     but for larger amounts it quickly fell behind
+                    // (2) this strategy was pretty much the worst except when
+                    //     a little better than (1)'s bad case
+                    // (3) consistently first or tied for first, turns out
+                    //     the underlying reverse operation is pretty well optimized
+                    //     for various memory alignments and element sizes
+                    // (4) usually in first or tied for first given the variance
+                    //
+                    // Overall given that (3) can get us as good performance as (4)
+                    // without having to worry about unsafe pointer math, we'll
+                    // choose it for our general case (and leverage any future
+                    // optimizations added to the reversal implementation). For
+                    // the case where amount == 1 we'll stick with (1) since
+                    // that let's us do the smallest amount of work possible.
+                    if amt == 1 {
+                        args.remove(0);
+                    } else {
+                        let len_to_keep = args.len() - amt;
+
+                        args.reverse();
+                        args.truncate(len_to_keep);
+                        args.reverse();
+                    }
+
+                    return;
+                }
+
+                // Since we're not the only owner we're forced to copy everything over.
+                self.args = $Rc::new(
+                    self.args[amt..].iter()
+                        .cloned()
+                        .collect()
+                );
             }
         }
     };
@@ -252,5 +343,27 @@ mod tests {
         }
 
         assert_eq!(env.args(), args_old);
+    }
+
+    #[test]
+    fn test_shift_args() {
+        let mut env = ArgsEnv::with_name_and_args("shell", vec!("1", "2", "3", "4", "5", "6"));
+        let _copy = env.sub_env();
+
+        env.shift_args(0);
+        assert_eq!(env.args(), vec!("1", "2", "3", "4", "5", "6"));
+        assert!(env.name.get_mut().is_none()); // No needless clone here
+
+        env.shift_args(1);
+        assert_eq!(env.args(), vec!("2", "3", "4", "5", "6"));
+
+        env.shift_args(1);
+        assert_eq!(env.args(), vec!("3", "4", "5", "6"));
+
+        env.shift_args(2);
+        assert_eq!(env.args(), vec!("5", "6"));
+
+        env.shift_args(100);
+        assert_eq!(env.args(), Vec::<&str>::new());
     }
 }

@@ -16,7 +16,7 @@ mod reversible_var;
 mod string_wrapper;
 mod var;
 
-pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment};
+pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment};
 pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
                          PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
                          ThreadPoolAsyncIoEnv};

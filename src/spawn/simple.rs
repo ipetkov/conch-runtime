@@ -253,7 +253,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
-          E::Args: From<Vec<E::Arg>>,
+          E::Args: From<Vec<E::Arg>>, // FIXME(breaking): possible to change this this to E::Args: FromIterator<E::Arg>
           E::FileHandle: FileDescWrapper,
           E::FnName: From<W::EvalResult>,
           E::VarName: Borrow<String> + Clone + From<V>,

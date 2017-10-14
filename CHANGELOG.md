@@ -9,6 +9,7 @@ except it applies variables directly into the environment and provide a `VarRest
 `RedirectOrVarAssig` with a specified `RedirectEnvRestorer` and `VarEnvRestorer` instances
 - Added `VarEnvRestorer2` trait as a correction to the `VarEnvRestorer` interface in a
 backwards compatible manner.
+- Added `ShiftArgumentsEnvironment` as an interface for shifting positional arguments.
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
