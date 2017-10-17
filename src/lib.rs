@@ -53,6 +53,7 @@
 #[cfg(windows)] extern crate kernel32;
 #[cfg(windows)] extern crate winapi;
 
+extern crate clap;
 #[cfg(feature = "conch-parser")]
 extern crate conch_parser;
 #[macro_use] extern crate futures;

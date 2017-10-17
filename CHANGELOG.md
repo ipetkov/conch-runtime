@@ -10,6 +10,8 @@ except it applies variables directly into the environment and provide a `VarRest
 - Added `VarEnvRestorer2` trait as a correction to the `VarEnvRestorer` interface in a
 backwards compatible manner.
 - Added `ShiftArgumentsEnvironment` as an interface for shifting positional arguments.
+- Added a `spawn::builtin` module for hosting shell-builtin command implementations
+- Added a builtin implementation for the `shift` shell-command
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
