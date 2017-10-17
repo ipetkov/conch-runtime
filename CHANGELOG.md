@@ -14,6 +14,7 @@ backwards compatible manner.
 - Added a builtin implementation for the `shift` shell-command
 - Added a builtin implementation for the `:` shell-command
 - Added a builtin implementation for the `true` shell-command
+- Added a builtin implementation for the `false` shell-command
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
