@@ -20,8 +20,8 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirect
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnv, FileDescEnvironment, FnEnv, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment,
-          PlatformSpecificAsyncIoEnv, ReportErrorEnvironment, SetArgumentsEnvironment,
-          StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
+          PlatformSpecificAsyncIoEnv, ReportErrorEnvironment, ShiftArgumentsEnvironment,
+          SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
           WorkingDirectoryEnvironment};
 
@@ -388,6 +388,16 @@ macro_rules! impl_env {
 
             fn set_args(&mut self, new_args: Self::Args) -> Self::Args {
                 self.args_env.set_args(new_args)
+            }
+        }
+
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> ShiftArgumentsEnvironment
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
+            where A: ShiftArgumentsEnvironment,
+                  N: Hash + Eq,
+        {
+            fn shift_args(&mut self, amt: usize) {
+                self.args_env.shift_args(amt)
             }
         }
 
