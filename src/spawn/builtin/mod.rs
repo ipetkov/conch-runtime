@@ -1,5 +1,17 @@
 //! Defines methods for spawning shell builtin commands
 
+macro_rules! try_and_report {
+    ($result:expr, $env:ident) => {
+        match $result {
+            Ok(val) => val,
+            Err(e) => {
+                $env.report_error(&e);
+                return Ok($crate::future::Async::Ready(EXIT_ERROR.into()));
+            },
+        }
+    }
+}
+
 mod colon;
 mod false_cmd;
 mod shift;
