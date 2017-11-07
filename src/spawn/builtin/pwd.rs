@@ -5,37 +5,11 @@ use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper,
 use io::FileDesc;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
+use path::{has_dot_components, NormalizationError, NormalizedPath};
 use spawn::{ExitResult, Spawn};
 use std::borrow::Borrow;
-use std::error::Error;
-use std::fmt;
-use std::io;
-use std::path::{Component, Path};
+use std::path::Path;
 use void::Void;
-
-#[derive(Debug)]
-struct PathError<'a> {
-    /// The error that occured.
-    err: io::Error,
-    /// The path that caused the error.
-    path: &'a Path,
-}
-
-impl<'a> Error for PathError<'a> {
-    fn description(&self) -> &str {
-        self.err.description()
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        Some(&self.err)
-    }
-}
-
-impl<'a> fmt::Display for PathError<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}: {}", self.err, self.path.display())
-    }
-}
 
 /// Represents a `pwd` builtin command which will
 /// print out the current working directory.
@@ -151,23 +125,8 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedPwd<T>
     }
 }
 
-fn has_dot_component(path: &Path) -> bool {
-    for component in path.components() {
-        match component {
-            Component::Prefix(_) |
-            Component::RootDir |
-            Component::Normal(_) => {}
-
-            Component::CurDir |
-            Component::ParentDir => return true,
-        }
-    }
-
-    false
-}
-
-fn logical(path: &Path) -> Result<Vec<u8>, PathError> {
-    if has_dot_component(path) {
+fn logical(path: &Path) -> Result<Vec<u8>, NormalizationError> {
+    if has_dot_components(path) {
         physical(path)
     } else {
         let bytes = path.to_string_lossy().into_owned().into_bytes();
@@ -175,13 +134,10 @@ fn logical(path: &Path) -> Result<Vec<u8>, PathError> {
     }
 }
 
-fn physical(path: &Path) -> Result<Vec<u8>, PathError> {
-    path.canonicalize()
-        .map(|p| p.to_string_lossy().into_owned().into_bytes())
-        .map_err(|err| PathError {
-            err: err,
-            path: path,
-        })
+fn physical(path: &Path) -> Result<Vec<u8>, NormalizationError> {
+    let mut normalized_path = NormalizedPath::new();
+    normalized_path.join_normalized_physical(path)
+        .map(|()| normalized_path.to_string_lossy().into_owned().into_bytes())
 }
 
 impl<W> Future for PwdFuture<W>
