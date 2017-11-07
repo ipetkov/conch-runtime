@@ -1,58 +1,11 @@
 use env::SubEnvironment;
-use self::normalized::NormalizedPath;
+use path::NormalizedPath;
 use std::borrow::Cow;
 use std::env;
 use std::io;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-
-mod normalized {
-    use std::ops::Deref;
-    use std::path::{Component, Path, PathBuf};
-
-    #[derive(PartialEq, Eq, Clone, Debug)]
-    pub struct NormalizedPath(PathBuf);
-
-    impl NormalizedPath {
-        pub fn new(path: &Path) -> Self {
-            let mut new = NormalizedPath(PathBuf::new());
-            new.join_normalized(path);
-            new
-        }
-
-        pub fn join_normalized(&mut self, path: &Path) {
-            if path.is_absolute() {
-                self.0 = PathBuf::new()
-            }
-
-            for component in path.components() {
-                match component {
-                    c@Component::Prefix(_) |
-                    c@Component::RootDir |
-                    c@Component::Normal(_) => self.0.push(c.as_os_str()),
-
-                    Component::CurDir => {},
-                    Component::ParentDir => {
-                        self.0.pop();
-                    },
-                }
-            }
-        }
-
-        pub fn into_inner(self) -> PathBuf {
-            self.0
-        }
-    }
-
-    impl Deref for NormalizedPath {
-        type Target = PathBuf;
-
-        fn deref(&self) -> &PathBuf {
-            &self.0
-        }
-    }
-}
 
 /// An interface for working with the shell's current working directory.
 pub trait WorkingDirectoryEnvironment {
@@ -118,7 +71,8 @@ macro_rules! impl_env {
 
             fn new_(path: &Path) -> io::Result<Self> {
                 if path.is_absolute() {
-                    let normalized = NormalizedPath::new(path);
+                    let mut normalized = NormalizedPath::new();
+                    normalized.join_normalized_logial(path);
 
                     if normalized.is_dir() {
                         Ok($Env {
@@ -147,7 +101,7 @@ macro_rules! impl_env {
                     path
                 } else {
                     let mut new_cwd = (*self.cwd).clone();
-                    new_cwd.join_normalized(&path);
+                    new_cwd.join_normalized_logial(&path);
 
                     Cow::Owned(new_cwd.into_inner())
                 }
@@ -161,7 +115,11 @@ macro_rules! impl_env {
         impl ChangeWorkingDirectoryEnvironment for $Env {
             fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> io::Result<()> {
                 let mut new_cwd = (*self.cwd).clone();
-                new_cwd.join_normalized(&path);
+                // NB: use logical normalization here for maximum flexibility.
+                // If physical normalization is needed, it can always be done
+                // by the caller (logical normalization is a no-op if `path`
+                // has already been canonicalized/symlinks resolved)
+                new_cwd.join_normalized_logial(&path);
 
                 if new_cwd.is_dir() {
                     self.cwd = $Rc::new(new_cwd);

@@ -74,6 +74,7 @@ pub mod eval;
 pub mod future;
 pub mod io;
 pub mod os;
+pub mod path;
 pub mod spawn;
 
 mod exit_status;
