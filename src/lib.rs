@@ -93,12 +93,12 @@ pub use self::ref_counted::RefCounted;
 pub use self::spawn::Spawn;
 
 /// Generic panic message for futures which have been polled after completion.
-const POLLED_TWICE: &'static str = "this future cannot be polled again after completion!";
+const POLLED_TWICE: &str = "this future cannot be polled again after completion!";
 /// Generic panic message for futures which have been cancelled after completion.
-const CANCELLED_TWICE: &'static str = "this future cannot be cancelled again after completion!";
+const CANCELLED_TWICE: &str = "this future cannot be cancelled again after completion!";
 
 /// The default value of `$IFS` unless overriden.
-const IFS_DEFAULT: &'static str = " \t\n";
+const IFS_DEFAULT: &str = " \t\n";
 
 /// File descriptor for standard input.
 pub const STDIN_FILENO: Fd = 0;

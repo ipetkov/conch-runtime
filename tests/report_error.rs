@@ -16,7 +16,7 @@ pub use self::support::*;
 
 #[test]
 fn smoke() {
-    const MSG: &'static str = "some error message";
+    const MSG: &str = "some error message";
 
     #[derive(Debug)]
     struct MockErr;

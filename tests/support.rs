@@ -58,10 +58,10 @@ pub fn test_cancel_impl<F: EnvFuture<E>, E: ?Sized>(mut future: F, env: &mut E) 
 }
 
 #[cfg(unix)]
-pub const DEV_NULL: &'static str = "/dev/null";
+pub const DEV_NULL: &str = "/dev/null";
 
 #[cfg(windows)]
-pub const DEV_NULL: &'static str = "NUL";
+pub const DEV_NULL: &str = "NUL";
 
 pub fn dev_null() -> Rc<FileDesc> {
     let fdes = OpenOptions::new()

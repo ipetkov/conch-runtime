@@ -17,8 +17,8 @@ macro_rules! run_env {
 }
 
 const MOCK_EXIT: ExitStatus = ExitStatus::Code(42);
-const VAR: &'static str = "var name";
-const RESULT_VAR: &'static str = "resulting var name";
+const VAR: &str = "var name";
+const RESULT_VAR: &str = "resulting var name";
 
 #[derive(Debug, Clone)]
 struct MockCmd2;

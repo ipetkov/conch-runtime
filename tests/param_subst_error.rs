@@ -10,7 +10,7 @@ mod support;
 pub use self::support::*;
 
 const CFG: TildeExpansion = TildeExpansion::All;
-const DEFAULT_MSG: &'static str = "parameter null or not set";
+const DEFAULT_MSG: &str = "parameter null or not set";
 
 fn eval<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word: W)
     -> Result<Fields<String>, MockErr>

@@ -83,8 +83,8 @@ fn ast_node_smoke_test() {
 
 #[test]
 fn function_smoke() {
-    const KEY: &'static str = "key";
-    const VAL: &'static str = "val";
+    const KEY: &str = "key";
+    const VAL: &str = "val";
     const EXIT: ExitStatus = ExitStatus::Code(42);
 
     #[derive(Debug, Clone, Copy)]
