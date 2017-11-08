@@ -40,6 +40,8 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     let path_foo_sym = path_sym.join("foo");
 
     let cur_dir = if use_dots {
+        // NB: on windows we apparently can't append a path with `/` separators
+        // if the path we're joining to has already been canonicalized
         path_foo_sym
             .join(".")
             .join("..")

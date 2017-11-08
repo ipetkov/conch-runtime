@@ -1,7 +1,7 @@
 use std::fs;
 #[cfg(unix)] use std::os::unix::fs::symlink as symlink_dir;
 #[cfg(windows)] use std::os::windows::fs::symlink_dir as symlink_dir;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[macro_use]
 mod support;
@@ -27,6 +27,20 @@ fn join_logical_normalizes_relative_paths() {
 
 #[test]
 fn join_physical_normalizes_paths_and_resolves_symlinks() {
+    // NB: on windows we apparently can't append a path with `/` separators
+    // if the path we're joining to has already been canonicalized
+    fn join_path<I>(path: &Path, components: I) -> PathBuf
+        where I: IntoIterator,
+              I::Item: AsRef<Path>
+    {
+        let mut buf = path.to_path_buf();
+        for c in components {
+            buf.push(c.as_ref())
+        }
+
+        buf
+    }
+
     let tempdir = mktmp!();
     let tempdir_path = tempdir.path().canonicalize().expect("failed to canonicalize");
 
@@ -41,8 +55,9 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
 
     // Test that paths with relative components are canonicalized
     {
+        let to_join = [".", "..", "sym", ".", "foo", ".", "."];
         let mut path = NormalizedPath::new();
-        path.join_normalized_physical(&path_sym.join("./../sym/./foo/./.")).unwrap();
+        path.join_normalized_physical(join_path(&path_sym, &to_join)).unwrap();
 
         assert_eq!(*path, path_foo_real);
     }
@@ -61,8 +76,8 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
         path.join_normalized_logial(&path_foo_real);
         let orig_path = path.clone();
 
-        path.join_normalized_physical("../if_this_exists_the_world_has_ended/../foo")
-            .unwrap_err();
+        let to_join = ["..", "if_this_exists_the_world_has_ended", "..", "foo", "."];
+        path.join_normalized_physical(join_path(&path_sym, &to_join)).unwrap_err();
 
         assert_eq!(path, orig_path);
     }
