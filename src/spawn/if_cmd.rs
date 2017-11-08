@@ -21,7 +21,7 @@ pub fn if_cmd<C, I, E: ?Sized>(conditionals: C, else_branch: Option<I>) -> If<C:
         state: State::Conditionals {
             current: None,
             conditionals: conditionals.into_iter(),
-            else_branch: else_branch.into(),
+            else_branch: else_branch,
         }
     }
 }

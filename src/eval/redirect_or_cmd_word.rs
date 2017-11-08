@@ -195,7 +195,7 @@ impl<R, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E, 
                             Ok(Async::Ready(action)) => action,
                             Ok(Async::NotReady) => return Ok(Async::NotReady),
                             Err(e) => {
-                                err = Some(EvalRedirectOrCmdWordError::Redirect(e.into()));
+                                err = Some(EvalRedirectOrCmdWordError::Redirect(e));
                                 break;
                             },
                         };

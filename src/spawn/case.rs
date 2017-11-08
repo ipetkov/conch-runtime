@@ -259,7 +259,7 @@ impl<W, I, B, E: ?Sized> EnvFuture<E> for Arm<I, B, E>
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(e) => {
                         if e.is_fatal() {
-                            return Err(e.into());
+                            return Err(e);
                         } else {
                             env.report_error(&e);
                             None
