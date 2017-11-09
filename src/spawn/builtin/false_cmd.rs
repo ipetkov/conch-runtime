@@ -1,6 +1,5 @@
 use {EXIT_ERROR, ExitStatus, Spawn};
 use future::{Async, EnvFuture, Poll};
-use futures::future::{FutureResult, ok};
 use void::Void;
 
 /// Represents a `false` builtin command.
@@ -15,13 +14,14 @@ pub fn false_cmd() -> False {
 }
 
 /// A future representing a fully spawned `false` builtin command.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
 pub struct SpawnedFalse;
 
 impl<E: ?Sized> Spawn<E> for False {
     type EnvFuture = SpawnedFalse;
-    type Future = FutureResult<ExitStatus, Self::Error>;
+    type Future = ExitStatus;
     type Error = Void;
 
     fn spawn(self, _env: &E) -> Self::EnvFuture {
@@ -30,11 +30,11 @@ impl<E: ?Sized> Spawn<E> for False {
 }
 
 impl<E: ?Sized> EnvFuture<E> for SpawnedFalse {
-    type Item = FutureResult<ExitStatus, Self::Error>;
+    type Item = ExitStatus;
     type Error = Void;
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        Ok(Async::Ready(ok(EXIT_ERROR)))
+    fn poll(&mut self, _env: &mut E) -> Poll<Self::Item, Self::Error> {
+        Ok(Async::Ready(EXIT_ERROR))
     }
 
     fn cancel(&mut self, _env: &mut E) {

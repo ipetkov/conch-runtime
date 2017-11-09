@@ -74,8 +74,10 @@ pub mod eval;
 pub mod future;
 pub mod io;
 pub mod os;
+pub mod path;
 pub mod spawn;
 
+mod exit_status;
 mod future_ext;
 mod ref_counted;
 #[cfg(unix)]
@@ -85,6 +87,8 @@ mod sys;
 #[path="sys/windows/mod.rs"]
 mod sys;
 
+pub use self::exit_status::{EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS};
+pub use self::exit_status::ExitStatus;
 pub use self::ref_counted::RefCounted;
 pub use self::spawn::Spawn;
 
@@ -96,15 +100,6 @@ const CANCELLED_TWICE: &'static str = "this future cannot be cancelled again aft
 /// The default value of `$IFS` unless overriden.
 const IFS_DEFAULT: &'static str = " \t\n";
 
-/// Exit code for commands that exited successfully.
-pub const EXIT_SUCCESS:            ExitStatus = ExitStatus::Code(0);
-/// Exit code for commands that did not exit successfully.
-pub const EXIT_ERROR:              ExitStatus = ExitStatus::Code(1);
-/// Exit code for commands which are not executable.
-pub const EXIT_CMD_NOT_EXECUTABLE: ExitStatus = ExitStatus::Code(126);
-/// Exit code for missing commands.
-pub const EXIT_CMD_NOT_FOUND:      ExitStatus = ExitStatus::Code(127);
-
 /// File descriptor for standard input.
 pub const STDIN_FILENO: Fd = 0;
 /// File descriptor for standard output.
@@ -114,52 +109,6 @@ pub const STDERR_FILENO: Fd = 2;
 
 /// The type that represents a file descriptor within shell scripts.
 pub type Fd = u16;
-
-/// Describes the result of a process after it has terminated.
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum ExitStatus {
-    /// Normal termination with an exit code.
-    Code(i32),
-
-    /// Termination by signal, with the signal number.
-    ///
-    /// Never generated on Windows.
-    Signal(i32),
-}
-
-impl ExitStatus {
-    /// Was termination successful? Signal termination not considered a success,
-    /// and success is defined as a zero exit status.
-    pub fn success(&self) -> bool {
-        *self == EXIT_SUCCESS
-    }
-}
-
-impl ::std::fmt::Display for ExitStatus {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        match *self {
-            ExitStatus::Code(code)   => write!(f, "exit code: {}", code),
-            ExitStatus::Signal(code) => write!(f, "signal: {}", code),
-        }
-    }
-}
-
-impl From<::std::process::ExitStatus> for ExitStatus {
-    fn from(exit: ::std::process::ExitStatus) -> ExitStatus {
-        #[cfg(unix)]
-        fn get_signal(exit: ::std::process::ExitStatus) -> Option<i32> {
-            ::std::os::unix::process::ExitStatusExt::signal(&exit)
-        }
-
-        #[cfg(windows)]
-        fn get_signal(_exit: ::std::process::ExitStatus) -> Option<i32> { None }
-
-        match exit.code() {
-            Some(code) => ExitStatus::Code(code),
-            None => get_signal(exit).map_or(EXIT_ERROR, ExitStatus::Signal),
-        }
-    }
-}
 
 /// A private trait for converting to inner types.
 trait IntoInner: Sized {

@@ -11,10 +11,8 @@ except it applies variables directly into the environment and provide a `VarRest
 backwards compatible manner.
 - Added `ShiftArgumentsEnvironment` as an interface for shifting positional arguments.
 - Added a `spawn::builtin` module for hosting shell-builtin command implementations
-- Added a builtin implementation for the `shift` shell-command
-- Added a builtin implementation for the `:` shell-command
-- Added a builtin implementation for the `true` shell-command
-- Added a builtin implementation for the `false` shell-command
+- Added a builtin implementations for the `shift`, `:`, `true`, `false`, and `pwd` shell-commands
+- Added a `NormalizedPath` wrapper for working with logically or physically normalized paths
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`

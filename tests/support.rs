@@ -22,6 +22,7 @@ pub use self::conch_runtime::env::*;
 pub use self::conch_runtime::error::*;
 pub use self::conch_runtime::eval::*;
 pub use self::conch_runtime::future::*;
+pub use self::conch_runtime::path::*;
 pub use self::conch_runtime::spawn::*;
 pub use self::futures::{Async, Future, Poll};
 pub use self::tokio_core::reactor::Core;

@@ -2,7 +2,6 @@ use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, Spawn};
 use clap::{App, AppSettings, Arg};
 use env::{ArgumentsEnvironment, ReportErrorEnvironment, ShiftArgumentsEnvironment, StringWrapper};
 use future::{Async, EnvFuture, Poll};
-use futures::future::{FutureResult, ok};
 use std::borrow::Cow;
 use std::error::Error;
 use std::fmt;
@@ -44,6 +43,7 @@ pub fn shift<T>(args: Vec<T>) -> Shift<T> {
 }
 
 /// A future representing a fully spawned `shift` builtin command.
+#[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 pub struct SpawnedShift<T> {
     args: Option<Vec<T>>,
@@ -54,7 +54,7 @@ impl<T, E: ?Sized> Spawn<E> for Shift<T>
           E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
 {
     type EnvFuture = SpawnedShift<T>;
-    type Future = FutureResult<ExitStatus, Self::Error>;
+    type Future = ExitStatus;
     type Error = Void;
 
     fn spawn(self, _env: &E) -> Self::EnvFuture {
@@ -64,23 +64,11 @@ impl<T, E: ?Sized> Spawn<E> for Shift<T>
     }
 }
 
-macro_rules! try_and_report {
-    ($result:expr, $env:ident) => {
-        match $result {
-            Ok(val) => val,
-            Err(e) => {
-                $env.report_error(&e);
-                return Ok(Async::Ready(ok(EXIT_ERROR)));
-            },
-        }
-    }
-}
-
 impl<T, E: ?Sized> EnvFuture<E> for SpawnedShift<T>
     where T: StringWrapper,
           E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
 {
-    type Item = FutureResult<ExitStatus, Self::Error>;
+    type Item = ExitStatus;
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -123,7 +111,7 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedShift<T>
             EXIT_SUCCESS
         };
 
-        Ok(Async::Ready(ok(ret)))
+        Ok(Async::Ready(ret))
     }
 
     fn cancel(&mut self, _env: &mut E) {
