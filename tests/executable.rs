@@ -14,7 +14,7 @@ use tokio_core::reactor::Core;
 mod support;
 pub use self::support::*;
 
-const EXECUTABLE_WITH_IO_MSG: &'static str = "hello\nworld!\n";
+const EXECUTABLE_WITH_IO_MSG: &str = "hello\nworld!\n";
 
 #[test]
 fn spawn_executable_with_io() {

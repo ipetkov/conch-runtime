@@ -7,7 +7,7 @@ use std::error::Error;
 use std::fmt;
 use void::Void;
 
-const NUMERIC_ARGUMENT_REQUIRED: &'static str = "numeric argument required";
+const NUMERIC_ARGUMENT_REQUIRED: &str = "numeric argument required";
 
 #[derive(Debug)]
 struct NumericArgumentRequiredError;
@@ -72,8 +72,8 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedShift<T>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        const AMT_ARG_NAME: &'static str = "n";
-        const DEFAULT_SHIFT_AMOUNT: &'static str = "1";
+        const AMT_ARG_NAME: &str = "n";
+        const DEFAULT_SHIFT_AMOUNT: &str = "1";
 
         let app = App::new("shift")
             .setting(AppSettings::NoBinaryName)

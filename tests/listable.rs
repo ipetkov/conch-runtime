@@ -57,8 +57,8 @@ fn single_command_status_inversion_on_error() {
 
 #[test]
 fn single_command_env_changes_remain() {
-    const VAR: &'static str = "var";
-    const VALUE: &'static str = "value";
+    const VAR: &str = "var";
+    const VALUE: &str = "value";
 
     struct MockCmdWithSideEffects;
     impl Spawn<DefaultEnvRc> for MockCmdWithSideEffects {

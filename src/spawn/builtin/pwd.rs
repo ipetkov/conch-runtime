@@ -70,8 +70,8 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedPwd<T>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        const ARG_LOGICAL: &'static str = "L";
-        const ARG_PHYSICAL: &'static str = "P";
+        const ARG_LOGICAL: &str = "L";
+        const ARG_PHYSICAL: &str = "P";
 
         let app = App::new("pwd")
             .setting(AppSettings::NoBinaryName)

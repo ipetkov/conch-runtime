@@ -407,7 +407,7 @@ impl<R, V, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrVarAssig<R, V, W,
     type Item = (RR, HashMap<V, W::EvalResult>);
     type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
 
-    #[allow(redundant_closure_call)]
+    #[cfg_attr(feature = "clippy", allow(redundant_closure_call))]
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         poll_impl!(
             self,
@@ -446,7 +446,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig2<R, 
     type Item = (RR, VR);
     type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
 
-    #[allow(redundant_closure_call)]
+    #[cfg_attr(feature = "clippy", allow(redundant_closure_call))]
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         poll_impl!(
             self,
