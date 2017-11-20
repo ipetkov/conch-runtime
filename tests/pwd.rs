@@ -132,6 +132,12 @@ fn no_arg_behaves_as_physical_if_dot_components_present() {
 }
 
 #[test]
+fn last_specified_flag_wins() {
+    run_pwd(false, &["-L", "-P", "-L"], false);
+    run_pwd(false, &["-P", "-L", "-P"], true);
+}
+
+#[test]
 fn successful_if_no_stdout() {
     let (mut lp, env) = new_env_with_no_fds();
     let pwd = builtin::pwd(Vec::<Rc<String>>::new());

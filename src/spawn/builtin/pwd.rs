@@ -78,19 +78,15 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedPwd<T>
             .setting(AppSettings::DisableVersion)
             .about("Prints the absolute path name of the current working directory")
             .arg(Arg::with_name(ARG_LOGICAL)
-                 .short("L")
+                 .short(ARG_LOGICAL)
                  .multiple(true)
-                 // POSIX specifies that if both flags are provided, then the last one
-                 // takes effect, but clap does not appear to support determining this
-                 .conflicts_with(ARG_PHYSICAL)
+                 .overrides_with(ARG_PHYSICAL)
                  .help("Display the logical current working directory.")
             )
             .arg(Arg::with_name(ARG_PHYSICAL)
-                 .short("P")
+                 .short(ARG_PHYSICAL)
                  .multiple(true)
-                 // POSIX specifies that if both flags are provided, then the last one
-                 // takes effect, but clap does not appear to support determining this
-                 .conflicts_with(ARG_LOGICAL)
+                 .overrides_with(ARG_LOGICAL)
                  .help("Display the physical current working directory (all symbolic links resolved).")
             );
 
