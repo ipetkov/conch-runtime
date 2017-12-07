@@ -72,10 +72,7 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
         fn_error: PhantomData as PhantomData<RuntimeError>,
     });
 
-    let pwd = builtin::pwd(pwd_args.iter()
-        .map(|&s| s.to_owned())
-        .collect()
-    );
+    let pwd = builtin::pwd(pwd_args.iter().map(|&s| s.to_owned()));
 
     let pipe = Pipe::new().expect("pipe failed");
     env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe.writer.into(), Permissions::Write);

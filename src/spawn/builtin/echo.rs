@@ -4,6 +4,7 @@ use io::FileDesc;
 use future::{EnvFuture, Poll};
 use spawn::ExitResult;
 use std::borrow::Borrow;
+use std::iter::Peekable;
 use std::cmp;
 use void::Void;
 
@@ -31,8 +32,9 @@ struct Flags {
     suppress_newline: bool,
 }
 
-impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
+impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
     where T: StringWrapper,
+          I: Iterator<Item = T>,
           E: AsyncIoEnvironment + FileDescEnvironment + ReportErrorEnvironment,
           E::FileHandle: Borrow<FileDesc>,
 {
@@ -40,11 +42,14 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let args = self.args.take().expect(POLLED_TWICE);
+        let args = self.args.take()
+            .expect(POLLED_TWICE)
+            .fuse()
+            .peekable();
 
         generate_and_print_output!(env, |_| -> Result<_, Void> {
-            let (flags, args) = parse_args(&args);
-            Ok(generate_output(flags, args))
+            let (flags, args) = parse_args(args);
+            Ok(generate_output(flags, args.into_iter().flat_map(|a| a)))
         })
     }
 
@@ -53,7 +58,10 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
     }
 }
 
-fn parse_args<T: StringWrapper>(args: &[T]) -> (Flags, &[T]) {
+fn parse_args<I>(mut args: Peekable<I>) -> (Flags, Option<Peekable<I>>)
+    where I: Iterator,
+          I::Item: StringWrapper,
+{
     // NB: echo behaves a bit unconventionally (at least by clap standards)
     // when it comes to argument parsing: the POSIX spec notes that echo
     // "Implementations shall not support any options", however, bash and zsh
@@ -67,20 +75,21 @@ fn parse_args<T: StringWrapper>(args: &[T]) -> (Flags, &[T]) {
         suppress_newline: false,
     };
 
-    let mut iter = args.iter().enumerate();
-    let args = loop {
-        match iter.next() {
-            Some((idx, arg)) => {
+    loop {
+        match args.peek() {
+            Some(ref arg) => {
                 if parse_arg(&mut flags, arg.as_str()) {
-                    break &args[idx..];
+                    break;
                 }
             },
 
-            None => break &[],
+            None => return (flags, None),
         }
+
+        let _ = args.next();
     };
 
-    (flags, args)
+    (flags, Some(args))
 }
 
 /// Parses a sigle argument and updates the command's flags. Returns true when
@@ -109,14 +118,11 @@ fn parse_arg(flags: &mut Flags, arg: &str) -> bool {
     false
 }
 
-fn generate_output<T: StringWrapper>(flags: Flags, args: &[T]) -> Vec<u8> {
-    let newline_len = if flags.suppress_newline { 0 } else { 1 };
-    let len = newline_len + args.len() + args.iter()
-        .map(StringWrapper::as_str)
-        .map(str::len)
-        .sum::<usize>();
-
-    let mut out = String::with_capacity(len);
+fn generate_output<I>(flags: Flags, mut args: I) -> Vec<u8>
+    where I: Iterator,
+          I::Item: StringWrapper,
+{
+    let mut out = String::new();
     let mut suppress_newline = flags.suppress_newline;
 
     macro_rules! push {
@@ -129,13 +135,11 @@ fn generate_output<T: StringWrapper>(flags: Flags, args: &[T]) -> Vec<u8> {
         }}
     }
 
-    args.split_first().map(|(first, rest)| {
-        push!(first);
-        for arg in rest {
-            out.push_str(" ");
-            push!(arg);
-        }
-    });
+    args.next().map(|first| push!(first));
+    for arg in args {
+        out.push_str(" ");
+        push!(arg);
+    }
 
     if !suppress_newline {
         out.push('\n');

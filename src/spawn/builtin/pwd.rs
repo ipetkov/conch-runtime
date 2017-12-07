@@ -29,8 +29,9 @@ impl_generic_builtin_cmd! {
           E: WorkingDirectoryEnvironment,
 }
 
-impl<T, E: ?Sized> EnvFuture<E> for SpawnedPwd<T>
+impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
     where T: StringWrapper,
+          I: Iterator<Item = T>,
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + ReportErrorEnvironment

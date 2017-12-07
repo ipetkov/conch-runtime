@@ -10,10 +10,6 @@ mod support;
 pub use self::support::*;
 
 fn run_echo(args: &[&str]) -> String {
-    let args = args.iter()
-        .map(|&s| s.to_owned())
-        .collect();
-
     let (mut lp, mut env) = new_env_with_threads(2);
 
     let pipe = Pipe::new().expect("pipe failed");
@@ -21,7 +17,7 @@ fn run_echo(args: &[&str]) -> String {
 
     let read_to_end = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new());
 
-    let echo = builtin::echo(args)
+    let echo = builtin::echo(args.iter().map(|&s| s.to_owned()))
         .spawn(&env)
         .pin_env(env)
         .flatten()

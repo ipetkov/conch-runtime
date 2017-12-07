@@ -31,29 +31,32 @@ impl fmt::Display for NumericArgumentRequiredError {
 /// result in `$1` holding the previous value of `$3`, `$2` holding the
 /// previous value of `$4`, and so on.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Shift<T> {
-    args: Vec<T>,
+pub struct Shift<I> {
+    args: I,
 }
 
 /// Creates a new `shift` builtin command with the provided arguments.
-pub fn shift<T>(args: Vec<T>) -> Shift<T> {
+pub fn shift<I>(args: I) -> Shift<I::IntoIter>
+    where I: IntoIterator,
+{
     Shift {
-        args: args,
+        args: args.into_iter(),
     }
 }
 
 /// A future representing a fully spawned `shift` builtin command.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct SpawnedShift<T> {
-    args: Option<Vec<T>>,
+pub struct SpawnedShift<I> {
+    args: Option<I>,
 }
 
-impl<T, E: ?Sized> Spawn<E> for Shift<T>
+impl<T, I, E: ?Sized> Spawn<E> for Shift<I>
     where T: StringWrapper,
+          I: Iterator<Item = T>,
           E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
 {
-    type EnvFuture = SpawnedShift<T>;
+    type EnvFuture = SpawnedShift<I>;
     type Future = ExitStatus;
     type Error = Void;
 
@@ -64,8 +67,9 @@ impl<T, E: ?Sized> Spawn<E> for Shift<T>
     }
 }
 
-impl<T, E: ?Sized> EnvFuture<E> for SpawnedShift<T>
+impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
     where T: StringWrapper,
+          I: Iterator<Item = T>,
           E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
 {
     type Item = ExitStatus;

@@ -55,22 +55,24 @@ macro_rules! impl_generic_builtin_cmd {
     ) => {
         $(#[$cmd_attr])*
         #[derive(Debug, PartialEq, Eq, Clone)]
-        pub struct $Cmd<T> {
-            args: Vec<T>,
+        pub struct $Cmd<I> {
+            args: I,
         }
 
         $(#[$constructor_attr])*
-        pub fn $constructor<T>(args: Vec<T>) -> $Cmd<T> {
+        pub fn $constructor<I>(args: I) -> $Cmd<I::IntoIter>
+            where I: IntoIterator
+        {
             $Cmd {
-                args: args,
+                args: args.into_iter(),
             }
         }
 
         $(#[$spawned_future_attr])*
         #[must_use = "futures do nothing unless polled"]
         #[derive(Debug)]
-        pub struct $SpawnedFuture<T> {
-            args: Option<Vec<T>>,
+        pub struct $SpawnedFuture<I> {
+            args: Option<I>,
         }
 
         $(#[$future_attr])*
@@ -88,15 +90,16 @@ macro_rules! impl_generic_builtin_cmd {
             }
         }
 
-        impl<T, E: ?Sized> $crate::Spawn<E> for $Cmd<T>
+        impl<T, I, E: ?Sized> $crate::Spawn<E> for $Cmd<I>
             where T: $($t_bounds)*,
+                  I: Iterator<Item = T>,
                   E: $crate::env::AsyncIoEnvironment,
                   E: $crate::env::FileDescEnvironment,
                   E: $crate::env::ReportErrorEnvironment,
                   E::FileHandle: ::std::borrow::Borrow<$crate::io::FileDesc>,
                   E: $($e_bounds)*
         {
-            type EnvFuture = $SpawnedFuture<T>;
+            type EnvFuture = $SpawnedFuture<I>;
             type Future = $crate::spawn::ExitResult<$Future<E::WriteAll>>;
             type Error = $crate::void::Void;
 
