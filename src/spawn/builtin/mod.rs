@@ -12,8 +12,8 @@ macro_rules! try_and_report {
     }
 }
 
-#[macro_use]
-mod trivial;
+#[macro_use] mod generic;
+#[macro_use] mod trivial;
 
 mod colon;
 mod echo;

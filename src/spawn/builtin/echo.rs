@@ -1,61 +1,34 @@
-use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, STDOUT_FILENO};
+use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper, ReportErrorEnvironment};
 use io::FileDesc;
-use future::{Async, EnvFuture, Poll};
-use futures::future::Future;
-use spawn::{ExitResult, Spawn};
+use future::{EnvFuture, Poll};
+use spawn::ExitResult;
 use std::borrow::Borrow;
 use std::cmp;
 use void::Void;
 
-/// Represents a `echo` builtin command which will
-/// print out its arguments joined by a space.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Echo<T> {
-    args: Vec<T>,
-}
+impl_generic_builtin_cmd! {
+    /// Represents a `echo` builtin command which will
+    /// print out its arguments joined by a space.
+    pub struct Echo;
 
-/// Creates a new `echo` builtin command with the provided arguments.
-pub fn echo<T>(args: Vec<T>) -> Echo<T> {
-    Echo {
-        args: args,
-    }
-}
+    /// Creates a new `echo` builtin command with the provided arguments.
+    pub fn echo();
 
-/// A future representing a fully spawned `echo` builtin command.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct SpawnedEcho<T> {
-    args: Option<Vec<T>>,
-}
+    /// A future representing a fully spawned `echo` builtin command.
+    pub struct SpawnedEcho;
 
-/// A future representing a fully spawned `echo` builtin command
-/// which no longer requires an environment to run.
-#[derive(Debug)]
-pub struct EchoFuture<W> {
-    write_all: W,
+    /// A future representing a fully spawned `echo` builtin command
+    /// which no longer requires an environment to run.
+    pub struct EchoFuture;
+
+    where T: StringWrapper,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct Flags {
     interpret_escapes: bool,
     suppress_newline: bool,
-}
-
-impl<T, E: ?Sized> Spawn<E> for Echo<T>
-    where T: StringWrapper,
-          E: AsyncIoEnvironment + FileDescEnvironment + ReportErrorEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
-{
-    type EnvFuture = SpawnedEcho<T>;
-    type Future = ExitResult<EchoFuture<E::WriteAll>>;
-    type Error = Void;
-
-    fn spawn(self, _env: &E) -> Self::EnvFuture {
-        SpawnedEcho {
-            args: Some(self.args),
-        }
-    }
 }
 
 impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
@@ -69,36 +42,14 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let args = self.args.take().expect(POLLED_TWICE);
 
-        // If STDOUT is closed, just exit without doing more work
-        let stdout = match env.file_desc(STDOUT_FILENO) {
-            Some((fdes, _)) => try_and_report!(fdes.borrow().duplicate(), env),
-            None => return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS))),
-        };
-
-        let (flags, args) = parse_args(&args);
-        Ok(Async::Ready(ExitResult::Pending(EchoFuture {
-            write_all: env.write_all(stdout, generate_output(flags, args)),
-        })))
+        generate_and_print_output!(env, |_| -> Result<_, Void> {
+            let (flags, args) = parse_args(&args);
+            Ok(generate_output(flags, args))
+        })
     }
 
     fn cancel(&mut self, _env: &mut E) {
         self.args.take();
-    }
-}
-
-impl<W> Future for EchoFuture<W>
-    where W: Future
-{
-    type Item = ExitStatus;
-    type Error = Void;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.write_all.poll() {
-            Ok(Async::Ready(_)) => Ok(Async::Ready(EXIT_SUCCESS)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            // FIXME: report error anywhere? at least for debug logs?
-            Err(_) => Ok(Async::Ready(EXIT_ERROR)),
-        }
     }
 }
 

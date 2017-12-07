@@ -1,61 +1,32 @@
-use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, STDOUT_FILENO};
+use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use clap::{App, AppSettings, Arg};
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper,
           ReportErrorEnvironment, WorkingDirectoryEnvironment};
 use io::FileDesc;
-use future::{Async, EnvFuture, Poll};
-use futures::future::Future;
+use future::{EnvFuture, Poll};
 use path::{has_dot_components, NormalizationError, NormalizedPath};
-use spawn::{ExitResult, Spawn};
+use spawn::ExitResult;
 use std::borrow::Borrow;
 use std::path::Path;
 use void::Void;
 
-/// Represents a `pwd` builtin command which will
-/// print out the current working directory.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Pwd<T> {
-    args: Vec<T>,
-}
+impl_generic_builtin_cmd! {
+    /// Represents a `pwd` builtin command which will
+    /// print out the current working directory.
+    pub struct Pwd;
 
-/// Creates a new `pwd` builtin command with the provided arguments.
-pub fn pwd<T>(args: Vec<T>) -> Pwd<T> {
-    Pwd {
-        args: args,
-    }
-}
+    /// Creates a new `pwd` builtin command with the provided arguments.
+    pub fn pwd();
 
-/// A future representing a fully spawned `pwd` builtin command.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct SpawnedPwd<T> {
-    args: Option<Vec<T>>,
-}
+    /// A future representing a fully spawned `pwd` builtin command.
+    pub struct SpawnedPwd;
 
-/// A future representing a fully spawned `pwd` builtin command
-/// which no longer requires an environment to run.
-#[derive(Debug)]
-pub struct PwdFuture<W> {
-    write_all: W,
-}
+    /// A future representing a fully spawned `pwd` builtin command
+    /// which no longer requires an environment to run.
+    pub struct PwdFuture;
 
-impl<T, E: ?Sized> Spawn<E> for Pwd<T>
     where T: StringWrapper,
-          E: AsyncIoEnvironment
-              + FileDescEnvironment
-              + ReportErrorEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
-{
-    type EnvFuture = SpawnedPwd<T>;
-    type Future = ExitResult<PwdFuture<E::WriteAll>>;
-    type Error = Void;
-
-    fn spawn(self, _env: &E) -> Self::EnvFuture {
-        SpawnedPwd {
-            args: Some(self.args),
-        }
-    }
+          E: WorkingDirectoryEnvironment,
 }
 
 impl<T, E: ?Sized> EnvFuture<E> for SpawnedPwd<T>
@@ -97,23 +68,19 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedPwd<T>
 
         let matches = try_and_report!(app.get_matches_from_safe(app_args), env);
 
-        // If STDOUT is closed, just exit without doing more work
-        let stdout = match env.file_desc(STDOUT_FILENO) {
-            Some((fdes, _)) => try_and_report!(fdes.borrow().duplicate(), env),
-            None => return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS))),
-        };
+        generate_and_print_output!(env, |env| {
+            let mut cwd_bytes = if matches.is_present(ARG_PHYSICAL) {
+                physical(env.current_working_dir())
+            } else {
+                logical(env.current_working_dir())
+            };
 
-        let mut cwd_bytes = if matches.is_present(ARG_PHYSICAL) {
-            try_and_report!(physical(env.current_working_dir()), env)
-        } else {
-            try_and_report!(logical(env.current_working_dir()), env)
-        };
+            if let Ok(ref mut bytes) = cwd_bytes {
+                bytes.push(b'\n');
+            }
 
-        cwd_bytes.push(b'\n');
-
-        Ok(Async::Ready(ExitResult::Pending(PwdFuture {
-            write_all: env.write_all(stdout, cwd_bytes),
-        })))
+            cwd_bytes
+        })
     }
 
     fn cancel(&mut self, _env: &mut E) {
@@ -134,20 +101,4 @@ fn physical(path: &Path) -> Result<Vec<u8>, NormalizationError> {
     let mut normalized_path = NormalizedPath::new();
     normalized_path.join_normalized_physical(path)
         .map(|()| normalized_path.to_string_lossy().into_owned().into_bytes())
-}
-
-impl<W> Future for PwdFuture<W>
-    where W: Future
-{
-    type Item = ExitStatus;
-    type Error = Void;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.write_all.poll() {
-            Ok(Async::Ready(_)) => Ok(Async::Ready(EXIT_SUCCESS)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            // FIXME: report error anywhere? at least for debug logs?
-            Err(_) => Ok(Async::Ready(EXIT_ERROR)),
-        }
-    }
 }
