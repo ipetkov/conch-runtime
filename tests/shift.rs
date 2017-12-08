@@ -20,10 +20,7 @@ fn run_shift(
         .collect::<Vec<_>>()
     ));
 
-    let shift = builtin::shift(shift_args.iter()
-        .map(|&s| s.to_owned())
-        .collect()
-    );
+    let shift = builtin::shift(shift_args.iter().map(|&s| s.to_owned()));
 
     let mut shift = shift.spawn(&env);
     let exit = lp.run(poll_fn(|| shift.poll(&mut env)).flatten())

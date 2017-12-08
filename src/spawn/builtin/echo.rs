@@ -1,39 +1,29 @@
-use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, STDOUT_FILENO};
+use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper, ReportErrorEnvironment};
 use io::FileDesc;
-use future::{Async, EnvFuture, Poll};
-use futures::future::Future;
-use spawn::{ExitResult, Spawn};
+use future::{EnvFuture, Poll};
+use spawn::ExitResult;
 use std::borrow::Borrow;
+use std::iter::Peekable;
 use std::cmp;
 use void::Void;
 
-/// Represents a `echo` builtin command which will
-/// print out its arguments joined by a space.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Echo<T> {
-    args: Vec<T>,
-}
+impl_generic_builtin_cmd! {
+    /// Represents a `echo` builtin command which will
+    /// print out its arguments joined by a space.
+    pub struct Echo;
 
-/// Creates a new `echo` builtin command with the provided arguments.
-pub fn echo<T>(args: Vec<T>) -> Echo<T> {
-    Echo {
-        args: args,
-    }
-}
+    /// Creates a new `echo` builtin command with the provided arguments.
+    pub fn echo();
 
-/// A future representing a fully spawned `echo` builtin command.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct SpawnedEcho<T> {
-    args: Option<Vec<T>>,
-}
+    /// A future representing a fully spawned `echo` builtin command.
+    pub struct SpawnedEcho;
 
-/// A future representing a fully spawned `echo` builtin command
-/// which no longer requires an environment to run.
-#[derive(Debug)]
-pub struct EchoFuture<W> {
-    write_all: W,
+    /// A future representing a fully spawned `echo` builtin command
+    /// which no longer requires an environment to run.
+    pub struct EchoFuture;
+
+    where T: StringWrapper,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -42,24 +32,9 @@ struct Flags {
     suppress_newline: bool,
 }
 
-impl<T, E: ?Sized> Spawn<E> for Echo<T>
+impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
     where T: StringWrapper,
-          E: AsyncIoEnvironment + FileDescEnvironment + ReportErrorEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
-{
-    type EnvFuture = SpawnedEcho<T>;
-    type Future = ExitResult<EchoFuture<E::WriteAll>>;
-    type Error = Void;
-
-    fn spawn(self, _env: &E) -> Self::EnvFuture {
-        SpawnedEcho {
-            args: Some(self.args),
-        }
-    }
-}
-
-impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
-    where T: StringWrapper,
+          I: Iterator<Item = T>,
           E: AsyncIoEnvironment + FileDescEnvironment + ReportErrorEnvironment,
           E::FileHandle: Borrow<FileDesc>,
 {
@@ -67,18 +42,15 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let args = self.args.take().expect(POLLED_TWICE);
+        let args = self.args.take()
+            .expect(POLLED_TWICE)
+            .fuse()
+            .peekable();
 
-        // If STDOUT is closed, just exit without doing more work
-        let stdout = match env.file_desc(STDOUT_FILENO) {
-            Some((fdes, _)) => try_and_report!(fdes.borrow().duplicate(), env),
-            None => return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS))),
-        };
-
-        let (flags, args) = parse_args(&args);
-        Ok(Async::Ready(ExitResult::Pending(EchoFuture {
-            write_all: env.write_all(stdout, generate_output(flags, args)),
-        })))
+        generate_and_print_output!(env, |_| -> Result<_, Void> {
+            let (flags, args) = parse_args(args);
+            Ok(generate_output(flags, args.into_iter().flat_map(|a| a)))
+        })
     }
 
     fn cancel(&mut self, _env: &mut E) {
@@ -86,23 +58,10 @@ impl<T, E: ?Sized> EnvFuture<E> for SpawnedEcho<T>
     }
 }
 
-impl<W> Future for EchoFuture<W>
-    where W: Future
+fn parse_args<I>(mut args: Peekable<I>) -> (Flags, Option<Peekable<I>>)
+    where I: Iterator,
+          I::Item: StringWrapper,
 {
-    type Item = ExitStatus;
-    type Error = Void;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.write_all.poll() {
-            Ok(Async::Ready(_)) => Ok(Async::Ready(EXIT_SUCCESS)),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            // FIXME: report error anywhere? at least for debug logs?
-            Err(_) => Ok(Async::Ready(EXIT_ERROR)),
-        }
-    }
-}
-
-fn parse_args<T: StringWrapper>(args: &[T]) -> (Flags, &[T]) {
     // NB: echo behaves a bit unconventionally (at least by clap standards)
     // when it comes to argument parsing: the POSIX spec notes that echo
     // "Implementations shall not support any options", however, bash and zsh
@@ -116,20 +75,21 @@ fn parse_args<T: StringWrapper>(args: &[T]) -> (Flags, &[T]) {
         suppress_newline: false,
     };
 
-    let mut iter = args.iter().enumerate();
-    let args = loop {
-        match iter.next() {
-            Some((idx, arg)) => {
+    loop {
+        match args.peek() {
+            Some(ref arg) => {
                 if parse_arg(&mut flags, arg.as_str()) {
-                    break &args[idx..];
+                    break;
                 }
             },
 
-            None => break &[],
+            None => return (flags, None),
         }
+
+        let _ = args.next();
     };
 
-    (flags, args)
+    (flags, Some(args))
 }
 
 /// Parses a sigle argument and updates the command's flags. Returns true when
@@ -158,14 +118,11 @@ fn parse_arg(flags: &mut Flags, arg: &str) -> bool {
     false
 }
 
-fn generate_output<T: StringWrapper>(flags: Flags, args: &[T]) -> Vec<u8> {
-    let newline_len = if flags.suppress_newline { 0 } else { 1 };
-    let len = newline_len + args.len() + args.iter()
-        .map(StringWrapper::as_str)
-        .map(str::len)
-        .sum::<usize>();
-
-    let mut out = String::with_capacity(len);
+fn generate_output<I>(flags: Flags, mut args: I) -> Vec<u8>
+    where I: Iterator,
+          I::Item: StringWrapper,
+{
+    let mut out = String::new();
     let mut suppress_newline = flags.suppress_newline;
 
     macro_rules! push {
@@ -178,13 +135,11 @@ fn generate_output<T: StringWrapper>(flags: Flags, args: &[T]) -> Vec<u8> {
         }}
     }
 
-    args.split_first().map(|(first, rest)| {
-        push!(first);
-        for arg in rest {
-            out.push_str(" ");
-            push!(arg);
-        }
-    });
+    args.next().map(|first| push!(first));
+    for arg in args {
+        out.push_str(" ");
+        push!(arg);
+    }
 
     if !suppress_newline {
         out.push('\n');

@@ -12,11 +12,16 @@ addons:
       - binutils-dev # required for the --verify flag of kcov
       - libiberty-dev
 
-rust:
-  - nightly
-  - beta
-  - stable
-  - 1.19.0
+matrix:
+  include:
+    - rust: nightly
+    - rust: beta
+    - rust: stable
+      after_success:
+        - ./ci/install-kcov.sh && ./ci/coverage.sh
+    - rust: 1.20.0
+    - os: osx
+      rust: stable
 
 branches:
   only:
@@ -37,9 +42,6 @@ script:
       cargo test --no-fail-fast --verbose -j 1
     )
   - cargo doc --no-deps
-after_success:
-  # NB: kcov only works on linux
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./ci/install-kcov.sh && ./ci/coverage.sh; fi
 
 env:
   global:
@@ -49,7 +51,3 @@ env:
 notifications:
   email:
     on_success: never
-
-os:
-  - linux
-  - osx
