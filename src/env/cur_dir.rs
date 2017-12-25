@@ -3,7 +3,7 @@ use path::NormalizedPath;
 use std::borrow::Cow;
 use std::env;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -62,18 +62,19 @@ macro_rules! impl_env {
         }
 
         impl $Env {
-            /// Constructs a new environment with a provided working directory
+            /// Constructs a new environment with a provided working directory.
             ///
             /// The specified `path` *must* be an absolute path or an error will result.
             pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-                Self::new_(path.as_ref())
+                Self::with_path_buf(path.as_ref().to_path_buf())
             }
 
-            fn new_(path: &Path) -> io::Result<Self> {
+            /// Constructs a new environment with a provided `PathBuf` as a working directory.
+            ///
+            /// The specified `path` *must* be an absolute path or an error will result.
+            pub fn with_path_buf(path: PathBuf) -> io::Result<Self> {
                 if path.is_absolute() {
-                    let mut normalized = NormalizedPath::new();
-                    normalized.join_normalized_logial(path);
-
+                    let normalized = NormalizedPath::new_normalized_logical(path);
                     if normalized.is_dir() {
                         Ok($Env {
                             cwd: $Rc::new(normalized),
@@ -91,7 +92,7 @@ macro_rules! impl_env {
             /// Constructs a new environment and initializes it with the current
             /// working directory of the current process.
             pub fn with_process_working_dir() -> io::Result<Self> {
-                env::current_dir().and_then(Self::new)
+                env::current_dir().and_then(Self::with_path_buf)
             }
         }
 
