@@ -17,11 +17,25 @@ fn join_logical_normalizes_root_paths() {
 }
 
 #[test]
+fn new_normalized_logical_normalizes_root_paths() {
+    let path = NormalizedPath::new_normalized_logical(PathBuf::from("/foo/./bar/../baz"));
+    assert_eq!(*path, Path::new("/foo/baz"));
+}
+
+#[test]
 fn join_logical_normalizes_relative_paths() {
     let mut path = NormalizedPath::new();
     path.join_normalized_logial("foo/bar");
 
     path.join_normalized_logial("./../qux/./bar/../baz");
+    assert_eq!(*path, Path::new("foo/qux/baz"));
+}
+
+#[test]
+fn new_normalized_logical_normalizes_relative_paths() {
+    let path = NormalizedPath::new_normalized_logical(PathBuf::from(
+        "foo/bar/./../qux/./bar/../baz"
+    ));
     assert_eq!(*path, Path::new("foo/qux/baz"));
 }
 
@@ -56,18 +70,26 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
     // Test that paths with relative components are canonicalized
     {
         let to_join = [".", "..", "sym", ".", "foo", ".", "."];
-        let mut path = NormalizedPath::new();
-        path.join_normalized_physical(join_path(&path_sym, &to_join)).unwrap();
+        let to_join_buf = join_path(&path_sym, &to_join);
 
+        let mut path = NormalizedPath::new();
+        path.join_normalized_physical(to_join_buf.clone()).unwrap();
         assert_eq!(*path, path_foo_real);
+
+        let constructed = NormalizedPath::new_normalized_physical(to_join_buf)
+            .expect("new_normalized_physical failed");
+        assert_eq!(*constructed, path_foo_real);
     }
 
     // Test that even paths without relative components are canonicalized
     {
         let mut path = NormalizedPath::new();
         path.join_normalized_physical(&path_foo_sym).unwrap();
-
         assert_eq!(*path, path_foo_real);
+
+        let constructed = NormalizedPath::new_normalized_physical(path_foo_sym.clone())
+            .expect("new_normalized_physical failed");
+        assert_eq!(*constructed, path_foo_real);
     }
 
     // Test path is not changed if an error occurs
@@ -77,8 +99,18 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
         let orig_path = path.clone();
 
         let to_join = ["..", "if_this_exists_the_world_has_ended", "..", "foo", "."];
-        path.join_normalized_physical(join_path(&path_sym, &to_join)).unwrap_err();
-
+        let to_join_buf = join_path(&path_sym, &to_join);
+        path.join_normalized_physical(to_join_buf.clone()).unwrap_err();
         assert_eq!(path, orig_path);
+
+        NormalizedPath::new_normalized_physical(to_join_buf)
+            .expect_err("new_normalized_physical did not encounter an error");
+    }
+
+    // Test physical normalization via constructor canonicalizes paths without dots
+    {
+        let constructed = NormalizedPath::new_normalized_physical(path_foo_sym.clone())
+            .expect("new_normalized_physical failed");
+        assert_eq!(*constructed, path_foo_real);
     }
 }
