@@ -19,13 +19,7 @@ top-level = ["conch-parser"]
 
 [dependencies]
 conch-parser = { version = "0.1", optional = true }
-
-# Clap 2.28.0 bumped bitflags to 1.0.1 which doesn't compile on rust 1.19
-# We could bump our own minimum rust version, but this may allow changes to slip
-# in that no longer compile on 1.19 (which would be a breaking change).
-# FIXME(breaking): change this back to 2 after we bump the minimum rust version to 1.20 or higher
-clap        = ">=2, <2.28"
-
+clap        = "2"
 clippy      = { version = "~0.0.80", optional = true }
 futures     = "0.1.14"
 futures-cpupool = "0.1.2"
