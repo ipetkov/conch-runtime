@@ -3,6 +3,71 @@ use futures::{Async, Future, Poll};
 use void::Void;
 
 #[macro_export]
+macro_rules! impl_generic_builtin_cmd_no_spawn {
+    (
+        $(#[$cmd_attr:meta])*
+        pub struct $Cmd:ident;
+
+        $(#[$constructor_attr:meta])*
+        pub fn $constructor:ident ();
+
+        $(#[$spawned_future_attr:meta])*
+        pub struct $SpawnedFuture:ident;
+
+        $(#[$future_attr:meta])*
+        pub struct $Future:ident;
+    ) => {
+        $(#[$cmd_attr])*
+        #[derive(Debug, PartialEq, Eq, Clone)]
+        pub struct $Cmd<I> {
+            args: I,
+        }
+
+        $(#[$constructor_attr])*
+        pub fn $constructor<I>(args: I) -> $Cmd<I::IntoIter>
+            where I: IntoIterator
+        {
+            $Cmd {
+                args: args.into_iter(),
+            }
+        }
+
+        $(#[$spawned_future_attr])*
+        #[must_use = "futures do nothing unless polled"]
+        #[derive(Debug)]
+        pub struct $SpawnedFuture<I> {
+            args: Option<I>,
+        }
+
+        $(#[$future_attr])*
+        #[must_use = "futures do nothing unless polled"]
+        #[derive(Debug)]
+        pub struct $Future<W> {
+            inner: $crate::spawn::builtin::generic::WriteOutputFuture<W>,
+        }
+
+        impl<W> From<$crate::spawn::builtin::generic::WriteOutputFuture<W>> for $Future<W> {
+            fn from(inner: $crate::spawn::builtin::generic::WriteOutputFuture<W>) -> Self {
+                Self {
+                    inner: inner,
+                }
+            }
+        }
+
+        impl<W> $crate::futures::Future for $Future<W>
+            where W: $crate::futures::Future
+        {
+            type Item = $crate::ExitStatus;
+            type Error = $crate::void::Void;
+
+            fn poll(&mut self) -> $crate::future::Poll<Self::Item, Self::Error> {
+                self.inner.poll()
+            }
+        }
+    }
+}
+
+#[macro_export]
 macro_rules! impl_generic_builtin_cmd {
     (
         $(#[$cmd_attr:meta])*
@@ -51,53 +116,30 @@ macro_rules! impl_generic_builtin_cmd {
         pub struct $Future:ident;
 
         where T: $($t_bounds:path)+,
-              E: $($e_bounds:path)*,
+              E: $($e_bounds:path),*,
     ) => {
-        $(#[$cmd_attr])*
-        #[derive(Debug, PartialEq, Eq, Clone)]
-        pub struct $Cmd<I> {
-            args: I,
-        }
+        impl_generic_builtin_cmd_no_spawn! {
+            $(#[$cmd_attr])*
+            pub struct $Cmd;
 
-        $(#[$constructor_attr])*
-        pub fn $constructor<I>(args: I) -> $Cmd<I::IntoIter>
-            where I: IntoIterator
-        {
-            $Cmd {
-                args: args.into_iter(),
-            }
-        }
+            $(#[$constructor_attr])*
+            pub fn $constructor();
 
-        $(#[$spawned_future_attr])*
-        #[must_use = "futures do nothing unless polled"]
-        #[derive(Debug)]
-        pub struct $SpawnedFuture<I> {
-            args: Option<I>,
-        }
+            $(#[$spawned_future_attr])*
+            pub struct $SpawnedFuture;
 
-        $(#[$future_attr])*
-        #[must_use = "futures do nothing unless polled"]
-        #[derive(Debug)]
-        pub struct $Future<W> {
-            inner: $crate::spawn::builtin::generic::WriteOutputFuture<W>,
-        }
-
-        impl<W> From<$crate::spawn::builtin::generic::WriteOutputFuture<W>> for $Future<W> {
-            fn from(inner: $crate::spawn::builtin::generic::WriteOutputFuture<W>) -> Self {
-                Self {
-                    inner: inner,
-                }
-            }
+            $(#[$future_attr])*
+            pub struct $Future;
         }
 
         impl<T, I, E: ?Sized> $crate::Spawn<E> for $Cmd<I>
-            where T: $($t_bounds)*,
+            where $(T: $t_bounds),+,
                   I: Iterator<Item = T>,
                   E: $crate::env::AsyncIoEnvironment,
                   E: $crate::env::FileDescEnvironment,
                   E: $crate::env::ReportErrorEnvironment,
                   E::FileHandle: ::std::borrow::Borrow<$crate::io::FileDesc>,
-                  E: $($e_bounds)*
+                  $(E: $e_bounds),*
         {
             type EnvFuture = $SpawnedFuture<I>;
             type Future = $crate::spawn::ExitResult<$Future<E::WriteAll>>;
@@ -107,17 +149,6 @@ macro_rules! impl_generic_builtin_cmd {
                 $SpawnedFuture {
                     args: Some(self.args)
                 }
-            }
-        }
-
-        impl<W> $crate::futures::Future for $Future<W>
-            where W: $crate::futures::Future
-        {
-            type Item = $crate::ExitStatus;
-            type Error = $crate::void::Void;
-
-            fn poll(&mut self) -> $crate::future::Poll<Self::Item, Self::Error> {
-                self.inner.poll()
             }
         }
     }

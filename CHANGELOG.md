@@ -45,6 +45,7 @@ introducing breaking changes
 - Added `RedirectEnvRestorer` trait to abstract over `RedirectRestorer` and other implementations
 - Added `spawn_with_local_redirections_and_restorer` to allow specifying a specific `RedirectEnvRestorer` implementation
 - Added `VarEnvRestorer` trait to abstract over `VarRestorer` and other implementations
+- Added `VirtualWorkingDirEnv::with_path_buf` constructor to avoid unneccessary `PathBuf` copies
 
 ### Changed
 - `eval_redirects_or_cmd_words_with_restorer` is now generic over a `RedirectEnvRestorer`

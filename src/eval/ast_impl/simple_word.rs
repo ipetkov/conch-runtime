@@ -1,13 +1,9 @@
-use POLLED_TWICE;
+use {HOME, POLLED_TWICE};
 use conch_parser::ast;
 use env::{StringWrapper, VariableEnvironment};
 use future::{Async, EnvFuture, Poll};
 use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use std::borrow::Borrow;
-
-lazy_static! {
-    static ref HOME: String = { String::from("HOME") };
-}
 
 impl<T, P, S, E: ?Sized> WordEval<E> for ast::SimpleWord<T, P, S>
     where T: StringWrapper,

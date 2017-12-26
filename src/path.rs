@@ -58,6 +58,47 @@ impl NormalizedPath {
         }
     }
 
+    /// Creates a new `NormalizedPath` instance with the provided buffer.
+    ///
+    /// If `buf` is non-empty, it will be logically normalized as needed.
+    /// See the documentation for `join_normalized_logial` for more
+    /// information on how the normalization is performed.
+    pub fn new_normalized_logical(buf: PathBuf) -> Self {
+        if has_dot_components(&buf) {
+            let mut normalized = Self::new();
+            normalized.perform_join_normalized_logical(&buf);
+            normalized
+        } else {
+            Self {
+                normalized_path: buf,
+            }
+        }
+    }
+
+    /// Creates a new `NormalizedPath` instance with the provided buffer.
+    ///
+    /// If `buf` is non-empty, it will be physically normalized as needed.
+    /// See the documentation for `join_normalized_physical` for more
+    /// information on how the normalization is performed.
+    pub fn new_normalized_physical(buf: PathBuf) -> Result<Self, NormalizationError> {
+        if has_dot_components(&buf) {
+            let mut normalized_path = Self::new();
+            normalized_path.perform_join_normalized_physical_for_dot_components(&buf)?;
+            Ok(normalized_path)
+        } else {
+            // Ensure we've resolved all possible symlinks
+            let normalized_path = buf.canonicalize()
+                .map_err(|e| NormalizationError {
+                    err: e,
+                    path: buf,
+                })?;
+
+            Ok(Self {
+                normalized_path: normalized_path,
+            })
+        }
+    }
+
     /// Joins a path to the buffer, normalizing away any `.` or `..` components,
     /// without following any symbolic links.
     ///
@@ -78,6 +119,10 @@ impl NormalizedPath {
             return;
         }
 
+        self.perform_join_normalized_logical(path);
+    }
+
+    fn perform_join_normalized_logical(&mut self, path: &Path) {
         for component in path.components() {
             match component {
                 c@Component::Prefix(_) |
@@ -113,29 +158,34 @@ impl NormalizedPath {
     }
 
     fn join_normalized_physical_(&mut self, path: &Path) -> Result<(), NormalizationError> {
-        let orig_path = self.normalized_path.clone();
-
-        // If we have no relative components to resolve then we can avoid
-        // multiple reallocations by pushing the entiere path at once.
-        let orig_path = if has_dot_components(path) {
-            try!(self.perform_join_normalized_physical(path, orig_path))
+        if has_dot_components(path) {
+            self.perform_join_normalized_physical_for_dot_components(path)
         } else {
+            // If we have no relative components to resolve then we can avoid
+            // multiple reallocations by pushing the entiere path at once.
             self.normalized_path.push(path);
-            orig_path
-        };
+            self.normalized_path = self.normalized_path.canonicalize()
+                .map_err(|e| NormalizationError {
+                    err: e,
+                    path: self.normalized_path.clone(),
+                })?;
 
-        // Perform one last resolution of all potential symlinks
-        self.normalized_path.canonicalize()
-            .map(|p| self.normalized_path = p)
+            Ok(())
+        }
+    }
+
+    fn perform_join_normalized_physical_for_dot_components(&mut self, path: &Path)
+        -> Result<(), NormalizationError>
+    {
+        let orig_path = self.normalized_path.clone();
+        self.perform_join_normalized_physical(path)
             .map_err(|e| NormalizationError {
                 err: e,
                 path: mem::replace(&mut self.normalized_path, orig_path),
             })
     }
 
-    fn perform_join_normalized_physical(&mut self, path: &Path, orig_path: PathBuf)
-        -> Result<PathBuf, NormalizationError>
-    {
+    fn perform_join_normalized_physical(&mut self, path: &Path) -> io::Result<()> {
         for component in path.components() {
             match component {
                 c@Component::Prefix(_) |
@@ -143,20 +193,16 @@ impl NormalizedPath {
                 c@Component::Normal(_) => self.normalized_path.push(c.as_os_str()),
 
                 Component::CurDir => {},
-                Component::ParentDir => match self.normalized_path.canonicalize() {
-                    Ok(p) => {
-                        self.normalized_path = p;
-                        self.normalized_path.pop();
-                    },
-                    Err(e) => return Err(NormalizationError {
-                        err: e,
-                        path: mem::replace(&mut self.normalized_path, orig_path),
-                    }),
+                Component::ParentDir => {
+                    self.normalized_path = self.normalized_path.canonicalize()?;
+                    self.normalized_path.pop();
                 },
             }
         }
 
-        Ok(orig_path)
+        // Perform one last resolution of all potential symlinks
+        self.normalized_path = self.normalized_path.canonicalize()?;
+        Ok(())
     }
 
     /// Unwraps the inner `PathBuf`.
