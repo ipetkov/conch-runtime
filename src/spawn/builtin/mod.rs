@@ -15,6 +15,7 @@ macro_rules! try_and_report {
 #[macro_use] mod generic;
 #[macro_use] mod trivial;
 
+mod cd;
 mod colon;
 mod echo;
 mod false_cmd;
@@ -22,6 +23,7 @@ mod pwd;
 mod shift;
 mod true_cmd;
 
+pub use self::cd::{Cd, cd, CdFuture, SpawnedCd};
 pub use self::colon::{Colon, colon, SpawnedColon};
 pub use self::echo::{Echo, echo, EchoFuture, SpawnedEcho};
 pub use self::false_cmd::{False, false_cmd, SpawnedFalse};
