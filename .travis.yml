@@ -36,7 +36,7 @@ before_script:
 
 script:
   - cargo check --no-default-features
-  - cargo build
+  - cargo check
     # Retry with fewer cores if the initial `cargo test` fails to work around possible OOM errors
     # for more details see https://github.com/rust-lang/cargo/issues/4415
   - cargo test --no-fail-fast ||
