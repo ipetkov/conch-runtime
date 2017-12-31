@@ -469,10 +469,6 @@ fn spawn_process<T, F, VN, V, E: ?Sized>(
         }
     };
 
-    // FIXME: ensure that command name is an absolute path (i.e. based on env
-    // cwd, not the process' cwd) so spawning does not end up using the process cwd
-    // to select the executable
-    // FIXME: also need to honor $PATH variable here
     let data = ExecutableData {
         name: name,
         args: args,
