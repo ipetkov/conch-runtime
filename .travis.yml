@@ -39,10 +39,10 @@ script:
   - cargo check
     # Retry with fewer cores if the initial `cargo test` fails to work around possible OOM errors
     # for more details see https://github.com/rust-lang/cargo/issues/4415
-  - cargo test --no-fail-fast ||
+  - travis_wait cargo test --no-fail-fast ||
     (
       echo 'initial `cargo test` failed, retrying with fewer cores to work around OOM issues' &&
-      cargo test --no-fail-fast --verbose -j 1
+      travis_wait cargo test --no-fail-fast -j 1
     )
 
 notifications:

@@ -120,15 +120,12 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
         .stdout(stdio(data.stdout))
         .stderr(stdio(data.stderr));
 
-    if cfg!(windows) && data.env_vars.is_empty() {
-        // NB: Apparently Windows does not support having NO environment variables
-        // at all, and will return an ERROR_INVALID_PARAMETER if that happens,
-        // so we'll just create *some* environment variable to inherit.
-        cmd.env("__", "__");
-    } else {
-        for (k, v) in data.env_vars {
-            cmd.env(k, v);
-        }
+    // Ensure a PATH env var is defined, otherwise it appears that
+    // things default to the PATH env var defined for the process
+    cmd.env("PATH", "");
+
+    for (k, v) in data.env_vars {
+        cmd.env(k, v);
     }
 
     cmd.status_async2(handle).map_err(|err| map_io_err(err, convert_to_string(name)))

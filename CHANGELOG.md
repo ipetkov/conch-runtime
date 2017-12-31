@@ -36,7 +36,11 @@ variable assignments (e.g. `var1=foo var2=${bar:-$var1} env`) but cannot be amme
 introducing breaking changes
 
 ### Removed
+
 ### Fixed
+- Fixed the behavior of an unset `$PATH` variable to behave like other shells (i.e. raises command
+not found errors) instead of using the `PATH` env variable of the current process
+
 ### Security
 ### Breaking
 
