@@ -32,19 +32,12 @@ pub type TestEnv = Env<
 
 fn new_test_env() -> (Core, TestEnv) {
     let lp = Core::new().expect("failed to create Core loop");
-    let env = Env::with_config(EnvConfig {
-        interactive: false,
-        args_env: ArgsEnv::with_name_and_args(Rc::new("shell name".to_owned()), vec!()),
-        async_io_env: PlatformSpecificAsyncIoEnv::new(lp.remote(), Some(1)),
-        file_desc_env: Default::default(),
-        last_status_env: Default::default(),
-        var_env: Default::default(),
-        exec_env: ExecEnv::new(lp.remote()),
-        working_dir_env: VirtualWorkingDirEnv::with_process_working_dir().unwrap(),
-        fn_name: PhantomData,
-        fn_error: PhantomData,
-    });
-
+    let env = Env::with_config(DefaultEnvConfigRc::new(lp.remote(), Some(1))
+        .expect("failed to create test env")
+        .change_file_desc_env(FileDescEnv::new())
+        .change_var_env(VarEnv::new())
+        .change_fn_error::<MockErr>()
+    );
     (lp, env)
 }
 

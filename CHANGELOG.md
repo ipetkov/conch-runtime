@@ -20,6 +20,8 @@ backwards compatible manner.
  - `pwd`
  - `echo`
 - Added a `NormalizedPath` wrapper for working with logically or physically normalized paths
+- Added builder-like methods to `EnvConfig` to facilitate replacing the type of any environment
+implementation without having to specify all other values again
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`

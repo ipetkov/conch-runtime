@@ -6,7 +6,6 @@ extern crate void;
 use conch_runtime::io::{FileDesc, Permissions, Pipe};
 use std::borrow::Cow;
 use std::fs;
-use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 #[cfg(unix)] use std::os::unix::fs::symlink as symlink_dir;
 #[cfg(windows)] use std::os::windows::fs::symlink_dir as symlink_dir;
@@ -59,18 +58,12 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     fs::create_dir(&path_foo_sym).expect("failed to create foo");
 
     let mut lp = Core::new().expect("failed to create core");
-    let mut env = Env::with_config(EnvConfig {
-        interactive: false,
-        args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), vec!()),
-        async_io_env: PlatformSpecificAsyncIoEnv::new(lp.remote(), Some(2)),
-        file_desc_env: FileDescEnv::<Rc<FileDesc>>::new(),
-        last_status_env: LastStatusEnv::new(),
-        var_env: VarEnv::<String, String>::new(),
-        exec_env: ExecEnv::new(lp.remote()),
-        working_dir_env: DummyWorkingDirEnv(cur_dir),
-        fn_name: PhantomData as PhantomData<Rc<String>>,
-        fn_error: PhantomData as PhantomData<RuntimeError>,
-    });
+    let mut env = Env::with_config(DefaultEnvConfigRc::new(lp.remote(), Some(2))
+        .expect("failed to create test env")
+        .change_file_desc_env(FileDescEnv::<Rc<FileDesc>>::new())
+        .change_var_env(VarEnv::<String, String>::new())
+        .change_working_dir_env(DummyWorkingDirEnv(cur_dir))
+    );
 
     let pwd = builtin::pwd(pwd_args.iter().map(|&s| s.to_owned()));
 

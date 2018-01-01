@@ -71,6 +71,152 @@ pub struct EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR> {
     pub fn_error: PhantomData<ERR>,
 }
 
+impl<A, IO, FD, L, V, EX, WD, N, ERR> EnvConfig<A, IO, FD, L, V, EX, WD, N, ERR> {
+    /// Change the type of the `args_env` instance.
+    pub fn change_args_env<T>(self, args_env: T) -> EnvConfig<T, IO, FD, L, V, EX, WD, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `async_io_env` instance.
+    pub fn change_async_io_env<T>(self, async_io_env: T) -> EnvConfig<A, T, FD, L, V, EX, WD, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `file_desc_env` instance.
+    pub fn change_file_desc_env<T>(self, file_desc_env: T) -> EnvConfig<A, IO, T, L, V, EX, WD, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `last_status_env` instance.
+    pub fn change_last_status_env<T>(self, last_status_env: T) -> EnvConfig<A, IO, FD, T, V, EX, WD, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `var_env` instance.
+    pub fn change_var_env<T>(self, var_env: T) -> EnvConfig<A, IO, FD, L, T, EX, WD, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `exec_env` instance.
+    pub fn change_exec_env<T>(self, exec_env: T) -> EnvConfig<A, IO, FD, L, V, T, WD, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `working_dir_env` instance.
+    pub fn change_working_dir_env<T>(self, working_dir_env: T) -> EnvConfig<A, IO, FD, L, V, EX, T, N, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `fn_name` instance.
+    pub fn change_fn_name<T>(self) -> EnvConfig<A, IO, FD, L, V, EX, WD, T, ERR> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: PhantomData,
+            fn_error: self.fn_error,
+        }
+    }
+
+    /// Change the type of the `fn_error` instance.
+    pub fn change_fn_error<T>(self) -> EnvConfig<A, IO, FD, L, V, EX, WD, N, T> {
+        EnvConfig {
+            interactive: self.interactive,
+            args_env: self.args_env,
+            async_io_env: self.async_io_env,
+            file_desc_env: self.file_desc_env,
+            last_status_env: self.last_status_env,
+            var_env: self.var_env,
+            exec_env: self.exec_env,
+            working_dir_env: self.working_dir_env,
+            fn_name: self.fn_name,
+            fn_error: PhantomData,
+        }
+    }
+}
+
 /// A default environment configuration using provided (non-atomic) implementations,
 /// and powered by `tokio`.
 ///
@@ -246,7 +392,7 @@ macro_rules! impl_env {
                     .and_then(|lvl| lvl.borrow().parse::<isize>().ok().map(|l| l+1))
                     .unwrap_or(1);
 
-                // FIXME: set/update $PWD, $OLDPWD
+                // FIXME(breaking): set/update $PWD, $OLDPWD
                 env.set_exported_var(sh_lvl.into(), level.to_string().into(), true);
                 env.set_var("IFS".to_owned().into(), IFS_DEFAULT.to_owned().into());
                 env
@@ -450,6 +596,8 @@ macro_rules! impl_env {
                   FD::FileHandle: Borrow<FileDesc>,
                   N: Hash + Eq,
         {
+            // FIXME(breaking): should we do a best effort async write here?
+            // Either way, we're risking a blocking operation if stderr is a pipe...
             fn report_error(&self, err: &Error) {
                 use std::io::Write;
 
