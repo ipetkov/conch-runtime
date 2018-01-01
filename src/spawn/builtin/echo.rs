@@ -47,7 +47,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
             .fuse()
             .peekable();
 
-        generate_and_print_output!(env, |_| -> Result<_, Void> {
+        generate_and_print_output!("echo", env, |_| -> Result<_, Void> {
             let (flags, args) = parse_args(args);
             Ok(generate_output(flags, args.into_iter().flat_map(|a| a)))
         })

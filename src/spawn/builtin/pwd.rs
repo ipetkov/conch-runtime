@@ -42,10 +42,11 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        const PWD: &str = "pwd";
         const ARG_LOGICAL: &str = "L";
         const ARG_PHYSICAL: &str = "P";
 
-        let app = App::new("pwd")
+        let app = App::new(PWD)
             .setting(AppSettings::NoBinaryName)
             .setting(AppSettings::DisableVersion)
             .about("Prints the absolute path name of the current working directory")
@@ -67,9 +68,9 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
             .into_iter()
             .map(StringWrapper::into_owned);
 
-        let matches = try_and_report!(app.get_matches_from_safe(app_args), env);
+        let matches = try_and_report!(PWD, app.get_matches_from_safe(app_args), env);
 
-        generate_and_print_output!(env, |env| {
+        generate_and_print_output!(PWD, env, |env| {
             let mut cwd_bytes = if matches.is_present(ARG_PHYSICAL) {
                 physical(env.current_working_dir())
             } else {

@@ -155,17 +155,18 @@ macro_rules! impl_generic_builtin_cmd {
 }
 
 macro_rules! generate_and_print_output {
-    ($env:expr, $generate:expr) => {{
+    ($name:expr, $env:expr, $generate:expr) => {{
+        let name = $name;
         let mut env = $env;
 
         // If STDOUT is closed, just exit without doing more work
         let stdout = match env.file_desc($crate::STDOUT_FILENO) {
-            Some((fdes, _)) => try_and_report!(fdes.borrow().duplicate(), env),
+            Some((fdes, _)) => try_and_report!(name, fdes.borrow().duplicate(), env),
             None => return Ok($crate::future::Async::Ready(EXIT_SUCCESS.into())),
         };
 
         let bytes = $crate::spawn::builtin::generic::generate_bytes__(&mut env, $generate);
-        let bytes = try_and_report!(bytes, env);
+        let bytes = try_and_report!(name, bytes, env);
         let bytes = env.write_all(stdout, bytes);
 
         let future = $crate::spawn::builtin::generic::WriteOutputFuture::from(bytes);
