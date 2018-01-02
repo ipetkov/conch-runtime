@@ -6,6 +6,15 @@ use std::io::{ErrorKind, Read, Result, Write};
 use std::os::unix::io::AsRawFd;
 use tokio_core::reactor::{Handle, PollEvented};
 
+/// Represents an attempt to register a file descriptor with a tokio event loop.
+#[derive(Debug)]
+pub enum MaybeEventedFd {
+    /// A regular file that cannot be registered in an event loop.
+    RegularFile(FileDesc),
+    /// A file descriptor that was successfully registered with tokio
+    Registered(PollEvented<EventedFileDesc>),
+}
+
 /// Unix-specific extensions for a `FileDesc`.
 ///
 /// To make use of this extension, make sure this trait is imported into
@@ -40,7 +49,29 @@ pub trait FileDescExt {
     /// `unsafe`ly coping raw file descriptors and registering both copies with
     /// the same `Handle`). Doing so may end up starving one of the copies from
     /// receiving notifications from the event loop.
+    #[deprecated(note = "does not handle regular files, use `into_evented2` instead")]
     fn into_evented(self, handle: &Handle) -> Result<PollEvented<EventedFileDesc>>;
+
+    /// Attempts to register the underlying primitive OS handle with a `tokio` event loop.
+    ///
+    /// The resulting type is "futures" aware meaning that it is (a) nonblocking,
+    /// (b) will notify the appropriate task when data is ready to be read or written
+    /// and (c) will panic if use off of a future's task.
+    ///
+    /// Note: two identical file descriptors (which have identical file descriptions)
+    /// must *NOT* be registered on the same event loop at the same time (e.g.
+    /// `unsafe`ly coping raw file descriptors and registering both copies with
+    /// the same `Handle`). Doing so may end up starving one of the copies from
+    /// receiving notifications from the event loop.
+    ///
+    /// Note: regular files are not supported by the OS primitives which power tokio
+    /// event loops, and will result in an error on registration. However, since
+    /// regular files can be assumed to always be ready for read/write operations,
+    /// we can handle this usecase by not registering those file descriptors within tokio.
+    fn into_evented2(self, handle: &Handle) -> Result<MaybeEventedFd> where Self: Sized {
+        // FIXME(breaking): remove this default
+        self.into_evented(handle).map(MaybeEventedFd::Registered)
+    }
 
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
     ///
@@ -53,6 +84,18 @@ impl FileDescExt for FileDesc {
     fn into_evented(self, handle: &Handle) -> Result<PollEvented<EventedFileDesc>> {
         try!(self.set_nonblock(true));
         PollEvented::new(EventedFileDesc(self), handle)
+    }
+
+    fn into_evented2(self, handle: &Handle) -> Result<MaybeEventedFd> {
+        let ret = if is_regular_file(&self)? {
+            MaybeEventedFd::RegularFile(self)
+        } else {
+            self.set_nonblock(true)?;
+            let evented = PollEvented::new(EventedFileDesc(self), handle)?;
+            MaybeEventedFd::Registered(evented)
+        };
+
+        Ok(ret)
     }
 
     fn set_nonblock(&self, set: bool) -> Result<()> {
@@ -102,4 +145,30 @@ impl Write for EventedFileDesc {
     fn flush(&mut self) -> Result<()> {
         self.0.flush()
     }
+}
+
+fn is_regular_file(fd: &FileDesc) -> Result<bool> {
+    use libc;
+    use std::mem;
+    use sys::cvt_r;
+
+    #[cfg(not(linux))]
+    fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {
+        unsafe {
+            let mut stat: libc::stat = mem::zeroed();
+            cvt_r(|| libc::fstat(fd.as_raw_fd(), &mut stat))
+                .map(|_| stat.st_mode)
+        }
+    }
+
+    #[cfg(linux)]
+    fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {
+        unsafe {
+            let mut stat: libc::stat64 = mem::zeroed();
+            cvt_r(|| libc::fstat64(fd.as_raw_fd(), &mut stat))
+                .map(|_| stat.st_mode)
+        }
+    }
+
+    get_mode(&fd).map(|mode| mode & libc::S_IFMT == libc::S_IFREG)
 }

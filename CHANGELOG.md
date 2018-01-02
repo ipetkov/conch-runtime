@@ -22,6 +22,8 @@ backwards compatible manner.
 - Added a `NormalizedPath` wrapper for working with logically or physically normalized paths
 - Added builder-like methods to `EnvConfig` to facilitate replacing the type of any environment
 implementation without having to specify all other values again
+- Added `FileDescExt::into_evented2` which gracefully handles regular files (which cannot be
+registered with tokio)
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`
@@ -36,10 +38,13 @@ amounts of redirects when they do occur, so we can avoid allocating memory until
 and `EvalRedirectOrVarAssig`: the existing implementation does not handle referencing earlier
 variable assignments (e.g. `var1=foo var2=${bar:-$var1} env`) but cannot be ammended without
 introducing breaking changes
+- Deprecated `FileDescExt::into_evented` since it does not handle regular files gracefully
 
 ### Removed
 
 ### Fixed
+- `EventedAsyncIoEnv` gracefully handles regular files by not registering them with tokio
+(since epoll/kqueue do not support registering regular files)
 - Fixed the behavior of an unset `$PATH` variable to behave like other shells (i.e. raises command
 not found errors) instead of using the `PATH` env variable of the current process
 
