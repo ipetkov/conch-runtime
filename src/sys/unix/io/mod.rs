@@ -12,7 +12,7 @@ use std::process::Stdio;
 
 mod fd_ext;
 
-pub use self::fd_ext::{EventedFileDesc, FileDescExt};
+pub use self::fd_ext::{EventedFileDesc, FileDescExt, MaybeEventedFd};
 
 /// A wrapper around an owned UNIX file descriptor. The wrapper
 /// allows reading from or write to the descriptor, and will
@@ -134,6 +134,7 @@ impl RawIo {
     }
 
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
+    // FIXME(breaking): require a mut ref here, avoids having someone else change the flag under us
     pub fn set_nonblock(&self, set: bool) -> Result<()> {
         unsafe {
             let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFL)));

@@ -5,7 +5,7 @@
 pub mod unix {
     /// Unix-specific extensions around general I/O.
     pub mod io {
-        pub use sys::io::{EventedFileDesc, FileDescExt};
+        pub use sys::io::{EventedFileDesc, FileDescExt, MaybeEventedFd};
     }
 
     /// Unix-specific environment extensions

@@ -1,13 +1,19 @@
-// NB: only test here is unix specific, disabling some lints
-// to avoid guarding everything with `#[cfg(unix)]
-#![allow(dead_code)]
-#![allow(unused_imports)]
+#![cfg(unix)]
 
 extern crate conch_runtime;
+extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 
-use conch_runtime::io::Pipe;
+#[macro_use]
+mod support;
+pub use self::support::*;
+
+use conch_runtime::env::AsyncIoEnvironment;
+use conch_runtime::io::{FileDesc, Pipe};
+use conch_runtime::os::unix::env::EventedAsyncIoEnv;
+use conch_runtime::os::unix::io::{FileDescExt, MaybeEventedFd};
+use std::fs::File;
 use std::io::{ErrorKind, Read, Result, Write};
 use std::time::Duration;
 use std::thread;
@@ -51,17 +57,20 @@ impl<R: Read> Read for TimesRead<R> {
 }
 
 #[test]
-#[cfg(unix)]
 fn evented_is_async() {
-    use conch_runtime::os::unix::io::FileDescExt;
-
     let msg = "hello world";
 
     let Pipe { reader, mut writer } = Pipe::new().expect("failed to create pipe");
 
     let mut lp = Core::new().expect("failed to create event loop");
-    let reader = reader.into_evented(&lp.handle())
+    let reader = reader.into_evented2(&lp.handle())
         .expect("failed to register reader with event loop");
+
+    let reader = if let MaybeEventedFd::Registered(fd) = reader {
+        fd
+    } else {
+        panic!("unexpected result: {:#?}", reader);
+    };
 
     let join_handle = thread::spawn(move || {
         // Give the future a chance to block for the first time
@@ -86,4 +95,35 @@ fn evented_is_async() {
     // it's probably good enough to ensure we didn't run in a single read.
     assert!(tr.times_read > 1);
     assert!(tr.times_would_block > 1);
+}
+
+#[test]
+fn evented_supports_regular_files() {
+    let tempdir = mktmp!();
+    let path = tempdir.path().join("sample_file");
+
+    let msg = "hello\nworld\n";
+
+    let mut lp = Core::new().expect("failed to create event loop");
+    let mut env = EventedAsyncIoEnv::new(lp.remote());
+
+    // Test spawning directly within the event loop
+    lp.run(futures::lazy(|| {
+        let fd = File::create(&path)
+            .map(FileDesc::from)
+            .expect("failed to create file");
+
+        env.write_all(fd, msg.to_owned().into_bytes())
+    })).expect("failed to write data");
+
+    // Test spawning outside of the event loop
+    let fd = File::open(path)
+        .map(FileDesc::from)
+        .expect("failed to open file");
+
+    let data = lp.run(read_to_end(env.read_async(fd), vec!()))
+        .map(|(_, data)| String::from_utf8(data).expect("invaild utf8"))
+        .expect("future did not exit successfully");
+
+    assert_eq!(data, msg);
 }

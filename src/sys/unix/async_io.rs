@@ -2,10 +2,9 @@ use POLLED_TWICE;
 use io::FileDesc;
 use env::{AsyncIoEnvironment, SubEnvironment};
 use futures::{Async, Future, Poll};
-use futures::future::{Either, FutureResult, IntoFuture};
 use futures::sync::oneshot::{self, Canceled, Receiver};
 use mio::would_block;
-use os::unix::io::{EventedFileDesc, FileDescExt};
+use os::unix::io::{EventedFileDesc, FileDescExt, MaybeEventedFd};
 use tokio_core::reactor::{Handle, PollEvented, Remote};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_io::io as tokio_io;
@@ -41,12 +40,12 @@ impl fmt::Debug for EventedAsyncIoEnv {
 }
 
 type PollEventedFd = PollEvented<EventedFileDesc>;
-type ReadyEventedFd = FutureResult<PollEventedFd, IoError>;
-type MaybeReadyEventedFd = Either<ReadyEventedFd, IoReceiver<PollEventedFd>>;
-type DeferredFd = Deferred<MaybeReadyEventedFd, PollEventedFd>;
 
-fn evented_fd_from_handle(handle: &Handle, fd: FileDesc) -> ReadyEventedFd {
-    fd.into_evented(handle).into_future()
+fn evented_fd_from_handle(handle: &Handle, fd: FileDesc) -> DeferredFd {
+    match fd.into_evented2(handle) {
+        Ok(fd) => DeferredFd::Done(fd),
+        Err(e) => DeferredFd::InitError(Some(e)),
+    }
 }
 
 impl EventedAsyncIoEnv {
@@ -57,24 +56,24 @@ impl EventedAsyncIoEnv {
         }
     }
 
-    fn evented_fd(&self, fd: FileDesc) -> MaybeReadyEventedFd {
+    fn evented_fd(&self, fd: FileDesc) -> DeferredFd {
         match self.remote.handle() {
-            Some(handle) => Either::A(evented_fd_from_handle(&handle, fd)),
+            Some(handle) => evented_fd_from_handle(&handle, fd),
             None => {
                 let (tx, rx) = oneshot::channel();
 
                 self.remote.spawn(move |handle| {
-                    let _ = tx.send(fd.into_evented(handle));
+                    let _ = tx.send(fd.into_evented2(&handle));
                     Ok(())
                 });
 
-                Either::B(IoReceiver(rx))
+                DeferredFd::Pending(IoReceiver(rx))
             },
         }
     }
 }
 
-// FIXME: consider operating on a FileDescWrapper instead of an owned FileDesc?
+// FIXME(breaking): consider operating on a FileDescWrapper instead of an owned FileDesc?
 // Right now we require duplicating a FileDesc any time we want to do some evented
 // IO over it, which goes against the entire benefit of using ref counted fd wrappers
 // to avoid exhausting fds.
@@ -87,23 +86,26 @@ impl EventedAsyncIoEnv {
 // a read/write is done. If the underlying fd is set back to blocking mode *anywhere*
 // it could deadlock everything. I have a feeling that this probably won't be a major
 // issue (at least within this crate) so its probably worth further investigation.
+//
+// Follow up note: to avoid having someone unset the O_NONBLOCK flag on us, we could
+// dup the original fd (if we aren't the only owner of it) and add a mapping to *both*
+// the original and duped fds to the PollEvented handle
 impl AsyncIoEnvironment for EventedAsyncIoEnv {
     type Read = ReadAsync;
     type WriteAll = WriteAll;
 
     fn read_async(&mut self, fd: FileDesc) -> Self::Read {
-        ReadAsync(Deferred::Pending(self.evented_fd(fd)))
+        ReadAsync(self.evented_fd(fd))
     }
 
     fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
-        let write_async = WriteAsync(Deferred::Pending(self.evented_fd(fd)));
+        let write_async = WriteAsync(self.evented_fd(fd));
         WriteAll::new(State::Writing(tokio_io::write_all(write_async, data)))
     }
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
         self.remote.spawn(move |handle| {
-            let ready_evented_fd = evented_fd_from_handle(handle, fd);
-            let write_async = WriteAsync(Deferred::Pending(Either::A(ready_evented_fd)));
+            let write_async = WriteAsync(evented_fd_from_handle(handle, fd));
 
             WriteAll::new(State::Writing(tokio_io::write_all(write_async, data)))
                 .or_else(|_err| Err(())) // FIXME: may be worth logging these errors under debug?
@@ -129,33 +131,42 @@ impl<T> Future for IoReceiver<T> {
 }
 
 #[derive(Debug)]
-enum Deferred<F, I> {
-    Pending(F),
-    Done(I),
+enum DeferredFd {
+    InitError(Option<IoError>),
+    Pending(IoReceiver<MaybeEventedFd>),
+    Done(MaybeEventedFd),
     Gone,
 }
 
-impl<F, I> Deferred<F, I> where F: Future<Item = I> {
-    fn poll_peek(&mut self) -> Poll<&mut F::Item, F::Error> {
+impl DeferredFd {
+    fn poll_peek(&mut self) -> Poll<&mut MaybeEventedFd, IoError> {
         loop {
-            let item = match *self {
-                Deferred::Pending(ref mut f) => try_ready!(f.poll()),
-                Deferred::Done(ref mut i) => return Ok(Async::Ready(i)),
-                Deferred::Gone => panic!(POLLED_TWICE),
+            let fd = match *self {
+                DeferredFd::InitError(ref mut e) => Err(e.take().expect(POLLED_TWICE)),
+                DeferredFd::Pending(ref mut f) => Ok(try_ready!(f.poll())),
+                DeferredFd::Done(ref mut fd) => return Ok(Async::Ready(fd)),
+                DeferredFd::Gone => panic!(POLLED_TWICE),
             };
 
-            *self = Deferred::Done(item);
+            match fd {
+                Ok(fd) => *self = DeferredFd::Done(fd),
+                Err(e) => {
+                    *self = DeferredFd::Gone;
+                    return Err(e);
+                },
+            }
         }
     }
 
-    fn poll(&mut self) -> Poll<F::Item, F::Error> {
+    fn poll_unwrap(&mut self) -> Poll<MaybeEventedFd, IoError> {
         let _ = try_ready!(self.poll_peek());
 
-        match mem::replace(self, Deferred::Gone) {
-            Deferred::Done(ret) => Ok(Async::Ready(ret)),
+        match mem::replace(self, DeferredFd::Gone) {
+            DeferredFd::Done(ret) => Ok(Async::Ready(ret)),
 
-            Deferred::Pending(_) |
-            Deferred::Gone => panic!("unexpected state"),
+            DeferredFd::InitError(_) |
+            DeferredFd::Pending(_) |
+            DeferredFd::Gone => panic!("unexpected state"),
         }
     }
 }
@@ -171,7 +182,10 @@ impl AsyncRead for ReadAsync {}
 impl Read for ReadAsync {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match try!(self.0.poll_peek()) {
-            Async::Ready(fd) => fd.read(buf),
+            Async::Ready(fd) => match *fd {
+                MaybeEventedFd::RegularFile(ref mut fd) => fd.read(buf),
+                MaybeEventedFd::Registered(ref mut fd) => fd.read(buf),
+            },
             Async::NotReady => Err(would_block()),
         }
     }
@@ -183,14 +197,20 @@ struct WriteAsync(DeferredFd);
 impl Write for WriteAsync {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         match try!(self.0.poll_peek()) {
-            Async::Ready(fd) => fd.write(buf),
+            Async::Ready(fd) => match *fd {
+                MaybeEventedFd::RegularFile(ref mut fd) => fd.write(buf),
+                MaybeEventedFd::Registered(ref mut fd) => fd.write(buf),
+            },
             Async::NotReady => Err(would_block()),
         }
     }
 
     fn flush(&mut self) -> Result<()> {
         match try!(self.0.poll_peek()) {
-            Async::Ready(fd) => fd.flush(),
+            Async::Ready(fd) => match *fd {
+                MaybeEventedFd::RegularFile(ref mut fd) => fd.flush(),
+                MaybeEventedFd::Registered(ref mut fd) => fd.flush(),
+            },
             Async::NotReady => Err(would_block()),
         }
     }
@@ -198,7 +218,10 @@ impl Write for WriteAsync {
 
 impl AsyncWrite for WriteAsync {
     fn shutdown(&mut self) -> Poll<(), IoError> {
-        try_ready!(self.0.poll_peek()).shutdown()
+        match *try_ready!(self.0.poll_peek()) {
+            MaybeEventedFd::RegularFile(_) => Ok(Async::Ready(())),
+            MaybeEventedFd::Registered(ref mut fd) => fd.shutdown(),
+        }
     }
 }
 
@@ -208,6 +231,7 @@ enum State {
     Flushing(tokio_io::Flush<WriteAsync>),
     Unwrapping(DeferredFd),
     ShutDown(tokio_io::Shutdown<PollEventedFd>),
+    Done,
 }
 
 /// A future that will write some data to a `FileDesc`.
@@ -244,15 +268,19 @@ impl Future for WriteAll {
                     State::Unwrapping(w.0)
                 },
 
-                State::Unwrapping(ref mut deferred) => {
-                    let poll_evented = try_ready!(deferred.poll());
-                    State::ShutDown(tokio_io::shutdown(poll_evented))
+                State::Unwrapping(ref mut deferred) => match try_ready!(deferred.poll_unwrap()) {
+                    MaybeEventedFd::RegularFile(_) => State::Done,
+                    MaybeEventedFd::Registered(poll_evented) => {
+                        State::ShutDown(tokio_io::shutdown(poll_evented))
+                    },
                 },
 
                 State::ShutDown(ref mut f) => {
                     let _ = try_ready!(f.poll());
-                    return Ok(Async::Ready(()));
+                    State::Done
                 },
+
+                State::Done => return Ok(Async::Ready(())),
             };
 
             self.state = next_state;
