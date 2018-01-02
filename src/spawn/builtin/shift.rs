@@ -76,10 +76,11 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        const SHIFT: &str = "shift";
         const AMT_ARG_NAME: &str = "n";
         const DEFAULT_SHIFT_AMOUNT: &str = "1";
 
-        let app = App::new("shift")
+        let app = App::new(SHIFT)
             .setting(AppSettings::NoBinaryName)
             .setting(AppSettings::DisableVersion)
             .about("Shifts positional parameters such that (n+1)th parameter becomes $1, and so on")
@@ -99,14 +100,14 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
             .into_iter()
             .map(StringWrapper::into_owned);
 
-        let matches = try_and_report!(app.get_matches_from_safe(app_args), env);
+        let matches = try_and_report!(SHIFT, app.get_matches_from_safe(app_args), env);
 
         let amt_arg = matches.value_of_lossy(AMT_ARG_NAME)
             .unwrap_or(Cow::Borrowed(DEFAULT_SHIFT_AMOUNT))
             .parse()
             .map_err(|_| NumericArgumentRequiredError);
 
-        let amt = try_and_report!(amt_arg, env);
+        let amt = try_and_report!(SHIFT, amt_arg, env);
 
         let ret = if amt > env.args_len() {
             EXIT_ERROR

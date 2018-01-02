@@ -13,6 +13,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use void::Void;
 
+const CD: &str = "cd";
 const ARG_LOGICAL: &str = "L";
 const ARG_PHYSICAL: &str = "P";
 const ARG_DIR: &str = "dir";
@@ -103,7 +104,7 @@ impl<I> SpawnedCd<I> {
         where I: Iterator,
               I::Item: StringWrapper,
     {
-        let app = App::new("cd")
+        let app = App::new(CD)
             .setting(AppSettings::NoBinaryName)
             .setting(AppSettings::DisableVersion)
             .about("Changes the current working directory of the shell")
@@ -163,22 +164,22 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let matches = try_and_report!(self.get_matches(), env);
+        let matches = try_and_report!(CD, self.get_matches(), env);
         let flags = get_flags(&matches);
 
         let should_print_pwd;
         let new_working_dir = {
-            let (new_working_dir, spp) = try_and_report!(get_dir_arg(flags.dir, env), env);
+            let (new_working_dir, spp) = try_and_report!(CD, get_dir_arg(flags.dir, env), env);
             should_print_pwd = spp;
 
             if flags.resolve_symlinks {
                 match new_working_dir {
                     Cow::Borrowed(dir) => {
                         let mut normalized_path = NormalizedPath::new();
-                        try_and_report!(normalized_path.join_normalized_physical(dir), env);
+                        try_and_report!(CD, normalized_path.join_normalized_physical(dir), env);
                         normalized_path
                     },
-                    Cow::Owned(b) => try_and_report!(NormalizedPath::new_normalized_physical(b), env),
+                    Cow::Owned(b) => try_and_report!(CD, NormalizedPath::new_normalized_physical(b), env),
                 }
             } else {
                 match new_working_dir {
@@ -193,8 +194,8 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
         };
 
         let new_working_dir = Cow::Owned(new_working_dir.into_inner());
-        match try_and_report!(perform_cd_change(should_print_pwd, new_working_dir, env), env) {
-            Some(pwd) => generate_and_print_output!(env, |_| -> Result<_, Void> {
+        match try_and_report!(CD, perform_cd_change(should_print_pwd, new_working_dir, env), env) {
+            Some(pwd) => generate_and_print_output!(CD, env, |_| -> Result<_, Void> {
                 Ok(pwd.into_bytes())
             }),
             None => Ok(Async::Ready(ExitResult::from(EXIT_SUCCESS))),
