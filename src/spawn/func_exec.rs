@@ -4,17 +4,24 @@ use future::{Async, EnvFuture, Poll};
 use std::fmt;
 
 /// Creates a future adapter that will attempt to execute a function (if it has
-/// been defined) with a given set of arguments if it has been defined.
+/// been defined) with a given set of arguments.
 pub fn function<A, E: ?Sized>(name: &E::FnName, args: A, env: &E) -> Option<Function<E::Fn, E>>
     where E: FunctionEnvironment + SetArgumentsEnvironment,
           E::Args: From<A>,
           E::Fn: Clone + Spawn<E>,
 {
-    env.function(name).cloned().map(|func| {
-        Function {
-            state: State::Init(Some((func, args.into()))),
-        }
-    })
+    env.function(name).cloned().map(|func| function_body(func, args))
+}
+
+/// Creates a future adapter that will execute a function body with the given set of arguments.
+pub fn function_body<S, A, E: ?Sized>(body: S, args: A) -> Function<S, E>
+    where S: Spawn<E>,
+          E: SetArgumentsEnvironment,
+          E::Args: From<A>,
+{
+    Function {
+        state: State::Init(Some((body, args.into()))),
+    }
 }
 
 /// A future that represents the execution of a function registered in an environment.

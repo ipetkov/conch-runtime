@@ -32,7 +32,7 @@ use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 pub use self::and_or::{AndOr, AndOrList, and_or_list};
 pub use self::case::{Case, case, PatternBodyPair};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
-pub use self::func_exec::{Function, function};
+pub use self::func_exec::{Function, function, function_body};
 pub use self::if_cmd::{If, if_cmd};
 pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirections};
 pub use self::loop_cmd::{Loop, loop_cmd};
