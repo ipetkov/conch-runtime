@@ -24,6 +24,8 @@ backwards compatible manner.
 implementation without having to specify all other values again
 - Added `FileDescExt::into_evented2` which gracefully handles regular files (which cannot be
 registered with tokio)
+- Added a `spawn::function_body` method for spawning a function without having to look it up
+from the environment
 
 ### Changed
 - Reduced required bounds for implementing `VarEnvRestorer` to just `E: VariableEnvironment`

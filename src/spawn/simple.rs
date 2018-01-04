@@ -11,7 +11,7 @@ use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assi
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
 use io::{FileDesc, FileDescWrapper};
-use spawn::{ExitResult, Function, function, Spawn};
+use spawn::{ExitResult, Function, function_body, Spawn};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt;
@@ -334,11 +334,9 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                         };
 
                         let fn_name = name_inner.clone().into();
-                        if env.has_function(&fn_name) {
+                        if let Some(func) = env.function(&fn_name).cloned() {
                             let args = words_inner_iter.map(Into::into).collect();
-                            let func = function(&fn_name, args, env)
-                                .expect("env indicated function present, but unable to spawn");
-
+                            let func = function_body(func, args);
                             State::Func(Some((red_restorer_inner, var_restorer_inner)), func)
                         } else {
                             redirect_restorer = red_restorer_inner;
