@@ -3,6 +3,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+### Breaking
+
+## [0.1.2] - 2018-01-03
+### Added
 - Added a `EvalRedirectOrVarAssig2` implementation which behaves similar to its predecessor,
 except it applies variables directly into the environment and provide a `VarRestorer` when finished
 - Added `eval_redirects_or_var_assignments_with_restorers` which allows evaluating any
@@ -42,16 +51,11 @@ variable assignments (e.g. `var1=foo var2=${bar:-$var1} env`) but cannot be amme
 introducing breaking changes
 - Deprecated `FileDescExt::into_evented` since it does not handle regular files gracefully
 
-### Removed
-
 ### Fixed
 - `EventedAsyncIoEnv` gracefully handles regular files by not registering them with tokio
 (since epoll/kqueue do not support registering regular files)
 - Fixed the behavior of an unset `$PATH` variable to behave like other shells (i.e. raises command
 not found errors) instead of using the `PATH` env variable of the current process
-
-### Security
-### Breaking
 
 ## [0.1.1] - 2017-09-13
 ### Added
@@ -74,5 +78,6 @@ not found errors) instead of using the `PATH` env variable of the current proces
 ## 0.1.0 - 2017-08-21
 - First release!
 
-[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1
