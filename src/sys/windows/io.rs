@@ -5,7 +5,6 @@ use winapi;
 
 use IntoInner;
 use io::FileDesc;
-use std::fmt;
 use std::fs::File;
 use std::io::{ErrorKind, Result, SeekFrom};
 use std::mem;
@@ -19,24 +18,10 @@ use sys::cvt;
 /// A wrapper around an owned Windows HANDLE. The wrapper
 /// allows reading from or write to the HANDLE, and will
 /// close it once it goes out of scope.
+#[derive(Debug)]
 pub struct RawIo {
     /// The underlying HANDLE.
     handle: Unique<HANDLE>,
-}
-
-impl fmt::Debug for RawIo {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        struct PointerDebug<'a>(&'a fmt::Pointer);
-        impl<'a> fmt::Debug for PointerDebug<'a> {
-            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                write!(fmt, "{:p}", self.0)
-            }
-        }
-
-        fmt.debug_struct("RawIo")
-            .field("handle", &PointerDebug(&self.handle))
-            .finish()
-    }
 }
 
 impl Eq for RawIo {}
