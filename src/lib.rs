@@ -44,8 +44,6 @@
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]
 
-#![cfg_attr(windows, feature(ptr_internals))]
-
 // Unix only libs
 #[cfg(unix)] extern crate libc;
 

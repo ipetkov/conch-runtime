@@ -128,3 +128,15 @@ pub(crate) fn dup_stdio() -> Result<(FileDesc, FileDesc, FileDesc)> {
         FileDesc::from_inner(stderr)
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ensure_file_desc_is_send_and_sync() {
+        fn send_and_sync<T: Send + Sync>() {}
+
+        send_and_sync::<FileDesc>();
+    }
+}

@@ -8,28 +8,22 @@ use io::FileDesc;
 use std::fs::File;
 use std::io::{ErrorKind, Result, SeekFrom};
 use std::mem;
-use std::os::raw::c_void as HANDLE;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
 use std::process::Stdio;
 use std::ptr;
-use std::ptr::Unique;
 use sys::cvt;
 
 /// A wrapper around an owned Windows HANDLE. The wrapper
 /// allows reading from or write to the HANDLE, and will
 /// close it once it goes out of scope.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RawIo {
-    /// The underlying HANDLE.
-    handle: Unique<HANDLE>,
+    /// The underlying `RawHandle`.
+    handle: RawHandle,
 }
 
-impl Eq for RawIo {}
-impl PartialEq<RawIo> for RawIo {
-    fn eq(&self, other: &RawIo) -> bool {
-        self.handle.as_ptr() == other.handle.as_ptr()
-    }
-}
+unsafe impl Send for RawIo {}
+unsafe impl Sync for RawIo {} // the OS should do any locking synchronization for us
 
 impl Into<Stdio> for RawIo {
     fn into(self) -> Stdio {
@@ -64,8 +58,10 @@ impl RawIo {
     ///
     /// `handle` must be non-null.
     pub unsafe fn new(handle: RawHandle) -> Self {
+        assert!(!handle.is_null(), "null handle");
+
         RawIo {
-            handle: Unique::new(handle).expect("null handle"),
+            handle: handle,
         }
     }
 
@@ -80,7 +76,7 @@ impl RawIo {
 
     /// Returns the underlying HANDLE without transfering ownership.
     pub fn inner(&self) -> RawHandle {
-        self.handle.as_ptr()
+        self.handle
     }
 
     /// Duplicates the underlying HANDLE.
