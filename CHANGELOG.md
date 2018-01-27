@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Security
 ### Breaking
 
+## [0.1.4] - 2018-01-27
+### Changed
+* Removed usage of nightly features on Windows. Windows builds now work on stable!
+
 ## [0.1.3] - 2018-01-25
 ### Fixed
 * Fixed nightly windows builds by updating the unstable feature `unique` to `ptr_internals`
@@ -82,7 +86,8 @@ not found errors) instead of using the `PATH` env variable of the current proces
 ## 0.1.0 - 2017-08-21
 - First release!
 
-[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/ipetkov/conch-runtime/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ipetkov/conch-runtime/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ipetkov/conch-runtime/compare/v0.1.0...v0.1.1
