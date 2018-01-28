@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 for managing the `$PWD` and `$OLDPWD` environment variables
 - The `WorkingDirectoryEnvironment` implementation of `Env` now requires that it also implements
 `VariableEnvironment` for managing the `$PWD` and `$OLDPWD` environment variables
+- Removed deprecated `RedirectEnvRestorer` methods
 
 ## [0.1.4] - 2018-01-27
 ### Changed
