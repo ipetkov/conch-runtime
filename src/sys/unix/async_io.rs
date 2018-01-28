@@ -42,7 +42,7 @@ impl fmt::Debug for EventedAsyncIoEnv {
 type PollEventedFd = PollEvented<EventedFileDesc>;
 
 fn evented_fd_from_handle(handle: &Handle, fd: FileDesc) -> DeferredFd {
-    match fd.into_evented2(handle) {
+    match fd.into_evented(handle) {
         Ok(fd) => DeferredFd::Done(fd),
         Err(e) => DeferredFd::InitError(Some(e)),
     }
@@ -63,7 +63,7 @@ impl EventedAsyncIoEnv {
                 let (tx, rx) = oneshot::channel();
 
                 self.remote.spawn(move |handle| {
-                    let _ = tx.send(fd.into_evented2(&handle));
+                    let _ = tx.send(fd.into_evented(&handle));
                     Ok(())
                 });
 

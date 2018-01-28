@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 ### Deprecated
+- Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
+
 ### Removed
 ### Fixed
 ### Security
@@ -19,6 +21,7 @@ for managing the `$PWD` and `$OLDPWD` environment variables
 - The `WorkingDirectoryEnvironment` implementation of `Env` now requires that it also implements
 `VariableEnvironment` for managing the `$PWD` and `$OLDPWD` environment variables
 - Removed deprecated `RedirectEnvRestorer` methods
+- Removed the previous version of `FileDescExt::into_evented` and replaced it with the signature of `FileDescExt::into_evented2`
 
 ## [0.1.4] - 2018-01-27
 ### Changed

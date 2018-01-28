@@ -63,7 +63,7 @@ fn evented_is_async() {
     let Pipe { reader, mut writer } = Pipe::new().expect("failed to create pipe");
 
     let mut lp = Core::new().expect("failed to create event loop");
-    let reader = reader.into_evented2(&lp.handle())
+    let reader = reader.into_evented(&lp.handle())
         .expect("failed to register reader with event loop");
 
     let reader = if let MaybeEventedFd::Registered(fd) = reader {
