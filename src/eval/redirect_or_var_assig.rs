@@ -1,6 +1,6 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer,
-          RedirectRestorer, VarEnvRestorer2, VariableEnvironment, VarRestorer};
+          RedirectRestorer, VarEnvRestorer, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
@@ -271,7 +271,7 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
           E::VarName: Borrow<String>,
           E::Var: Borrow<String>,
           RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer2<E>,
+          VR: VarEnvRestorer<E>,
 {
     let mut vars = vars.into_iter();
 
@@ -441,7 +441,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig2<R, 
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,
           RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer2<E>,
+          VR: VarEnvRestorer<E>,
 {
     type Item = (RR, VR);
     type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
@@ -454,7 +454,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig2<R, 
             |slf: &mut Self, env: &mut E, key, val: W::EvalResult| {
                 slf.var_restorer.as_mut()
                     .expect(POLLED_TWICE)
-                    .set_exported_var2(key, val.into(), slf.export_vars, env);
+                    .set_exported_var(key, val.into(), slf.export_vars, env);
             },
             |slf: &mut Self, env: &mut E| {
                 slf.var_restorer.as_mut()

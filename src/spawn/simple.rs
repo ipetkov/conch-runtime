@@ -2,7 +2,7 @@ use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERRO
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
           FileDescEnvironment, FunctionEnvironment, RedirectEnvRestorer, RedirectRestorer,
-          SetArgumentsEnvironment, VarEnvRestorer, VarEnvRestorer2, VarRestorer,
+          SetArgumentsEnvironment, VarEnvRestorer, VarRestorer,
           VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
@@ -394,6 +394,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
 
         // Once the child is fully bootstrapped (and we are no longer borrowing
         // env vars) we can do the var cleanup.
+        let mut var_restorer = var_restorer;
         var_restorer.restore(env);
 
         match child {
@@ -493,7 +494,7 @@ impl<'a, R, V, W, IV, IW, E: ?Sized, RR, VR> EnvFuture<E> for EvalState<R, V, W,
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,
           RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer2<E>,
+          VR: VarEnvRestorer<E>,
 {
     type Item = (RR, VR, Vec<W::EvalResult>);
     type Error = RedirectOrWordError<R::Error, W::Error>;

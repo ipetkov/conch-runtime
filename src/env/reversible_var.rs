@@ -13,9 +13,16 @@ pub trait VarEnvRestorer<E: ?Sized + VariableEnvironment> {
     /// Reserves capacity for at least `additional` more variables to be backed up.
     fn reserve(&mut self, additional: usize);
 
-    /// Backup and set the value of some variable (and its exported status).
-    #[deprecated(note = "Use `VarEnvRestorer2::set_exported_var2` instead")]
-    fn set_exported_var(&mut self, name: E::VarName, val: E::Var, exported: bool, env: &mut E);
+    /// Backup and set the value of some variable, either explicitly setting its
+    /// exported status as specified, or maintaining its status as an environment
+    /// variable if previously set as such.
+    fn set_exported_var(
+        &mut self,
+        name: E::VarName,
+        val: E::Var,
+        exported: Option<bool>,
+        env: &mut E
+    );
 
     /// Backup and unset the value of some variable (including environment variables).
     fn unset_var(&mut self, name: E::VarName, env: &mut E);
@@ -40,8 +47,13 @@ impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
         (**self).reserve(additional);
     }
 
-    #[allow(deprecated)]
-    fn set_exported_var(&mut self, name: E::VarName, val: E::Var, exported: bool, env: &mut E) {
+    fn set_exported_var(
+        &mut self,
+        name: E::VarName,
+        val: E::Var,
+        exported: Option<bool>,
+        env: &mut E
+    ) {
         (**self).set_exported_var(name, val, exported, env);
     }
 
@@ -68,23 +80,12 @@ impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
 /// > called with the same environment for its entire lifetime. Using different
 /// > environments with the same restorer instance will undoubtedly do the wrong
 /// > thing eventually, and no guarantees can be made.
+#[deprecated(since = "0.2.0", note = "Now identical to `VarEnvRestorer`, please use it instead")]
 pub trait VarEnvRestorer2<E: ?Sized + VariableEnvironment>: VarEnvRestorer<E> {
     /// Backup and set the value of some variable, either explicitly setting its
     /// exported status as specified, or maintaining its status as an environment
     /// variable if previously set as such.
-    fn set_exported_var2(
-        &mut self,
-        name: E::VarName,
-        val: E::Var,
-        exported: Option<bool>,
-        env: &mut E
-    );
-}
-
-impl<'a, T, E: ?Sized> VarEnvRestorer2<E> for &'a mut T
-    where T: VarEnvRestorer2<E>,
-          E: VariableEnvironment,
-{
+    #[deprecated(since = "0.2.0", note = "Now identical to `VarEnvRestorer::set_exported_var`")]
     fn set_exported_var2(
         &mut self,
         name: E::VarName,
@@ -92,9 +93,15 @@ impl<'a, T, E: ?Sized> VarEnvRestorer2<E> for &'a mut T
         exported: Option<bool>,
         env: &mut E
     ) {
-        (**self).set_exported_var2(name, val, exported, env);
+        self.set_exported_var(name, val, exported, env)
     }
 }
+
+#[allow(deprecated)]
+impl<'a, T, E: ?Sized> VarEnvRestorer2<E> for &'a mut T
+    where T: VarEnvRestorer2<E>,
+          E: VariableEnvironment,
+{}
 
 /// Maintains a state of all variable definitions that have been modified so that
 /// they can be restored later.
@@ -164,80 +171,6 @@ impl<E: ?Sized> VarRestorer<E>
             overrides: HashMap::with_capacity(capacity),
         }
     }
-
-    /// Restore all variable definitions to their original state.
-    #[deprecated(note = "use the `VarEnvRestorer` trait instead")]
-    pub fn restore(mut self, env: &mut E)
-        where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
-    {
-        self._restore(env);
-    }
-
-    fn _restore(&mut self, env: &mut E)
-        where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
-    {
-        for (key, val) in self.overrides.drain() {
-            match val {
-                Some((val, exported)) => env.set_exported_var(key, val, exported),
-                None => env.unset_var(&key),
-            }
-        }
-    }
-}
-
-impl<E: ?Sized> VarRestorer<E>
-    where E: ExportedVariableEnvironment,
-          E::VarName: Clone,
-          E::Var: Clone,
-{
-    /// Backup and set the value of some variable, maintaining its status as an
-    /// environment variable if previously set as such.
-    #[deprecated(note = "use the `VarEnvRestorer` trait instead")]
-    pub fn set_exported_var(&mut self, name: E::VarName, val: E::Var, exported: bool, env: &mut E) {
-        self._set_exported_var(name, val, Some(exported), env);
-    }
-
-    fn _set_exported_var(
-        &mut self,
-        name: E::VarName,
-        val: E::Var,
-        exported: Option<bool>,
-        env: &mut E
-    ) {
-        self._backup(name.clone(), env);
-
-        match exported {
-            Some(exported) => env.set_exported_var(name, val, exported),
-            None => env.set_var(name, val),
-        }
-    }
-
-    /// Backup and unset the value of some variable (including environment
-    /// variables).
-    #[deprecated(note = "use the `VarEnvRestorer` trait instead")]
-    pub fn unset_var(&mut self, name: E::VarName, env: &mut E)
-        where E: UnsetVariableEnvironment,
-    {
-        VarEnvRestorer::unset_var(self, name, env)
-    }
-
-    /// Backs up the original value of specified variable.
-    ///
-    /// The original value of the variable is the one the environment
-    /// held before it was passed into this wrapper. That is, if a variable
-    /// is backed up multiple times, only the value before the first
-    /// call could be restored later.
-    #[deprecated(note = "use the `VarEnvRestorer` trait instead")]
-    pub fn backup(&mut self, key: E::VarName, env: &E) {
-        self._backup(key, env);
-    }
-
-    fn _backup(&mut self, key: E::VarName, env: &E) {
-        let value = env.exported_var(&key);
-        self.overrides.entry(key).or_insert_with(|| {
-            value.map(|(val, exported)| (val.clone(), exported))
-        });
-    }
 }
 
 impl<E: ?Sized> VarEnvRestorer<E> for VarRestorer<E>
@@ -249,36 +182,46 @@ impl<E: ?Sized> VarEnvRestorer<E> for VarRestorer<E>
         self.overrides.reserve(additional);
     }
 
-    fn set_exported_var(&mut self, name: E::VarName, val: E::Var, exported: bool, env: &mut E) {
-        self._set_exported_var(name, val, Some(exported), env);
-    }
-
-    fn unset_var(&mut self, name: E::VarName, env: &mut E) {
-        self._backup(name.clone(), env);
-        env.unset_var(&name);
-    }
-
-    fn backup(&mut self, key: E::VarName, env: &E) {
-        self._backup(key, env);
-    }
-
-    fn restore(&mut self, env: &mut E) {
-        self._restore(env);
-    }
-}
-
-impl<E: ?Sized> VarEnvRestorer2<E> for VarRestorer<E>
-    where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
-          E::VarName: Clone,
-          E::Var: Clone,
-{
-    fn set_exported_var2(
+    fn set_exported_var(
         &mut self,
         name: E::VarName,
         val: E::Var,
         exported: Option<bool>,
         env: &mut E
     ) {
-        self._set_exported_var(name, val, exported, env);
+        self.backup(name.clone(), env);
+
+        match exported {
+            Some(exported) => env.set_exported_var(name, val, exported),
+            None => env.set_var(name, val),
+        }
+    }
+
+    fn unset_var(&mut self, name: E::VarName, env: &mut E) {
+        self.backup(name.clone(), env);
+        env.unset_var(&name);
+    }
+
+    fn backup(&mut self, key: E::VarName, env: &E) {
+        let value = env.exported_var(&key);
+        self.overrides.entry(key).or_insert_with(|| {
+            value.map(|(val, exported)| (val.clone(), exported))
+        });
+    }
+
+    fn restore(&mut self, env: &mut E) {
+        for (key, val) in self.overrides.drain() {
+            match val {
+                Some((val, exported)) => env.set_exported_var(key, val, exported),
+                None => env.unset_var(&key),
+            }
+        }
     }
 }
+
+#[allow(deprecated)]
+impl<E: ?Sized> VarEnvRestorer2<E> for VarRestorer<E>
+    where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
+          E::VarName: Clone,
+          E::Var: Clone,
+{}
