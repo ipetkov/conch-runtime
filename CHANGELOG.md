@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
 - Deprecated `VarRestorer2` since `VarRestorer` has been corrected and the two traits now behave
 identically
+- Deprecated `EvalRedirectOrVarAssig2` since it is now an alias for `EvalRedirectOrVarAssig`
 
 ### Removed
 ### Fixed
@@ -24,8 +25,12 @@ for managing the `$PWD` and `$OLDPWD` environment variables
 `VariableEnvironment` for managing the `$PWD` and `$OLDPWD` environment variables
 - Removed the previous version of `FileDescExt::into_evented` and replaced it with the signature of `FileDescExt::into_evented2`
 - Corrected the signature of `VarRestorer::set_exported_var` to match that of `VarRestorer2::set_exported_var`
+- Corrected `EvalRedirectOrVarAssig` to handle earlier assignment references by using the implementation
+of `EvalRedirectOrVarAssig2`
 - Removed deprecated `RedirectEnvRestorer` methods
 - Removed deprecated `VarRestorer` methods
+- Removed deprecated `eval_redirects_or_var_assignments` and
+`eval_redirects_or_var_assignments_with_restorer` functions
 
 ## [0.1.4] - 2018-01-27
 ### Changed

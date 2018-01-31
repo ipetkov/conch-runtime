@@ -33,9 +33,8 @@ pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWor
                                     RedirectOrCmdWord, eval_redirects_or_cmd_words,
                                     eval_redirects_or_cmd_words_with_restorer};
 #[allow(deprecated)]
-pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, eval_redirects_or_var_assignments,
-                                      eval_redirects_or_var_assignments_with_restorer};
-pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig2, EvalRedirectOrVarAssigError,
+pub use self::redirect_or_var_assig::EvalRedirectOrVarAssig2;
+pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
                                       RedirectOrVarAssig,
                                       eval_redirects_or_var_assignments_with_restorers};
 

@@ -6,7 +6,7 @@ use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVar
           VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
-           EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig2, EvalRedirectOrVarAssigError,
+           EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
            RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
@@ -156,7 +156,7 @@ enum EvalState<R, V, W, IV, IW, E: ?Sized, RR, VR>
           V: Hash + Eq,
           W: WordEval<E>,
 {
-    InitVars(EvalRedirectOrVarAssig2<R, V, W, IV, E, RR, VR>, Option<IW>),
+    InitVars(EvalRedirectOrVarAssig<R, V, W, IV, E, RR, VR>, Option<IW>),
     InitWords(Option<VR>, EvalRedirectOrCmdWord<R, W, IW, E, RR>),
     Gone,
 }

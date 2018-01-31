@@ -18,7 +18,7 @@ fn eval(
     vars: Vec<MockRedirectOrVarAssig>,
     export_vars: Option<bool>,
     env: &DefaultEnvRc
-) -> EvalRedirectOrVarAssig2<
+) -> EvalRedirectOrVarAssig<
     MockRedirect<Rc<FileDesc>>,
     Rc<String>,
     MockWord,
