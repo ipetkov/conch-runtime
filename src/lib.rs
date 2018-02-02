@@ -48,7 +48,6 @@
 #[cfg(unix)] extern crate libc;
 
 // Windows only libs
-#[cfg(windows)] extern crate kernel32;
 #[cfg(windows)] extern crate winapi;
 
 extern crate clap;

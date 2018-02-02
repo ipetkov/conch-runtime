@@ -31,6 +31,7 @@ of `EvalRedirectOrVarAssig2`
 - Removed deprecated `VarRestorer` methods
 - Removed deprecated `eval_redirects_or_var_assignments` and
 `eval_redirects_or_var_assignments_with_restorer` functions
+- Bumped dependency of `winapi` to `0.3.4`
 
 ## [0.1.4] - 2018-01-27
 ### Changed
