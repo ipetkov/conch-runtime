@@ -17,6 +17,7 @@ matrix:
     - rust: nightly
 
     - rust: stable # Running kcov on stable due to an ICE on nightly: https://github.com/rust-lang/rust/issues/47309
+      sudo: required # Work around for travis-ci/travis-ci#9061
       env:
         - RUSTFLAGS="-C link-dead-code" # Enable better code coverage at the cost of binary size
       after_success:
