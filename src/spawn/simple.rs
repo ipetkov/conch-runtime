@@ -61,10 +61,10 @@ pub struct SimpleCommand<R, V, W, IV, IW, E: ?Sized>
 }
 
 impl<R, V, W, IV, IW, S, E: ?Sized> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E>
-    where R: RedirectEval<E>,
+    where R: RedirectEval<E> + fmt::Debug,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
-          W: WordEval<E>,
+          W: WordEval<E> + fmt::Debug,
           W::EvalFuture: fmt::Debug,
           W::EvalResult: fmt::Debug,
           IV: fmt::Debug,
@@ -105,10 +105,10 @@ enum State<R, V, W, IV, IW, E: ?Sized, RR, VR>
 }
 
 impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW, E, RR, VR>
-    where R: RedirectEval<E>,
+    where R: RedirectEval<E> + fmt::Debug,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
-          W: WordEval<E>,
+          W: WordEval<E> + fmt::Debug,
           W::EvalFuture: fmt::Debug,
           W::EvalResult: fmt::Debug,
           IV: fmt::Debug,
@@ -129,10 +129,9 @@ impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW
                     .finish()
             },
 
-            State::Eval(ref _evaluator) => {
+            State::Eval(ref evaluator) => {
                 fmt.debug_tuple("State::Eval")
-                    //.field(evaluator) // FIXME:(breaking) debug print this
-                    .field(&"..")
+                    .field(evaluator)
                     .finish()
             },
 

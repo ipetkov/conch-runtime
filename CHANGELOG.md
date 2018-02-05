@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `Env` will now manage `$PWD` and `$OLDPWD` whenever the current working directory is changed
 
 ### Changed
+- **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
+for managing the `$PWD` and `$OLDPWD` environment variables
+- **Breaking:** The `WorkingDirectoryEnvironment` implementation of `Env` now requires that it also implements
+`VariableEnvironment` for managing the `$PWD` and `$OLDPWD` environment variables
+- **Breaking:** Corrected the signature of `VarRestorer::set_exported_var` to match that of `VarRestorer2::set_exported_var`
+- **Breaking:** Corrected `EvalRedirectOrVarAssig` to handle earlier assignment references by using the implementation
+of `EvalRedirectOrVarAssig2`
+- **Breaking:** Bumped dependency of `winapi` to `0.3.4`
+- **Breaking:** Improved debug printing of `spawn::Simple` after requiring a few additional
+generic parameters to implement `Debug`
+
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
 - Deprecated `VarRestorer2` since `VarRestorer` has been corrected and the two traits now behave
@@ -16,22 +27,15 @@ identically
 - Deprecated `EvalRedirectOrVarAssig2` since it is now an alias for `EvalRedirectOrVarAssig`
 
 ### Removed
-### Fixed
-### Security
-### Breaking
-- Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
-for managing the `$PWD` and `$OLDPWD` environment variables
-- The `WorkingDirectoryEnvironment` implementation of `Env` now requires that it also implements
-`VariableEnvironment` for managing the `$PWD` and `$OLDPWD` environment variables
-- Removed the previous version of `FileDescExt::into_evented` and replaced it with the signature of `FileDescExt::into_evented2`
-- Corrected the signature of `VarRestorer::set_exported_var` to match that of `VarRestorer2::set_exported_var`
-- Corrected `EvalRedirectOrVarAssig` to handle earlier assignment references by using the implementation
-of `EvalRedirectOrVarAssig2`
-- Removed deprecated `RedirectEnvRestorer` methods
-- Removed deprecated `VarRestorer` methods
-- Removed deprecated `eval_redirects_or_var_assignments` and
+- **Breaking:** Removed the previous version of `FileDescExt::into_evented` and replaced it with
+the signature of `FileDescExt::into_evented2`
+- **Breaking:** Removed deprecated `RedirectEnvRestorer` methods
+- **Breaking:** Removed deprecated `VarRestorer` methods
+- **Breaking:** Removed deprecated `eval_redirects_or_var_assignments` and
 `eval_redirects_or_var_assignments_with_restorer` functions
-- Bumped dependency of `winapi` to `0.3.4`
+
+<!--### Fixed -->
+<!--### Security -->
 
 ## [0.1.4] - 2018-01-27
 ### Changed
