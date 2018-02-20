@@ -9,6 +9,7 @@ mod cur_dir;
 mod env_impl;
 mod executable;
 mod fd;
+mod fd_opener;
 mod func;
 mod last_status;
 mod reversible_redirect;
@@ -26,6 +27,7 @@ pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, Defau
                          Env};
 pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
+pub use self::fd_opener::{FileDescOpener, FileDescOpenerEnv, Pipe};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
