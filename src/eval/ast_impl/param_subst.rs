@@ -6,7 +6,7 @@ use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment,
 use error::{ExpansionError, IsFatalError};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
-use io::FileDescWrapper;
+use io::{FileDesc, FileDescWrapper};
 use eval::{Alternative, ArithEval, Assign, EvalDefault, Error, Fields, ParamEval,
            RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
            RemoveSmallestSuffix, Split, WordEval, WordEvalConfig, alternative,
@@ -27,7 +27,7 @@ impl<T, P, W, C, A, E> WordEval<E> for ast::ParameterSubstitution<P, W, C, A>
           C: Spawn<E>,
           C::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + FileDescEnvironment
               + LastStatusEnvironment
               + ReportErrorEnvironment
@@ -80,7 +80,7 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ast::ParameterSubstitution<P, W, 
           &'a C: Spawn<E>,
           <&'a C as Spawn<E>>::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + FileDescEnvironment
               + LastStatusEnvironment
               + ReportErrorEnvironment
@@ -273,7 +273,7 @@ impl<T, F, I, A, E> EnvFuture<E> for ParameterSubstitution<T, F, I, A, E, E::Rea
           I::Item: Spawn<E>,
           <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + FileDescEnvironment
               + LastStatusEnvironment
               + ReportErrorEnvironment
@@ -301,7 +301,7 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
           I::Item: Spawn<E>,
           <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + FileDescEnvironment
               + LastStatusEnvironment
               + ReportErrorEnvironment

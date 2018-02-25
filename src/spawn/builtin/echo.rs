@@ -35,7 +35,7 @@ struct Flags {
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: AsyncIoEnvironment + FileDescEnvironment + ReportErrorEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment + ReportErrorEnvironment,
           E::FileHandle: Borrow<FileDesc>,
 {
     type Item = ExitResult<EchoFuture<E::WriteAll>>;

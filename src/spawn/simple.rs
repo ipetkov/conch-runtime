@@ -243,7 +243,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
           W: WordEval<E>,
           S: Clone + Spawn<E>,
           S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
@@ -488,7 +488,7 @@ impl<'a, R, V, W, IV, IW, E: ?Sized, RR, VR> EnvFuture<E> for EvalState<R, V, W,
           R::Error: From<RedirectionError>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: AsyncIoEnvironment + FileDescEnvironment + VariableEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment + VariableEnvironment,
           E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,

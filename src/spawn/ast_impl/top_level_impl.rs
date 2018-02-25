@@ -6,7 +6,7 @@ use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
 use error::RuntimeError;
 use eval::{Fields, WordEval, WordEvalConfig};
 use future::EnvFuture;
-use io::FileDescWrapper;
+use io::{FileDesc, FileDescWrapper};
 use spawn::{BoxSpawnEnvFuture, BoxStatusFuture, Spawn, SpawnBoxed};
 use std::fmt::Display;
 use std::rc::Rc;
@@ -17,7 +17,7 @@ macro_rules! impl_top_level_cmd {
     ($type: ident, $Rc:ident, $($extra_bounds:tt)*) => {
         impl<T, E: ?Sized> Spawn<E> for $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment
+                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
@@ -48,7 +48,7 @@ macro_rules! impl_top_level_cmd {
 
         impl<'a, T: 'a, E: ?Sized> Spawn<E> for &'a $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment
+                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
@@ -83,7 +83,7 @@ macro_rules! impl_top_level_word {
     ($type:ident, $Rc:ident, $($extra_bounds:tt)*) => {
         impl<T, E: ?Sized> WordEval<E> for $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment
+                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
@@ -114,7 +114,7 @@ macro_rules! impl_top_level_word {
 
         impl<'a, T, E: ?Sized> WordEval<E> for &'a $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment
+                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>

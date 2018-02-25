@@ -4,7 +4,7 @@ use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment, Report
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
-use io::{FileDescWrapper, Permissions, Pipe};
+use io::{FileDesc, FileDescWrapper, Permissions, Pipe};
 use spawn::{ExitResult, Subshell, subshell};
 use std::borrow::Cow;
 use std::fmt;
@@ -28,7 +28,11 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
     where I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
-          E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
+            + FileDescEnvironment
+            + LastStatusEnvironment
+            + ReportErrorEnvironment
+            + SubEnvironment,
           E::FileHandle: FileDescWrapper,
           E::Read: AsyncRead,
 {

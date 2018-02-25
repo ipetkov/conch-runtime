@@ -31,7 +31,7 @@ impl<T> RedirectAction<T> {
     /// Applies changes to a given environment as appropriate.
     pub fn apply<E: ?Sized>(self, env: &mut E) -> IoResult<()>
         where T: From<FileDesc>,
-              E: AsyncIoEnvironment + FileDescEnvironment<FileHandle = T>,
+              E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment<FileHandle = T>,
     {
         match self {
             RedirectAction::Close(fd) => env.close_file_desc(fd),

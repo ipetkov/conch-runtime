@@ -209,7 +209,7 @@ macro_rules! impl_generic_builtin_cmd {
         impl<T, I, E: ?Sized> $crate::Spawn<E> for $Cmd<I>
             where $(T: $t_bounds),+,
                   I: Iterator<Item = T>,
-                  E: $crate::env::AsyncIoEnvironment,
+                  E: $crate::env::AsyncIoEnvironment<IoHandle = $crate::io::FileDesc>,
                   E: $crate::env::FileDescEnvironment,
                   E: $crate::env::ReportErrorEnvironment,
                   E::FileHandle: ::std::borrow::Borrow<$crate::io::FileDesc>,

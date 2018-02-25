@@ -78,7 +78,7 @@ impl_generic_builtin_cmd_no_spawn! {
 impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
               + ReportErrorEnvironment
@@ -150,7 +150,7 @@ fn get_flags<'a>(matches: &'a ArgMatches<'a>) -> Flags<'a> {
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
               + ReportErrorEnvironment

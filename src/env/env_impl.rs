@@ -562,18 +562,19 @@ macro_rules! impl_env {
             where IO: AsyncIoEnvironment,
                   N: Hash + Eq,
         {
+            type IoHandle = IO::IoHandle;
             type Read = IO::Read;
             type WriteAll = IO::WriteAll;
 
-            fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+            fn read_async(&mut self, fd: Self::IoHandle) -> Self::Read {
                 self.async_io_env.read_async(fd)
             }
 
-            fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+            fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Self::WriteAll {
                 self.async_io_env.write_all(fd, data)
             }
 
-            fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+            fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
                 self.async_io_env.write_all_best_effort(fd, data);
             }
         }

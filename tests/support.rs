@@ -382,7 +382,7 @@ pub enum MockOutCmd {
 }
 
 impl<E: ?Sized> Spawn<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment,
+    where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
           E::WriteAll: 'static + Send + Sync,
 {
@@ -396,7 +396,7 @@ impl<E: ?Sized> Spawn<E> for MockOutCmd
 }
 
 impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment,
+    where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
           E::WriteAll: 'static + Send + Sync,
 {
@@ -410,7 +410,7 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
 }
 
 impl<E: ?Sized> EnvFuture<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment,
+    where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: Clone + FileDescWrapper,
           E::WriteAll: 'static + Send + Sync,
 {

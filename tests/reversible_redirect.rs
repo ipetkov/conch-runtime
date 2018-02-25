@@ -37,18 +37,19 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
 }
 
 impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
+    type IoHandle = FileDesc;
     type Read = PlatformSpecificRead;
     type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: FileDesc) -> Self::Read {
+    fn read_async(&mut self, _: Self::IoHandle) -> Self::Read {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: FileDesc, _: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> Self::WriteAll {
         unimplemented!()
     }
 
-    fn write_all_best_effort(&mut self, _: FileDesc, _: Vec<u8>) {
+    fn write_all_best_effort(&mut self, _: Self::IoHandle, _: Vec<u8>) {
         // Nothing to do
     }
 }

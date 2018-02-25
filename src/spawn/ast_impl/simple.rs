@@ -4,7 +4,7 @@ use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment
           UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
-use io::FileDescWrapper;
+use io::{FileDesc, FileDescWrapper};
 use spawn::{ExitResult, Spawn, SimpleCommand, simple_command, SpawnedSimpleCommand};
 use std::borrow::Borrow;
 use std::hash::Hash;
@@ -26,7 +26,7 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
           W: WordEval<E>,
           S: Clone + Spawn<E>,
           S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
@@ -63,7 +63,7 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
               + From<RedirectionError>
               + From<<&'a R as RedirectEval<E>>::Error>
               + From<<&'a W as WordEval<E>>::Error>,
-          E: AsyncIoEnvironment
+          E: AsyncIoEnvironment<IoHandle = FileDesc>
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment

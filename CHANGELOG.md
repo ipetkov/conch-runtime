@@ -19,6 +19,8 @@ of `EvalRedirectOrVarAssig2`
 - **Breaking:** Bumped dependency of `winapi` to `0.3.4`
 - **Breaking:** Improved debug printing of `spawn::Simple` after requiring a few additional
 generic parameters to implement `Debug`
+- **Breaking:** `AsyncIoEnvironment` must now specify an associated type `IoHandle` for what
+file handle it accepts, thus it is no longer forced to operate with a `FileDesc`
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`

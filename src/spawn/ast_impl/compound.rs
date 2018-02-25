@@ -99,7 +99,7 @@ impl<S, R, E: ?Sized> Spawn<E> for CompoundCommand<S, R>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           S: Spawn<E>,
           S::Error: From<RedirectionError> + From<R::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
     type EnvFuture = LocalRedirections<IntoIter<R>, S, E>;
@@ -115,7 +115,7 @@ impl<'a, S, R, E: ?Sized> Spawn<E> for &'a CompoundCommand<S, R>
     where &'a R: RedirectEval<E, Handle = E::FileHandle>,
           &'a S: Spawn<E>,
           <&'a S as Spawn<E>>::Error: From<RedirectionError> + From<<&'a R as RedirectEval<E>>::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
 {
     type EnvFuture = LocalRedirections<Iter<'a, R>, &'a S, E>;

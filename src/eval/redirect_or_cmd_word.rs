@@ -174,7 +174,7 @@ impl<R, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E, 
           R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           W: WordEval<E>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: From<FileDesc>,
           RR: RedirectEnvRestorer<E>,
 {

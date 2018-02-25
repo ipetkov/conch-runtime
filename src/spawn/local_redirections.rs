@@ -111,7 +111,7 @@ impl<R, I, S, E: ?Sized, RR> EnvFuture<E> for LocalRedirections<I, S, E, RR>
           I: Iterator<Item = R>,
           S: Spawn<E>,
           S::Error: From<RedirectionError> + From<R::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
           E::FileHandle: Clone + From<FileDesc>,
           RR: RedirectEnvRestorer<E>,
 {

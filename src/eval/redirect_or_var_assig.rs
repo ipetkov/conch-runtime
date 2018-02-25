@@ -209,7 +209,7 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig<R, V
           R::Error: From<RedirectionError>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: AsyncIoEnvironment + FileDescEnvironment + VariableEnvironment,
+          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment + VariableEnvironment,
           E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,

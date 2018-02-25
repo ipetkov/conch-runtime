@@ -91,19 +91,20 @@ impl EventedAsyncIoEnv {
 // dup the original fd (if we aren't the only owner of it) and add a mapping to *both*
 // the original and duped fds to the PollEvented handle
 impl AsyncIoEnvironment for EventedAsyncIoEnv {
+    type IoHandle = FileDesc;
     type Read = ReadAsync;
     type WriteAll = WriteAll;
 
-    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+    fn read_async(&mut self, fd: Self::IoHandle) -> Self::Read {
         ReadAsync(self.evented_fd(fd))
     }
 
-    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Self::WriteAll {
         let write_async = WriteAsync(self.evented_fd(fd));
         WriteAll::new(State::Writing(tokio_io::write_all(write_async, data)))
     }
 
-    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+    fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
         self.remote.spawn(move |handle| {
             let write_async = WriteAsync(evented_fd_from_handle(handle, fd));
 

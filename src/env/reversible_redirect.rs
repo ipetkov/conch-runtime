@@ -19,7 +19,7 @@ pub trait RedirectEnvRestorer<E: ?Sized> {
 
     /// Applies changes to a given environment after backing up as appropriate.
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment,
+        where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
               E::FileHandle: From<FileDesc>;
 
     /// Backs up the original handle of specified file descriptor.
@@ -42,7 +42,7 @@ impl<'a, T, E: ?Sized> RedirectEnvRestorer<E> for &'a mut T
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment,
+        where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
               E::FileHandle: From<FileDesc>
     {
         (**self).apply_action(action, env)
@@ -133,7 +133,7 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment,
+        where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
               E::FileHandle: From<FileDesc>
     {
         match action {
