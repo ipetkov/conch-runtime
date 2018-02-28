@@ -93,3 +93,16 @@ pub trait SubEnvironment: Sized {
     /// but any changes on the new environment will not be reflected on the parent.
     fn sub_env(&self) -> Self;
 }
+
+/// A marker trait for implementations which can open, store, and perform
+/// async I/O operations on file handles.
+pub trait FileDescManagerEnvironment: FileDescOpener
+    + FileDescEnvironment<FileHandle = <Self as FileDescOpener>::OpenedFileHandle>
+    + AsyncIoEnvironment2<IoHandle = <Self as FileDescOpener>::OpenedFileHandle>
+{}
+
+impl<T> FileDescManagerEnvironment for T
+    where T: FileDescOpener,
+          T: FileDescEnvironment<FileHandle = <T as FileDescOpener>::OpenedFileHandle>,
+          T: AsyncIoEnvironment2<IoHandle = <T as FileDescOpener>::OpenedFileHandle>,
+{}
