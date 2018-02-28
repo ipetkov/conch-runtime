@@ -36,7 +36,10 @@ the signature of `FileDescExt::into_evented2`
 - **Breaking:** Removed deprecated `eval_redirects_or_var_assignments` and
 `eval_redirects_or_var_assignments_with_restorer` functions
 
-<!--### Fixed -->
+### Fixed
+* `EventedFileDesc` no longer attempts to reregister a file descriptor into the
+event loop if the original `register` call returns `ErrorKind::AlreadyExists`
+
 <!--### Security -->
 
 ## [0.1.4] - 2018-01-27

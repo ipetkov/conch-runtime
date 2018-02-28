@@ -111,14 +111,7 @@ pub struct EventedFileDesc(FileDesc);
 
 impl Evented for EventedFileDesc {
     fn register(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {
-        match EventedFd(&self.0.as_raw_fd()).register(poll, token, interest, opts) {
-            ret@Ok(_) => ret,
-            Err(e) => if e.kind() == ErrorKind::AlreadyExists {
-                self.reregister(poll, token, interest, opts)
-            } else {
-                Err(e)
-            },
-        }
+        EventedFd(&self.0.as_raw_fd()).register(poll, token, interest, opts)
     }
 
     fn reregister(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {
