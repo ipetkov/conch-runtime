@@ -7,6 +7,7 @@ use std::convert::From;
 use std::hash::Hash;
 use std::error::Error;
 use std::fmt;
+use std::fs::OpenOptions;
 use std::io;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -19,8 +20,8 @@ use env::atomic::FnEnv as AtomicFnEnv;
 use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, AsyncIoEnvironment2,
           ChangeWorkingDirectoryEnvironment,
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
-          FileDescEnv, FileDescEnvironment, FnEnv, FunctionEnvironment,
-          IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment,
+          FileDescEnv, FileDescEnvironment, FileDescOpener, FnEnv, FunctionEnvironment,
+          IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
           PlatformSpecificAsyncIoEnv, ReportErrorEnvironment, ShiftArgumentsEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
@@ -619,6 +620,22 @@ macro_rules! impl_env {
 
             fn close_file_desc(&mut self, fd: Fd) {
                 self.file_desc_env.close_file_desc(fd)
+            }
+        }
+
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> FileDescOpener
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
+            where FD: FileDescOpener,
+                  N: Hash + Eq,
+        {
+            type OpenedFileHandle = FD::OpenedFileHandle;
+
+            fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+                self.file_desc_env.open_path(path, opts)
+            }
+
+            fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+                self.file_desc_env.open_pipe()
             }
         }
 
