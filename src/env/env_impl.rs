@@ -7,7 +7,7 @@ use std::convert::From;
 use std::hash::Hash;
 use std::error::Error;
 use std::fmt;
-use std::io::Result as IoResult;
+use std::io;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
@@ -16,7 +16,8 @@ use tokio_core::reactor::Remote;
 
 use env::atomic;
 use env::atomic::FnEnv as AtomicFnEnv;
-use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
+use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, AsyncIoEnvironment2,
+          ChangeWorkingDirectoryEnvironment,
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnv, FileDescEnvironment, FnEnv, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment,
@@ -297,7 +298,7 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         Ok(DefaultEnvConfig {
             interactive: false,
             args_env: ArgsEnv::new(),
@@ -320,7 +321,7 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         Ok(DefaultAtomicEnvConfig {
             interactive: false,
             args_env: atomic::ArgsEnv::new(),
@@ -579,6 +580,28 @@ macro_rules! impl_env {
             }
         }
 
+        impl<A, IO, FD, L, V, EX, WD, N, ERR> AsyncIoEnvironment2
+            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
+            where FD: AsyncIoEnvironment2,
+                  N: Hash + Eq,
+        {
+            type IoHandle = FD::IoHandle;
+            type Read = FD::Read;
+            type WriteAll = FD::WriteAll;
+
+            fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
+                self.file_desc_env.read_async(fd)
+            }
+
+            fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+                self.file_desc_env.write_all(fd, data)
+            }
+
+            fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
+                self.file_desc_env.write_all_best_effort(fd, data);
+            }
+        }
+
         impl<A, IO, FD, L, V, EX, WD, N, ERR> FileDescEnvironment
             for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
             where FD: FileDescEnvironment,
@@ -748,7 +771,7 @@ macro_rules! impl_env {
                   WD: WorkingDirectoryEnvironment,
                   WD: ChangeWorkingDirectoryEnvironment,
         {
-            fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> IoResult<()> {
+            fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> io::Result<()> {
                 let old_cwd = self.current_working_dir()
                     .to_string_lossy()
                     .into_owned()
@@ -873,7 +896,7 @@ impl<T> DefaultEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
-    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         DefaultEnvConfig::new(remote, fallback_num_threads).map(Self::with_config)
     }
 }
@@ -882,7 +905,7 @@ impl<T> DefaultAtomicEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `atomic::DefaultEnvConfig` for what configuration will be used.
-    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> IoResult<Self> {
+    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         DefaultAtomicEnvConfig::new_atomic(remote, fallback_num_threads).map(Self::with_config)
     }
 }

@@ -5,10 +5,10 @@ use futures::sync::mpsc::{channel, Receiver};
 use futures_cpupool::{CpuFuture, CpuPool};
 use io::FileDesc;
 use mio::would_block;
-use std::io::{BufRead, BufReader, Error as IoError, ErrorKind, Read, Result, Write};
+use std::io::{self, BufRead, BufReader, Error as IoError, ErrorKind, Read, Write};
 use std::fmt;
 use tokio_core::reactor::Remote;
-use tokio_io::AsyncRead;
+use tokio_io::{AsyncRead, AsyncWrite};
 use void::Void;
 
 /// An interface for performing async operations on file handles.
@@ -55,6 +55,50 @@ impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
     }
 }
 
+/// An interface for performing async operations on file handles.
+pub trait AsyncIoEnvironment2 {
+    /// The underlying handle (e.g. `FileDesc`) with which to perform the async I/O.
+    type IoHandle;
+    /// An async/futures-aware `Read` adapter around a file handle.
+    type Read: AsyncRead;
+    /// An future that represents writing data into a file handle.
+    // FIXME: Unfortunately we cannot support resolving/unwrapping futures/adapters
+    // to the file handle since the Unix extension cannot (currently) support it.
+    // Thus having some impls resolve to the file handle and others not could cause
+    // weird deadlock issues (e.g. caller unaware the handle isn't getting dropped
+    // automatically).
+    type WriteAll: Future<Item = (), Error = IoError>;
+
+    /// Creates a futures-aware adapter to read data from a file handle asynchronously.
+    fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read>;
+
+    /// Creates a future for writing data into a file handle.
+    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll>;
+
+    /// Asynchronously write the contents of `data` to a file handle in the
+    /// background on a best effort basis (e.g. the implementation can give up
+    /// due to any (appropriately) unforceen errors like broken pipes).
+    fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>);
+}
+
+impl<'a, T: ?Sized + AsyncIoEnvironment2> AsyncIoEnvironment2 for &'a mut T {
+    type IoHandle = T::IoHandle;
+    type Read = T::Read;
+    type WriteAll = T::WriteAll;
+
+    fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
+        (**self).read_async(fd)
+    }
+
+    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+        (**self).write_all(fd, data)
+    }
+
+    fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
+        (**self).write_all_best_effort(fd, data);
+    }
+}
+
 /// A platform specific adapter for async reads from a `FileDesc`.
 ///
 /// Note that this type is also "futures aware" meaning that it is both
@@ -67,7 +111,7 @@ pub struct PlatformSpecificRead(
 
 impl AsyncRead for PlatformSpecificRead {}
 impl Read for PlatformSpecificRead {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         fn assert_async_read<T: AsyncRead>(_: &T) {}
         assert_async_read(&self.0);
 
@@ -226,7 +270,7 @@ impl fmt::Debug for ReadAsync {
 
 impl AsyncRead for ReadAsync {}
 impl Read for ReadAsync {
-    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         loop {
             match self.buf {
                 None => {},
@@ -345,13 +389,13 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
 }
 
 #[cfg(unix)]
-fn try_set_blocking(fd: &FileDesc) -> Result<()> {
+fn try_set_blocking(fd: &FileDesc) -> io::Result<()> {
     use os::unix::io::FileDescExt;
 
     fd.set_nonblock(false)
 }
 
 #[cfg(not(unix))]
-fn try_set_blocking(_fd: &FileDesc) -> Result<()> {
+fn try_set_blocking(_fd: &FileDesc) -> io::Result<()> {
     Ok(())
 }
