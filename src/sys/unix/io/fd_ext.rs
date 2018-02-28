@@ -2,7 +2,7 @@ use IntoInner;
 use io::FileDesc;
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use mio::unix::EventedFd;
-use std::io::{ErrorKind, Read, Result, Write};
+use std::io::{Read, Result, Write};
 use std::os::unix::io::AsRawFd;
 use tokio_core::reactor::{Handle, PollEvented};
 
@@ -129,6 +129,12 @@ impl Read for EventedFileDesc {
     }
 }
 
+impl<'a> Read for &'a EventedFileDesc {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (&self.0).read(buf)
+    }
+}
+
 impl Write for EventedFileDesc {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.0.write(buf)
@@ -136,6 +142,16 @@ impl Write for EventedFileDesc {
 
     fn flush(&mut self) -> Result<()> {
         self.0.flush()
+    }
+}
+
+impl<'a> Write for &'a EventedFileDesc {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        (&mut &self.0).write(buf)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        (&mut &self.0).flush()
     }
 }
 

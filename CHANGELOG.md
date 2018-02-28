@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 ### Added
 - `Env` will now manage `$PWD` and `$OLDPWD` whenever the current working directory is changed
+- Added `Read`/`Write` impls for `&EventedFileDesc`
 
 ### Changed
 - **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
