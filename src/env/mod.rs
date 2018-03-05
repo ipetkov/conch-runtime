@@ -9,6 +9,7 @@ mod cur_dir;
 mod env_impl;
 mod executable;
 mod fd;
+mod fd_manager;
 mod fd_opener;
 mod func;
 mod last_status;
@@ -27,6 +28,7 @@ pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, Defau
                          Env};
 pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
+pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
 pub use self::fd_opener::{FileDescOpener, FileDescOpenerEnv, Pipe};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
@@ -93,16 +95,3 @@ pub trait SubEnvironment: Sized {
     /// but any changes on the new environment will not be reflected on the parent.
     fn sub_env(&self) -> Self;
 }
-
-/// A marker trait for implementations which can open, store, and perform
-/// async I/O operations on file handles.
-pub trait FileDescManagerEnvironment: FileDescOpener
-    + FileDescEnvironment<FileHandle = <Self as FileDescOpener>::OpenedFileHandle>
-    + AsyncIoEnvironment2<IoHandle = <Self as FileDescOpener>::OpenedFileHandle>
-{}
-
-impl<T> FileDescManagerEnvironment for T
-    where T: FileDescOpener,
-          T: FileDescEnvironment<FileHandle = <T as FileDescOpener>::OpenedFileHandle>,
-          T: AsyncIoEnvironment2<IoHandle = <T as FileDescOpener>::OpenedFileHandle>,
-{}
