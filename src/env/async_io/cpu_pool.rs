@@ -3,7 +3,7 @@ use futures::{Async, Future, Sink, Stream};
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
 use futures_cpupool::{CpuFuture, CpuPool};
-use env::AsyncIoEnvironment;
+use env::{AsyncIoEnvironment, AsyncIoEnvironment2};
 use io::FileDesc;
 use mio::would_block;
 use std::io::{self, BufRead, BufReader, ErrorKind, Read, Write};
@@ -203,7 +203,25 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     }
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
-        self.write_all(fd, data).forget();
+        AsyncIoEnvironment::write_all(self, fd, data).forget();
+    }
+}
+
+impl AsyncIoEnvironment2 for ThreadPoolAsyncIoEnv {
+    type IoHandle = FileDesc;
+    type Read = ThreadPoolReadAsync;
+    type WriteAll = ThreadPoolWriteAll;
+
+    fn read_async(&mut self, fd: FileDesc) -> io::Result<Self::Read> {
+        Ok(AsyncIoEnvironment::read_async(self, fd))
+    }
+
+    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+        Ok(AsyncIoEnvironment::write_all(self, fd, data))
+    }
+
+    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
+        AsyncIoEnvironment::write_all_best_effort(self, fd, data)
     }
 }
 
