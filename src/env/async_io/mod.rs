@@ -7,7 +7,7 @@ use tokio_io::AsyncRead;
 
 mod cpu_pool;
 
-pub use self::cpu_pool::{ReadAsync, ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll};
+pub use self::cpu_pool::{ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll};
 
 /// An interface for performing async operations on file handles.
 pub trait AsyncIoEnvironment {

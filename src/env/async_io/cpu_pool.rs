@@ -1,5 +1,5 @@
 use env::SubEnvironment;
-use futures::{Async, Future, Sink, Stream};
+use futures::{Async, Future, Poll, Sink, Stream};
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
 use futures_cpupool::{CpuFuture, CpuPool};
@@ -7,7 +7,6 @@ use env::{AsyncIoEnvironment, AsyncIoEnvironment2};
 use io::FileDesc;
 use mio::would_block;
 use std::io::{self, BufRead, BufReader, ErrorKind, Read, Write};
-use std::fmt;
 use tokio_io::AsyncRead;
 use void::Void;
 
@@ -23,7 +22,7 @@ use void::Void;
 /// > this environment are **not** configured for asynchronous operations,
 /// > otherwise operations will fail with a `WouldBlock` error. This is done
 /// > to avoid burning CPU cycles while spinning on read/write operations.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ThreadPoolAsyncIoEnv {
     pool: CpuPool, // CpuPool uses an internal Arc, so clones should be shallow/"cheap"
 }
@@ -51,22 +50,12 @@ impl ThreadPoolAsyncIoEnv {
     }
 }
 
-impl fmt::Debug for ThreadPoolAsyncIoEnv {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ThreadPoolAsyncIoEnv")
-            .field("pool", &"..")
-            .finish()
-    }
-}
-
-/// Previous name for `ThreadPoolReadAsync`.
-#[deprecated(since = "0.1.5", note = "renamed to `ThreadPoolReadAsync`")]
-pub type ReadAsync = ThreadPoolReadAsync;
-
 /// An adapter for async reads from a `FileDesc`.
 ///
 /// Note that this type is also "futures aware" meaning that it is both
 /// (a) nonblocking and (b) will panic if used off of a future's task.
+#[must_use]
+#[derive(Debug)]
 pub struct ThreadPoolReadAsync {
     /// A reference to the CpuFuture to avoid early cancellation.
     _cpu_future: CpuFuture<(), Void>,
@@ -74,14 +63,6 @@ pub struct ThreadPoolReadAsync {
     rx: Fuse<Receiver<Vec<u8>>>,
     /// The current buffer we are reading from.
     buf: Option<Vec<u8>>,
-}
-
-impl fmt::Debug for ThreadPoolReadAsync {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ReadAsync")
-            .field("buf", &self.buf)
-            .finish()
-    }
 }
 
 impl AsyncRead for ThreadPoolReadAsync {}
@@ -129,7 +110,9 @@ impl Read for ThreadPoolReadAsync {
 }
 
 /// An future that represents writing data into a file handle.
-pub type ThreadPoolWriteAll = CpuFuture<(), io::Error>;
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
+pub struct ThreadPoolWriteAll(CpuFuture<(), io::Error>);
 
 impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     type IoHandle = FileDesc;
@@ -196,14 +179,14 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
         // us up ever. By doing the operation ourselves at worst we'll end up
         // bailing out at the first WouldBlock error, which can at least be
         // noticed by a caller, instead of silently deadlocking.
-        self.pool.spawn_fn(move || {
+        ThreadPoolWriteAll(self.pool.spawn_fn(move || {
             try!(fd.write_all(&data));
             fd.flush()
-        })
+        }))
     }
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
-        AsyncIoEnvironment::write_all(self, fd, data).forget();
+        AsyncIoEnvironment::write_all(self, fd, data).0.forget();
     }
 }
 
@@ -222,6 +205,15 @@ impl AsyncIoEnvironment2 for ThreadPoolAsyncIoEnv {
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
         AsyncIoEnvironment::write_all_best_effort(self, fd, data)
+    }
+}
+
+impl Future for ThreadPoolWriteAll {
+    type Item = ();
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 
