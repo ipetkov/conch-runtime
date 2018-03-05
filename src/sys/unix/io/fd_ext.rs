@@ -109,6 +109,12 @@ impl FileDescExt for FileDesc {
 #[derive(Debug, PartialEq, Eq)]
 pub struct EventedFileDesc(FileDesc);
 
+impl EventedFileDesc {
+    pub(crate) fn get_ref(&self) -> &FileDesc {
+        &self.0
+    }
+}
+
 impl Evented for EventedFileDesc {
     fn register(&self, poll: &Poll, token: Token, interest: Ready, opts: PollOpt) -> Result<()> {
         EventedFd(&self.0.as_raw_fd()).register(poll, token, interest, opts)
