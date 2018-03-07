@@ -630,11 +630,11 @@ macro_rules! impl_env {
         {
             type OpenedFileHandle = FD::OpenedFileHandle;
 
-            fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+            fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
                 self.file_desc_env.open_path(path, opts)
             }
 
-            fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+            fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
                 self.file_desc_env.open_pipe()
             }
         }

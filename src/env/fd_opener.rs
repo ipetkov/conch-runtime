@@ -21,19 +21,19 @@ pub trait FileDescOpener {
     type OpenedFileHandle;
 
     /// Open a provided `path` with the specified `OpenOptions`.
-    fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle>;
+    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle>;
     /// Create a new `Pipe` pair.
-    fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>>;
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>>;
 }
 
-impl<'a, T: ?Sized + FileDescOpener> FileDescOpener for &'a T {
+impl<'a, T: ?Sized + FileDescOpener> FileDescOpener for &'a mut T {
     type OpenedFileHandle = T::OpenedFileHandle;
 
-    fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
         (**self).open_path(path, opts)
     }
 
-    fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
         (**self).open_pipe()
     }
 }
@@ -58,11 +58,11 @@ impl SubEnvironment for FileDescOpenerEnv {
 impl FileDescOpener for FileDescOpenerEnv {
     type OpenedFileHandle = FileDesc;
 
-    fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
         opts.open(path).map(FileDesc::from)
     }
 
-    fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
         OsPipe::new().map(|pipe| Pipe {
             reader: pipe.reader,
             writer: pipe.writer,
@@ -102,11 +102,11 @@ macro_rules! impl_env {
         impl<O: FileDescOpener> FileDescOpener for $Env<O> {
             type OpenedFileHandle = $Rc<O::OpenedFileHandle>;
 
-            fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+            fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
                 self.opener.open_path(path, opts).map($Rc::new)
             }
 
-            fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+            fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
                 self.opener.open_pipe().map(|pipe| Pipe {
                     reader: $Rc::new(pipe.reader),
                     writer: $Rc::new(pipe.writer),

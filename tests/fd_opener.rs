@@ -19,7 +19,7 @@ fn smoke_open_path() {
     file_path.push(tempdir.path());
     file_path.push("out");
 
-    let opener = FileDescOpenerEnv::new();
+    let mut opener = FileDescOpenerEnv::new();
 
     let mut opts = OpenOptions::new();
     opts.write(true).create(true);

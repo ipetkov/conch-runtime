@@ -1,7 +1,6 @@
 use Fd;
 use io::Permissions;
 use env::{AsyncIoEnvironment2, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
-use tokio_core::reactor::Handle;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
@@ -60,11 +59,11 @@ impl<O, S, A> FileDescOpener for FileDescManagerEnv<O, S, A>
 {
     type OpenedFileHandle = A::IoHandle;
 
-    fn open_path(&self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
         self.opener.open_path(path, opts).map(Self::OpenedFileHandle::from)
     }
 
-    fn open_pipe(&self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
         self.opener.open_pipe().map(|pipe| {
             Pipe {
                 reader: pipe.reader.into(),
