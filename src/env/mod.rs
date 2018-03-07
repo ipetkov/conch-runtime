@@ -28,7 +28,7 @@ pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, Defau
 pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
-pub use self::fd_opener::{FileDescOpener, FileDescOpenerEnv, Pipe};
+pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe, RcFileDescOpenerEnv};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
