@@ -6,7 +6,8 @@ use futures_cpupool::{CpuFuture, CpuPool};
 use env::{AsyncIoEnvironment, AsyncIoEnvironment2};
 use io::FileDesc;
 use mio::would_block;
-use std::io::{self, BufRead, BufReader, ErrorKind, Read, Write};
+use std::borrow::Borrow;
+use std::io::{self, BufRead, BufReader, Read, Write};
 use tokio_io::AsyncRead;
 use void::Void;
 
@@ -47,6 +48,98 @@ impl ThreadPoolAsyncIoEnv {
         ThreadPoolAsyncIoEnv {
             pool: CpuPool::new_num_cpus(),
         }
+    }
+
+    /// Creates a futures-aware adapter to read data from a file handle asynchronously.
+    ///
+    /// > **Note**: Caller should ensure that any `FileDesc` handles passed into
+    /// > this environment are **not** configured for asynchronous operations,
+    /// > otherwise operations will fail with a `WouldBlock` error. This is done
+    /// > to avoid burning CPU cycles while spinning on read/write operations.
+    pub fn create_read_async<T>(&mut self, fd: T) -> ThreadPoolReadAsync
+        where T: 'static + Send + Borrow<FileDesc>
+    {
+        let (mut tx, rx) = channel(0); // NB: we have a guaranteed slot for all senders
+
+        let cpu = self.pool.spawn_fn(move || {
+            let mut buf_reader = BufReader::new(fd.borrow());
+
+            loop {
+                let num_consumed = match buf_reader.fill_buf() {
+                    Ok(filled_buf) => {
+                        if filled_buf.is_empty() {
+                            break;
+                        }
+
+                        // FIXME: might be more efficient to pass around the same vec
+                        // via two channels than allocating new copies each time?
+                        let buf = Vec::from(filled_buf);
+                        let len = buf.len();
+
+                        match tx.send(buf).wait() {
+                            Ok(t) => tx = t,
+                            Err(_) => break,
+                        }
+
+                        len
+                    },
+
+                    // We explicitly do not handle WouldBlock errors here,
+                    // and propagate them to the caller. We expect blocking
+                    // descriptors to be provided to us (NB we can't enforce
+                    // this after the fact on Windows), so if we constantly
+                    // loop on WouldBlock errors we would burn a lot of CPU
+                    // so it's best to return an explicit error.
+                    Err(_) => break,
+                };
+
+                buf_reader.consume(num_consumed);
+            }
+
+            Ok(())
+        });
+
+        ThreadPoolReadAsync {
+            _cpu_future: cpu,
+            rx: rx.fuse(),
+            buf: None,
+        }
+    }
+
+    /// Creates a future for writing data into a file handle.
+    ///
+    /// > **Note**: Caller should ensure that any `FileDesc` handles passed into
+    /// > this environment are **not** configured for asynchronous operations,
+    /// > otherwise operations will fail with a `WouldBlock` error. This is done
+    /// > to avoid burning CPU cycles while spinning on read/write operations.
+    pub fn create_write_all<T>(&mut self, fd: T, data: Vec<u8>) -> ThreadPoolWriteAll
+        where T: 'static + Send + Borrow<FileDesc>
+    {
+        // We could use `tokio` IO adapters here, however, it would cause
+        // problems if the file descriptor was set to nonblocking mode, since
+        // we aren't registering it with any event loop and no one will wake
+        // us up ever. By doing the operation ourselves at worst we'll end up
+        // bailing out at the first WouldBlock error, which can at least be
+        // noticed by a caller, instead of silently deadlocking.
+        ThreadPoolWriteAll(self.pool.spawn_fn(move || {
+            let mut fd = fd.borrow();
+            try!(fd.write_all(&data));
+            fd.flush()
+        }))
+    }
+
+    /// Asynchronously write the contents of `data` to a file handle in the
+    /// background on a best effort basis (e.g. the implementation can give up
+    /// due to any (appropriately) unforceen errors like broken pipes).
+    ///
+    /// > **Note**: Caller should ensure that any `FileDesc` handles passed into
+    /// > this environment are **not** configured for asynchronous operations,
+    /// > otherwise operations will fail with a `WouldBlock` error. This is done
+    /// > to avoid burning CPU cycles while spinning on read/write operations.
+    pub fn create_write_all_best_effort<T>(&mut self, fd: T, data: Vec<u8>)
+        where T: 'static + Send + Borrow<FileDesc>
+    {
+        self.create_write_all(fd, data).0.forget();
     }
 }
 
@@ -121,72 +214,17 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
 
     fn read_async(&mut self, fd: FileDesc) -> Self::Read {
         let _ = try_set_blocking(&fd); // Best effort here...
-
-        let (mut tx, rx) = channel(0); // NB: we have a guaranteed slot for all senders
-
-        let cpu = self.pool.spawn_fn(move || {
-            let mut buf_reader = BufReader::new(fd);
-
-            loop {
-                let num_consumed = match buf_reader.fill_buf() {
-                    Ok(filled_buf) => {
-                        if filled_buf.is_empty() {
-                            break;
-                        }
-
-                        // FIXME: might be more efficient to pass around the same vec
-                        // via two channels than allocating new copies each time?
-                        let buf = Vec::from(filled_buf);
-                        let len = buf.len();
-
-                        match tx.send(buf).wait() {
-                            Ok(t) => tx = t,
-                            Err(_) => break,
-                        }
-
-                        len
-                    },
-
-                    // We explicitly do not handle WouldBlock errors here,
-                    // and propagate them to the caller. We expect blocking
-                    // descriptors to be provided to us (NB we can't enforce
-                    // this after the fact on Windows), so if we constantly
-                    // loop on WouldBlock errors we would burn a lot of CPU
-                    // so it's best to return an explicit error.
-                    Err(ref e) if e.kind() == ErrorKind::Interrupted => 0,
-                    Err(_) => break,
-                };
-
-                buf_reader.consume(num_consumed);
-            }
-
-            Ok(())
-        });
-
-        ThreadPoolReadAsync {
-            _cpu_future: cpu,
-            rx: rx.fuse(),
-            buf: None,
-        }
+        self.create_read_async(fd)
     }
 
-    fn write_all(&mut self, mut fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
         let _ = try_set_blocking(&fd); // Best effort here...
-
-        // We could use `tokio` IO adapters here, however, it would cause
-        // problems if the file descriptor was set to nonblocking mode, since
-        // we aren't registering it with any event loop and no one will wake
-        // us up ever. By doing the operation ourselves at worst we'll end up
-        // bailing out at the first WouldBlock error, which can at least be
-        // noticed by a caller, instead of silently deadlocking.
-        ThreadPoolWriteAll(self.pool.spawn_fn(move || {
-            try!(fd.write_all(&data));
-            fd.flush()
-        }))
+        self.create_write_all(fd, data)
     }
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
-        AsyncIoEnvironment::write_all(self, fd, data).0.forget();
+        let _ = try_set_blocking(&fd); // Best effort here...
+        self.create_write_all_best_effort(fd, data);
     }
 }
 
