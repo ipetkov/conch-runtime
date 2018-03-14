@@ -6,8 +6,10 @@ use tokio_core::reactor::Remote;
 use tokio_io::AsyncRead;
 
 mod cpu_pool;
+mod unwrapper;
 
 pub use self::cpu_pool::{ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll};
+pub use self::unwrapper::{ArcUnwrappingAsyncIoEnv, RcUnwrappingAsyncIoEnv};
 
 /// An interface for performing async operations on file handles.
 pub trait AsyncIoEnvironment {

@@ -19,8 +19,9 @@ mod string_wrapper;
 mod var;
 
 pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment};
-pub use self::async_io::{AsyncIoEnvironment, AsyncIoEnvironment2, PlatformSpecificAsyncIoEnv,
-                         PlatformSpecificRead, PlatformSpecificWriteAll, ThreadPoolAsyncIoEnv};
+pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, AsyncIoEnvironment2,
+                         PlatformSpecificAsyncIoEnv, PlatformSpecificRead, PlatformSpecificWriteAll,
+                         ThreadPoolAsyncIoEnv, RcUnwrappingAsyncIoEnv};
 pub use self::cur_dir::{ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv,
                         WorkingDirectoryEnvironment};
 pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, DefaultEnvRc, EnvConfig,
