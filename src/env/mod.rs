@@ -13,6 +13,7 @@ mod fd_manager;
 mod fd_opener;
 mod func;
 mod last_status;
+mod platform_specific_fd_manager;
 mod reversible_redirect;
 mod reversible_var;
 mod string_wrapper;
@@ -32,6 +33,10 @@ pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
 pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe, RcFileDescOpenerEnv};
 pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
+pub use self::platform_specific_fd_manager::{PlatformSpecificFileDescManagerEnv,
+                                             PlatformSpecificAsyncRead,
+                                             PlatformSpecificManagedHandle,
+                                             PlatformSpecificWriteAll as PlatformSpecificWriteAll2};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 #[allow(deprecated)]
 pub use self::reversible_var::{VarEnvRestorer, VarEnvRestorer2, VarRestorer};
@@ -51,6 +56,12 @@ pub mod atomic {
     pub use super::env_impl::DefaultAtomicEnvConfigArc as DefaultEnvConfigArc;
     pub use super::fd::AtomicFileDescEnv as FileDescEnv;
     pub use super::func::AtomicFnEnv as FnEnv;
+    pub use super::platform_specific_fd_manager::{
+        AtomicPlatformSpecificFileDescManagerEnv as PlatformSpecificFileDescManagerEnv,
+        AtomicPlatformSpecificAsyncRead as PlatformSpecificAsyncRead,
+        AtomicPlatformSpecificManagedHandle as PlatformSpecificManagedHandle,
+        AtomicPlatformSpecificWriteAll as PlatformSpecificWriteAll,
+    };
     pub use super::var::AtomicVarEnv as VarEnv;
 }
 
