@@ -20,17 +20,20 @@ use std::mem;
 /// > otherwise no progress may occur unless the associated event loop is
 /// > turned externally.
 #[derive(Clone)]
+#[deprecated(note = "please use `EventedAsyncIoEnv2` instead")]
 pub struct EventedAsyncIoEnv {
     /// Remote handle to a tokio event loop for registering file descriptors.
     remote: Remote,
 }
 
+#[allow(deprecated)]
 impl SubEnvironment for EventedAsyncIoEnv {
     fn sub_env(&self) -> Self {
         self.clone()
     }
 }
 
+#[allow(deprecated)]
 impl fmt::Debug for EventedAsyncIoEnv {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("EventedAsyncIoEnv")
@@ -48,6 +51,7 @@ fn evented_fd_from_handle(handle: &Handle, fd: FileDesc) -> DeferredFd {
     }
 }
 
+#[allow(deprecated)]
 impl EventedAsyncIoEnv {
     /// Construct a new environment with a `Remote` to a `tokio` event loop.
     pub fn new(remote: Remote) -> Self {
@@ -90,6 +94,7 @@ impl EventedAsyncIoEnv {
 // Follow up note: to avoid having someone unset the O_NONBLOCK flag on us, we could
 // dup the original fd (if we aren't the only owner of it) and add a mapping to *both*
 // the original and duped fds to the PollEvented handle
+#[allow(deprecated)]
 impl AsyncIoEnvironment for EventedAsyncIoEnv {
     type IoHandle = FileDesc;
     type Read = ReadAsync;
