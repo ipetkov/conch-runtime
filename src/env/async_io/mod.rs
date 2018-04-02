@@ -141,13 +141,16 @@ impl Future for PlatformSpecificWriteAll {
 /// if the current platform supports efficient async IO, or a `ThreadPoolAsyncIoEnv`
 /// otherwise.
 #[derive(Debug, Clone)]
+#[deprecated(note = "please use `PlatformSpecificFileDescManagerEnv` instead")]
 pub struct PlatformSpecificAsyncIoEnv {
     #[cfg(unix)]
+    #[cfg_attr(unix, allow(deprecated))]
     inner: ::os::unix::env::EventedAsyncIoEnv,
     #[cfg(not(unix))]
     inner: ThreadPoolAsyncIoEnv,
 }
 
+#[allow(deprecated)]
 impl PlatformSpecificAsyncIoEnv {
     /// Creates a new platform specific environment using a `tokio` event loop,
     /// if such an environment is supported on the current platform.
@@ -175,12 +178,14 @@ impl PlatformSpecificAsyncIoEnv {
     }
 }
 
+#[allow(deprecated)]
 impl SubEnvironment for PlatformSpecificAsyncIoEnv {
     fn sub_env(&self) -> Self {
         self.clone()
     }
 }
 
+#[allow(deprecated)]
 impl AsyncIoEnvironment for PlatformSpecificAsyncIoEnv {
     type IoHandle = FileDesc;
     type Read = PlatformSpecificRead;
