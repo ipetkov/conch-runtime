@@ -26,50 +26,6 @@ pub trait AsyncIoEnvironment {
     type WriteAll: Future<Item = (), Error = IoError>;
 
     /// Creates a futures-aware adapter to read data from a file handle asynchronously.
-    fn read_async(&mut self, fd: Self::IoHandle) -> Self::Read;
-
-    /// Creates a future for writing data into a file handle.
-    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Self::WriteAll;
-
-    /// Asynchronously write the contents of `data` to a file handle in the
-    /// background on a best effort basis (e.g. the implementation can give up
-    /// due to any (appropriately) unforceen errors like broken pipes).
-    fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>);
-}
-
-impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
-    type IoHandle = T::IoHandle;
-    type Read = T::Read;
-    type WriteAll = T::WriteAll;
-
-    fn read_async(&mut self, fd: Self::IoHandle) -> Self::Read {
-        (**self).read_async(fd)
-    }
-
-    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Self::WriteAll {
-        (**self).write_all(fd, data)
-    }
-
-    fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
-        (**self).write_all_best_effort(fd, data);
-    }
-}
-
-/// An interface for performing async operations on file handles.
-pub trait AsyncIoEnvironment2 {
-    /// The underlying handle (e.g. `FileDesc`) with which to perform the async I/O.
-    type IoHandle;
-    /// An async/futures-aware `Read` adapter around a file handle.
-    type Read: AsyncRead;
-    /// An future that represents writing data into a file handle.
-    // FIXME: Unfortunately we cannot support resolving/unwrapping futures/adapters
-    // to the file handle since the Unix extension cannot (currently) support it.
-    // Thus having some impls resolve to the file handle and others not could cause
-    // weird deadlock issues (e.g. caller unaware the handle isn't getting dropped
-    // automatically).
-    type WriteAll: Future<Item = (), Error = IoError>;
-
-    /// Creates a futures-aware adapter to read data from a file handle asynchronously.
     fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read>;
 
     /// Creates a future for writing data into a file handle.
@@ -81,7 +37,7 @@ pub trait AsyncIoEnvironment2 {
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>);
 }
 
-impl<'a, T: ?Sized + AsyncIoEnvironment2> AsyncIoEnvironment2 for &'a mut T {
+impl<'a, T: ?Sized + AsyncIoEnvironment> AsyncIoEnvironment for &'a mut T {
     type IoHandle = T::IoHandle;
     type Read = T::Read;
     type WriteAll = T::WriteAll;
@@ -191,12 +147,12 @@ impl AsyncIoEnvironment for PlatformSpecificAsyncIoEnv {
     type Read = PlatformSpecificRead;
     type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
-        PlatformSpecificRead(self.inner.read_async(fd))
+    fn read_async(&mut self, fd: FileDesc) -> io::Result<Self::Read> {
+        self.inner.read_async(fd).map(PlatformSpecificRead)
     }
 
-    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
-        PlatformSpecificWriteAll(self.inner.write_all(fd, data))
+    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+        self.inner.write_all(fd, data).map(PlatformSpecificWriteAll)
     }
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {

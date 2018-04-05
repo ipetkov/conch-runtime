@@ -1,7 +1,7 @@
 use Fd;
 use futures::{Future, Poll};
 use io::Permissions;
-use env::{AsyncIoEnvironment2, FileDescEnv, FileDescEnvironment, FileDescManagerEnv,
+use env::{AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv,
           FileDescOpener, FileDescOpenerEnv, Pipe, SubEnvironment};
 use std::fs::OpenOptions;
 use std::io::{Error as IoError, Read, Result as IoResult};
@@ -216,7 +216,7 @@ impl PlatformSpecificFileDescManagerEnv {
     }
 }
 
-impl AsyncIoEnvironment2 for PlatformSpecificFileDescManagerEnv {
+impl AsyncIoEnvironment for PlatformSpecificFileDescManagerEnv {
     type IoHandle = PlatformSpecificManagedHandle;
     type Read = PlatformSpecificAsyncRead;
     type WriteAll = PlatformSpecificWriteAll;
@@ -288,7 +288,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
     }
 }
 
-impl AsyncIoEnvironment2 for AtomicPlatformSpecificFileDescManagerEnv {
+impl AsyncIoEnvironment for AtomicPlatformSpecificFileDescManagerEnv {
     type IoHandle = AtomicPlatformSpecificManagedHandle;
     type Read = AtomicPlatformSpecificAsyncRead;
     type WriteAll = AtomicPlatformSpecificWriteAll;

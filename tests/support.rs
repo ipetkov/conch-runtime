@@ -435,6 +435,7 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
             .expect("failed to duplicate stdout handle");
 
         let future = env.write_all(fd, msg.as_bytes().into())
+            .expect("failed to create write_all future")
             .then(|result| {
                 result.expect("unexpected failure");
                 Ok(EXIT_SUCCESS)

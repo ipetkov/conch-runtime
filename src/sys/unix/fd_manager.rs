@@ -1,7 +1,7 @@
 use futures::{Async, Future, Poll};
 use io::FileDesc;
 use os::unix::io::{FileDescExt, MaybeEventedFd};
-use env::{AsyncIoEnvironment2, SubEnvironment};
+use env::{AsyncIoEnvironment, SubEnvironment};
 use tokio_core::reactor::{Handle, Remote};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_io::io::{WriteAll, write_all};
@@ -173,7 +173,7 @@ macro_rules! impl_env {
             }
         }
 
-        impl AsyncIoEnvironment2 for $Env {
+        impl AsyncIoEnvironment for $Env {
             type IoHandle = $ManagedHandle;
             type Read = $ManagedAsyncRead;
             type WriteAll = $ManagedWriteAll;

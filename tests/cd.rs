@@ -40,8 +40,10 @@ fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
     env_setup(&mut env);
     let initial_cwd = env.current_working_dir().to_path_buf();
 
-    let read_to_end_out = tokio_io::io::read_to_end(env.read_async(pipe_out.reader), Vec::new());
-    let read_to_end_err = tokio_io::io::read_to_end(env.read_async(pipe_err.reader), Vec::new());
+    let read_to_end_out = env.read_async(pipe_out.reader).expect("failed to create read_to_end_out");
+    let read_to_end_err = env.read_async(pipe_err.reader).expect("failed to create read_to_end_err");
+    let read_to_end_out = tokio_io::io::read_to_end(read_to_end_out, Vec::new());
+    let read_to_end_err = tokio_io::io::read_to_end(read_to_end_err, Vec::new());
 
     let mut cd = builtin::cd(cd_args.iter().map(|&s| s.to_owned()))
         .spawn(&env);

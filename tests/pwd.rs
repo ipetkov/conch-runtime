@@ -70,8 +70,9 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     let pipe = Pipe::new().expect("pipe failed");
     env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
 
+    let read_to_end = env.read_async(pipe.reader).expect("failed to get read_to_end");
     let ((_, output), exit) = lp.run(
-        tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
+        tokio_io::io::read_to_end(read_to_end, Vec::new())
             .join(pwd.spawn(&env)
                   .pin_env(env)
                   .flatten()

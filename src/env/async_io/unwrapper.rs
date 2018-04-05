@@ -1,4 +1,4 @@
-use env::{AsyncIoEnvironment2, SubEnvironment};
+use env::{AsyncIoEnvironment, SubEnvironment};
 use io::FileDesc;
 use std::io;
 use std::rc::Rc;
@@ -37,8 +37,8 @@ macro_rules! impl_env {
             }
         }
 
-        impl<T> AsyncIoEnvironment2 for $Env<T>
-            where T: AsyncIoEnvironment2<IoHandle = FileDesc>,
+        impl<T> AsyncIoEnvironment for $Env<T>
+            where T: AsyncIoEnvironment<IoHandle = FileDesc>,
         {
             type IoHandle = $Rc<T::IoHandle>;
             type Read = T::Read;

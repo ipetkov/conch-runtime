@@ -15,7 +15,8 @@ fn run_echo(args: &[&str]) -> String {
     let pipe = Pipe::new().expect("pipe failed");
     env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
 
-    let read_to_end = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new());
+    let read_to_end = env.read_async(pipe.reader).expect("failed to get read_to_end");
+    let read_to_end = tokio_io::io::read_to_end(read_to_end, Vec::new());
 
     let echo = builtin::echo(args.iter().map(|&s| s.to_owned()))
         .spawn(&env)

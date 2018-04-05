@@ -48,7 +48,7 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
         env.set_file_desc(STDOUT_FILENO, cmd_stdout_fd, Permissions::Write);
 
         let subshell = FlattenSubshell::Subshell(subshell(body, &env));
-        let read_to_end = read_to_end(env.read_async(cmd_output), Vec::new());
+        let read_to_end = read_to_end(env.read_async(cmd_output)?, Vec::new());
         drop(env);
 
         Ok(Async::Ready(Substitution {

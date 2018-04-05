@@ -3,7 +3,7 @@ use futures::{Async, Future, Poll, Sink, Stream};
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
 use futures_cpupool::{CpuFuture, CpuPool};
-use env::{AsyncIoEnvironment, AsyncIoEnvironment2};
+use env::AsyncIoEnvironment;
 use io::FileDesc;
 use mio::would_block;
 use std::borrow::Borrow;
@@ -212,37 +212,19 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     type Read = ThreadPoolReadAsync;
     type WriteAll = ThreadPoolWriteAll;
 
-    fn read_async(&mut self, fd: FileDesc) -> Self::Read {
+    fn read_async(&mut self, fd: FileDesc) -> io::Result<Self::Read> {
         let _ = try_set_blocking(&fd); // Best effort here...
-        self.create_read_async(fd)
+        Ok(self.create_read_async(fd))
     }
 
-    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> io::Result<Self::WriteAll> {
         let _ = try_set_blocking(&fd); // Best effort here...
-        self.create_write_all(fd, data)
+        Ok(self.create_write_all(fd, data))
     }
 
     fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
         let _ = try_set_blocking(&fd); // Best effort here...
         self.create_write_all_best_effort(fd, data);
-    }
-}
-
-impl AsyncIoEnvironment2 for ThreadPoolAsyncIoEnv {
-    type IoHandle = FileDesc;
-    type Read = ThreadPoolReadAsync;
-    type WriteAll = ThreadPoolWriteAll;
-
-    fn read_async(&mut self, fd: FileDesc) -> io::Result<Self::Read> {
-        Ok(AsyncIoEnvironment::read_async(self, fd))
-    }
-
-    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> io::Result<Self::WriteAll> {
-        Ok(AsyncIoEnvironment::write_all(self, fd, data))
-    }
-
-    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
-        AsyncIoEnvironment::write_all_best_effort(self, fd, data)
     }
 }
 

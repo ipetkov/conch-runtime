@@ -12,6 +12,7 @@ use futures::future::{FutureResult, ok};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::io;
 use std::rc::Rc;
 
 #[macro_use]
@@ -38,11 +39,11 @@ impl AsyncIoEnvironment for MockEnv {
     type Read = PlatformSpecificRead;
     type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: Self::IoHandle) -> Self::Read {
+    fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> io::Result<Self::WriteAll> {
         unimplemented!()
     }
 

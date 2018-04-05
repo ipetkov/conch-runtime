@@ -114,6 +114,7 @@ fn evented_supports_regular_files() {
             .expect("failed to create file");
 
         env.write_all(fd, msg.to_owned().into_bytes())
+            .expect("failed to create write_all")
     })).expect("failed to write data");
 
     // Test spawning outside of the event loop
@@ -121,7 +122,8 @@ fn evented_supports_regular_files() {
         .map(FileDesc::from)
         .expect("failed to open file");
 
-    let data = lp.run(read_to_end(env.read_async(fd), vec!()))
+    let data = env.read_async(fd).expect("failed to get data");
+    let data = lp.run(read_to_end(data, vec!()))
         .map(|(_, data)| String::from_utf8(data).expect("invaild utf8"))
         .expect("future did not exit successfully");
 

@@ -1,6 +1,6 @@
 use Fd;
 use io::Permissions;
-use env::{AsyncIoEnvironment2, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
@@ -9,13 +9,13 @@ use std::path::Path;
 /// async I/O operations on file handles.
 pub trait FileDescManagerEnvironment: FileDescOpener
     + FileDescEnvironment<FileHandle = <Self as FileDescOpener>::OpenedFileHandle>
-    + AsyncIoEnvironment2<IoHandle = <Self as FileDescOpener>::OpenedFileHandle>
+    + AsyncIoEnvironment<IoHandle = <Self as FileDescOpener>::OpenedFileHandle>
 {}
 
 impl<T> FileDescManagerEnvironment for T
     where T: FileDescOpener,
           T: FileDescEnvironment<FileHandle = <T as FileDescOpener>::OpenedFileHandle>,
-          T: AsyncIoEnvironment2<IoHandle = <T as FileDescOpener>::OpenedFileHandle>,
+          T: AsyncIoEnvironment<IoHandle = <T as FileDescOpener>::OpenedFileHandle>,
 {}
 
 /// An environment implementation which manages opening, storing, and performing
@@ -54,7 +54,7 @@ impl<O, S, A> SubEnvironment for FileDescManagerEnv<O, S, A>
 
 impl<O, S, A> FileDescOpener for FileDescManagerEnv<O, S, A>
     where O: FileDescOpener,
-          A: AsyncIoEnvironment2,
+          A: AsyncIoEnvironment,
           A::IoHandle: From<O::OpenedFileHandle>,
 {
     type OpenedFileHandle = A::IoHandle;
@@ -91,8 +91,8 @@ impl<O, S, A> FileDescEnvironment for FileDescManagerEnv<O, S, A>
     }
 }
 
-impl<O, S, A> AsyncIoEnvironment2 for FileDescManagerEnv<O, S, A>
-    where A: AsyncIoEnvironment2
+impl<O, S, A> AsyncIoEnvironment for FileDescManagerEnv<O, S, A>
+    where A: AsyncIoEnvironment
 {
     type IoHandle = A::IoHandle;
     type Read = A::Read;

@@ -241,7 +241,7 @@ macro_rules! generate_and_print_output {
 
         let bytes = $crate::spawn::builtin::generate_bytes__(&mut env, $generate);
         let bytes = try_and_report!(name, bytes, env);
-        let bytes = env.write_all(stdout, bytes);
+        let bytes = try_and_report!(name, env.write_all(stdout, bytes), env);
 
         let future = $crate::spawn::builtin::WriteOutputFuture::from(bytes);
         Ok($crate::future::Async::Ready($crate::spawn::ExitResult::Pending(future.into())))

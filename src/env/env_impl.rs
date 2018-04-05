@@ -17,8 +17,7 @@ use tokio_core::reactor::Remote;
 
 use env::atomic;
 use env::atomic::FnEnv as AtomicFnEnv;
-use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, AsyncIoEnvironment2,
-          ChangeWorkingDirectoryEnvironment,
+use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnv, FileDescEnvironment, FileDescOpener, FnEnv, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
@@ -568,38 +567,16 @@ macro_rules! impl_env {
             type Read = IO::Read;
             type WriteAll = IO::WriteAll;
 
-            fn read_async(&mut self, fd: Self::IoHandle) -> Self::Read {
+            fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
                 self.async_io_env.read_async(fd)
             }
 
-            fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Self::WriteAll {
+            fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
                 self.async_io_env.write_all(fd, data)
             }
 
             fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
                 self.async_io_env.write_all_best_effort(fd, data);
-            }
-        }
-
-        impl<A, IO, FD, L, V, EX, WD, N, ERR> AsyncIoEnvironment2
-            for $Env<A, IO, FD, L, V, EX, WD, N, ERR>
-            where FD: AsyncIoEnvironment2,
-                  N: Hash + Eq,
-        {
-            type IoHandle = FD::IoHandle;
-            type Read = FD::Read;
-            type WriteAll = FD::WriteAll;
-
-            fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
-                self.file_desc_env.read_async(fd)
-            }
-
-            fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
-                self.file_desc_env.write_all(fd, data)
-            }
-
-            fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
-                self.file_desc_env.write_all_best_effort(fd, data);
             }
         }
 

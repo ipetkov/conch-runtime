@@ -46,13 +46,16 @@ fn spawn_executable_with_io() {
         let child = env.spawn_executable(data).expect("spawn failed");
 
         let stdin = io_env.write_all(pipe_in_writer, Vec::from(EXECUTABLE_WITH_IO_MSG.as_bytes()))
+            .expect("failed to create stdin")
             .map_err(|e| panic!("stdin failed: {}", e));
 
-        let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out_reader), Vec::new())
+        let stdout = io_env.read_async(pipe_out_reader).expect("failed to get stdout");
+        let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
             .map(|(_, msg)| assert_eq!(msg, EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdout failed: {}", e));
 
-        let stderr = tokio_io::io::read_to_end(io_env.read_async(pipe_err_reader), Vec::new())
+        let stderr = io_env.read_async(pipe_err_reader).expect("failed to get stderr");
+        let stderr = tokio_io::io::read_to_end(stderr, Vec::new())
             .map(|(_, msg)| assert_eq!(msg, EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdout failed: {}", e));
 
@@ -86,7 +89,8 @@ fn env_vars_set_from_data_without_inheriting_from_process() {
 
         let child = env.spawn_executable(data).expect("spawn failed");
 
-        let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out.reader), Vec::new())
+        let stdout = io_env.read_async(pipe_out.reader).expect("failed to get stdout");
+        let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
             .map(|(_, msg)| {
                 if cfg!(windows) {
                     assert_eq!(msg, b"FOO=bar\nPATH=qux\n")
@@ -148,7 +152,8 @@ fn defines_empty_path_env_var_if_not_provided_by_caller() {
 
         let child = env.spawn_executable(data).expect("spawn failed");
 
-        let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out.reader), Vec::new())
+        let stdout = io_env.read_async(pipe_out.reader).expect("failed to get stdout");
+        let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
             .map(|(_, msg)| assert_eq!(msg, b"PATH=\n"))
             .map_err(|e| panic!("stdout failed: {}", e));
 

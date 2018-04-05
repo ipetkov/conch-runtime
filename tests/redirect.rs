@@ -344,7 +344,7 @@ fn apply_redirect_action() {
     env.close_file_desc(fd); // Drop any other copies of fdes
     let fdes = fdes.try_unwrap().expect("failed to unwrap fdes");
 
-    let read = env.read_async(fdes);
+    let read = env.read_async(fdes).expect("failed to create read future");
     let (_, data) = lp.run(tokio_io::io::read_to_end(read, vec!())).unwrap();
 
     assert_eq!(data, msg.as_bytes());

@@ -100,13 +100,13 @@ impl AsyncIoEnvironment for EventedAsyncIoEnv {
     type Read = ReadAsync;
     type WriteAll = WriteAll;
 
-    fn read_async(&mut self, fd: Self::IoHandle) -> Self::Read {
-        ReadAsync(self.evented_fd(fd))
+    fn read_async(&mut self, fd: Self::IoHandle) -> Result<Self::Read> {
+        Ok(ReadAsync(self.evented_fd(fd)))
     }
 
-    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> Result<Self::WriteAll> {
         let write_async = WriteAsync(self.evented_fd(fd));
-        WriteAll::new(State::Writing(tokio_io::write_all(write_async, data)))
+        Ok(WriteAll::new(State::Writing(tokio_io::write_all(write_async, data))))
     }
 
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {

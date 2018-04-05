@@ -6,6 +6,7 @@ use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, PlatformSpecif
                          PlatformSpecificWriteAll, RedirectRestorer, RedirectEnvRestorer};
 use conch_runtime::eval::RedirectAction;
 use std::collections::HashMap;
+use std::io;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MockFileDescEnv<T> {
@@ -41,11 +42,11 @@ impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
     type Read = PlatformSpecificRead;
     type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: Self::IoHandle) -> Self::Read {
+    fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> io::Result<Self::WriteAll> {
         unimplemented!()
     }
 

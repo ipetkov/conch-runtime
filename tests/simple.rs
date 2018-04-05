@@ -163,7 +163,8 @@ fn should_set_executable_cwd_same_as_env() {
         .to_string()
     );
 
-    let stdout = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
+    let stdout = env.read_async(pipe.reader).expect("failed to get stdout");
+    let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
         // NB: on windows cwd will have the prefix but msg won't, so we'll
         // just hack around this by doing a "ends_with" check to avoid having
         // to strip the UNC prefix
@@ -206,7 +207,8 @@ fn command_redirect_and_env_var_overrides() {
         &env,
     );
 
-    let stdout = tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
+    let stdout = env.read_async(pipe.reader).expect("failed to get stdout");
+    let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
         .map(|(_, msg)| {
             if cfg!(windows) {
                 assert_eq!(msg, "KEY=val\nKEY_EXISTING=val_existing\nPATH=\n".as_bytes());
