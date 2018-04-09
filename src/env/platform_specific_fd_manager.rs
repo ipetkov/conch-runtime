@@ -1,8 +1,9 @@
-use Fd;
+use {Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use futures::{Future, Poll};
-use io::Permissions;
+use io::{dup_stdio, Permissions};
 use env::{AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv,
           FileDescOpener, FileDescOpenerEnv, Pipe, SubEnvironment};
+use env::atomic::FileDescEnv as AtomicFileDescEnv;
 use std::fs::OpenOptions;
 use std::io::{Error as IoError, Read, Result as IoResult};
 use std::path::Path;
@@ -14,6 +15,7 @@ macro_rules! impl_env {
         $(#[$env_attr:meta])*
         pub struct $Env:ident,
         $Inner:ident,
+        $InnerFileDescEnv:ident,
 
         $(#[$file_desc_handle_attr:meta])*
         pub struct $FileDescHandle:ident,
@@ -35,6 +37,44 @@ macro_rules! impl_env {
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $Env {
             inner: $Inner,
+        }
+
+        impl $Env {
+            /// Create a new environment with no open file descriptors.
+            pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> Self {
+                Self::construct(handle, fallback_num_threads, $InnerFileDescEnv::new())
+            }
+
+            /// Constructs a new environment with no open file descriptors,
+            /// but with a specified capacity for storing open file descriptors.
+            pub fn with_capacity(
+                handle: Handle,
+                fallback_num_threads: Option<usize>,
+                capacity: usize
+            ) -> Self {
+                Self::construct(
+                    handle,
+                    fallback_num_threads,
+                    $InnerFileDescEnv::with_capacity(capacity)
+                )
+            }
+
+            /// Constructs a new environment and initializes it with duplicated
+            /// stdio file descriptors or handles of the current process.
+            pub fn with_process_stdio(
+                handle: Handle,
+                fallback_num_threads: Option<usize>,
+            ) -> IoResult<Self> {
+                use io::Permissions::{Read, Write};
+
+                let (stdin, stdout, stderr) = dup_stdio()?;
+
+                let mut env = Self::with_capacity(handle, fallback_num_threads, 3);
+                env.set_file_desc(STDIN_FILENO,  $FileDescHandle(stdin.into()),  Read);
+                env.set_file_desc(STDOUT_FILENO, $FileDescHandle(stdout.into()), Write);
+                env.set_file_desc(STDERR_FILENO, $FileDescHandle(stderr.into()), Write);
+                Ok(env)
+            }
         }
 
         impl SubEnvironment for $Env {
@@ -117,6 +157,7 @@ impl_env! {
     /// see `env::atomic::PlatformSpecificFileDescManagerEnv`.
     pub struct PlatformSpecificFileDescManagerEnv,
     Inner,
+    FileDescEnv,
 
     /// A managed `FileDesc` handle created through a `PlatformSpecificFileDescManagerEnv`.
     pub struct PlatformSpecificManagedHandle,
@@ -145,6 +186,7 @@ impl_env! {
     /// see `PlatformSpecificFileDescManagerEnv` as a cheaper alternative.
     pub struct AtomicPlatformSpecificFileDescManagerEnv,
     AtomicInner,
+    AtomicFileDescEnv,
 
     /// A managed `FileDesc` handle created through an `AtomicPlatformSpecificFileDescManagerEnv`.
     pub struct AtomicPlatformSpecificManagedHandle,
@@ -185,13 +227,16 @@ type Inner = FileDescManagerEnv<
 >;
 
 impl PlatformSpecificFileDescManagerEnv {
-    /// Create a new environment.
-    pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> Self {
+    fn construct(
+        handle: Handle,
+        fallback_num_threads: Option<usize>,
+        fd_env: FileDescEnv<PlatformSpecificManagedHandle>,
+    ) -> Self {
         #[cfg(unix)]
         let get_inner = |handle: Handle, _: Option<usize>| {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
-                FileDescEnv::new(),
+                fd_env,
                 ::os::unix::env::EventedAsyncIoEnv2::new(handle)
             )
         };
@@ -205,7 +250,7 @@ impl PlatformSpecificFileDescManagerEnv {
 
             FileDescManagerEnv::new(
                 ::env::RcFileDescOpenerEnv::new(FileDescOpenerEnv::new()),
-                FileDescEnv::new(),
+                fd_env,
                 ::env::async_io::RcUnwrappingAsyncIoEnv::new(thread_pool),
             )
         };
@@ -245,25 +290,28 @@ impl AsyncIoEnvironment for PlatformSpecificFileDescManagerEnv {
 #[cfg(unix)]
 type AtomicInner = FileDescManagerEnv<
     FileDescOpenerEnv,
-    ::env::atomic::FileDescEnv<AtomicPlatformSpecificManagedHandle>,
+    AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
     ::os::unix::env::atomic::EventedAsyncIoEnv,
 >;
 
 #[cfg(not(unix))]
 type AtomicInner = FileDescManagerEnv<
     env::ArcFileDescOpenerEnv<FileDescOpenerEnv>,
-    FileDescEnv<PlatformSpecificManagedHandle>,
+    AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
     env::async_io::ThreadPoolAsyncIoEnv,
 >;
 
 impl AtomicPlatformSpecificFileDescManagerEnv {
-    /// Create a new environment.
-    pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> Self {
+    fn construct(
+        handle: Handle,
+        fallback_num_threads: Option<usize>,
+        fd_env: AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
+    ) -> Self {
         #[cfg(unix)]
         let get_inner = |handle: Handle, _: Option<usize>| {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
-                ::env::atomic::FileDescEnv::new(),
+                fd_env,
                 ::os::unix::env::atomic::EventedAsyncIoEnv::new(handle.remote().clone())
             )
         };
@@ -277,7 +325,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
 
             FileDescManagerEnv::new(
                 ::env::ArcFileDescOpenerEnv::new(FileDescOpenerEnv::new()),
-                ::env::atomic::FileDescEnv::new(),
+                fd_env,
                 thread_pool,
             )
         };
