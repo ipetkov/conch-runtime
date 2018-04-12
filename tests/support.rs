@@ -520,15 +520,23 @@ pub fn new_env() -> (Core, DefaultEnvRc) {
 }
 
 pub fn new_env_with_threads(threads: usize) -> (Core, DefaultEnvRc) {
-    let lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(threads)).expect("failed to create env");
+    let mut lp = Core::new().expect("failed to create Core loop");
+
+    // FIXME: create env inside loop so we can successfully convert remote -> handle
+    // this should go away when we move to the tokio runtime
+    let remote = lp.remote();
+    let env = lp.run(futures::future::lazy(|| {
+        DefaultEnvRc::new(remote, Some(threads))
+    })).expect("falied to create env");
+
+    //let env = DefaultEnvRc::new(lp.remote(), Some(threads)).expect("failed to create env");
     (lp, env)
 }
 
 pub fn new_env_with_no_fds() -> (Core, DefaultEnvRc) {
     let lp = Core::new().expect("failed to create Core loop");
     let mut cfg = DefaultEnvConfigRc::new(lp.remote(), Some(1)).expect("failed to create env cfg");
-    cfg.file_desc_env = FileDescEnv::new();
+    cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
     let env = DefaultEnvRc::with_config(cfg);
     (lp, env)
 }

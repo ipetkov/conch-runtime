@@ -1,3 +1,6 @@
+extern crate futures;
+
+use futures::future::lazy;
 use std::borrow::Cow;
 
 #[macro_use]
@@ -6,21 +9,31 @@ use support::*;
 
 #[test]
 fn is_interactive() {
-    let lp = Core::new().unwrap();
+    let mut lp = Core::new().unwrap();
+    let remote = lp.remote();
 
-    for &interactive in &[true, false] {
-        let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
-            interactive: interactive,
-            ..DefaultEnvConfigRc::new(lp.remote(), Some(1)).unwrap()
-        });
-        assert_eq!(env.is_interactive(), interactive);
-    }
+    lp.run(lazy(|| {
+        for &interactive in &[true, false] {
+            let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
+                interactive: interactive,
+                ..DefaultEnvConfigRc::new(remote.clone(), Some(1)).unwrap()
+            });
+            assert_eq!(env.is_interactive(), interactive);
+        }
+
+        let ret: Result<_, ()> = Ok(());
+        ret
+    })).unwrap();
 }
 
 #[test]
 fn sets_pwd_and_oldpwd_env_vars() {
-    let lp = Core::new().unwrap();
-    let mut env = DefaultEnv::<String>::new(lp.remote(), Some(1)).unwrap();
+    let mut lp = Core::new().unwrap();
+    let remote = lp.remote();
+
+    let mut env = lp.run(lazy(|| {
+        DefaultEnv::<String>::new(remote, Some(1))
+    })).unwrap();
 
     let old_cwd;
     {
