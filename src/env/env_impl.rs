@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 use std::rc::Rc;
-use tokio_core::reactor::Remote;
+use tokio_core::reactor::{Handle, Remote};
 
 use env::atomic;
 use env::atomic::FnEnv as AtomicFnEnv;
@@ -42,7 +42,7 @@ use env::PlatformSpecificFileDescManagerEnv;
 /// let lp = tokio_core::reactor::Core::new().unwrap();
 /// let env = Env::with_config(EnvConfig {
 ///     args_env: ArgsEnv::with_name(Rc::new(String::from("my_shell"))),
-///     .. DefaultEnvConfig::new(lp.remote(), None).expect("failed to create config")
+///     .. DefaultEnvConfig::new(lp.handle(), None).expect("failed to create config")
 /// });
 ///
 /// assert_eq!(**env.name(), "my_shell");
@@ -208,9 +208,9 @@ impl<A, FM, L, V, EX, WD, N, ERR> EnvConfig<A, FM, L, V, EX, WD, N, ERR> {
 /// let lp = tokio_core::reactor::Core::new().unwrap();
 ///
 /// // Fallback to using one thread per CPU
-/// let cfg1 = DefaultEnvConfig::<Rc<String>>::new(lp.remote(), None);
+/// let cfg1 = DefaultEnvConfig::<Rc<String>>::new(lp.handle(), None);
 /// // Fallback to specific number of threads
-/// let cfg2 = DefaultEnvConfig::<Rc<String>>::new(lp.remote(), Some(2));
+/// let cfg2 = DefaultEnvConfig::<Rc<String>>::new(lp.handle(), Some(2));
 /// # }
 /// ```
 pub type DefaultEnvConfig<T> =
@@ -271,10 +271,9 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        let handle = remote.handle().expect("failed to get Handle from Remote");
+    pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         let file_desc_manager_env = PlatformSpecificFileDescManagerEnv::with_process_stdio(
-            handle,
+            handle.clone(),
             fallback_num_threads
         )?;
 
@@ -284,7 +283,7 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
             file_desc_manager_env: file_desc_manager_env,
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
-            exec_env: ExecEnv::new(remote),
+            exec_env: ExecEnv::new(handle.remote().clone()),
             working_dir_env: try!(VirtualWorkingDirEnv::with_process_working_dir()),
             fn_name: PhantomData,
             fn_error: PhantomData,
@@ -300,9 +299,8 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
     pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        let handle = remote.handle().expect("failed to get Handle from Remote");
         let file_desc_manager_env = atomic::PlatformSpecificFileDescManagerEnv::with_process_stdio(
-            handle,
+            remote.clone(),
             fallback_num_threads
         )?;
 
@@ -800,10 +798,10 @@ impl_env!(
 /// let lp = tokio_core::reactor::Core::new().unwrap();
 ///
 /// // Fallback to using one thread per CPU
-/// let env1 = DefaultEnv::<Rc<String>>::new(lp.remote(), None);
+/// let env1 = DefaultEnv::<Rc<String>>::new(lp.handle(), None);
 ///
 /// // Fallback to specific number of threads
-/// let env2 = DefaultEnv::<Rc<String>>::new(lp.remote(), Some(2));
+/// let env2 = DefaultEnv::<Rc<String>>::new(lp.handle(), Some(2));
 /// # }
 /// ```
 pub type DefaultEnv<T> =
@@ -863,8 +861,8 @@ impl<T> DefaultEnv<T> where T: StringWrapper {
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
-    pub fn new(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        DefaultEnvConfig::new(remote, fallback_num_threads).map(Self::with_config)
+    pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> io::Result<Self> {
+        DefaultEnvConfig::new(handle, fallback_num_threads).map(Self::with_config)
     }
 }
 

@@ -7,15 +7,17 @@ use env::atomic::FileDescEnv as AtomicFileDescEnv;
 use std::fs::OpenOptions;
 use std::io::{Error as IoError, Read, Result as IoResult};
 use std::path::Path;
-use tokio_core::reactor::Handle;
+use tokio_core::reactor::{Handle, Remote};
 use tokio_io::AsyncRead;
 
 macro_rules! impl_env {
     (
         $(#[$env_attr:meta])*
         pub struct $Env:ident,
+        $handle:ident: $Handle:ident,
         $Inner:ident,
         $InnerFileDescEnv:ident,
+
 
         $(#[$file_desc_handle_attr:meta])*
         pub struct $FileDescHandle:ident,
@@ -41,19 +43,19 @@ macro_rules! impl_env {
 
         impl $Env {
             /// Create a new environment with no open file descriptors.
-            pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> Self {
-                Self::construct(handle, fallback_num_threads, $InnerFileDescEnv::new())
+            pub fn new($handle: $Handle, fallback_num_threads: Option<usize>) -> Self {
+                Self::construct($handle, fallback_num_threads, $InnerFileDescEnv::new())
             }
 
             /// Constructs a new environment with no open file descriptors,
             /// but with a specified capacity for storing open file descriptors.
             pub fn with_capacity(
-                handle: Handle,
+                $handle: $Handle,
                 fallback_num_threads: Option<usize>,
                 capacity: usize
             ) -> Self {
                 Self::construct(
-                    handle,
+                    $handle,
                     fallback_num_threads,
                     $InnerFileDescEnv::with_capacity(capacity)
                 )
@@ -62,14 +64,14 @@ macro_rules! impl_env {
             /// Constructs a new environment and initializes it with duplicated
             /// stdio file descriptors or handles of the current process.
             pub fn with_process_stdio(
-                handle: Handle,
+                $handle: $Handle,
                 fallback_num_threads: Option<usize>,
             ) -> IoResult<Self> {
                 use io::Permissions::{Read, Write};
 
                 let (stdin, stdout, stderr) = dup_stdio()?;
 
-                let mut env = Self::with_capacity(handle, fallback_num_threads, 3);
+                let mut env = Self::with_capacity($handle, fallback_num_threads, 3);
                 env.set_file_desc(STDIN_FILENO,  $FileDescHandle(stdin.into()),  Read);
                 env.set_file_desc(STDOUT_FILENO, $FileDescHandle(stdout.into()), Write);
                 env.set_file_desc(STDERR_FILENO, $FileDescHandle(stderr.into()), Write);
@@ -156,6 +158,7 @@ impl_env! {
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
     /// see `env::atomic::PlatformSpecificFileDescManagerEnv`.
     pub struct PlatformSpecificFileDescManagerEnv,
+    handle: Handle,
     Inner,
     FileDescEnv,
 
@@ -185,6 +188,7 @@ impl_env! {
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
     /// see `PlatformSpecificFileDescManagerEnv` as a cheaper alternative.
     pub struct AtomicPlatformSpecificFileDescManagerEnv,
+    remote: Remote,
     AtomicInner,
     AtomicFileDescEnv,
 
@@ -303,21 +307,21 @@ type AtomicInner = FileDescManagerEnv<
 
 impl AtomicPlatformSpecificFileDescManagerEnv {
     fn construct(
-        handle: Handle,
+        remote: Remote,
         fallback_num_threads: Option<usize>,
         fd_env: AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
     ) -> Self {
         #[cfg(unix)]
-        let get_inner = |handle: Handle, _: Option<usize>| {
+        let get_inner = |remote: Remote, _: Option<usize>| {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
                 fd_env,
-                ::os::unix::env::atomic::EventedAsyncIoEnv::new(handle.remote().clone())
+                ::os::unix::env::atomic::EventedAsyncIoEnv::new(remote)
             )
         };
 
         #[cfg(not(unix))]
-        let get_inner = |_: Handle, num_threads: Option<usize>| {
+        let get_inner = |_: Remote, num_threads: Option<usize>| {
             let thread_pool = num_threads.map_or_else(
                 || ::env::async_io::ThreadPoolAsyncIoEnv::new_num_cpus(),
                 ::env::async_io::ThreadPoolAsyncIoEnv::new
@@ -331,7 +335,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
         };
 
         Self {
-            inner: get_inner(handle, fallback_num_threads),
+            inner: get_inner(remote, fallback_num_threads),
         }
     }
 }

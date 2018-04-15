@@ -16,7 +16,10 @@ fn fd_manager() {
 
 #[test]
 fn fd_manager_atomic() {
-    do_test(|handle| atomic::PlatformSpecificFileDescManagerEnv::new(handle, Some(4)))
+    do_test(|handle| {
+        let remote = handle.remote().clone();
+        atomic::PlatformSpecificFileDescManagerEnv::new(remote, Some(4))
+    })
 }
 
 fn do_test<F, E>(f: F)

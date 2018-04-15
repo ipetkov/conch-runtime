@@ -24,7 +24,7 @@ pub struct ManagedFileDesc {
 
 impl ManagedFileDesc {
     /// Create a new managed instance of a `FileDesc`.
-    pub fn new(fd: FileDesc) -> Self {
+    fn new(fd: FileDesc) -> Self {
         Self {
             inner: Rc::new(RefCell::new(Inner::Unregistered(fd))),
         }

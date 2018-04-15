@@ -10,13 +10,13 @@ use support::*;
 #[test]
 fn is_interactive() {
     let mut lp = Core::new().unwrap();
-    let remote = lp.remote();
+    let handle = lp.handle();
 
     lp.run(lazy(|| {
         for &interactive in &[true, false] {
             let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
                 interactive: interactive,
-                ..DefaultEnvConfigRc::new(remote.clone(), Some(1)).unwrap()
+                ..DefaultEnvConfigRc::new(handle.clone(), Some(1)).unwrap()
             });
             assert_eq!(env.is_interactive(), interactive);
         }
@@ -29,10 +29,10 @@ fn is_interactive() {
 #[test]
 fn sets_pwd_and_oldpwd_env_vars() {
     let mut lp = Core::new().unwrap();
-    let remote = lp.remote();
+    let handle = lp.handle();
 
     let mut env = lp.run(lazy(|| {
-        DefaultEnv::<String>::new(remote, Some(1))
+        DefaultEnv::<String>::new(handle, Some(1))
     })).unwrap();
 
     let old_cwd;
