@@ -17,7 +17,6 @@ use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::Arc;
 use tokio_core::reactor::Core;
 
@@ -72,9 +71,11 @@ fn test_open_redirect<F1, F2>(
     where for<'a> F1: FnMut(&'a mut DefaultEnvRc),
           F2: FnMut(FileDesc)
 {
+    type RA = RedirectAction<PlatformSpecificManagedHandle>;
+
     let (mut lp, mut env) = new_env_with_no_fds();
 
-    let get_file_desc = |action: RedirectAction<Rc<FileDesc>>, correct_fd, env: &mut DefaultEnvRc| {
+    let get_file_desc = |action: RA, correct_fd, env: &mut DefaultEnvRc| {
         let action_fdes = match action {
             RedirectAction::Open(result_fd, ref fdes, perms) => {
                 assert_eq!(perms, correct_permissions);
@@ -93,7 +94,7 @@ fn test_open_redirect<F1, F2>(
         }
         env.close_file_desc(correct_fd);
 
-        Rc::try_unwrap(action_fdes).unwrap()
+        action_fdes.try_unwrap().unwrap()
     };
 
     for &(correct_fd, ref redirect) in &cases {
@@ -323,7 +324,7 @@ fn apply_redirect_action() {
     let fd = 0;
     assert_eq!(env.file_desc(fd), None);
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     let perms = Permissions::ReadWrite;
     RedirectAction::Open(fd, fdes.clone(), perms).apply(&mut env).unwrap();
     assert_eq!(env.file_desc(fd), Some((&fdes, perms)));
@@ -342,7 +343,6 @@ fn apply_redirect_action() {
         .expect("heredoc was not opened");
 
     env.close_file_desc(fd); // Drop any other copies of fdes
-    let fdes = fdes.try_unwrap().expect("failed to unwrap fdes");
 
     let read = env.read_async(fdes).expect("failed to create read future");
     let (_, data) = lp.run(tokio_io::io::read_to_end(read, vec!())).unwrap();
@@ -355,7 +355,7 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     let mut lp = Core::new().expect("failed to create Core loop");
 
     for &interactive in &[true, false] {
-        let mut env_cfg = DefaultEnvConfigRc::new(lp.remote(), Some(1)).unwrap();
+        let mut env_cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1)).unwrap();
         env_cfg.interactive = interactive;
 
         let mut env = DefaultEnvRc::with_config(env_cfg);
@@ -413,7 +413,7 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     assert_eq!(eval!(DupWrite(None, path.clone()), lp, env), err.clone());
 
     let path = mock_word_fields(Fields::Single(src_fd.to_string()));
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
 
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Read))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Read);
@@ -466,8 +466,7 @@ fn should_propagate_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.remote(), Some(1)).expect("failed to create env");
+    let (_, mut env) = new_env();
 
     macro_rules! test_cancel_redirect {
         ($redirect:expr) => { test_cancel!($redirect.eval(&env), env) }

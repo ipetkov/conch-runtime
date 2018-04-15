@@ -1,6 +1,6 @@
 use Fd;
-use io::{FileDesc, Permissions};
-use env::{AsyncIoEnvironment, FileDescEnvironment};
+use io::Permissions;
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener};
 use eval::RedirectAction;
 use std::collections::HashMap;
 use std::fmt;
@@ -19,8 +19,9 @@ pub trait RedirectEnvRestorer<E: ?Sized> {
 
     /// Applies changes to a given environment after backing up as appropriate.
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-              E::FileHandle: From<FileDesc>;
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>;
 
     /// Backs up the original handle of specified file descriptor.
     ///
@@ -42,8 +43,9 @@ impl<'a, T, E: ?Sized> RedirectEnvRestorer<E> for &'a mut T
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-              E::FileHandle: From<FileDesc>
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>,
     {
         (**self).apply_action(action, env)
     }
@@ -133,8 +135,9 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-              E::FileHandle: From<FileDesc>
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>,
     {
         match action {
             RedirectAction::Close(fd) |

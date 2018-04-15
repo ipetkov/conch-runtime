@@ -1,9 +1,7 @@
 use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper, ReportErrorEnvironment};
-use io::FileDesc;
 use future::{EnvFuture, Poll};
 use spawn::ExitResult;
-use std::borrow::Borrow;
 use std::iter::Peekable;
 use std::cmp;
 use void::Void;
@@ -35,8 +33,9 @@ struct Flags {
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment + ReportErrorEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + ReportErrorEnvironment,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
 {
     type Item = ExitResult<EchoFuture<E::WriteAll>>;
     type Error = Void;

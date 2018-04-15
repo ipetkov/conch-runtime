@@ -1,8 +1,8 @@
 use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
-          FileDescEnvironment, FunctionEnvironment, RedirectEnvRestorer, RedirectRestorer,
-          SetArgumentsEnvironment, VarEnvRestorer, VarRestorer,
+          FileDescEnvironment, FileDescOpener, FunctionEnvironment, RedirectEnvRestorer,
+          RedirectRestorer, SetArgumentsEnvironment, VarEnvRestorer, VarRestorer,
           VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
@@ -243,18 +243,20 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
           W: WordEval<E>,
           S: Clone + Spawn<E>,
           S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
           E::Args: From<Vec<E::Arg>>, // FIXME(breaking): possible to change this this to E::Args: FromIterator<E::Arg>
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
 {
@@ -455,13 +457,9 @@ fn spawn_process<T, F, VN, V, E: ?Sized>(
             None => Ok(None),
             Some(fdes_wrapper) => match fdes_wrapper.try_unwrap() {
                 Ok(fdes) => Ok(Some(fdes)),
-                Err(wrapper) => {
-                    let fdes = wrapper.borrow().duplicate().map_err(|io| {
-                        let msg = format!("file descriptor {}", fd);
-                        Either::B(RedirectionError::Io(io, Some(msg)))
-                    });
-
-                    Ok(Some(try!(fdes)))
+                Err(err) => {
+                    let msg = format!("file descriptor {}", fd);
+                    return Err(Either::B(RedirectionError::Io(err, Some(msg))));
                 },
             },
         }
@@ -488,8 +486,12 @@ impl<'a, R, V, W, IV, IW, E: ?Sized, RR, VR> EnvFuture<E> for EvalState<R, V, W,
           R::Error: From<RedirectionError>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment + VariableEnvironment,
-          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
+          E: AsyncIoEnvironment
+              + FileDescEnvironment
+              + FileDescOpener
+              + VariableEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,
           RR: RedirectEnvRestorer<E>,

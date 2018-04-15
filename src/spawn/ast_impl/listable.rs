@@ -1,8 +1,7 @@
 use {CANCELLED_TWICE, POLLED_TWICE, Spawn};
 use conch_parser::ast;
-use env::{FileDescEnvironment, SubEnvironment};
+use env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
 use future::{EnvFuture, Poll};
-use io::FileDesc;
 use spawn::{ExitResult, Pipeline, pipeline, SpawnedPipeline};
 use std::fmt;
 use std::io;
@@ -39,8 +38,8 @@ enum State<F> {
 impl<S, E> Spawn<E> for ast::ListableCommand<S>
     where S: Spawn<E>,
           S::Error: From<io::Error>,
-          E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
+          E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle> + Clone,
 {
     type EnvFuture = ListableCommand<S, E>;
     type Future = ExitResult<SpawnedPipeline<S, E>>;
@@ -61,8 +60,8 @@ impl<S, E> Spawn<E> for ast::ListableCommand<S>
 impl<'a, S: 'a, E> Spawn<E> for &'a ast::ListableCommand<S>
     where &'a S: Spawn<E>,
           <&'a S as Spawn<E>>::Error: From<io::Error>,
-          E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
+          E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle> + Clone,
 {
     type EnvFuture = ListableCommand<&'a S, E>;
     type Future = ExitResult<SpawnedPipeline<&'a S, E>>;
@@ -83,8 +82,6 @@ impl<'a, S: 'a, E> Spawn<E> for &'a ast::ListableCommand<S>
 impl<S, E> EnvFuture<E> for ListableCommand<S, E>
     where S: Spawn<E>,
           S::Error: From<io::Error>,
-          E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
 {
     type Item = ExitResult<SpawnedPipeline<S, E>>;
     type Error = S::Error;

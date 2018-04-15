@@ -1,5 +1,5 @@
 use futures::{Async, Future, Poll};
-use io::FileDesc;
+use io::{FileDesc, FileDescWrapper};
 use os::unix::io::{FileDescExt, MaybeEventedFd};
 use env::{AsyncIoEnvironment, SubEnvironment};
 use tokio_core::reactor::{Handle, Remote};
@@ -14,6 +14,24 @@ use std::sync::{Arc, RwLock};
 enum Inner {
     Unregistered(FileDesc),
     Evented(MaybeEventedFd),
+}
+
+impl Inner {
+    fn file_desc(&self) -> &FileDesc {
+        match *self {
+            Inner::Unregistered(ref fd) |
+            Inner::Evented(MaybeEventedFd::RegularFile(ref fd)) => fd,
+            Inner::Evented(MaybeEventedFd::Registered(ref pe)) => pe.get_ref().get_ref(),
+        }
+    }
+
+    fn unwrap_file_desc(self) -> io::Result<FileDesc> {
+        match self {
+            Inner::Unregistered(fd) |
+            Inner::Evented(MaybeEventedFd::RegularFile(fd)) => Ok(fd),
+            Inner::Evented(MaybeEventedFd::Registered(ref pe)) => pe.get_ref().get_ref().duplicate(),
+        }
+    }
 }
 
 /// A managed `FileDesc` handle created through an `EventedAsyncIoEnv`.
@@ -40,6 +58,15 @@ impl ManagedFileDesc {
         where for<'a> F: FnOnce(&'a mut Inner) -> R
     {
         f(&mut *self.inner.borrow_mut())
+    }
+}
+
+impl FileDescWrapper for ManagedFileDesc {
+    fn try_unwrap(self) -> io::Result<FileDesc> {
+        match Rc::try_unwrap(self.inner) {
+            Ok(ref_cell) => ref_cell.into_inner().unwrap_file_desc(),
+            Err(inner) => inner.borrow().file_desc().duplicate(),
+        }
     }
 }
 
@@ -73,6 +100,24 @@ impl AtomicManagedFileDesc {
             .unwrap_or_else(|p| panic!("{}", p));
 
         f(&mut *guard)
+    }
+}
+
+impl FileDescWrapper for AtomicManagedFileDesc {
+    fn try_unwrap(self) -> io::Result<FileDesc> {
+        match Arc::try_unwrap(self.inner) {
+            Ok(lock) => {
+                lock.into_inner()
+                    .unwrap_or_else(|p| panic!("{}", p))
+                    .unwrap_file_desc()
+            },
+            Err(inner) => {
+                inner.read()
+                    .unwrap_or_else(|p| panic!("{}", p))
+                    .file_desc()
+                    .duplicate()
+            },
+        }
     }
 }
 
@@ -131,16 +176,8 @@ macro_rules! impl_env {
         impl Eq for $ManagedHandle {}
         impl PartialEq<$ManagedHandle> for $ManagedHandle {
             fn eq(&self, other: &$ManagedHandle) -> bool {
-                fn get_file_desc(inner: &Inner) -> &FileDesc {
-                    match *inner {
-                        Inner::Unregistered(ref fd) |
-                        Inner::Evented(MaybeEventedFd::RegularFile(ref fd)) => fd,
-                        Inner::Evented(MaybeEventedFd::Registered(ref pe)) => pe.get_ref().get_ref(),
-                    }
-                }
-
                 self.access_inner(|self_inner| other.access_inner(|other_inner| {
-                    get_file_desc(self_inner) == get_file_desc(other_inner)
+                    self_inner.file_desc() == other_inner.file_desc()
                 }))
             }
         }

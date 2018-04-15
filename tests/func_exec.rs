@@ -2,7 +2,6 @@ extern crate conch_runtime;
 extern crate futures;
 extern crate tokio_core;
 
-use conch_runtime::io::FileDesc;
 use conch_runtime::spawn::{BoxSpawnEnvFuture, BoxStatusFuture, function};
 use futures::future::poll_fn;
 use std::rc::Rc;
@@ -14,8 +13,7 @@ pub use self::support::*;
 
 type TestEnv = Env<
     ArgsEnv<String>,
-    PlatformSpecificAsyncIoEnv,
-    FileDescEnv<Rc<FileDesc>>,
+    PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<String, String>,
     ExecEnv,
@@ -26,9 +24,9 @@ type TestEnv = Env<
 
 fn new_test_env() -> (Core, TestEnv) {
     let lp = Core::new().expect("failed to create Core loop");
-    let env = Env::with_config(DefaultEnvConfig::new(lp.remote(), Some(1))
+    let env = Env::with_config(DefaultEnvConfig::new(lp.handle(), Some(1))
         .expect("failed to create test env")
-        .change_file_desc_env(FileDescEnv::new())
+        .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1)))
         .change_var_env(VarEnv::new())
         .change_fn_error::<MockErr>()
     );

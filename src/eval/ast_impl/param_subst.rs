@@ -1,12 +1,11 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast;
 use conch_parser::ast::ParameterSubstitution::*;
-use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment,
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, LastStatusEnvironment,
           ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, IsFatalError};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
-use io::{FileDesc, FileDescWrapper};
 use eval::{Alternative, ArithEval, Assign, EvalDefault, Error, Fields, ParamEval,
            RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
            RemoveSmallestSuffix, Split, WordEval, WordEvalConfig, alternative,
@@ -27,13 +26,15 @@ impl<T, P, W, C, A, E> WordEval<E> for ast::ParameterSubstitution<P, W, C, A>
           C: Spawn<E>,
           C::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + LastStatusEnvironment
               + ReportErrorEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = T, Var = T>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::OpenedFileHandle>,
           E::Read: AsyncRead,
 {
     type EvalResult = T;
@@ -80,13 +81,15 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ast::ParameterSubstitution<P, W, 
           &'a C: Spawn<E>,
           <&'a C as Spawn<E>>::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + LastStatusEnvironment
               + ReportErrorEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = T, Var = T>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::OpenedFileHandle>,
           E::Read: AsyncRead,
 {
     type EvalResult = T;
@@ -273,13 +276,15 @@ impl<T, F, I, A, E> EnvFuture<E> for ParameterSubstitution<T, F, I, A, E, E::Rea
           I::Item: Spawn<E>,
           <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + LastStatusEnvironment
               + ReportErrorEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = T, Var = T>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::OpenedFileHandle>,
 {
     type Item = Fields<T>;
     type Error = F::Error;
@@ -301,13 +306,15 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
           I::Item: Spawn<E>,
           <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
           A: ArithEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
-              + FileDescEnvironment
-              + LastStatusEnvironment
-              + ReportErrorEnvironment
-              + SubEnvironment
-              + VariableEnvironment<VarName = T, Var = T>,
-          E::FileHandle: FileDescWrapper,
+          E: AsyncIoEnvironment
+            + FileDescEnvironment
+            + FileDescOpener
+            + LastStatusEnvironment
+            + ReportErrorEnvironment
+            + SubEnvironment
+            + VariableEnvironment<VarName = T, Var = T>,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::OpenedFileHandle>,
 {
     type Item = Fields<T>;
     type Error = F::Error;

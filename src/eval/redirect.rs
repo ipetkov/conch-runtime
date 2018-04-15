@@ -1,12 +1,12 @@
 //! A module which defines evaluating any kind of redirection.
 
-use {Fd, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO};
-use env::{AsyncIoEnvironment, FileDescEnvironment, IsInteractiveEnvironment, StringWrapper,
-          WorkingDirectoryEnvironment};
+use {Fd, STDIN_FILENO, STDOUT_FILENO};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+          IsInteractiveEnvironment, StringWrapper, WorkingDirectoryEnvironment};
 use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use error::RedirectionError;
 use future::{Async, EnvFuture, Poll};
-use io::{FileDesc, Permissions, Pipe};
+use io::Permissions;
 use std::borrow::Cow;
 use std::path::Path;
 use std::fs::OpenOptions;
@@ -30,16 +30,19 @@ pub enum RedirectAction<T> {
 impl<T> RedirectAction<T> {
     /// Applies changes to a given environment as appropriate.
     pub fn apply<E: ?Sized>(self, env: &mut E) -> IoResult<()>
-        where T: From<FileDesc>,
-              E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment<FileHandle = T>,
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<T> + From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>,
     {
         match self {
             RedirectAction::Close(fd) => env.close_file_desc(fd),
-            RedirectAction::Open(fd, file_desc, perms) => env.set_file_desc(fd, file_desc, perms),
+            RedirectAction::Open(fd, file_desc, perms) => env.set_file_desc(fd, file_desc.into(), perms),
             RedirectAction::HereDoc(fd, body) => {
-                let pipe = try!(Pipe::new());
+                let pipe = env.open_pipe()?;
                 env.set_file_desc(fd, pipe.reader.into(), Permissions::Read);
-                env.write_all_best_effort(pipe.writer, body);
+
+                let writer = E::FileHandle::from(pipe.writer);
+                env.write_all_best_effort(E::IoHandle::from(writer), body);
             },
         }
 
@@ -81,7 +84,7 @@ fn redirect<W, E: ?Sized>(fd: Fd, path: W, opts: OpenOptions, perms: Permissions
           E: IsInteractiveEnvironment,
 {
     Redirect {
-        state: State::Open(fd, eval_path(path, env), Some(opts), perms),
+        state: State::Open(fd, eval_path(path, env), opts, perms),
     }
 }
 
@@ -216,7 +219,7 @@ pub struct Redirect<F> {
 
 #[derive(Debug)]
 enum State<F> {
-    Open(Fd, F, Option<OpenOptions>, Permissions),
+    Open(Fd, F, OpenOptions, Permissions),
     Dup(Fd, F, bool /* readable dup */),
     HereDoc(Fd, F),
 }
@@ -225,8 +228,11 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
     where T: StringWrapper,
           F: EnvFuture<E, Item = Fields<T>>,
           F::Error: From<RedirectionError>,
-          E: FileDescEnvironment + IsInteractiveEnvironment + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E: FileDescEnvironment
+              + FileDescOpener
+              + IsInteractiveEnvironment
+              + WorkingDirectoryEnvironment,
+          E::FileHandle: Clone + From<E::OpenedFileHandle>,
 {
     type Item = RedirectAction<E::FileHandle>;
     type Error = F::Error;
@@ -253,17 +259,19 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
 
         let action = match self.state {
             // FIXME: on unix set file permission bits based on umask
-            State::Open(fd, ref mut f, ref mut opts, perms) => {
-                let path = poll_path!(f, env);
+            State::Open(fd, ref mut f, ref opts, perms) => {
+                let requested_path = poll_path!(f, env);
 
-                let action = opts.take()
-                    .expect(POLLED_TWICE)
-                    .open(env.path_relative_to_working_dir(Cow::Borrowed(Path::new(path.as_str()))))
-                    .map(FileDesc::from)
-                    .map(|fdesc| RedirectAction::Open(fd, fdesc.into(), perms))
-                    .map_err(|err| RedirectionError::Io(err, Some(path.into_owned())));
+                let fdesc ={
+                    let actual_path = env.path_relative_to_working_dir(
+                        Cow::Borrowed(Path::new(requested_path.as_str()))
+                    );
 
-                try!(action)
+                    env.open_path(&*actual_path, opts)
+                };
+
+                fdesc.map(|fdesc| RedirectAction::Open(fd, E::FileHandle::from(fdesc), perms))
+                    .map_err(|err| RedirectionError::Io(err, Some(requested_path.into_owned())))?
             },
 
             State::Dup(dst_fd, ref mut f, readable) => {

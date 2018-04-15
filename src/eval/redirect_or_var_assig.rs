@@ -1,10 +1,9 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer,
-          VarEnvRestorer, VariableEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+          RedirectEnvRestorer, VarEnvRestorer, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
-use io::FileDesc;
 use std::borrow::Borrow;
 use std::error::Error;
 use std::fmt;
@@ -209,8 +208,12 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig<R, V
           R::Error: From<RedirectionError>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment + VariableEnvironment,
-          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
+          E: AsyncIoEnvironment
+              + FileDescEnvironment
+              + FileDescOpener
+              + VariableEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + From<V>,
           E::Var: Borrow<String> + From<W::EvalResult>,
           RR: RedirectEnvRestorer<E>,

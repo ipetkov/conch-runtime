@@ -1,9 +1,9 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer, RedirectRestorer};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+          RedirectEnvRestorer, RedirectRestorer};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
-use io::FileDesc;
 use std::error::Error;
 use std::fmt;
 use std::mem;
@@ -121,7 +121,7 @@ pub fn eval_redirects_or_cmd_words<R, W, I, E: ?Sized>(words: I, env: &E)
           R: RedirectEval<E>,
           W: WordEval<E>,
           E: FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E::FileHandle: Clone,
 {
     eval_redirects_or_cmd_words_with_restorer(RedirectRestorer::new(), words, env)
 }
@@ -142,7 +142,6 @@ pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized, RR>(
           R: RedirectEval<E>,
           W: WordEval<E>,
           E: FileDescEnvironment,
-          E::FileHandle: From<FileDesc>,
           RR: RedirectEnvRestorer<E>,
 {
     let mut words = words.into_iter();
@@ -174,8 +173,9 @@ impl<R, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E, 
           R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           W: WordEval<E>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-          E::FileHandle: From<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
           RR: RedirectEnvRestorer<E>,
 {
     type Item = (RR, Vec<W::EvalResult>);

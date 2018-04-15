@@ -1,6 +1,6 @@
 use {Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use futures::{Future, Poll};
-use io::{dup_stdio, Permissions};
+use io::{FileDesc, FileDescWrapper, Permissions, dup_stdio};
 use env::{AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv,
           FileDescOpener, FileDescOpenerEnv, Pipe, SubEnvironment};
 use env::atomic::FileDescEnv as AtomicFileDescEnv;
@@ -34,6 +34,12 @@ macro_rules! impl_env {
         $(#[$file_desc_handle_attr])*
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct $FileDescHandle($InnerFileDescHandle);
+
+        impl FileDescWrapper for $FileDescHandle {
+            fn try_unwrap(self) -> IoResult<FileDesc> {
+                self.0.try_unwrap()
+            }
+        }
 
         $(#[$env_attr])*
         #[derive(Debug, Clone, PartialEq, Eq)]

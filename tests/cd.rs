@@ -4,7 +4,7 @@ extern crate tempdir;
 extern crate tokio_io;
 extern crate void;
 
-use conch_runtime::io::{Permissions, Pipe};
+use conch_runtime::io::Permissions;
 use futures::future::{Future, poll_fn};
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -31,11 +31,11 @@ fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
 {
     let (mut lp, mut env) = new_env_with_threads(4);
 
-    let pipe_out = Pipe::new().expect("err pipe failed");
-    let pipe_err = Pipe::new().expect("out pipe failed");
+    let pipe_out = env.open_pipe().expect("err pipe failed");
+    let pipe_err = env.open_pipe().expect("out pipe failed");
 
-    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe_out.writer.into(), Permissions::Write);
-    env.set_file_desc(conch_runtime::STDERR_FILENO, pipe_err.writer.into(), Permissions::Write);
+    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe_out.writer, Permissions::Write);
+    env.set_file_desc(conch_runtime::STDERR_FILENO, pipe_err.writer, Permissions::Write);
 
     env_setup(&mut env);
     let initial_cwd = env.current_working_dir().to_path_buf();

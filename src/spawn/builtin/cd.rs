@@ -2,7 +2,6 @@ use {EXIT_ERROR, EXIT_SUCCESS, HOME, POLLED_TWICE};
 use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
 use env::{AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment,
           StringWrapper, ReportErrorEnvironment, VariableEnvironment, WorkingDirectoryEnvironment};
-use io::FileDesc;
 use future::{Async, EnvFuture, Poll};
 use path::NormalizedPath;
 use spawn::{ExitResult, Spawn};
@@ -78,13 +77,14 @@ impl_generic_builtin_cmd_no_spawn! {
 impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
               + ReportErrorEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + From<String>,
           E::Var: Borrow<String> + From<String>,
 {
@@ -150,13 +150,14 @@ fn get_flags<'a>(matches: &'a ArgMatches<'a>) -> Flags<'a> {
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
               + ReportErrorEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + From<String>,
           E::Var: Borrow<String> + From<String>,
 {

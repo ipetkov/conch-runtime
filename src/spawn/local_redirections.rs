@@ -1,8 +1,8 @@
 use {CANCELLED_TWICE, POLLED_TWICE, Spawn};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer, RedirectRestorer};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+          RedirectEnvRestorer, RedirectRestorer};
 use error::RedirectionError;
 use eval::RedirectEval;
-use io::FileDesc;
 use future::{Async, EnvFuture, Poll};
 use std::fmt;
 
@@ -111,8 +111,9 @@ impl<R, I, S, E: ?Sized, RR> EnvFuture<E> for LocalRedirections<I, S, E, RR>
           I: Iterator<Item = R>,
           S: Spawn<E>,
           S::Error: From<RedirectionError> + From<R::Error>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
           RR: RedirectEnvRestorer<E>,
 {
     type Item = S::Future;

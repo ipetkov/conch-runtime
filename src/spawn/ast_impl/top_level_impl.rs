@@ -1,5 +1,5 @@
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
-          ExportedVariableEnvironment, FileDescEnvironment, FunctionEnvironment,
+          ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment,
           WorkingDirectoryEnvironment};
@@ -17,11 +17,12 @@ macro_rules! impl_top_level_cmd {
     ($type: ident, $Rc:ident, $($extra_bounds:tt)*) => {
         impl<T, E: ?Sized> Spawn<E> for $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
+                  E: 'static + AsyncIoEnvironment
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
                     + FileDescEnvironment
+                    + FileDescOpener
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
@@ -31,11 +32,12 @@ macro_rules! impl_top_level_cmd {
                     + UnsetVariableEnvironment
                     + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
-                  E::FileHandle: FileDescWrapper,
+                  E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
+                  E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EnvFuture = BoxSpawnEnvFuture<'static, E, Self::Error>;
             type Future = BoxStatusFuture<'static, Self::Error>;
@@ -48,11 +50,12 @@ macro_rules! impl_top_level_cmd {
 
         impl<'a, T: 'a, E: ?Sized> Spawn<E> for &'a $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
+                  E: 'static + AsyncIoEnvironment
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
                     + FileDescEnvironment
+                    + FileDescOpener
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
@@ -62,11 +65,12 @@ macro_rules! impl_top_level_cmd {
                     + UnsetVariableEnvironment
                     + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
-                  E::FileHandle: FileDescWrapper,
+                  E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
+                  E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EnvFuture = BoxSpawnEnvFuture<'a, E, Self::Error>;
             type Future = BoxStatusFuture<'a, Self::Error>;
@@ -83,11 +87,12 @@ macro_rules! impl_top_level_word {
     ($type:ident, $Rc:ident, $($extra_bounds:tt)*) => {
         impl<T, E: ?Sized> WordEval<E> for $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
+                  E: 'static + AsyncIoEnvironment
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
                     + FileDescEnvironment
+                    + FileDescOpener
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
@@ -97,11 +102,12 @@ macro_rules! impl_top_level_word {
                     + UnsetVariableEnvironment
                     + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
-                  E::FileHandle: FileDescWrapper,
+                  E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
+                  E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EvalResult = T;
             type EvalFuture = Box<'static + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
@@ -114,11 +120,12 @@ macro_rules! impl_top_level_word {
 
         impl<'a, T, E: ?Sized> WordEval<E> for &'a $type<T>
             where T: 'static + StringWrapper + Display $($extra_bounds)*,
-                  E: 'static + AsyncIoEnvironment<IoHandle = FileDesc>
+                  E: 'static + AsyncIoEnvironment
                     + ArgumentsEnvironment<Arg = T>
                     + ExecutableEnvironment
                     + ExportedVariableEnvironment<VarName = T, Var = T>
                     + FileDescEnvironment
+                    + FileDescOpener
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
@@ -128,11 +135,12 @@ macro_rules! impl_top_level_word {
                     + UnsetVariableEnvironment
                     + WorkingDirectoryEnvironment,
                   E::Args: From<Vec<E::Arg>>,
-                  E::FileHandle: FileDescWrapper,
+                  E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
+                  E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EvalResult = T;
             type EvalFuture = Box<'a + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;

@@ -1,13 +1,12 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
-          LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment,
-          VariableEnvironment};
+          FileDescOpener, LastStatusEnvironment, ReportErrorEnvironment,
+          SubEnvironment, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
-use io::FileDesc;
 use spawn::{BoxStatusFuture, ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd,
             LocalRedirections, Loop, loop_cmd, PatternBodyPair, Sequence, sequence,
             spawn_with_local_redirections, Spawn, SpawnBoxed, SpawnRef, Subshell, subshell};
@@ -99,8 +98,9 @@ impl<S, R, E: ?Sized> Spawn<E> for CompoundCommand<S, R>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           S: Spawn<E>,
           S::Error: From<RedirectionError> + From<R::Error>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: Clone + From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
 {
     type EnvFuture = LocalRedirections<IntoIter<R>, S, E>;
     type Future = S::Future;
@@ -115,8 +115,9 @@ impl<'a, S, R, E: ?Sized> Spawn<E> for &'a CompoundCommand<S, R>
     where &'a R: RedirectEval<E, Handle = E::FileHandle>,
           &'a S: Spawn<E>,
           <&'a S as Spawn<E>>::Error: From<RedirectionError> + From<<&'a R as RedirectEval<E>>::Error>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc> + FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: Clone + From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
 {
     type EnvFuture = LocalRedirections<Iter<'a, R>, &'a S, E>;
     type Future = <&'a S as Spawn<E>>::Future;

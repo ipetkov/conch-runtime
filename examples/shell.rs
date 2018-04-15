@@ -50,7 +50,7 @@ fn main() {
 
     // Instantiate our environment and event loop for executing commands
     let mut lp = Core::new().expect("failed to create event loop");
-    let env = DefaultEnvRc::new(lp.remote(), None).expect("failed to create environment");
+    let env = DefaultEnvRc::new(lp.handle(), None).expect("failed to create environment");
 
     // Use a lazy future adapter here to ensure that all commands are
     // spawned directly in the event loop, to avoid paying extra costs

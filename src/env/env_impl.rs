@@ -1,6 +1,6 @@
 use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use error::{CommandError, RuntimeError};
-use io::{FileDesc, Permissions};
+use io::{FileDescWrapper, Permissions};
 use spawn::SpawnBoxed;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
@@ -594,7 +594,7 @@ macro_rules! impl_env {
             where A: ArgumentsEnvironment,
                   A::Arg: fmt::Display,
                   FM: FileDescEnvironment,
-                  FM::FileHandle: Borrow<FileDesc>,
+                  FM::FileHandle: Clone + FileDescWrapper,
                   N: Hash + Eq,
         {
             // FIXME(breaking): should we do a best effort async write here?
@@ -602,8 +602,10 @@ macro_rules! impl_env {
             fn report_error(&self, err: &Error) {
                 use std::io::Write;
 
-                if let Some((fd, _)) = self.file_desc(STDERR_FILENO) {
-                    let _ = writeln!(fd.borrow(), "{}: {}", self.name(), err);
+                if let Some((fdes, _)) = self.file_desc(STDERR_FILENO) {
+                    let _ = fdes.clone().try_unwrap().map(|mut fd| {
+                        writeln!(fd, "{}: {}", self.name(), err)
+                    });
                 }
             }
         }

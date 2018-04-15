@@ -1,10 +1,10 @@
 use {ExitStatus, POLLED_TWICE, Spawn, STDOUT_FILENO};
-use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
-          SubEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, LastStatusEnvironment,
+          Pipe, ReportErrorEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
-use io::{FileDesc, FileDescWrapper, Permissions, Pipe};
+use io::Permissions;
 use spawn::{ExitResult, Subshell, subshell};
 use std::borrow::Cow;
 use std::fmt;
@@ -28,12 +28,14 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
     where I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
             + FileDescEnvironment
+            + FileDescOpener
             + LastStatusEnvironment
             + ReportErrorEnvironment
             + SubEnvironment,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::OpenedFileHandle>,
           E::Read: AsyncRead,
 {
     type Item = Substitution<I, E::Read, E>;
@@ -41,14 +43,14 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let body = self.body.take().expect(POLLED_TWICE);
-        let Pipe { reader: cmd_output, writer: cmd_stdout_fd } = try!(Pipe::new());
+        let Pipe { reader: cmd_output, writer: cmd_stdout_fd } = env.open_pipe()?;
 
         let mut env = env.sub_env();
         let cmd_stdout_fd: E::FileHandle = cmd_stdout_fd.into();
         env.set_file_desc(STDOUT_FILENO, cmd_stdout_fd, Permissions::Write);
 
         let subshell = FlattenSubshell::Subshell(subshell(body, &env));
-        let read_to_end = read_to_end(env.read_async(cmd_output)?, Vec::new());
+        let read_to_end = read_to_end(env.read_async(cmd_output.into())?, Vec::new());
         drop(env);
 
         Ok(Async::Ready(Substitution {

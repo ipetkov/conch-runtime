@@ -1,10 +1,10 @@
 use conch_parser::ast;
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
-          FileDescEnvironment, FunctionEnvironment, SetArgumentsEnvironment,
-          UnsetVariableEnvironment, WorkingDirectoryEnvironment};
+          FileDescEnvironment, FileDescOpener, FunctionEnvironment,
+          SetArgumentsEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
-use io::{FileDesc, FileDescWrapper};
+use io::FileDescWrapper;
 use spawn::{ExitResult, Spawn, SimpleCommand, simple_command, SpawnedSimpleCommand};
 use std::borrow::Borrow;
 use std::hash::Hash;
@@ -26,18 +26,20 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
           W: WordEval<E>,
           S: Clone + Spawn<E>,
           S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
 {
@@ -63,18 +65,20 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
               + From<RedirectionError>
               + From<<&'a R as RedirectEval<E>>::Error>
               + From<<&'a W as WordEval<E>>::Error>,
-          E: AsyncIoEnvironment<IoHandle = FileDesc>
+          E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<<&'a W as WordEval<E>>::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<<&'a W as WordEval<E>>::EvalResult>,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<<&'a W as WordEval<E>>::EvalResult>,
 {
