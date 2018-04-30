@@ -18,7 +18,6 @@ macro_rules! impl_env {
         $Inner:ident,
         $InnerFileDescEnv:ident,
 
-
         $(#[$file_desc_handle_attr:meta])*
         pub struct $FileDescHandle:ident,
         $InnerFileDescHandle:ident,
@@ -126,6 +125,24 @@ macro_rules! impl_env {
             }
         }
 
+        impl AsyncIoEnvironment for $Env {
+            type IoHandle = $FileDescHandle;
+            type Read = $AsyncRead;
+            type WriteAll = $WriteAll;
+
+            fn read_async(&mut self, fd: Self::IoHandle) -> IoResult<Self::Read> {
+                self.inner.read_async(fd.0).map($AsyncRead)
+            }
+
+            fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> IoResult<Self::WriteAll> {
+                self.inner.write_all(fd.0, data).map($WriteAll)
+            }
+
+            fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
+                self.inner.write_all_best_effort(fd.0, data);
+            }
+        }
+
         $(#[$managed_async_read_attr])*
         #[must_use]
         #[derive(Debug)]
@@ -219,7 +236,7 @@ impl_env! {
 #[cfg(unix)] type InnerWriteAll = ::os::unix::env::ManagedWriteAll;
 
 #[cfg(not(unix))] type InnerFileHandle = ::std::rc::Rc<::io::FileDesc>;
-#[cfg(not(unix))] type InnerAsyncRead = ::env::async_io::ThreadPoolAsyncRead;
+#[cfg(not(unix))] type InnerAsyncRead = ::env::async_io::ThreadPoolReadAsync;
 #[cfg(not(unix))] type InnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 
 #[cfg(unix)]
@@ -231,9 +248,9 @@ type Inner = FileDescManagerEnv<
 
 #[cfg(not(unix))]
 type Inner = FileDescManagerEnv<
-    env::RcFileDescOpenerEnv<FileDescOpenerEnv>,
+    ::env::RcFileDescOpenerEnv<FileDescOpenerEnv>,
     FileDescEnv<PlatformSpecificManagedHandle>,
-    env::async_io::RcUnwrappingAsyncIoEnv<env::async_io::ThreadPoolAsyncIoEnv>,
+    ::env::async_io::RcUnwrappingAsyncIoEnv<::env::async_io::ThreadPoolAsyncIoEnv>,
 >;
 
 impl PlatformSpecificFileDescManagerEnv {
@@ -271,30 +288,12 @@ impl PlatformSpecificFileDescManagerEnv {
     }
 }
 
-impl AsyncIoEnvironment for PlatformSpecificFileDescManagerEnv {
-    type IoHandle = PlatformSpecificManagedHandle;
-    type Read = PlatformSpecificAsyncRead;
-    type WriteAll = PlatformSpecificWriteAll;
-
-    fn read_async(&mut self, fd: Self::IoHandle) -> IoResult<Self::Read> {
-        self.inner.read_async(fd.0).map(PlatformSpecificAsyncRead)
-    }
-
-    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> IoResult<Self::WriteAll> {
-        self.inner.write_all(fd.0, data).map(PlatformSpecificWriteAll)
-    }
-
-    fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
-        self.inner.write_all_best_effort(fd.0, data);
-    }
-}
-
 #[cfg(unix)] type AtomicInnerFileHandle = ::os::unix::env::atomic::ManagedFileDesc;
 #[cfg(unix)] type AtomicInnerAsyncRead = ::os::unix::env::atomic::ManagedAsyncRead;
 #[cfg(unix)] type AtomicInnerWriteAll = ::os::unix::env::atomic::ManagedWriteAll;
 
 #[cfg(not(unix))] type AtomicInnerFileHandle = ::std::sync::Arc<::io::FileDesc>;
-#[cfg(not(unix))] type AtomicInnerAsyncRead = ::env::async_io::ThreadPoolAsyncRead;
+#[cfg(not(unix))] type AtomicInnerAsyncRead = ::env::async_io::ThreadPoolReadAsync;
 #[cfg(not(unix))] type AtomicInnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 
 #[cfg(unix)]
@@ -306,9 +305,9 @@ type AtomicInner = FileDescManagerEnv<
 
 #[cfg(not(unix))]
 type AtomicInner = FileDescManagerEnv<
-    env::ArcFileDescOpenerEnv<FileDescOpenerEnv>,
+    ::env::ArcFileDescOpenerEnv<FileDescOpenerEnv>,
     AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
-    env::async_io::ThreadPoolAsyncIoEnv,
+    ArcShimAsyncIoEnv,
 >;
 
 impl AtomicPlatformSpecificFileDescManagerEnv {
@@ -336,7 +335,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
             FileDescManagerEnv::new(
                 ::env::ArcFileDescOpenerEnv::new(FileDescOpenerEnv::new()),
                 fd_env,
-                thread_pool,
+                ArcShimAsyncIoEnv::new(thread_pool),
             )
         };
 
@@ -346,36 +345,48 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
     }
 }
 
-impl AsyncIoEnvironment for AtomicPlatformSpecificFileDescManagerEnv {
-    type IoHandle = AtomicPlatformSpecificManagedHandle;
-    type Read = AtomicPlatformSpecificAsyncRead;
-    type WriteAll = AtomicPlatformSpecificWriteAll;
+/// Shim environment akin to `ArcUnwrappingAsyncIoEnv`, except it doesn't
+/// actually perform the unwrapping since `ThreadPoolAsyncIoEnv`'s inherent
+/// methods can accept `Arc<FileDesc>` directly
+#[cfg(not(unix))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ArcShimAsyncIoEnv {
+    inner: ::env::async_io::ThreadPoolAsyncIoEnv,
+}
+
+#[cfg(not(unix))]
+impl ArcShimAsyncIoEnv {
+    fn new(inner: ::env::async_io::ThreadPoolAsyncIoEnv) -> Self {
+        Self {
+            inner: inner,
+        }
+    }
+}
+
+#[cfg(not(unix))]
+impl AsyncIoEnvironment for ArcShimAsyncIoEnv {
+    type IoHandle = ::std::sync::Arc<FileDesc>;
+    type Read = ::env::async_io::ThreadPoolReadAsync;
+    type WriteAll = ::env::async_io::ThreadPoolWriteAll;
 
     fn read_async(&mut self, fd: Self::IoHandle) -> IoResult<Self::Read> {
-        #[cfg(unix)]
-        let ret = self.inner.read_async(fd.0);
-
-        #[cfg(not(unix))]
-        let ret = self.inner.create_read_async(fd.0);
-
-        ret.map(AtomicPlatformSpecificAsyncRead)
+        Ok(self.inner.create_read_async(fd))
     }
 
     fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> IoResult<Self::WriteAll> {
-        #[cfg(unix)]
-        let ret = self.inner.write_all(fd.0, data);
-
-        #[cfg(not(unix))]
-        let ret = self.inner.create_write_all(fd.0, data);
-
-        ret.map(AtomicPlatformSpecificWriteAll)
+        Ok(self.inner.create_write_all(fd, data))
     }
 
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
-        #[cfg(unix)]
-        self.inner.write_all_best_effort(fd.0, data);
+        self.inner.create_write_all_best_effort(fd, data)
+    }
+}
 
-        #[cfg(not(unix))]
-        self.inner.create_write_all_best_effort(fd.0, data);
+#[cfg(not(unix))]
+impl SubEnvironment for ArcShimAsyncIoEnv {
+    fn sub_env(&self) -> Self {
+        Self {
+            inner: self.inner.sub_env()
+        }
     }
 }

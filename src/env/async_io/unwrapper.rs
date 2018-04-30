@@ -1,5 +1,5 @@
 use env::{AsyncIoEnvironment, SubEnvironment};
-use io::FileDesc;
+use io::{FileDesc, FileDescWrapper};
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -23,10 +23,6 @@ macro_rules! impl_env {
                     async_io: env,
                 }
             }
-
-            fn try_unwrap(rc: $Rc<FileDesc>) -> io::Result<FileDesc> {
-                $Rc::try_unwrap(rc).or_else(|rc| rc.duplicate())
-            }
         }
 
         impl<T: SubEnvironment> SubEnvironment for $Env<T> {
@@ -45,17 +41,15 @@ macro_rules! impl_env {
             type WriteAll = T::WriteAll;
 
             fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
-                let fd = Self::try_unwrap(fd)?;
-                self.async_io.read_async(fd)
+                self.async_io.read_async(fd.try_unwrap()?)
             }
 
             fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
-                let fd = Self::try_unwrap(fd)?;
-                self.async_io.write_all(fd, data)
+                self.async_io.write_all(fd.try_unwrap()?, data)
             }
 
             fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
-                if let Ok(fd) = Self::try_unwrap(fd) {
+                if let Ok(fd) = fd.try_unwrap() {
                     self.async_io.write_all_best_effort(fd, data);
                 }
             }

@@ -28,6 +28,17 @@ pub struct ThreadPoolAsyncIoEnv {
     pool: CpuPool, // CpuPool uses an internal Arc, so clones should be shallow/"cheap"
 }
 
+impl Eq for ThreadPoolAsyncIoEnv {}
+impl PartialEq<ThreadPoolAsyncIoEnv> for ThreadPoolAsyncIoEnv {
+    fn eq(&self, other: &ThreadPoolAsyncIoEnv) -> bool {
+        // NB: CpuPool does not implement PartialEq so we'll improvise here
+        let self_raw: *const _ = self;
+        let other_raw: *const _ = other;
+
+        self_raw == other_raw
+    }
+}
+
 impl SubEnvironment for ThreadPoolAsyncIoEnv {
     fn sub_env(&self) -> Self {
         self.clone()
