@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - `Env` will now manage `$PWD` and `$OLDPWD` whenever the current working directory is changed
 - Added `Read`/`Write` impls for `&EventedFileDesc`
+- Added the `FileDescOpener` trait for abstracting over opening files/pipes through the environment
+- Added the `FileDescManager` trait to encompass opening file descriptors, managing their permissions,
+and performing async I/O over them
+- Added `PlatformSpecificFileDescManagerEnv` environment and an atomic
+counterpart as a successor to `PlatformSpecificAsyncIoEnv`
+- Added inherent methods on `ThreadPoolAsyncIoEnv` for any `AsyncIoEnvironment`
+related operations for more efficient operations which do not require owned
+`FileDesc` handles as long as the provided input can be borrowed as a `FileDesc`
 
 ### Changed
 - **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
@@ -22,6 +30,13 @@ of `EvalRedirectOrVarAssig2`
 generic parameters to implement `Debug`
 - **Breaking:** `AsyncIoEnvironment` must now specify an associated type `IoHandle` for what
 file handle it accepts, thus it is no longer forced to operate with a `FileDesc`
+- **Breaking:** `AsyncIoEnvironment` now returns an `io::Result` when creating an async read/write adapter
+over a file handle, instead of surfacing the error at the first interaction with the new handle
+- **Breaking:** `Env` now delegates file descriptor management to a single type instead of separate
+file descriptor mapper, async I/O environment, etc.
+- **Breaking:** The `FileDescWrapper` trait now represents anything that can be
+unwrapped into an owned `FileDesc` instead of anything that can be cloned and
+borrowed as a `FileDesc`
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
@@ -40,8 +55,6 @@ the signature of `FileDescExt::into_evented2`
 ### Fixed
 * `EventedFileDesc` no longer attempts to reregister a file descriptor into the
 event loop if the original `register` call returns `ErrorKind::AlreadyExists`
-
-<!--### Security -->
 
 ## [0.1.4] - 2018-01-27
 ### Changed
