@@ -81,11 +81,11 @@ pub trait FileDescExt {
     ///
     /// Specifiying `true` will set the file descriptor in non-blocking mode,
     /// while specifying `false` will set it to blocking mode.
-    fn set_nonblock(&self, set: bool) -> Result<()>;
+    fn set_nonblock(&mut self, set: bool) -> Result<()>;
 }
 
 impl FileDescExt for FileDesc {
-    fn into_evented(self, handle: &Handle) -> Result<MaybeEventedFd> {
+    fn into_evented(mut self, handle: &Handle) -> Result<MaybeEventedFd> {
         let ret = if is_regular_file(&self)? {
             MaybeEventedFd::RegularFile(self)
         } else {
@@ -97,8 +97,8 @@ impl FileDescExt for FileDesc {
         Ok(ret)
     }
 
-    fn set_nonblock(&self, set: bool) -> Result<()> {
-        self.inner().set_nonblock(set)
+    fn set_nonblock(&mut self, set: bool) -> Result<()> {
+        self.inner_mut().set_nonblock(set)
     }
 }
 

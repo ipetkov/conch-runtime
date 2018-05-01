@@ -223,18 +223,18 @@ impl AsyncIoEnvironment for ThreadPoolAsyncIoEnv {
     type Read = ThreadPoolReadAsync;
     type WriteAll = ThreadPoolWriteAll;
 
-    fn read_async(&mut self, fd: FileDesc) -> io::Result<Self::Read> {
-        let _ = try_set_blocking(&fd); // Best effort here...
+    fn read_async(&mut self, mut fd: FileDesc) -> io::Result<Self::Read> {
+        let _ = try_set_blocking(&mut fd); // Best effort here...
         Ok(self.create_read_async(fd))
     }
 
-    fn write_all(&mut self, fd: FileDesc, data: Vec<u8>) -> io::Result<Self::WriteAll> {
-        let _ = try_set_blocking(&fd); // Best effort here...
+    fn write_all(&mut self, mut fd: FileDesc, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+        let _ = try_set_blocking(&mut fd); // Best effort here...
         Ok(self.create_write_all(fd, data))
     }
 
-    fn write_all_best_effort(&mut self, fd: FileDesc, data: Vec<u8>) {
-        let _ = try_set_blocking(&fd); // Best effort here...
+    fn write_all_best_effort(&mut self, mut fd: FileDesc, data: Vec<u8>) {
+        let _ = try_set_blocking(&mut fd); // Best effort here...
         self.create_write_all_best_effort(fd, data);
     }
 }
@@ -249,7 +249,7 @@ impl Future for ThreadPoolWriteAll {
 }
 
 #[cfg(unix)]
-fn try_set_blocking(fd: &FileDesc) -> io::Result<()> {
+fn try_set_blocking(fd: &mut FileDesc) -> io::Result<()> {
     use os::unix::io::FileDescExt;
 
     fd.set_nonblock(false)

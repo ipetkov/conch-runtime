@@ -62,6 +62,10 @@ impl IntoInner for FileDesc {
         &self.0
     }
 
+    fn inner_mut(&mut self) -> &mut Self::Inner {
+        &mut self.0
+    }
+
     fn into_inner(self) -> Self::Inner {
         self.0
     }

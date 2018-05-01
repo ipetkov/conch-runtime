@@ -38,6 +38,8 @@ file descriptor mapper, async I/O environment, etc.
 unwrapped into an owned `FileDesc` instead of anything that can be cloned and
 borrowed as a `FileDesc`
 - **Breaking:** EventedAsyncIoEnv has been rewritten to yield opaque file handles
+- **Breaking:** Changing the blocking/nonblocking state of a `FileDesc` now
+requires a mutable reference
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`

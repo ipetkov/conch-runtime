@@ -128,8 +128,10 @@ impl RawIo {
     }
 
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
-    // FIXME(breaking): require a mut ref here, avoids having someone else change the flag under us
-    pub fn set_nonblock(&self, set: bool) -> Result<()> {
+    ///
+    /// Requires a mutable handle so that blocking state is not unexpectedly
+    /// changed by someone else while sharing immutably.
+    pub fn set_nonblock(&mut self, set: bool) -> Result<()> {
         unsafe {
             let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFL)));
             let new_flags = if set {

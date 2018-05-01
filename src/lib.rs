@@ -117,6 +117,8 @@ trait IntoInner: Sized {
     type Inner;
     /// Borrow a reference to the inner type.
     fn inner(&self) -> &Self::Inner;
+    /// Borrow a mutable reference to the inner type.
+    fn inner_mut(&mut self) -> &mut Self::Inner;
     /// Take ownership of the inner type.
     fn into_inner(self) -> Self::Inner;
     /// Convert an inner value to its wrapper.
