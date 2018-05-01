@@ -3,7 +3,7 @@ extern crate conch_runtime;
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::Fd;
 use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
-                         Pipe, PlatformSpecificRead,
+                         Pipe, PlatformSpecificAsyncRead,
                          PlatformSpecificWriteAll, RedirectRestorer, RedirectEnvRestorer};
 use conch_runtime::eval::RedirectAction;
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
 
 impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
     type IoHandle = T;
-    type Read = PlatformSpecificRead;
+    type Read = PlatformSpecificAsyncRead;
     type WriteAll = PlatformSpecificWriteAll;
 
     fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {

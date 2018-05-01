@@ -51,6 +51,9 @@ the signature of `FileDescExt::into_evented2`
 - **Breaking:** Removed deprecated `VarRestorer` methods
 - **Breaking:** Removed deprecated `eval_redirects_or_var_assignments` and
 `eval_redirects_or_var_assignments_with_restorer` functions
+- **Breaking:** Removed `PlatformSpecificAsyncIoEnv`,
+`PlatformSpecificRead`, and `PlatformSpecificWriteAll` as they are superceded
+by the new `PlatformSpecificFileDescManagerEnv`
 
 ### Fixed
 * `EventedFileDesc` no longer attempts to reregister a file descriptor into the

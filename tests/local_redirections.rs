@@ -56,7 +56,7 @@ impl FileDescOpener for MockEnv {
 
 impl AsyncIoEnvironment for MockEnv {
     type IoHandle = Rc<FileDesc>;
-    type Read = PlatformSpecificRead;
+    type Read = PlatformSpecificAsyncRead;
     type WriteAll = PlatformSpecificWriteAll;
 
     fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {

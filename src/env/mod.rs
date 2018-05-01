@@ -21,7 +21,6 @@ mod var;
 
 pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment};
 pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment,
-                         PlatformSpecificAsyncIoEnv, PlatformSpecificRead, PlatformSpecificWriteAll,
                          ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll,
                          RcUnwrappingAsyncIoEnv};
 pub use self::cur_dir::{ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv,
@@ -37,7 +36,7 @@ pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::platform_specific_fd_manager::{PlatformSpecificFileDescManagerEnv,
                                              PlatformSpecificAsyncRead,
                                              PlatformSpecificManagedHandle,
-                                             PlatformSpecificWriteAll as PlatformSpecificWriteAll2};
+                                             PlatformSpecificWriteAll};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 #[allow(deprecated)]
 pub use self::reversible_var::{VarEnvRestorer, VarEnvRestorer2, VarRestorer};
