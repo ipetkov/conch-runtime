@@ -2,15 +2,13 @@
 
 use std::io::{Error, ErrorKind, Result};
 
-mod async_io;
 mod fd_manager;
 
 pub mod io;
 
 /// Unix-specific environment extensions
 pub mod env {
-    pub use super::async_io::{EventedAsyncIoEnv, ReadAsync, WriteAll};
-    pub use super::fd_manager::{EventedAsyncIoEnv as EventedAsyncIoEnv2, ManagedAsyncRead,
+    pub use super::fd_manager::{EventedAsyncIoEnv, ManagedAsyncRead,
                                 ManagedFileDesc, ManagedWriteAll};
 
     /// A module which provides atomic implementations (which can be `Send` and

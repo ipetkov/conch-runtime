@@ -37,6 +37,7 @@ file descriptor mapper, async I/O environment, etc.
 - **Breaking:** The `FileDescWrapper` trait now represents anything that can be
 unwrapped into an owned `FileDesc` instead of anything that can be cloned and
 borrowed as a `FileDesc`
+- **Breaking:** EventedAsyncIoEnv has been rewritten to yield opaque file handles
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`

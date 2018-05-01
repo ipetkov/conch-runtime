@@ -10,8 +10,7 @@ pub mod unix {
 
     /// Unix-specific environment extensions
     pub mod env {
-        pub use sys::env::{EventedAsyncIoEnv, ReadAsync, WriteAll};
-        pub use sys::env::{EventedAsyncIoEnv2, ManagedAsyncRead,
+        pub use sys::env::{EventedAsyncIoEnv, ManagedAsyncRead,
                            ManagedFileDesc, ManagedWriteAll};
 
         /// A module which provides atomic implementations (which can be `Send` and

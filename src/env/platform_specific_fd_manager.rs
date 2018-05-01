@@ -243,7 +243,7 @@ impl_env! {
 type Inner = FileDescManagerEnv<
     FileDescOpenerEnv,
     FileDescEnv<PlatformSpecificManagedHandle>,
-    ::os::unix::env::EventedAsyncIoEnv2,
+    ::os::unix::env::EventedAsyncIoEnv,
 >;
 
 #[cfg(not(unix))]
@@ -264,7 +264,7 @@ impl PlatformSpecificFileDescManagerEnv {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
                 fd_env,
-                ::os::unix::env::EventedAsyncIoEnv2::new(handle)
+                ::os::unix::env::EventedAsyncIoEnv::new(handle)
             )
         };
 

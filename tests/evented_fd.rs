@@ -11,7 +11,7 @@ pub use self::support::*;
 
 use conch_runtime::env::AsyncIoEnvironment;
 use conch_runtime::io::{FileDesc, Pipe};
-use conch_runtime::os::unix::env::EventedAsyncIoEnv;
+use conch_runtime::os::unix::env::{EventedAsyncIoEnv, ManagedFileDesc};
 use conch_runtime::os::unix::io::{FileDescExt, MaybeEventedFd};
 use std::fs::File;
 use std::io::{ErrorKind, Read, Result, Write};
@@ -105,12 +105,13 @@ fn evented_supports_regular_files() {
     let msg = "hello\nworld\n";
 
     let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = EventedAsyncIoEnv::new(lp.remote());
+    let mut env = EventedAsyncIoEnv::new(lp.handle());
 
     // Test spawning directly within the event loop
     lp.run(futures::lazy(|| {
         let fd = File::create(&path)
             .map(FileDesc::from)
+            .map(ManagedFileDesc::from)
             .expect("failed to create file");
 
         env.write_all(fd, msg.to_owned().into_bytes())
@@ -120,6 +121,7 @@ fn evented_supports_regular_files() {
     // Test spawning outside of the event loop
     let fd = File::open(path)
         .map(FileDesc::from)
+        .map(ManagedFileDesc::from)
         .expect("failed to open file");
 
     let data = env.read_async(fd).expect("failed to get data");
