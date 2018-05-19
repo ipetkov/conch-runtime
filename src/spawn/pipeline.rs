@@ -70,7 +70,8 @@ impl<S, E> fmt::Debug for SpawnedPipeline<S, E>
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 struct PipelineInner<F> where F: Future {
-    pipeline: Vec<F>,
+    pipeline: Vec<F>, // The futures that need to be processed
+    buffer: Vec<F>, // Buffer for temporarily moving futures to avoid reallocations
     last: LastState<F, F::Error>,
 }
 
@@ -79,6 +80,7 @@ impl<F: Future> PipelineInner<F> {
     fn new(mut pipeline: Vec<F>) -> Self {
         PipelineInner {
             last: LastState::Pending(pipeline.pop().expect("cannot create an empty pipeline")),
+            buffer: Vec::with_capacity(pipeline.len()),
             pipeline: pipeline,
         }
     }
@@ -89,7 +91,27 @@ impl<F: Future> PipelineInner<F> {
         PipelineInner {
             last: LastState::Exited(Some(result)),
             pipeline: Vec::new(),
+            buffer: Vec::new(),
         }
+    }
+
+    fn poll_pipeline(&mut self) {
+        let Self { ref mut pipeline, ref mut buffer, .. } = *self;
+
+        if pipeline.is_empty() {
+            return;
+        }
+
+        debug_assert!(buffer.is_empty());
+        mem::swap(pipeline, buffer);
+
+        pipeline.extend(buffer.drain(..).filter_map(|mut future| match future.poll() {
+            Ok(Async::NotReady) => Some(future), // Future pending, keep it around
+
+            // FIXME: emit the error here?
+            Err(_) | // Swallow all errors, only the last command can return an error
+            Ok(Async::Ready(_)) => None, // Future done, no need to keep polling it
+        }));
     }
 }
 
@@ -229,7 +251,7 @@ impl<F: Future<Item = ExitStatus>> Future for PipelineInner<F> {
     type Error = F::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        poll_pipeline(&mut self.pipeline);
+        self.poll_pipeline();
 
         let last_status = match self.last {
             LastState::Pending(ref mut f) => match f.poll() {
@@ -252,23 +274,6 @@ impl<F: Future<Item = ExitStatus>> Future for PipelineInner<F> {
             Ok(Async::NotReady)
         }
     }
-}
-
-fn poll_pipeline<F: Future>(pipeline: &mut Vec<F>) {
-    if pipeline.is_empty() {
-        return;
-    }
-
-    *pipeline = mem::replace(pipeline, Vec::new())
-        .into_iter()
-        .filter_map(|mut future| match future.poll() {
-            Ok(Async::NotReady) => Some(future), // Future pending, keep it around
-
-            // FIXME: emit the error here?
-            Err(_) | // Swallow all errors, only the last command can return an error
-            Ok(Async::Ready(_)) => None, // Future done, no need to keep polling it
-        })
-        .collect();
 }
 
 /// Spawns each command in the pipeline, and pins them to their own environments.

@@ -2,13 +2,19 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Added
 ### Changed
+* The `Pipeline` future now avoids reallocating memory during each `poll`, and
+instead reuses a scratch buffer which is allocated once for the lifetime of the
+future.
+
+<!--
+### Added
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
 ### Breaking
+-->
 
 ## [0.1.4] - 2018-01-27
 ### Changed
