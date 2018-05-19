@@ -11,7 +11,7 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::Path;
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
-use tokio_process::{CommandExt, StatusAsync2};
+use tokio_process::{CommandExt, StatusAsync};
 
 /// Any data required to execute a child process.
 #[derive(Debug, PartialEq, Eq)]
@@ -107,7 +107,7 @@ impl ExecEnv {
 }
 
 fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
-    -> Result<StatusAsync2, CommandError>
+    -> Result<StatusAsync, CommandError>
 {
     let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
@@ -128,7 +128,8 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
         cmd.env(k, v);
     }
 
-    cmd.status_async2(handle).map_err(|err| map_io_err(err, convert_to_string(name)))
+    cmd.status_async_with_handle(handle.new_tokio_handle())
+        .map_err(|err| map_io_err(err, convert_to_string(name)))
 }
 
 fn convert_to_string(os_str: Cow<OsStr>) -> String {
@@ -200,9 +201,9 @@ pub struct Child {
 
 enum Inner {
     // Box to lower the size of this struct and avoid a clippy warning:
-    // StatusAsync2 is ~300 bytes, the Receiver is ~8
+    // StatusAsync is ~300 bytes, the Receiver is ~8
     // Plus this will avoid potential bloat with any parent futures
-    Child(Box<StatusAsync2>),
+    Child(Box<StatusAsync>),
     Remote(oneshot::Receiver<Result<process::ExitStatus, CommandError>>),
 }
 
