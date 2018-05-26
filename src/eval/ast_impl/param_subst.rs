@@ -93,7 +93,7 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ast::ParameterSubstitution<P, W, 
           E::Read: AsyncRead,
 {
     type EvalResult = T;
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     type EvalFuture = ParameterSubstitution<
         T,
         <&'a W as WordEval<E>>::EvalFuture,

@@ -162,7 +162,7 @@ impl IsFatalError for RedirectionError {
 
 /// An error which may arise when spawning a command process.
 #[derive(Debug)]
-#[cfg_attr(feature = "clippy", allow(enum_variant_names))]
+#[cfg_attr(feature = "cargo-clippy", allow(enum_variant_names))]
 pub enum CommandError {
     /// Unable to find a command/function/builtin to execute.
     NotFound(String),

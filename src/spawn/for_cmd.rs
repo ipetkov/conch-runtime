@@ -105,7 +105,7 @@ pub struct For<I, S, E: ?Sized>
           S: SpawnRef<E>,
           E: VariableEnvironment,
 {
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     kind: ForKind<E::Var, I, <I::Item as WordEval<E>>::EvalFuture, E::VarName, S, E>,
 }
 

@@ -22,7 +22,7 @@ impl StringWrapper for String {
 }
 
 impl StringWrapper for Box<String> {
-    #[cfg_attr(feature = "clippy", allow(boxed_local))]
+    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
     fn into_owned(self) -> String {
         *self
     }

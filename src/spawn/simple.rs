@@ -98,7 +98,7 @@ enum State<R, V, W, IV, IW, E: ?Sized, RR, VR>
           E::Fn: Spawn<E>,
 {
     Init(Option<IV>, Option<IW>),
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     Eval(EvalState<R, V, W, VarsIter<R, V, W, IV>, PeekedWords<R, W, IW>, E, RR, VR>),
     Func(Option<(RR, VR)>, Function<E::Fn, E>),
     Gone,

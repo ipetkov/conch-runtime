@@ -47,7 +47,7 @@ pub struct CompoundCommandKindFuture<IS, IW, IG, IP, SR, E>
           SR: SpawnRef<E>,
           E: VariableEnvironment,
 {
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     state: State<
         Sequence<IS, E>,
         If<IG, IS, E>,
@@ -222,7 +222,7 @@ impl<'a, T, W, S, E> Spawn<E> for &'a CompoundCommandKind<T, W, S>
         E::VarName: Clone + From<T>,
 {
     type EnvFuture = CompoundCommandKindRefFuture<'a, S, W, E>;
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     type Future = ExitResult<Either<<&'a S as Spawn<E>>::Future, <&'a S as Spawn<E>>::Future>>;
     type Error = <&'a S as Spawn<E>>::Error;
 

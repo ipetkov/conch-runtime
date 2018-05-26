@@ -22,7 +22,6 @@
 //!
 //! # Supported Cargo Features
 //!
-//! * `clippy`: compile with clippy lints enabled
 //! * `conch-parser`: enable implementations on the default AST types provided
 //! by the `conch-parser` crate
 //! * `top-level`: enable compiling implementations on thte `TopLevel{Command,Word}`
@@ -31,11 +30,8 @@
 
 #![doc(html_root_url = "https://docs.rs/conch-runtime/0.1")]
 
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
-
-#![cfg_attr(all(not(test), feature = "clippy"), deny(print_stdout))]
-#![cfg_attr(feature = "clippy", deny(wrong_self_convention))]
+#![cfg_attr(all(not(test), feature = "cargo-clippy"), deny(print_stdout))]
+#![cfg_attr(feature = "cargo-clippy", deny(wrong_self_convention))]
 
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
