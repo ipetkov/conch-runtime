@@ -1,6 +1,6 @@
 use {EXIT_ERROR, EXIT_SUCCESS};
 use error::IsFatalError;
-use env::{ArgumentsEnvironment, LastStatusEnvironment, ReportErrorEnvironment, VariableEnvironment};
+use env::{ArgumentsEnvironment, LastStatusEnvironment, ReportFailureEnvironment, VariableEnvironment};
 use eval::WordEval;
 use future::{Async, EnvFuture, Poll};
 use spawn::{ExitResult, SpawnRef, VecSequence, VecSequenceWithLast};
@@ -133,7 +133,7 @@ impl<I, W, S, E: ?Sized> EnvFuture<E> for For<I, S, E>
           W::EvalResult: Into<E::Var>,
           S: SpawnRef<E>,
           S::Error: From<W::Error> + IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment + VariableEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment,
           E::VarName: Clone,
 {
     type Item = ExitResult<S::Future>;
@@ -251,7 +251,7 @@ impl<I, S, E: ?Sized> EnvFuture<E> for ForArgs<I, S, E>
     where I: Iterator<Item = E::Var>,
           S: SpawnRef<E>,
           S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment + VariableEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment,
           E::VarName: Clone,
 {
     type Item = ExitResult<S::Future>;

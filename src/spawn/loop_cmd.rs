@@ -1,6 +1,6 @@
 use {EXIT_SUCCESS, ExitStatus};
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use future::{Async, EnvFuture, Poll};
 use futures::task;
 use spawn::{GuardBodyPair, SpawnRef, VecSequence};
@@ -69,7 +69,7 @@ enum State<V> {
 impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
     where S: SpawnRef<E>,
           S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = ExitStatus;
     type Error = S::Error;

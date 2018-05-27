@@ -1,6 +1,6 @@
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
           ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, FunctionEnvironment,
-          IsInteractiveEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
+          IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment,
           WorkingDirectoryEnvironment};
 use error::RuntimeError;
@@ -26,7 +26,7 @@ macro_rules! impl_top_level_cmd {
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
-                    + ReportErrorEnvironment
+                    + ReportFailureEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
                     + UnsetVariableEnvironment
@@ -59,7 +59,7 @@ macro_rules! impl_top_level_cmd {
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
-                    + ReportErrorEnvironment
+                    + ReportFailureEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
                     + UnsetVariableEnvironment
@@ -96,7 +96,7 @@ macro_rules! impl_top_level_word {
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
-                    + ReportErrorEnvironment
+                    + ReportFailureEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
                     + UnsetVariableEnvironment
@@ -129,7 +129,7 @@ macro_rules! impl_top_level_word {
                     + FunctionEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
-                    + ReportErrorEnvironment
+                    + ReportFailureEnvironment
                     + SetArgumentsEnvironment
                     + SubEnvironment
                     + UnsetVariableEnvironment

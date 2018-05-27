@@ -1,6 +1,6 @@
 use conch_parser::ast;
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use spawn::{AndOr, AndOrList, ExitResult, Spawn, and_or_list};
 use std::slice;
 use std::vec;
@@ -22,7 +22,7 @@ pub struct AndOrRefIter<I> {
 }
 
 impl<E: ?Sized, T> Spawn<E> for ast::AndOrList<T>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
 {
@@ -37,7 +37,7 @@ impl<E: ?Sized, T> Spawn<E> for ast::AndOrList<T>
 }
 
 impl<'a, E: ?Sized, T> Spawn<E> for &'a ast::AndOrList<T>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           &'a T: Spawn<E>,
           <&'a T as Spawn<E>>::Error: IsFatalError,
 {

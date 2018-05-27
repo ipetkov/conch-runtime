@@ -2,7 +2,7 @@ use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast;
 use conch_parser::ast::ParameterSubstitution::*;
 use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, LastStatusEnvironment,
-          ReportErrorEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
+          ReportFailureEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
 use error::{ExpansionError, IsFatalError};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
@@ -30,7 +30,7 @@ impl<T, P, W, C, A, E> WordEval<E> for ast::ParameterSubstitution<P, W, C, A>
               + FileDescEnvironment
               + FileDescOpener
               + LastStatusEnvironment
-              + ReportErrorEnvironment
+              + ReportFailureEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: From<E::OpenedFileHandle>,
@@ -85,7 +85,7 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ast::ParameterSubstitution<P, W, 
               + FileDescEnvironment
               + FileDescOpener
               + LastStatusEnvironment
-              + ReportErrorEnvironment
+              + ReportFailureEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: From<E::OpenedFileHandle>,
@@ -280,7 +280,7 @@ impl<T, F, I, A, E> EnvFuture<E> for ParameterSubstitution<T, F, I, A, E, E::Rea
               + FileDescEnvironment
               + FileDescOpener
               + LastStatusEnvironment
-              + ReportErrorEnvironment
+              + ReportFailureEnvironment
               + SubEnvironment
               + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: From<E::OpenedFileHandle>,
@@ -310,7 +310,7 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
             + FileDescEnvironment
             + FileDescOpener
             + LastStatusEnvironment
-            + ReportErrorEnvironment
+            + ReportFailureEnvironment
             + SubEnvironment
             + VariableEnvironment<VarName = T, Var = T>,
           E::FileHandle: From<E::OpenedFileHandle>,

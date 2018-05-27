@@ -1,6 +1,6 @@
 use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportErrorEnvironment, StringWrapper};
+use env::{LastStatusEnvironment, ReportFailureEnvironment, StringWrapper};
 use eval::{Pattern, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use glob::MatchOptions;
@@ -143,7 +143,7 @@ impl<W, S, IA, IW, IS, E: ?Sized> EnvFuture<E> for Case<IA, IW, IS, E>
           IS: IntoIterator<Item = S>,
           S: Spawn<E>,
           S::Error: From<W::Error> + IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = ExitResult<S::Future>;
     type Error = S::Error;
@@ -242,7 +242,7 @@ impl<W, I, B, E: ?Sized> EnvFuture<E> for Arm<I, B, E>
     where I: Iterator<Item = W>,
           W: WordEval<E>,
           W::Error: IsFatalError,
-          E: ReportErrorEnvironment,
+          E: ReportFailureEnvironment,
 {
     type Item = (String, Option<B>);
     type Error = W::Error;
@@ -261,7 +261,7 @@ impl<W, I, B, E: ?Sized> EnvFuture<E> for Arm<I, B, E>
                         if e.is_fatal() {
                             return Err(e);
                         } else {
-                            env.report_error(&e);
+                            env.report_failure(&e);
                             None
                         }
                     },

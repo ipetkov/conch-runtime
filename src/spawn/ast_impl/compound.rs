@@ -1,7 +1,7 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
-          FileDescOpener, LastStatusEnvironment, ReportErrorEnvironment,
+          FileDescOpener, LastStatusEnvironment, ReportFailureEnvironment,
           SubEnvironment, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
@@ -136,7 +136,7 @@ impl<T, W, S, E> Spawn<E> for CompoundCommandKind<T, W, S>
           <S as Spawn<E>>::Error: From<W::Error> + IsFatalError,
           E: 'static + ArgumentsEnvironment
             + LastStatusEnvironment
-            + ReportErrorEnvironment
+            + ReportFailureEnvironment
             + VariableEnvironment
             + SubEnvironment,
         E::Var: From<E::Arg>,
@@ -215,7 +215,7 @@ impl<'a, T, W, S, E> Spawn<E> for &'a CompoundCommandKind<T, W, S>
           <&'a S as Spawn<E>>::Error: From<<&'a W as WordEval<E>>::Error> + IsFatalError,
           E: ArgumentsEnvironment
             + LastStatusEnvironment
-            + ReportErrorEnvironment
+            + ReportFailureEnvironment
             + VariableEnvironment
             + SubEnvironment,
         E::Var: From<E::Arg>,
@@ -291,7 +291,7 @@ impl<S, W, IS, IW, IG, IP, SR, E> EnvFuture<E> for CompoundCommandKindFuture<IS,
           IG: Iterator<Item = GuardBodyPair<IS>>,
           IP: Iterator<Item = PatternBodyPair<IW, IS>>,
           SR: SpawnRef<E, Error = S::Error>,
-          E: LastStatusEnvironment + ReportErrorEnvironment + VariableEnvironment + SubEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment + SubEnvironment,
           E::VarName: Clone,
 {
     type Item = ExitResult<Either<S::Future, SR::Future>>;

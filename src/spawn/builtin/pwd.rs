@@ -1,7 +1,7 @@
 use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use clap::{App, AppSettings, Arg};
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper,
-          ReportErrorEnvironment, WorkingDirectoryEnvironment};
+          ReportFailureEnvironment, WorkingDirectoryEnvironment};
 use future::{EnvFuture, Poll};
 use path::{has_dot_components, NormalizationError, NormalizedPath};
 use spawn::ExitResult;
@@ -32,7 +32,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
           I: Iterator<Item = T>,
           E: AsyncIoEnvironment
               + FileDescEnvironment
-              + ReportErrorEnvironment
+              + ReportFailureEnvironment
               + WorkingDirectoryEnvironment,
           E::FileHandle: Clone,
           E::IoHandle: From<E::FileHandle>,

@@ -1,5 +1,5 @@
 use {EXIT_SUCCESS, Spawn};
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal, swallow_non_fatal_errors};
@@ -44,7 +44,7 @@ impl<S, I, E: ?Sized> fmt::Debug for Sequence<I, E>
 }
 
 impl<S, I, E: ?Sized> EnvFuture<E> for Sequence<I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,
@@ -94,7 +94,7 @@ impl<S, I, E: ?Sized> EnvFuture<E> for Sequence<I, E>
 /// previous commands. All non-fatal errors are reported and swallowed,
 /// however, "fatal" errors are bubbled up and the sequence terminated.
 pub fn sequence<I, E: ?Sized>(iter: I) -> Sequence<I::IntoIter, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           I: IntoIterator,
           I::Item: Spawn<E>,
 {

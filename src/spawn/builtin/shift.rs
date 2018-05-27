@@ -1,6 +1,6 @@
 use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, Spawn};
 use clap::{App, AppSettings, Arg};
-use env::{ArgumentsEnvironment, ReportErrorEnvironment, ShiftArgumentsEnvironment, StringWrapper};
+use env::{ArgumentsEnvironment, ReportFailureEnvironment, ShiftArgumentsEnvironment, StringWrapper};
 use future::{Async, EnvFuture, Poll};
 use std::borrow::Cow;
 use std::error::Error;
@@ -54,7 +54,7 @@ pub struct SpawnedShift<I> {
 impl<T, I, E: ?Sized> Spawn<E> for Shift<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
+          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportFailureEnvironment,
 {
     type EnvFuture = SpawnedShift<I>;
     type Future = ExitStatus;
@@ -70,7 +70,7 @@ impl<T, I, E: ?Sized> Spawn<E> for Shift<I>
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
+          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportFailureEnvironment,
 {
     type Item = ExitStatus;
     type Error = Void;

@@ -5,7 +5,6 @@ use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
 use std::borrow::Borrow;
-use std::error::Error;
 use std::fmt;
 use std::hash::Hash;
 
@@ -24,43 +23,14 @@ pub enum RedirectOrVarAssig<R, V, W> {
 }
 
 /// An error which may arise when evaluating a redirect or a variable assignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Fail)]
 pub enum EvalRedirectOrVarAssigError<R, V> {
     /// A redirect error occured.
-    Redirect(R),
+    #[fail(display = "{}", _0)]
+    Redirect(#[cause] R),
     /// A variable assignment evaluation error occured.
-    VarAssig(V),
-}
-
-impl<R, V> Error for EvalRedirectOrVarAssigError<R, V>
-    where R: Error,
-          V: Error,
-{
-    fn description(&self) -> &str {
-        match *self {
-            EvalRedirectOrVarAssigError::Redirect(ref e) => e.description(),
-            EvalRedirectOrVarAssigError::VarAssig(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            EvalRedirectOrVarAssigError::Redirect(ref e) => Some(e),
-            EvalRedirectOrVarAssigError::VarAssig(ref e) => Some(e),
-        }
-    }
-}
-
-impl<R, V> fmt::Display for EvalRedirectOrVarAssigError<R, V>
-    where R: fmt::Display,
-          V: fmt::Display,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            EvalRedirectOrVarAssigError::Redirect(ref e) => e.fmt(fmt),
-            EvalRedirectOrVarAssigError::VarAssig(ref e) => e.fmt(fmt),
-        }
-    }
+    #[fail(display = "{}", _0)]
+    VarAssig(#[cause] V),
 }
 
 impl<R, V> IsFatalError for EvalRedirectOrVarAssigError<R, V>

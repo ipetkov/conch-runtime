@@ -1,6 +1,6 @@
 use {ExitStatus, POLLED_TWICE, Spawn, STDOUT_FILENO};
 use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, LastStatusEnvironment,
-          Pipe, ReportErrorEnvironment, SubEnvironment};
+          Pipe, ReportFailureEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
@@ -32,7 +32,7 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
             + FileDescEnvironment
             + FileDescOpener
             + LastStatusEnvironment
-            + ReportErrorEnvironment
+            + ReportFailureEnvironment
             + SubEnvironment,
           E::FileHandle: From<E::OpenedFileHandle>,
           E::IoHandle: From<E::OpenedFileHandle>,
@@ -94,7 +94,7 @@ impl<I, R, S, E> fmt::Debug for Substitution<I, R, E>
 }
 
 impl<I, R, S, E> Future for Substitution<I, R, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
@@ -157,7 +157,7 @@ impl<I, S, E> fmt::Debug for FlattenSubshell<I, E>
 }
 
 impl<I, S, E> Future for FlattenSubshell<I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,
@@ -248,7 +248,7 @@ impl<I, R, E> JoinSubshellAndReadToEnd<I, R, E>
 }
 
 impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,

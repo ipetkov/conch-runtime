@@ -1,9 +1,9 @@
 //! Defines methods for spawning shell builtin commands
 
 use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus};
+use env::ReportFailureEnvironment;
 use futures::{Async, Future, Poll};
-use std::error::Error;
-use std::fmt;
+use failure::Fail;
 use void::Void;
 
 macro_rules! try_and_report {
@@ -11,16 +11,21 @@ macro_rules! try_and_report {
         match $result {
             Ok(val) => val,
             Err(e) => {
-                let err = $crate::spawn::builtin::ErrorWithBuiltinName {
-                    name: $name,
-                    err: e,
-                };
-
-                $env.report_error(&err);
+                $crate::spawn::builtin::try_and_report_impl($name, $env, e);
                 return Ok($crate::future::Async::Ready(EXIT_ERROR.into()));
             },
         }
     }
+}
+
+fn try_and_report_impl<E: ?Sized, F>(name: &'static str, env: &mut E, failure: F)
+    where E: ReportFailureEnvironment,
+          F: Fail,
+{
+    env.report_failure(&ErrorWithBuiltinName {
+        name: name,
+        err: failure,
+    })
 }
 
 /// Implements a builtin command which accepts no arguments,
@@ -211,7 +216,7 @@ macro_rules! impl_generic_builtin_cmd {
                   I: Iterator<Item = T>,
                   E: $crate::env::AsyncIoEnvironment,
                   E: $crate::env::FileDescEnvironment,
-                  E: $crate::env::ReportErrorEnvironment,
+                  E: $crate::env::ReportFailureEnvironment,
                   E::FileHandle: Clone,
                   E::IoHandle: From<E::FileHandle>,
                   $(E: $e_bounds),*
@@ -265,26 +270,12 @@ pub use self::pwd::{Pwd, pwd, PwdFuture, SpawnedPwd};
 pub use self::shift::{Shift, shift, SpawnedShift};
 pub use self::true_cmd::{True, true_cmd, SpawnedTrue};
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
+#[fail(display = "{}: {}", name, err)]
 struct ErrorWithBuiltinName<T> {
     name: &'static str,
+    #[cause]
     err: T,
-}
-
-impl<T: Error> Error for ErrorWithBuiltinName<T> {
-    fn description(&self) -> &str {
-        self.err.description()
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        Some(&self.err)
-    }
-}
-
-impl<T: fmt::Display> fmt::Display for ErrorWithBuiltinName<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}: {}", self.name, self.err)
-    }
 }
 
 #[must_use = "futures do nothing unless polled"]

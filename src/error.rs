@@ -1,6 +1,7 @@
 //! A module defining the various kinds of errors that may arise
 //! while executing commands.
 
+use failure::Fail;
 use io::Permissions;
 use std::convert::From;
 use std::error::Error;
@@ -19,7 +20,7 @@ use void;
 ///
 /// Ultimately it is up to the caller to decide how to handle fatal vs non-fatal
 /// errors.
-pub trait IsFatalError: Error {
+pub trait IsFatalError: Fail {
     /// Checks whether the error should be considered a "fatal" error.
     fn is_fatal(&self) -> bool;
 }

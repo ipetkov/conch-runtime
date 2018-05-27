@@ -4,7 +4,6 @@ use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
-use std::error::Error;
 use std::fmt;
 use std::mem;
 
@@ -22,43 +21,14 @@ pub enum RedirectOrCmdWord<R, W> {
 }
 
 /// An error which may arise when evaluating a redirect or a shell word.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Fail)]
 pub enum EvalRedirectOrCmdWordError<R, V> {
     /// A redirect error occured.
-    Redirect(R),
+    #[fail(display = "{}", _0)]
+    Redirect(#[cause] R),
     /// A variable assignment evaluation error occured.
-    CmdWord(V),
-}
-
-impl<R, V> Error for EvalRedirectOrCmdWordError<R, V>
-    where R: Error,
-          V: Error,
-{
-    fn description(&self) -> &str {
-        match *self {
-            EvalRedirectOrCmdWordError::Redirect(ref e) => e.description(),
-            EvalRedirectOrCmdWordError::CmdWord(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            EvalRedirectOrCmdWordError::Redirect(ref e) => Some(e),
-            EvalRedirectOrCmdWordError::CmdWord(ref e) => Some(e),
-        }
-    }
-}
-
-impl<R, V> fmt::Display for EvalRedirectOrCmdWordError<R, V>
-    where R: fmt::Display,
-          V: fmt::Display,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            EvalRedirectOrCmdWordError::Redirect(ref e) => e.fmt(fmt),
-            EvalRedirectOrCmdWordError::CmdWord(ref e) => e.fmt(fmt),
-        }
-    }
+    #[fail(display = "{}", _0)]
+    CmdWord(#[cause] V),
 }
 
 impl<R, V> IsFatalError for EvalRedirectOrCmdWordError<R, V>
