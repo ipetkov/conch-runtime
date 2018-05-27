@@ -2,7 +2,6 @@
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
 use failure::Fail;
-use std::error::Error;
 
 mod args;
 mod async_io;
@@ -75,18 +74,6 @@ pub trait IsInteractiveEnvironment {
 impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a T {
     fn is_interactive(&self) -> bool {
         (**self).is_interactive()
-    }
-}
-
-/// An interface for reporting arbitrary errors.
-pub trait ReportErrorEnvironment {
-    /// Reports any `Error` as appropriate, e.g. print to stderr.
-    fn report_error(&self, err: &Error);
-}
-
-impl<'a, T: ?Sized + ReportErrorEnvironment> ReportErrorEnvironment for &'a T {
-    fn report_error(&self, err: &Error) {
-        (**self).report_error(err);
     }
 }
 

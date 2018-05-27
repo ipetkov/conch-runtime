@@ -1,12 +1,11 @@
 use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use error::{CommandError, RuntimeError};
-use io::{FileDescWrapper, Permissions};
+use io::Permissions;
 use failure::Fail;
 use spawn::SpawnBoxed;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
 use std::hash::Hash;
-use std::error::Error;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io;
@@ -22,7 +21,7 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirect
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnvironment, FileDescOpener, FnEnv, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
-          ReportErrorEnvironment, ReportFailureEnvironment, ShiftArgumentsEnvironment,
+          ReportFailureEnvironment, ShiftArgumentsEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
           WorkingDirectoryEnvironment};
@@ -587,27 +586,6 @@ macro_rules! impl_env {
 
             fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
                 self.file_desc_manager_env.open_pipe()
-            }
-        }
-
-        impl<A, FM, L, V, EX, WD, N, ERR> ReportErrorEnvironment
-            for $Env<A, FM, L, V, EX, WD, N, ERR>
-            where A: ArgumentsEnvironment,
-                  A::Arg: fmt::Display,
-                  FM: FileDescEnvironment,
-                  FM::FileHandle: Clone + FileDescWrapper,
-                  N: Hash + Eq,
-        {
-            // FIXME(breaking): should we do a best effort async write here?
-            // Either way, we're risking a blocking operation if stderr is a pipe...
-            fn report_error(&self, err: &Error) {
-                use std::io::Write;
-
-                if let Some((fdes, _)) = self.file_desc(STDERR_FILENO) {
-                    let _ = fdes.clone().try_unwrap().map(|mut fd| {
-                        writeln!(fd, "{}: {}", self.name(), err)
-                    });
-                }
             }
         }
 
