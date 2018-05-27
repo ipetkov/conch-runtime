@@ -1,4 +1,5 @@
 extern crate conch_runtime;
+extern crate failure;
 extern crate futures;
 extern crate tempdir;
 extern crate tokio_core;
@@ -74,6 +75,17 @@ pub enum MockErr {
     CommandError(Arc<CommandError>),
 }
 
+impl failure::Fail for MockErr {
+    fn cause(&self) -> Option<&failure::Fail> {
+        match *self {
+            MockErr::Fatal(_) => None,
+            MockErr::ExpansionError(ref e) => Some(e),
+            MockErr::RedirectionError(ref e) => Some(&**e),
+            MockErr::CommandError(ref e) => Some(&**e),
+        }
+    }
+}
+
 impl self::conch_runtime::error::IsFatalError for MockErr {
     fn is_fatal(&self) -> bool {
         match *self {
@@ -82,12 +94,6 @@ impl self::conch_runtime::error::IsFatalError for MockErr {
             MockErr::RedirectionError(ref e) => e.is_fatal(),
             MockErr::CommandError(ref e) => e.is_fatal(),
         }
-    }
-}
-
-impl ::std::error::Error for MockErr {
-    fn description(&self) -> &str {
-        "mock error"
     }
 }
 

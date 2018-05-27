@@ -3,26 +3,12 @@ use clap::{App, AppSettings, Arg};
 use env::{ArgumentsEnvironment, ReportFailureEnvironment, ShiftArgumentsEnvironment, StringWrapper};
 use future::{Async, EnvFuture, Poll};
 use std::borrow::Cow;
-use std::error::Error;
 use std::fmt;
 use void::Void;
 
-const NUMERIC_ARGUMENT_REQUIRED: &str = "numeric argument required";
-
-#[derive(Debug)]
+#[derive(Debug, Fail)]
+#[fail(display = "numeric argument required")]
 struct NumericArgumentRequiredError;
-
-impl Error for NumericArgumentRequiredError {
-    fn description(&self) -> &str {
-        NUMERIC_ARGUMENT_REQUIRED
-    }
-}
-
-impl fmt::Display for NumericArgumentRequiredError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", self.description())
-    }
-}
 
 /// Represents a `shift` builtin command.
 ///
@@ -90,7 +76,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
                 .validator(|amt| {
                     amt.parse::<usize>()
                         .map(|_| ())
-                        .map_err(|_| NUMERIC_ARGUMENT_REQUIRED.into())
+                        .map_err(|_| NumericArgumentRequiredError.to_string())
                 })
                 .default_value(DEFAULT_SHIFT_AMOUNT)
             );

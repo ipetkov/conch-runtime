@@ -4,7 +4,6 @@
 use failure::Fail;
 use io::Permissions;
 use std::convert::From;
-use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use super::Fd;
@@ -32,38 +31,20 @@ impl IsFatalError for void::Void {
 }
 
 /// An error which may arise during parameter expansion.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Fail)]
 pub enum ExpansionError {
     /// Attempted to divide by zero in an arithmetic subsitution.
+    #[fail(display = "attempted to divide by zero")]
     DivideByZero,
     /// Attempted to raise to a negative power in an arithmetic subsitution.
+    #[fail(display = "attempted to raise to a negative power")]
     NegativeExponent,
     /// Attempted to assign a special parameter, e.g. `${!:-value}`.
+    #[fail(display = "{}: cannot assign in this way", _0)]
     BadAssig(String),
     /// Attempted to evaluate a null or unset parameter, i.e. `${var:?msg}`.
+    #[fail(display = "{}: {}", _0, _1)]
     EmptyParameter(String /* var */, String /* msg */),
-}
-
-impl Error for ExpansionError {
-    fn description(&self) -> &str {
-        match *self {
-            ExpansionError::DivideByZero       => "attempted to divide by zero",
-            ExpansionError::NegativeExponent   => "attempted to raise to a negative power",
-            ExpansionError::BadAssig(_)        => "attempted to assign a special parameter",
-            ExpansionError::EmptyParameter(..) => "attempted to evaluate a null or unset parameter",
-        }
-    }
-}
-
-impl Display for ExpansionError {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
-        match *self {
-            ExpansionError::DivideByZero                   |
-            ExpansionError::NegativeExponent               => write!(fmt, "{}", self.description()),
-            ExpansionError::BadAssig(ref p)                => write!(fmt, "{}: cannot assign in this way", p),
-            ExpansionError::EmptyParameter(ref p, ref msg) => write!(fmt, "{}: {}", p, msg),
-        }
-    }
 }
 
 impl IsFatalError for ExpansionError {
@@ -79,7 +60,7 @@ impl IsFatalError for ExpansionError {
 }
 
 /// An error which may arise during redirection.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum RedirectionError {
     /// A redirect path evaluated to multiple fields.
     Ambiguous(Vec<String>),
@@ -90,7 +71,7 @@ pub enum RedirectionError {
     BadFdPerms(Fd, Permissions /* new perms */),
     /// Any I/O error returned by the OS during execution and the
     /// file that caused the error if applicable.
-    Io(IoError, Option<String>),
+    Io(#[cause] IoError, Option<String>),
 }
 
 impl Eq for RedirectionError {}
@@ -108,41 +89,26 @@ impl PartialEq for RedirectionError {
     }
 }
 
-impl Error for RedirectionError {
-    fn description(&self) -> &str {
-        match *self {
-            RedirectionError::Ambiguous(_)   => "a redirect path evaluated to multiple fields",
-            RedirectionError::BadFdSrc(_)    => "attempted to duplicate an invalid file descriptor",
-            RedirectionError::BadFdPerms(..) =>
-                "attmpted to duplicate a file descritpr with Read/Write access that differs from the original",
-            RedirectionError::Io(ref e, _)   => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            RedirectionError::Ambiguous(_) |
-            RedirectionError::BadFdSrc(_) |
-            RedirectionError::BadFdPerms(..) => None,
-            RedirectionError::Io(ref e, _) => Some(e),
-        }
-    }
-}
-
 impl Display for RedirectionError {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
             RedirectionError::Ambiguous(ref v) => {
-                try!(write!(fmt, "{}: ", self.description()));
+                write!(fmt, "a redirect path evaluated to multiple fields: ")?;
                 let mut iter = v.iter();
                 if let Some(s) = iter.next() { try!(write!(fmt, "{}", s)); }
                 for s in iter { try!(write!(fmt, " {}", s)); }
                 Ok(())
             },
 
-            RedirectionError::BadFdSrc(ref fd) => write!(fmt, "{}: {}", self.description(), fd),
-            RedirectionError::BadFdPerms(fd, perms) =>
-                write!(fmt, "{}: {}, desired permissions: {}", self.description(), fd, perms),
+            RedirectionError::BadFdSrc(ref fd) => {
+                let description = "attempted to duplicate an invalid file descriptor";
+                write!(fmt, "{}: {}", description, fd)
+            },
+
+            RedirectionError::BadFdPerms(fd, perms) => {
+                let description = "attmpted to duplicate a file descritpor with Read/Write access that differs from the original";
+                write!(fmt, "{}: {}, desired permissions: {}", description, fd, perms)
+            },
 
             RedirectionError::Io(ref e, None)           => write!(fmt, "{}", e),
             RedirectionError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
@@ -162,7 +128,7 @@ impl IsFatalError for RedirectionError {
 }
 
 /// An error which may arise when spawning a command process.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 #[cfg_attr(feature = "cargo-clippy", allow(enum_variant_names))]
 pub enum CommandError {
     /// Unable to find a command/function/builtin to execute.
@@ -171,7 +137,7 @@ pub enum CommandError {
     NotExecutable(String),
     /// Any I/O error returned by the OS during execution and the
     /// file that caused the error if applicable.
-    Io(IoError, Option<String>),
+    Io(#[cause] IoError, Option<String>),
 }
 
 impl Eq for CommandError {}
@@ -188,29 +154,11 @@ impl PartialEq for CommandError {
     }
 }
 
-impl Error for CommandError {
-    fn description(&self) -> &str {
-        match *self {
-            CommandError::NotFound(_)      => "command not found",
-            CommandError::NotExecutable(_) => "command not executable",
-            CommandError::Io(ref e, _)     => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            CommandError::NotFound(_) |
-            CommandError::NotExecutable(_) => None,
-            CommandError::Io(ref e, _) => Some(e),
-        }
-    }
-}
-
 impl Display for CommandError {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
-            CommandError::NotFound(ref c)      |
-            CommandError::NotExecutable(ref c) => write!(fmt, "{}: {}", c, self.description()),
+            CommandError::NotFound(ref c) => write!(fmt, "{}: command not found", c),
+            CommandError::NotExecutable(ref c) => write!(fmt, "{}: command not executable", c),
             CommandError::Io(ref e, None) => write!(fmt, "{}", e),
             CommandError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
         }
@@ -228,17 +176,17 @@ impl IsFatalError for CommandError {
 }
 
 /// An error which may arise while executing commands.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum RuntimeError {
     /// Any I/O error returned by the OS during execution and the
     /// file that caused the error if applicable.
-    Io(IoError, Option<String>),
+    Io(#[cause] IoError, Option<String>),
     /// Any error that occured during a parameter expansion.
-    Expansion(ExpansionError),
+    Expansion(#[cause] ExpansionError),
     /// Any error that occured during a redirection.
-    Redirection(RedirectionError),
+    Redirection(#[cause] RedirectionError),
     /// Any error that occured during a command spawning.
-    Command(CommandError),
+    Command(#[cause] CommandError),
     /// Runtime feature not currently supported.
     Unimplemented(&'static str),
 }
@@ -255,28 +203,6 @@ impl PartialEq for RuntimeError {
             (&Command(ref a),       &Command(ref b))       => a == b,
             (&Unimplemented(a),     &Unimplemented(b))     => a == b,
             _ => false,
-        }
-    }
-}
-
-impl Error for RuntimeError {
-    fn description(&self) -> &str {
-        match *self {
-            RuntimeError::Io(ref e, _)       => e.description(),
-            RuntimeError::Expansion(ref e)   => e.description(),
-            RuntimeError::Redirection(ref e) => e.description(),
-            RuntimeError::Command(ref e)     => e.description(),
-            RuntimeError::Unimplemented(s)   => s,
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            RuntimeError::Io(ref e, _)       => Some(e),
-            RuntimeError::Expansion(ref e)   => Some(e),
-            RuntimeError::Redirection(ref e) => Some(e),
-            RuntimeError::Command(ref e)     => Some(e),
-            RuntimeError::Unimplemented(_)   => None,
         }
     }
 }
