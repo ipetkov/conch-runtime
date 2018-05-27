@@ -1,6 +1,7 @@
 use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use error::{CommandError, RuntimeError};
 use io::{FileDescWrapper, Permissions};
+use failure::Fail;
 use spawn::SpawnBoxed;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
@@ -21,7 +22,7 @@ use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirect
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnvironment, FileDescOpener, FnEnv, FunctionEnvironment,
           IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
-          ReportErrorEnvironment, ShiftArgumentsEnvironment,
+          ReportErrorEnvironment, ReportFailureEnvironment, ShiftArgumentsEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
           WorkingDirectoryEnvironment};
@@ -607,6 +608,26 @@ macro_rules! impl_env {
                         writeln!(fd, "{}: {}", self.name(), err)
                     });
                 }
+            }
+        }
+
+        impl<A, FM, L, V, EX, WD, N, ERR> ReportFailureEnvironment
+            for $Env<A, FM, L, V, EX, WD, N, ERR>
+            where A: ArgumentsEnvironment,
+                  A::Arg: fmt::Display,
+                  FM: AsyncIoEnvironment + FileDescEnvironment,
+                  FM::FileHandle: Clone,
+                  FM::IoHandle: From<FM::FileHandle>,
+                  N: Hash + Eq,
+        {
+            fn report_failure(&mut self, fail: &Fail) {
+                let fd = match self.file_desc(STDERR_FILENO) {
+                    Some((fdes, _)) => fdes.clone(),
+                    None => return,
+                };
+
+                let data = format!("{}: {}\n", self.name(), fail).into_bytes();
+                self.write_all_best_effort(fd.into(), data);
             }
         }
 

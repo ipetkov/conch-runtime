@@ -49,6 +49,7 @@
 extern crate clap;
 #[cfg(feature = "conch-parser")]
 extern crate conch_parser;
+#[macro_use] extern crate failure;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate glob;

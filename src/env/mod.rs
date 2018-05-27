@@ -1,6 +1,7 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
+use failure::Fail;
 use std::error::Error;
 
 mod args;
@@ -86,6 +87,18 @@ pub trait ReportErrorEnvironment {
 impl<'a, T: ?Sized + ReportErrorEnvironment> ReportErrorEnvironment for &'a T {
     fn report_error(&self, err: &Error) {
         (**self).report_error(err);
+    }
+}
+
+/// An interface for reporting arbitrary failures.
+pub trait ReportFailureEnvironment {
+    /// Reports any `Fail`ure as appropriate, e.g. print to stderr.
+    fn report_failure(&mut self, fail: &Fail);
+}
+
+impl<'a, T: ?Sized + ReportFailureEnvironment> ReportFailureEnvironment for &'a mut T {
+    fn report_failure(&mut self, fail: &Fail) {
+        (**self).report_failure(fail);
     }
 }
 
