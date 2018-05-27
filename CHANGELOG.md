@@ -16,6 +16,7 @@ counterpart as a successor to `PlatformSpecificAsyncIoEnv`
 - Added inherent methods on `ThreadPoolAsyncIoEnv` for any `AsyncIoEnvironment`
 related operations for more efficient operations which do not require owned
 `FileDesc` handles as long as the provided input can be borrowed as a `FileDesc`
+- Added the `ReportFailureEnvironment` trait for reporting arbitrary `Fail` types
 
 ### Changed
 - **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
@@ -40,6 +41,12 @@ borrowed as a `FileDesc`
 - **Breaking:** EventedAsyncIoEnv has been rewritten to yield opaque file handles
 - **Breaking:** Changing the blocking/nonblocking state of a `FileDesc` now
 requires a mutable reference
+- **Breaking:** `IsFatalError` now requires the implementor to also implement
+`failure::Fail` instead of `std::error::Error`
+- **Breaking:** All previous consumers of `ReportErrorEnvironment` now require
+`ReportFailureEnvironment` implementations instead
+- **Breaking:** All error types now implement `Fail` instead of `Error`.
+Use `Fail::compat` to get back an `Error` implementation.
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
@@ -57,6 +64,8 @@ the signature of `FileDescExt::into_evented2`
 - **Breaking:** Removed `PlatformSpecificAsyncIoEnv`,
 `PlatformSpecificRead`, and `PlatformSpecificWriteAll` as they are superceded
 by the new `PlatformSpecificFileDescManagerEnv`
+- **Breaking:** Removed the `ReportErrorEnvironment` trait, as it is superceded
+by the `ReportFailureEnvironment` trait
 
 ### Fixed
 * `EventedFileDesc` no longer attempts to reregister a file descriptor into the
