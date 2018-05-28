@@ -114,6 +114,12 @@ impl RawIo {
         Ok(n as u64)
     }
 
+    // NB: Linux platforms which support opening a file with O_CLOEXEC won't
+    // use this function, so we can suppress the dead_code lint
+    #[cfg_attr(
+        any(target_os = "linux", target_os = "android", target_os = "emscripten"),
+        allow(dead_code)
+    )]
     /// Sets the `CLOEXEC` flag on the descriptor to the desired state
     pub fn set_cloexec(&self, set: bool) -> Result<()> {
         unsafe {
