@@ -3,7 +3,6 @@ use clap::{App, AppSettings, Arg};
 use env::{ArgumentsEnvironment, ReportFailureEnvironment, ShiftArgumentsEnvironment, StringWrapper};
 use future::{Async, EnvFuture, Poll};
 use std::borrow::Cow;
-use std::fmt;
 use void::Void;
 
 #[derive(Debug, Fail)]
