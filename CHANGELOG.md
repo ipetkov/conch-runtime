@@ -17,6 +17,10 @@ counterpart as a successor to `PlatformSpecificAsyncIoEnv`
 related operations for more efficient operations which do not require owned
 `FileDesc` handles as long as the provided input can be borrowed as a `FileDesc`
 - Added the `ReportFailureEnvironment` trait for reporting arbitrary `Fail` types
+- Added the `BuiltinEnvironment` and `BuiltinUtility` traits for spawning
+builtin utilities
+- Added `BuiltinEnv` as which is a `BuiltinEnvironment` implementation which
+supports all provided builtin utilities definitions
 
 ### Changed
 - **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`

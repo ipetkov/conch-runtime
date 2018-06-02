@@ -5,6 +5,7 @@ use failure::Fail;
 
 mod args;
 mod async_io;
+pub mod builtin;
 mod cur_dir;
 mod env_impl;
 mod executable;
@@ -23,6 +24,7 @@ pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, Shi
 pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment,
                          ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll,
                          RcUnwrappingAsyncIoEnv};
+pub use self::builtin::BuiltinEnvironment;
 pub use self::cur_dir::{ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv,
                         WorkingDirectoryEnvironment};
 pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, DefaultEnvRc, EnvConfig,

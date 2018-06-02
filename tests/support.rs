@@ -17,12 +17,12 @@ use std::sync::Arc;
 
 // Convenience re-exports
 pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
-pub use self::conch_runtime::env::*;
+pub use self::conch_runtime::env::{self, *};
 pub use self::conch_runtime::error::*;
 pub use self::conch_runtime::eval::*;
 pub use self::conch_runtime::future::*;
 pub use self::conch_runtime::path::*;
-pub use self::conch_runtime::spawn::*;
+pub use self::conch_runtime::spawn::{self, *};
 pub use self::futures::{Async, Future, Poll};
 pub use self::tokio_core::reactor::Core;
 

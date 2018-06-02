@@ -8,6 +8,7 @@ use conch_runtime::io::Permissions;
 #[macro_use]
 mod support;
 pub use self::support::*;
+pub use self::support::spawn::builtin::echo;
 
 fn run_echo(args: &[&str]) -> String {
     let (mut lp, mut env) = new_env_with_threads(2);
@@ -18,7 +19,7 @@ fn run_echo(args: &[&str]) -> String {
     let read_to_end = env.read_async(pipe.reader).expect("failed to get read_to_end");
     let read_to_end = tokio_io::io::read_to_end(read_to_end, Vec::new());
 
-    let echo = builtin::echo(args.iter().map(|&s| s.to_owned()))
+    let echo = echo(args.iter().map(|&s| s.to_owned()))
         .spawn(&env)
         .pin_env(env)
         .flatten()
