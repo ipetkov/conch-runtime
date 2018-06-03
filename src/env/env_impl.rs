@@ -806,7 +806,6 @@ macro_rules! impl_env {
                   B: BuiltinEnvironment
         {
             type BuiltinName = B::BuiltinName;
-            type BuiltinArgs = B::BuiltinArgs;
             type Builtin = B::Builtin;
 
             fn builtin(&mut self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
