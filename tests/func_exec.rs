@@ -18,6 +18,7 @@ type TestEnv = Env<
     VarEnv<String, String>,
     ExecEnv,
     VirtualWorkingDirEnv,
+    env::builtin::BuiltinEnv<String>,
     String,
     MockErr,
 >;

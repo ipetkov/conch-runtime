@@ -31,7 +31,6 @@ fn run_builtin(name: &str, args: &[&str]) -> Output {
 fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
     where for<'a> F: FnOnce(&'a mut DefaultEnvRc)
 {
-    let mut builtin = BuiltinEnv::new();
     let (mut lp, mut env) = new_env_with_threads(2);
 
     let pipe_out = env.open_pipe().expect("err pipe failed");
@@ -42,7 +41,7 @@ fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
     let read_to_end_out = env.read_async(pipe_out.reader).expect("failed to create read_to_end_out");
     let read_to_end_out = tokio_io::io::read_to_end(read_to_end_out, Vec::new());
 
-    let builtin = builtin.builtin(&rc(name))
+    let builtin = env.builtin(&rc(name))
         .expect(&format!("did not find builtin for `{}`", name))
         .prepare(args.iter()
             .map(|&s| rc(s))

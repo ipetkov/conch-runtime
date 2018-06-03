@@ -39,6 +39,7 @@ file handle it accepts, thus it is no longer forced to operate with a `FileDesc`
 over a file handle, instead of surfacing the error at the first interaction with the new handle
 - **Breaking:** `Env` now delegates file descriptor management to a single type instead of separate
 file descriptor mapper, async I/O environment, etc.
+- **Breaking:** `Env` can now delegate to a `BuiltinEnvironment` implementation
 - **Breaking:** The `FileDescWrapper` trait now represents anything that can be
 unwrapped into an owned `FileDesc` instead of anything that can be cloned and
 borrowed as a `FileDesc`

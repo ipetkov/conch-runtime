@@ -24,6 +24,7 @@ pub type TestEnv = Env<
     VarEnv<Rc<String>, Rc<String>>,
     ExecEnv,
     VirtualWorkingDirEnv,
+    env::builtin::BuiltinEnv<Rc<String>>,
     Rc<String>,
     MockErr,
 >;
