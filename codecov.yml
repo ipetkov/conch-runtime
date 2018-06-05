@@ -2,4 +2,4 @@ ignore:
   - "src/bin"
 
 comment:
-  behavior: new
+  behavior: default
