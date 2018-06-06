@@ -21,6 +21,8 @@ related operations for more efficient operations which do not require owned
 builtin utilities
 - Added `BuiltinEnv` as which is a `BuiltinEnvironment` implementation which
 supports all provided builtin utilities definitions
+- Added `simple_command_with_restorers` function which allows spawning a simple
+command with the specified redirect and var restorers
 
 ### Changed
 - **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
@@ -52,6 +54,10 @@ requires a mutable reference
 `ReportFailureEnvironment` implementations instead
 - **Breaking:** All error types now implement `Fail` instead of `Error`.
 Use `Fail::compat` to get back an `Error` implementation.
+- `SimpleCommand` is now generic over the redirect and var restorers it is
+given. These generic parameters will default to `RedirectRestorer` and
+`VarRestorer` to remain backwards compatible (which was effectively the
+previous behavior as well).
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`

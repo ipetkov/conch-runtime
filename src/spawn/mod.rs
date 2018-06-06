@@ -38,7 +38,8 @@ pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirecti
 pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::pipeline::{Pipeline, pipeline, SpawnedPipeline};
 pub use self::sequence::{Sequence, sequence};
-pub use self::simple::{SimpleCommand, simple_command, SpawnedSimpleCommand};
+pub use self::simple::{SimpleCommand, simple_command, simple_command_with_restorers,
+                       SpawnedSimpleCommand};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
 pub use self::swallow_non_fatal::{SwallowNonFatal, swallow_non_fatal_errors};

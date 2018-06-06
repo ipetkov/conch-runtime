@@ -1,7 +1,8 @@
 use conch_parser::ast;
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnvironment, FileDescOpener, FunctionEnvironment,
-          SetArgumentsEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
+          RedirectRestorer, SetArgumentsEnvironment, VarRestorer,
+          UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
 use io::FileDescWrapper;
@@ -16,7 +17,9 @@ pub type SimpleCommandEnvFuture<R, V, W, E> = SimpleCommand<
     R, V, W,
     IntoIter<RedirectOrVarAssig<R, V, W>>,
     IntoIter<RedirectOrCmdWord<R, W>>,
-    E
+    E,
+    RedirectRestorer<E>,
+    VarRestorer<E>,
 >;
 
 impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
