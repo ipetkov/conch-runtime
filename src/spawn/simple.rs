@@ -303,7 +303,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
           RR: RedirectEnvRestorer<E>,
           VR: VarEnvRestorer<E>,
 {
-    type Item = ExitResult<SpawnedSimpleCommand<E::Future, S::Future>>;
+    type Item = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future>>;
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -481,7 +481,7 @@ fn spawn_process<T, F, VN, V, E: ?Sized>(
     env_vars: &[(VN, V)],
     mut io: HashMap<Fd, F>,
     env: &mut E
-) -> Result<E::Future, Either<CommandError, RedirectionError>>
+) -> Result<E::ExecFuture, Either<CommandError, RedirectionError>>
     where T: Borrow<String>,
           F: FileDescWrapper,
           VN: Borrow<String>,

@@ -748,10 +748,10 @@ macro_rules! impl_env {
                   N: Hash + Eq,
                   EX: ExecutableEnvironment,
         {
-            type Future = EX::Future;
+            type ExecFuture = EX::ExecFuture;
 
             fn spawn_executable(&mut self, data: ExecutableData)
-                -> Result<Self::Future, CommandError>
+                -> Result<Self::ExecFuture, CommandError>
             {
                 self.exec_env.spawn_executable(data)
             }

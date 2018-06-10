@@ -64,10 +64,18 @@ impl<'a> ExecutableData<'a> {
 /// An interface for asynchronously spawning executables.
 pub trait ExecutableEnvironment {
     /// A future which will resolve to the executable's exit status.
-    type Future: Future<Item = ExitStatus>;
+    type ExecFuture: Future<Item = ExitStatus>;
 
     /// Attempt to spawn the executable command.
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError>;
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError>;
+}
+
+impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a mut T {
+    type ExecFuture = T::ExecFuture;
+
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+        (**self).spawn_executable(data)
+    }
 }
 
 /// An `ExecutableEnvironment` implementation that uses a `tokio` event loop
@@ -162,9 +170,9 @@ fn map_io_err(err: IoError, name: String) -> CommandError {
 }
 
 impl ExecutableEnvironment for ExecEnv {
-    type Future = Child;
+    type ExecFuture = Child;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError> {
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
         let inner = match self.remote.handle() {
             Some(handle) => Inner::Child(Box::new(try!(spawn_child(data, &handle)))),
             None => {

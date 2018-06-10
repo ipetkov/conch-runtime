@@ -39,8 +39,8 @@ macro_rules! impl_top_level_cmd {
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
-                  <E::Fn as Spawn<E>>::Error: From<<E::Future as Future>::Error>,
-                  <E::Future as Future>::Error: Fail,
+                  <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>,
+                  <E::ExecFuture as Future>::Error: Fail,
                   E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EnvFuture = BoxSpawnEnvFuture<'static, E, Self::Error>;
@@ -74,8 +74,8 @@ macro_rules! impl_top_level_cmd {
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
-                  <E::Fn as Spawn<E>>::Error: From<<E::Future as Future>::Error>,
-                  <E::Future as Future>::Error: Fail,
+                  <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>,
+                  <E::ExecFuture as Future>::Error: Fail,
                   E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EnvFuture = BoxSpawnEnvFuture<'a, E, Self::Error>;
@@ -113,8 +113,8 @@ macro_rules! impl_top_level_word {
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
-                  <E::Fn as Spawn<E>>::Error: From<<E::Future as Future>::Error>,
-                  <E::Future as Future>::Error: Fail,
+                  <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>,
+                  <E::ExecFuture as Future>::Error: Fail,
                   E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EvalResult = T;
@@ -148,8 +148,8 @@ macro_rules! impl_top_level_word {
                   E::Fn: Clone
                     + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
-                  <E::Fn as Spawn<E>>::Error: From<<E::Future as Future>::Error>,
-                  <E::Future as Future>::Error: Fail,
+                  <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>,
+                  <E::ExecFuture as Future>::Error: Fail,
                   E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EvalResult = T;

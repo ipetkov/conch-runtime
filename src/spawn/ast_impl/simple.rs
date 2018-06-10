@@ -34,7 +34,7 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
               + From<RedirectionError>
               + From<R::Error>
               + From<W::Error>
-              + From<<E::Future as Future>::Error>,
+              + From<<E::ExecFuture as Future>::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
@@ -48,13 +48,13 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,
-          <E::Future as Future>::Error: Fail,
+          <E::ExecFuture as Future>::Error: Fail,
           E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
 {
     type EnvFuture = SimpleCommandEnvFuture<R, V, W, E>;
-    type Future = ExitResult<SpawnedSimpleCommand<E::Future, S::Future>>;
+    type Future = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future>>;
     type Error = S::Error;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
@@ -75,7 +75,7 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
               + From<RedirectionError>
               + From<<&'a R as RedirectEval<E>>::Error>
               + From<<&'a W as WordEval<E>>::Error>
-              + From<<E::Future as Future>::Error>,
+              + From<<E::ExecFuture as Future>::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
@@ -89,13 +89,13 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<<&'a W as WordEval<E>>::EvalResult>,
-          <E::Future as Future>::Error: Fail,
+          <E::ExecFuture as Future>::Error: Fail,
           E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<<&'a W as WordEval<E>>::EvalResult>,
 {
     type EnvFuture = SimpleCommandEnvFuture<&'a R, V, &'a W, E>;
-    type Future = ExitResult<SpawnedSimpleCommand<E::Future, S::Future>>;
+    type Future = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future>>;
     type Error = S::Error;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {

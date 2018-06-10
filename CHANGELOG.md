@@ -59,6 +59,9 @@ Use `Fail::compat` to get back an `Error` implementation.
 their own error types.
 - **Breaking:** Spawning a simple command now requires that errors arising from
 executing commands implement `Fail`
+- **Breaking:** `ExecutorEnvironment::Future` has been renamed to `ExecFuture`
+- **Breaking:** `ExecutorEnvironment` is now implemented for all `&mut T`
+where `T: ExecutableEnvironment`
 - `SimpleCommand` is now generic over the redirect and var restorers it is
 given. These generic parameters will default to `RedirectRestorer` and
 `VarRestorer` to remain backwards compatible (which was effectively the
