@@ -5,6 +5,8 @@ use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment
           UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
+use failure::Fail;
+use futures::Future;
 use io::FileDescWrapper;
 use spawn::{ExitResult, Spawn, SimpleCommand, simple_command, SpawnedSimpleCommand};
 use std::borrow::Borrow;
@@ -28,7 +30,11 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
           V: Hash + Eq + Borrow<String>,
           W: WordEval<E>,
           S: Clone + Spawn<E>,
-          S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
+          S::Error: From<CommandError>
+              + From<RedirectionError>
+              + From<R::Error>
+              + From<W::Error>
+              + From<<E::Future as Future>::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
@@ -42,6 +48,7 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,
+          <E::Future as Future>::Error: Fail,
           E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
@@ -67,7 +74,8 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
           S::Error: From<CommandError>
               + From<RedirectionError>
               + From<<&'a R as RedirectEval<E>>::Error>
-              + From<<&'a W as WordEval<E>>::Error>,
+              + From<<&'a W as WordEval<E>>::Error>
+              + From<<E::Future as Future>::Error>,
           E: AsyncIoEnvironment
               + ExecutableEnvironment
               + ExportedVariableEnvironment
@@ -81,6 +89,7 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
           E::Args: From<Vec<E::Arg>>,
           E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<<&'a W as WordEval<E>>::EvalResult>,
+          <E::Future as Future>::Error: Fail,
           E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<<&'a W as WordEval<E>>::EvalResult>,

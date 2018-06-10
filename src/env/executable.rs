@@ -64,7 +64,7 @@ impl<'a> ExecutableData<'a> {
 /// An interface for asynchronously spawning executables.
 pub trait ExecutableEnvironment {
     /// A future which will resolve to the executable's exit status.
-    type Future: Future<Item = ExitStatus, Error = CommandError>;
+    type Future: Future<Item = ExitStatus>;
 
     /// Attempt to spawn the executable command.
     fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError>;

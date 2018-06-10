@@ -8,6 +8,7 @@ use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
            EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
            RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
+use failure::Fail;
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
 use io::{FileDesc, FileDescWrapper};
@@ -599,23 +600,31 @@ impl<'a, R, V, W, IV, IW, E: ?Sized, RR, VR> EnvFuture<E> for EvalState<R, V, W,
 }
 
 impl<C, F> Future for SpawnedSimpleCommand<C, F>
-    where C: Future<Item = ExitStatus, Error = CommandError>,
+    where C: Future<Item = ExitStatus>,
+          C::Error: Fail,
           F: Future<Item = ExitStatus>,
           F::Error: From<C::Error>,
 {
     type Item = ExitStatus;
+    // NB: we use the function's error type here since functions are likely
+    // composed of other simple commands or builtin utilities, hence, they
+    // should already account for such errors.
     type Error = F::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.state {
             SpawnedState::Child(ref mut f) => f.poll().or_else(|e| {
-                let status = match e {
-                    CommandError::NotExecutable(_) => EXIT_CMD_NOT_EXECUTABLE,
-                    CommandError::NotFound(_) => EXIT_CMD_NOT_FOUND,
-                    CommandError::Io(_, _) => EXIT_ERROR,
-                };
+                if let Some(e) = e.root_cause().downcast_ref::<CommandError>() {
+                    let status = match e {
+                        CommandError::NotExecutable(_) => EXIT_CMD_NOT_EXECUTABLE,
+                        CommandError::NotFound(_) => EXIT_CMD_NOT_FOUND,
+                        CommandError::Io(_, _) => EXIT_ERROR,
+                    };
 
-                Ok(Async::Ready(status))
+                    return Ok(Async::Ready(status));
+                }
+
+                Err(e.into())
             }),
 
             SpawnedState::Func(ref mut f) => f.poll(),

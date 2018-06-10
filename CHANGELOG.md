@@ -54,6 +54,11 @@ requires a mutable reference
 `ReportFailureEnvironment` implementations instead
 - **Breaking:** All error types now implement `Fail` instead of `Error`.
 Use `Fail::compat` to get back an `Error` implementation.
+- **Breaking:** `ExecutableEnvironment` no longer enforces that
+`Self::Future = CommandError` which gives implementors the flexibility to use
+their own error types.
+- **Breaking:** Spawning a simple command now requires that errors arising from
+executing commands implement `Fail`
 - `SimpleCommand` is now generic over the redirect and var restorers it is
 given. These generic parameters will default to `RedirectRestorer` and
 `VarRestorer` to remain backwards compatible (which was effectively the
