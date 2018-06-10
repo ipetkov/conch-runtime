@@ -50,14 +50,14 @@ pub trait BuiltinEnvironment {
     type Builtin;
 
     /// Lookup and get a particular builtin by its name.
-    fn builtin(&mut self, name: &Self::BuiltinName) -> Option<Self::Builtin>;
+    fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin>;
 }
 
-impl<'a, T: ?Sized + BuiltinEnvironment> BuiltinEnvironment for &'a mut T {
+impl<'a, T: ?Sized + BuiltinEnvironment> BuiltinEnvironment for &'a T {
     type BuiltinName = T::BuiltinName;
     type Builtin = T::Builtin;
 
-    fn builtin(&mut self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
+    fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
         (**self).builtin(name)
     }
 }
@@ -156,7 +156,7 @@ impl<T> BuiltinEnvironment for BuiltinEnv<T>
     type BuiltinName = T;
     type Builtin = Builtin;
 
-    fn builtin(&mut self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
+    fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
         lookup_builtin(name.as_str())
             .map(|kind| Builtin {
                 kind: kind,
