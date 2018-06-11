@@ -256,6 +256,12 @@ impl From<CommandError> for RuntimeError {
     }
 }
 
+impl From<void::Void> for RuntimeError {
+    fn from(err: void::Void) -> Self {
+        void::unreachable(err)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

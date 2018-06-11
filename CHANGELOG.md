@@ -66,6 +66,7 @@ where `T: ExecutableEnvironment`
 given. These generic parameters will default to `RedirectRestorer` and
 `VarRestorer` to remain backwards compatible (which was effectively the
 previous behavior as well).
+- `RuntimeError` now implements `From<void::Void>` to satisfy type conversions
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
