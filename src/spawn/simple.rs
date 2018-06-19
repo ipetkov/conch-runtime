@@ -4,6 +4,7 @@ use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVar
           FileDescEnvironment, FileDescOpener, FunctionEnvironment, RedirectEnvRestorer,
           RedirectRestorer, SetArgumentsEnvironment, VarEnvRestorer, VarRestorer,
           VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
+use env::builtin::{BuiltinEnvironment, BuiltinUtility};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
            EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
@@ -12,7 +13,7 @@ use failure::Fail;
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
 use io::{FileDesc, FileDescWrapper};
-use spawn::{ExitResult, Function, function_body, Spawn};
+use spawn::{self, ExitResult, Function, function_body, Spawn};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt;
@@ -20,7 +21,7 @@ use std::ffi::OsStr;
 use std::hash::Hash;
 use std::iter;
 use std::option;
-use std::vec;
+use std::vec::IntoIter;
 
 #[derive(Debug)]
 enum RedirectOrWordError<R, V> {
@@ -52,16 +53,19 @@ pub struct SimpleCommand<R, V, W, IV, IW, E: ?Sized, RR = RedirectRestorer<E>, V
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: ExportedVariableEnvironment
+          E: BuiltinEnvironment
+              + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment
               + SetArgumentsEnvironment,
+          E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>,
+          <E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>>::PreparedBuiltin: Spawn<E>,
           E::Fn: Spawn<E>,
 {
     state: State<R, V, W, IV, IW, E, RR, VR>,
 }
 
-impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E, RR, VR>
+impl<R, V, W, IV, IW, S, B, PB, E: ?Sized, RR, VR> fmt::Debug for SimpleCommand<R, V, W, IV, IW, E, RR, VR>
     where R: RedirectEval<E> + fmt::Debug,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
@@ -72,14 +76,15 @@ impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for SimpleCommand<R, V, W
           IW: fmt::Debug,
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
-          E: ExportedVariableEnvironment
+          B: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR, PreparedBuiltin = PB>,
+          PB: Spawn<E>,
+          PB::EnvFuture: fmt::Debug,
+          E: BuiltinEnvironment<Builtin = B>
+              + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment<Fn = S>
               + SetArgumentsEnvironment,
           E::Args: fmt::Debug,
-          E::FileHandle: fmt::Debug,
-          E::VarName: fmt::Debug,
-          E::Var: fmt::Debug,
           RR: fmt::Debug,
           VR: fmt::Debug,
 {
@@ -91,23 +96,26 @@ impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for SimpleCommand<R, V, W
 }
 
 type PeekedWords<R, W, I> = iter::Chain<option::IntoIter<RedirectOrCmdWord<R, W>>, iter::Fuse<I>>;
-type VarsIter<R, V, W, I> = iter::Chain<I, vec::IntoIter<RedirectOrVarAssig<R, V, W>>>;
+type VarsIter<R, V, W, I> = iter::Chain<I, IntoIter<RedirectOrVarAssig<R, V, W>>>;
 
 enum State<R, V, W, IV, IW, E: ?Sized, RR, VR>
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: FunctionEnvironment + SetArgumentsEnvironment,
+          E: BuiltinEnvironment + FunctionEnvironment + SetArgumentsEnvironment,
+          E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>,
+          <E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>>::PreparedBuiltin: Spawn<E>,
           E::Fn: Spawn<E>,
 {
     Init(Option<(IV, IW, RR, VR)>),
     #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     Eval(EvalState<R, V, W, VarsIter<R, V, W, IV>, PeekedWords<R, W, IW>, E, RR, VR>),
     Func(Option<(RR, VR)>, Function<E::Fn, E>),
+    Builtin(<<E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>>::PreparedBuiltin as Spawn<E>>::EnvFuture),
     Gone,
 }
 
-impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW, E, RR, VR>
+impl<R, V, W, IV, IW, S, B, PB, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW, E, RR, VR>
     where R: RedirectEval<E> + fmt::Debug,
           R::EvalFuture: fmt::Debug,
           V: Hash + Eq + fmt::Debug,
@@ -118,7 +126,10 @@ impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW
           IW: fmt::Debug,
           S: Spawn<E> + fmt::Debug,
           S::EnvFuture: fmt::Debug,
-          E: FunctionEnvironment<Fn = S> + SetArgumentsEnvironment,
+          B: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR, PreparedBuiltin = PB>,
+          PB: Spawn<E>,
+          PB::EnvFuture: fmt::Debug,
+          E: BuiltinEnvironment<Builtin = B> + FunctionEnvironment<Fn = S> + SetArgumentsEnvironment,
           E::Args: fmt::Debug,
           RR: fmt::Debug,
           VR: fmt::Debug,
@@ -148,6 +159,12 @@ impl<R, V, W, IV, IW, S, E: ?Sized, RR, VR> fmt::Debug for State<R, V, W, IV, IW
                 fmt.debug_tuple("State::Func")
                     .field(f)
                     .field(restorers)
+                    .finish()
+            },
+
+            State::Builtin(ref builtin) => {
+                fmt.debug_tuple("State::Builtin")
+                    .field(builtin)
                     .finish()
             },
 
@@ -208,14 +225,15 @@ impl<R, V, W, IV, IW, E: ?Sized, RR, VR> fmt::Debug for EvalState<R, V, W, IV, I
 /// A future representing the fully spawned of a simple command.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct SpawnedSimpleCommand<C, F> {
-    state: SpawnedState<C, F>,
+pub struct SpawnedSimpleCommand<C, F, B> {
+    state: SpawnedState<C, F, B>,
 }
 
 #[derive(Debug)]
-enum SpawnedState<C, F> {
+enum SpawnedState<C, F, B> {
     Child(C),
     Func(F),
+    Builtin(B),
 }
 
 /// Spawns a shell command (or function) after applying any redirects and
@@ -227,11 +245,14 @@ pub fn simple_command<R, V, W, IV, IW, E: ?Sized>(vars: IV, words: IW, env: &E)
           R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: ExecutableEnvironment
+          E: BuiltinEnvironment
+              + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment
               + SetArgumentsEnvironment,
+          E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RedirectRestorer<E>, VarRestorer<E>>,
+          <E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RedirectRestorer<E>, VarRestorer<E>>>::PreparedBuiltin: Spawn<E>,
           E::FileHandle: FileDescWrapper,
           E::Fn: Spawn<E>,
           E::VarName: Borrow<String>,
@@ -254,11 +275,14 @@ pub fn simple_command_with_restorers<R, V, W, IV, IW, RR, VR, E: ?Sized>(
           R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
-          E: ExecutableEnvironment
+          E: BuiltinEnvironment
+              + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment
               + SetArgumentsEnvironment,
+          E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>,
+          <E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>>::PreparedBuiltin: Spawn<E>,
           E::FileHandle: FileDescWrapper,
           E::Fn: Spawn<E>,
           E::VarName: Borrow<String>,
@@ -275,7 +299,7 @@ pub fn simple_command_with_restorers<R, V, W, IV, IW, RR, VR, E: ?Sized>(
     }
 }
 
-impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V, W, IV, IW, E, RR, VR>
+impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleCommand<R, V, W, IV, IW, E, RR, VR>
     where IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
           IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
           R: RedirectEval<E, Handle = E::FileHandle>,
@@ -283,8 +307,15 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
           V: Hash + Eq + Borrow<String>,
           W: WordEval<E>,
           S: Clone + Spawn<E>,
-          S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
+          S::Error: From<CommandError>
+              + From<RedirectionError>
+              + From<R::Error>
+              + From<W::Error>
+              + From<PB::Error>,
+          B: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR, PreparedBuiltin = PB>,
+          PB: Spawn<E>,
           E: AsyncIoEnvironment
+              + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
@@ -295,6 +326,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
               + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
           E::Args: From<Vec<E::Arg>>, // FIXME(breaking): possible to change this this to E::Args: FromIterator<E::Arg>
+          E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>,
           E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,
           E::IoHandle: From<E::FileHandle>,
@@ -303,7 +335,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
           RR: RedirectEnvRestorer<E>,
           VR: VarEnvRestorer<E>,
 {
-    type Item = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future>>;
+    type Item = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future, PB::Future>>;
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -377,11 +409,20 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
                             },
                         };
 
-                        let fn_name = name_inner.clone().into();
-                        if let Some(func) = env.function(&fn_name).cloned() {
+                        let cmd_name = name_inner.clone().into();
+
+                        if let Some(func) = env.function(&cmd_name).cloned() {
                             let args = words_inner_iter.map(Into::into).collect();
                             let func = function_body(func, args);
                             State::Func(Some((red_restorer_inner, var_restorer_inner)), func)
+                        } else if let Some(builtin) = env.builtin(&cmd_name) {
+                            State::Builtin(spawn::builtin(
+                                builtin,
+                                words_inner_iter,
+                                red_restorer_inner,
+                                var_restorer_inner,
+                                env,
+                            ))
                         } else {
                             redirect_restorer = red_restorer_inner;
                             var_restorer = var_restorer_inner;
@@ -408,6 +449,14 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
                             }));
                         },
                     }
+                },
+
+                State::Builtin(ref mut f) => {
+                    let builtin = try_ready!(f.poll(env));
+                    let ret = ExitResult::Pending(SpawnedSimpleCommand {
+                        state: SpawnedState::Builtin(builtin),
+                    });
+                    return Ok(Async::Ready(ret));
                 },
 
                 State::Gone => panic!(POLLED_TWICE),
@@ -468,6 +517,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, RR, VR> EnvFuture<E> for SimpleCommand<R, V,
                 redirect_restorer.restore(env);
                 var_restorer.restore(env);
             },
+            State::Builtin(ref mut f) => return f.cancel(env),
             State::Gone => panic!(CANCELLED_TWICE),
         }
 
@@ -599,11 +649,12 @@ impl<'a, R, V, W, IV, IW, E: ?Sized, RR, VR> EnvFuture<E> for EvalState<R, V, W,
     }
 }
 
-impl<C, F> Future for SpawnedSimpleCommand<C, F>
+impl<C, F, B> Future for SpawnedSimpleCommand<C, F, B>
     where C: Future<Item = ExitStatus>,
           C::Error: Fail,
           F: Future<Item = ExitStatus>,
-          F::Error: From<C::Error>,
+          F::Error: From<C::Error> + From<B::Error>,
+          B: Future<Item = ExitStatus>,
 {
     type Item = ExitStatus;
     // NB: we use the function's error type here since functions are likely
@@ -628,6 +679,7 @@ impl<C, F> Future for SpawnedSimpleCommand<C, F>
             }),
 
             SpawnedState::Func(ref mut f) => f.poll(),
+            SpawnedState::Builtin(ref mut f) => Ok(Async::Ready(try_ready!(f.poll()))),
         }
     }
 }

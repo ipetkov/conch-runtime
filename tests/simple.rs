@@ -4,40 +4,73 @@ extern crate conch_runtime;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
+extern crate void;
 
+use conch_runtime::Fd;
 use conch_runtime::env::FileDescEnvironment;
+use conch_runtime::env::builtin::{Builtin as RealBuiltin, BuiltinEnvironment, BuiltinUtility};
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::Permissions;
-use conch_runtime::spawn::simple_command;
+use conch_runtime::spawn::{simple_command, simple_command_with_restorers};
 use futures::future::{FutureResult, ok, poll_fn};
+use std::io;
 use std::rc::Rc;
 use tokio_core::reactor::Core;
+use void::Void;
 
 #[macro_use]
 mod support;
 pub use self::support::*;
 
-pub type TestEnv = Env<
+type TestEnvWithBuiltin<B> = Env<
     ArgsEnv<Rc<String>>,
     PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<Rc<String>, Rc<String>>,
     ExecEnv,
     VirtualWorkingDirEnv,
-    env::builtin::BuiltinEnv<Rc<String>>,
+    B,
     Rc<String>,
     MockErr,
 >;
 
+type TestEnv = TestEnvWithBuiltin<DummyBuiltinEnv>;
+
+macro_rules! new_test_env_config {
+    () => {{
+        let lp = Core::new().expect("failed to create Core loop");
+        let cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1))
+            .expect("failed to create test env")
+            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1)))
+            .change_builtin_env(DummyBuiltinEnv)
+            .change_var_env(VarEnv::new())
+            .change_fn_error::<MockErr>();
+        (lp, cfg)
+    }}
+}
+
 fn new_test_env() -> (Core, TestEnv) {
-    let lp = Core::new().expect("failed to create Core loop");
-    let env = Env::with_config(DefaultEnvConfigRc::new(lp.handle(), Some(1))
-        .expect("failed to create test env")
-        .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1)))
-        .change_var_env(VarEnv::new())
-        .change_fn_error::<MockErr>()
-    );
-    (lp, env)
+    let (lp, cfg) = new_test_env_config!();
+    (lp, Env::with_config(cfg))
+}
+
+const BUILTIN_CMD: &str = "SPECIAL-BUIlTIN";
+const BUILTIN_EXIT_STATUS: ExitStatus = ExitStatus::Code(99);
+
+#[derive(Debug, Clone)]
+struct DummyBuiltinEnv;
+
+impl BuiltinEnvironment for DummyBuiltinEnv {
+    type BuiltinName = Rc<String>;
+    type Builtin = RealBuiltin;
+
+    fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
+        if **name == BUILTIN_CMD {
+            panic!("builtin not implemented for DummyBuiltinEnv")
+        }
+
+        None
+    }
 }
 
 #[cfg(feature = "conch-parser")]
@@ -45,7 +78,7 @@ fn new_test_env() -> (Core, TestEnv) {
 fn ast_node_smoke_test() {
     use conch_parser::ast;
 
-    pub fn run<T: Spawn<TestEnv>>(cmd: T) -> Result<ExitStatus, T::Error> {
+    fn run<T: Spawn<TestEnv>>(cmd: T) -> Result<ExitStatus, T::Error> {
         let (mut lp, env) = new_test_env();
         let future = cmd.spawn(&env)
             .pin_env(env)
@@ -446,4 +479,202 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
     );
     assert_eq!(env.file_desc(1), None);
     assert_eq!(env.var(&key), None);
+}
+
+#[test]
+fn builtins_should_have_lower_precedence_than_functions() {
+    const FN_EXIT: ExitStatus = ExitStatus::Code(42);
+
+    #[derive(Debug, Clone, Copy)]
+    struct MockFn;
+
+    impl<'a, E: ?Sized> Spawn<E> for &'a MockFn {
+        type Error = MockErr;
+        type EnvFuture = MockFn;
+        type Future = FutureResult<ExitStatus, Self::Error>;
+
+        fn spawn(self, _: &E) -> Self::EnvFuture {
+            *self
+        }
+    }
+
+    impl<E: ?Sized> EnvFuture<E> for MockFn {
+        type Item = FutureResult<ExitStatus, Self::Error>;
+        type Error = MockErr;
+
+        fn poll(&mut self, _env: &mut E) -> Poll<Self::Item, Self::Error> {
+            assert_ne!(FN_EXIT, BUILTIN_EXIT_STATUS);
+            Ok(Async::Ready(ok(FN_EXIT)))
+        }
+
+        fn cancel(&mut self, _env: &mut E) {
+            unimplemented!()
+        }
+    }
+
+    let (mut lp, mut env) = new_test_env();
+
+    let fn_name = BUILTIN_CMD.to_owned();
+    env.set_function(Rc::new(fn_name.clone()), Rc::new(MockFn));
+
+    let mut future = simple_command::<MockRedirect<_>, Rc<String>, _, _, _, _>(
+        vec!(),
+        vec!(
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(fn_name))),
+        ),
+        &env,
+    );
+
+    assert_eq!(lp.run(poll_fn(|| future.poll(&mut env)).flatten()), Ok(FN_EXIT));
+}
+
+#[test]
+fn should_pass_restorers_to_builtin_utility_if_spawned() {
+    const REDIRECT_RESTORER: MockRedirectRestorer = MockRedirectRestorer("redirect restorer");
+    const VAR_RESTORER: MockVarRestorer = MockVarRestorer("var restorer");
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct MockRedirectRestorer(&'static str);
+
+    impl<E: ?Sized> RedirectEnvRestorer<E> for MockRedirectRestorer {
+        fn reserve(&mut self, _additional: usize) {
+        }
+
+        fn apply_action(&mut self, _action: RedirectAction<E::FileHandle>, _env: &mut E) -> io::Result<()>
+            where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+                  E::FileHandle: From<E::OpenedFileHandle>,
+                  E::IoHandle: From<E::FileHandle>,
+        {
+            unimplemented!()
+        }
+
+        fn backup(&mut self, _fd: Fd, _env: &mut E) {
+            unimplemented!()
+        }
+
+        fn restore(&mut self, _env: &mut E) {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct MockVarRestorer(&'static str);
+
+    impl<E: ?Sized + VariableEnvironment> VarEnvRestorer<E> for MockVarRestorer {
+        fn reserve(&mut self, _additional: usize) {
+        }
+
+        fn set_exported_var(
+            &mut self,
+            _name: E::VarName,
+            _val: E::Var,
+            _exported: Option<bool>,
+            _env: &mut E
+        ) {
+            unimplemented!()
+        }
+
+        fn unset_var(&mut self, _name: E::VarName, _env: &mut E) {
+            unimplemented!()
+        }
+
+        fn backup(&mut self, _key: E::VarName, _env: &E) {
+            unimplemented!()
+        }
+
+        fn restore(&mut self, _env: &mut E) {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct MockBuiltinEnv;
+
+    #[derive(Debug, Clone, Copy)]
+    struct MockBuiltin;
+
+    impl BuiltinEnvironment for MockBuiltinEnv {
+        type BuiltinName = Rc<String>;
+        type Builtin = MockBuiltin;
+
+        fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
+            if **name == BUILTIN_CMD {
+                Some(MockBuiltin)
+            } else {
+                None
+            }
+        }
+    }
+
+    impl<I> BuiltinUtility<I, MockRedirectRestorer, MockVarRestorer> for MockBuiltin
+        where I: IntoIterator<Item = String>
+    {
+        type PreparedBuiltin = Self;
+
+        fn prepare(
+            self,
+            args: I,
+            redirect_restorer: MockRedirectRestorer,
+            var_restorer: MockVarRestorer
+        ) -> Self::PreparedBuiltin {
+            let args = args.into_iter()
+                .collect::<Vec<_>>();
+
+            assert_eq!(args, vec!("first".to_owned(), "second".to_owned()));
+            assert_eq!(redirect_restorer, REDIRECT_RESTORER);
+            assert_eq!(var_restorer, VAR_RESTORER);
+
+            self
+        }
+    }
+
+    impl<E: ?Sized> Spawn<E> for MockBuiltin {
+        type EnvFuture = Self;
+        type Future = Self;
+        type Error = Void;
+
+        fn spawn(self, _env: &E) -> Self::EnvFuture {
+            self
+        }
+    }
+
+    impl<E: ?Sized> EnvFuture<E> for MockBuiltin {
+        type Item = Self;
+        type Error = Void;
+
+        fn poll(&mut self, _env: &mut E) -> Poll<Self::Item, Self::Error> {
+            Ok(Async::Ready(*self))
+        }
+
+        fn cancel(&mut self, _env: &mut E) {
+            unimplemented!()
+        }
+    }
+
+    impl Future for MockBuiltin {
+        type Item = ExitStatus;
+        type Error = Void;
+
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            Ok(Async::Ready(BUILTIN_EXIT_STATUS))
+        }
+    }
+
+    let (mut lp, cfg) = new_test_env_config!();
+    let mut env: TestEnvWithBuiltin<MockBuiltinEnv> =
+        Env::with_config(cfg.change_builtin_env(MockBuiltinEnv));
+
+    let mut future = simple_command_with_restorers::<MockRedirect<_>, String, _, _, _, _, _, _>(
+        vec!(),
+        vec!(
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(String::from(BUILTIN_CMD)))),
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(String::from("first")))),
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(String::from("second")))),
+        ),
+        REDIRECT_RESTORER,
+        VAR_RESTORER,
+        &env,
+    );
+
+    assert_eq!(lp.run(poll_fn(|| future.poll(&mut env)).flatten()), Ok(BUILTIN_EXIT_STATUS));
 }

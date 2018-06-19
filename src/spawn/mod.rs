@@ -6,6 +6,7 @@ use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
 
 mod and_or;
+mod builtin_exec;
 mod case;
 mod for_cmd;
 mod func_exec;
@@ -30,6 +31,7 @@ use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 
 // Pub reexports
 pub use self::and_or::{AndOr, AndOrList, and_or_list};
+pub use self::builtin_exec::builtin;
 pub use self::case::{Case, case, PatternBodyPair};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::func_exec::{Function, function, function_body};

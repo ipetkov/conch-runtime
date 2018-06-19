@@ -62,6 +62,8 @@ executing commands implement `Fail`
 - **Breaking:** `ExecutorEnvironment::Future` has been renamed to `ExecFuture`
 - **Breaking:** `ExecutorEnvironment` is now implemented for all `&mut T`
 where `T: ExecutableEnvironment`
+- **Breaking:** `SimpleCommand` now supports spawning builtin utilities, (but
+requires that the environment support `Spawn`able builtins)
 - `SimpleCommand` is now generic over the redirect and var restorers it is
 given. These generic parameters will default to `RedirectRestorer` and
 `VarRestorer` to remain backwards compatible (which was effectively the
