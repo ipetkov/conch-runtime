@@ -1,6 +1,6 @@
 use {EXIT_ERROR, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportFailureEnvironment, StringWrapper};
+use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, StringWrapper};
 use eval::{Pattern, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use glob::MatchOptions;
@@ -143,7 +143,7 @@ impl<W, S, IA, IW, IS, E: ?Sized> EnvFuture<E> for Case<IA, IW, IS, E>
           IS: IntoIterator<Item = S>,
           S: Spawn<E>,
           S::Error: From<W::Error> + IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment,
+          E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = ExitResult<S::Future>;
     type Error = S::Error;

@@ -1,8 +1,8 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
-          FileDescOpener, LastStatusEnvironment, ReportFailureEnvironment,
-          SubEnvironment, VariableEnvironment};
+          FileDescOpener, IsInteractiveEnvironment, LastStatusEnvironment,
+          ReportFailureEnvironment, SubEnvironment, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
@@ -115,7 +115,7 @@ impl<'a, S, R, E: ?Sized> Spawn<E> for &'a CompoundCommand<S, R>
     where &'a R: RedirectEval<E, Handle = E::FileHandle>,
           &'a S: Spawn<E>,
           <&'a S as Spawn<E>>::Error: From<RedirectionError> + From<<&'a R as RedirectEval<E>>::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E: AsyncIoEnvironment + IsInteractiveEnvironment + FileDescEnvironment + FileDescOpener,
           E::FileHandle: Clone + From<E::OpenedFileHandle>,
           E::IoHandle: From<E::FileHandle>,
 {
@@ -135,6 +135,7 @@ impl<T, W, S, E> Spawn<E> for CompoundCommandKind<T, W, S>
           S: 'static + Spawn<E> + SpawnBoxed<E, Error = <S as Spawn<E>>::Error>,
           <S as Spawn<E>>::Error: From<W::Error> + IsFatalError,
           E: 'static + ArgumentsEnvironment
+            + IsInteractiveEnvironment
             + LastStatusEnvironment
             + ReportFailureEnvironment
             + VariableEnvironment
@@ -214,6 +215,7 @@ impl<'a, T, W, S, E> Spawn<E> for &'a CompoundCommandKind<T, W, S>
           <&'a S as Spawn<E>>::Error: IsFatalError,
           <&'a S as Spawn<E>>::Error: From<<&'a W as WordEval<E>>::Error> + IsFatalError,
           E: ArgumentsEnvironment
+            + IsInteractiveEnvironment
             + LastStatusEnvironment
             + ReportFailureEnvironment
             + VariableEnvironment
@@ -291,7 +293,7 @@ impl<S, W, IS, IW, IG, IP, SR, E> EnvFuture<E> for CompoundCommandKindFuture<IS,
           IG: Iterator<Item = GuardBodyPair<IS>>,
           IP: Iterator<Item = PatternBodyPair<IW, IS>>,
           SR: SpawnRef<E, Error = S::Error>,
-          E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment + SubEnvironment,
+          E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment + SubEnvironment,
           E::VarName: Clone,
 {
     type Item = ExitResult<Either<S::Future, SR::Future>>;

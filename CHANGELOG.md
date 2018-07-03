@@ -64,6 +64,12 @@ executing commands implement `Fail`
 where `T: ExecutableEnvironment`
 - **Breaking:** `SimpleCommand` now supports spawning builtin utilities, (but
 requires that the environment support `Spawn`able builtins)
+- **Breaking:** `Sequence` now requires the environment to implement
+`IsInteractiveEnvironment` to avoid situations where it blocks waiting for
+input which is not yet available
+ - Subsequently, other combinators such as `Subshell`, `If`, `Case`,
+`Substitution` and `ParameterSubstitution` also require the additional bound
+for `IsInteractiveEnvironment`
 - `SimpleCommand` is now generic over the redirect and var restorers it is
 given. These generic parameters will default to `RedirectRestorer` and
 `VarRestorer` to remain backwards compatible (which was effectively the

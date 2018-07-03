@@ -1,8 +1,9 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast;
 use conch_parser::ast::ParameterSubstitution::*;
-use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, LastStatusEnvironment,
-          ReportFailureEnvironment, StringWrapper, SubEnvironment, VariableEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
+          LastStatusEnvironment, ReportFailureEnvironment, StringWrapper, SubEnvironment,
+          VariableEnvironment};
 use error::{ExpansionError, IsFatalError};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
@@ -29,6 +30,7 @@ impl<T, P, W, C, A, E> WordEval<E> for ast::ParameterSubstitution<P, W, C, A>
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + FileDescOpener
+              + IsInteractiveEnvironment
               + LastStatusEnvironment
               + ReportFailureEnvironment
               + SubEnvironment
@@ -84,6 +86,7 @@ impl<'a, T, P, W, C, A, E> WordEval<E> for &'a ast::ParameterSubstitution<P, W, 
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + FileDescOpener
+              + IsInteractiveEnvironment
               + LastStatusEnvironment
               + ReportFailureEnvironment
               + SubEnvironment
@@ -279,6 +282,7 @@ impl<T, F, I, A, E> EnvFuture<E> for ParameterSubstitution<T, F, I, A, E, E::Rea
           E: AsyncIoEnvironment
               + FileDescEnvironment
               + FileDescOpener
+              + IsInteractiveEnvironment
               + LastStatusEnvironment
               + ReportFailureEnvironment
               + SubEnvironment
@@ -309,6 +313,7 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
           E: AsyncIoEnvironment
             + FileDescEnvironment
             + FileDescOpener
+            + IsInteractiveEnvironment
             + LastStatusEnvironment
             + ReportFailureEnvironment
             + SubEnvironment

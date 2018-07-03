@@ -325,7 +325,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
-          E::Args: From<Vec<E::Arg>>, // FIXME(breaking): possible to change this this to E::Args: FromIterator<E::Arg>
+          E::Args: From<Vec<E::Arg>>,
           E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>,
           E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,

@@ -11,7 +11,7 @@ extern crate owned_chars;
 extern crate tokio_core;
 
 use conch_runtime::{EXIT_ERROR, ExitStatus};
-use conch_runtime::env::DefaultEnvRc;
+use conch_runtime::env::{DefaultEnvRc, DefaultEnvConfigRc};
 use conch_runtime::future::EnvFuture;
 use conch_runtime::spawn::sequence;
 use futures::future::{Future, lazy};
@@ -30,7 +30,14 @@ fn main() {
     use conch_parser::parse::Parser;
 
     let stdin = BufReader::new(stdin()).lines()
-        .map(Result::unwrap)
+        .filter_map(|result| match result {
+            Ok(line) => Some(line),
+            Err(e) => if e.kind() == ::std::io::ErrorKind::WouldBlock {
+                None
+            } else {
+                panic!("stdin error: {}", e);
+            },
+        })
         .flat_map(|mut line| {
             line.push_str("\n"); // BufRead::lines unfortunately strips \n and \r\n
             line.into_chars()
@@ -40,17 +47,20 @@ fn main() {
     let lex = Lexer::new(stdin);
     let parser = Parser::with_builder(lex, RcBuilder::new());
 
-    let cmds: Vec<_> = match parser.into_iter().collect() {
-        Ok(cmds) => cmds,
-        Err(e) => {
+    let cmds = parser.into_iter()
+        .map(|result| result.unwrap_or_else(|e| {
             let _ = writeln!(stderr(), "Parse error encountered: {}", e);
             exit_with_status(EXIT_ERROR);
-        }
-    };
+        }));
 
     // Instantiate our environment and event loop for executing commands
     let mut lp = Core::new().expect("failed to create event loop");
-    let env = DefaultEnvRc::new(lp.handle(), None).expect("failed to create environment");
+    let env_config = DefaultEnvConfigRc {
+        interactive: true,
+        .. DefaultEnvConfigRc::new(lp.handle(), None)
+            .expect("failed to create env config")
+    };
+    let env = DefaultEnvRc::with_config(env_config);
 
     // Use a lazy future adapter here to ensure that all commands are
     // spawned directly in the event loop, to avoid paying extra costs
