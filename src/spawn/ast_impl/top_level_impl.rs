@@ -1,5 +1,6 @@
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
           ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, FunctionEnvironment,
+          FunctionFrameEnvironment,
           IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment,
           RedirectRestorer, SetArgumentsEnvironment, StringWrapper, SubEnvironment,
           UnsetVariableEnvironment, VarRestorer, WorkingDirectoryEnvironment};
@@ -31,6 +32,7 @@ macro_rules! impl_top_level_cmd {
                     + FileDescEnvironment
                     + FileDescOpener
                     + FunctionEnvironment
+                    + FunctionFrameEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
                     + ReportFailureEnvironment
@@ -70,6 +72,7 @@ macro_rules! impl_top_level_cmd {
                     + FileDescEnvironment
                     + FileDescOpener
                     + FunctionEnvironment
+                    + FunctionFrameEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
                     + ReportFailureEnvironment
@@ -113,6 +116,7 @@ macro_rules! impl_top_level_word {
                     + FileDescEnvironment
                     + FileDescOpener
                     + FunctionEnvironment
+                    + FunctionFrameEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
                     + ReportFailureEnvironment
@@ -152,6 +156,7 @@ macro_rules! impl_top_level_word {
                     + FileDescEnvironment
                     + FileDescOpener
                     + FunctionEnvironment
+                    + FunctionFrameEnvironment
                     + IsInteractiveEnvironment
                     + LastStatusEnvironment
                     + ReportFailureEnvironment

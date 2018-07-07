@@ -1,7 +1,8 @@
 use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
-          FileDescEnvironment, FileDescOpener, FunctionEnvironment, RedirectEnvRestorer,
+          FileDescEnvironment, FileDescOpener, FunctionEnvironment,
+          FunctionFrameEnvironment, RedirectEnvRestorer,
           RedirectRestorer, SetArgumentsEnvironment, VarEnvRestorer, VarRestorer,
           VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use env::builtin::{BuiltinEnvironment, BuiltinUtility};
@@ -250,6 +251,7 @@ pub fn simple_command<R, V, W, IV, IW, E: ?Sized>(vars: IV, words: IW, env: &E)
               + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment,
           E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RedirectRestorer<E>, VarRestorer<E>>,
           <E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RedirectRestorer<E>, VarRestorer<E>>>::PreparedBuiltin: Spawn<E>,
@@ -280,6 +282,7 @@ pub fn simple_command_with_restorers<R, V, W, IV, IW, RR, VR, E: ?Sized>(
               + ExportedVariableEnvironment
               + FileDescEnvironment
               + FunctionEnvironment
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment,
           E::Builtin: BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>,
           <E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>>::PreparedBuiltin: Spawn<E>,
@@ -321,6 +324,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
               + FileDescEnvironment
               + FileDescOpener
               + FunctionEnvironment<Fn = S>
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,

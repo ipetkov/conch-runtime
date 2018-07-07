@@ -3,7 +3,7 @@ extern crate futures;
 extern crate tokio_core;
 
 use conch_runtime::spawn::{BoxSpawnEnvFuture, BoxStatusFuture, function};
-use futures::future::poll_fn;
+use futures::future::{FutureResult, poll_fn};
 use std::rc::Rc;
 use tokio_core::reactor::Core;
 
@@ -35,6 +35,70 @@ fn new_test_env() -> (Core, TestEnv) {
     (lp, env)
 }
 
+/// Wrapper around a `MockCmd` which also performs a check that
+/// the environment is, in fact, inside a function frame
+#[derive(Clone)]
+struct MockCmdWrapper {
+    has_checked: bool,
+    cmd: MockCmd,
+}
+
+fn mock_wrapper(cmd: MockCmd) -> Rc<MockCmdWrapper> {
+    Rc::new(MockCmdWrapper {
+        has_checked: false,
+        cmd: cmd,
+    })
+}
+
+impl<E: ?Sized> Spawn<E> for MockCmdWrapper
+    where E: FunctionFrameEnvironment,
+{
+    type Error = MockErr;
+    type EnvFuture = Self;
+    type Future = FutureResult<ExitStatus, Self::Error>;
+
+    fn spawn(self, _: &E) -> Self::EnvFuture {
+        self
+    }
+}
+
+impl<'a, E: ?Sized> Spawn<E> for &'a MockCmdWrapper
+    where E: FunctionFrameEnvironment,
+{
+    type Error = MockErr;
+    type EnvFuture = MockCmdWrapper;
+    type Future = FutureResult<ExitStatus, Self::Error>;
+
+    fn spawn(self, _: &E) -> Self::EnvFuture {
+        self.clone()
+    }
+}
+
+impl<E: ?Sized> EnvFuture<E> for MockCmdWrapper
+    where E: FunctionFrameEnvironment,
+{
+    type Item = FutureResult<ExitStatus, Self::Error>;
+    type Error = MockErr;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+        if !self.has_checked {
+            assert_eq!(env.is_fn_running(), true);
+            self.has_checked = true;
+        }
+
+        self.cmd.poll(env)
+    }
+
+    fn cancel(&mut self, env: &mut E) {
+        if !self.has_checked {
+            assert_eq!(env.is_fn_running(), true);
+            self.has_checked = true;
+        }
+
+        self.cmd.cancel(env);
+    }
+}
+
 #[test]
 fn should_restore_args_after_completion() {
     let (mut lp, mut env) = new_test_env();
@@ -42,7 +106,7 @@ fn should_restore_args_after_completion() {
     let exit = ExitStatus::Code(42);
     let fn_name = "fn_name".to_owned();
     assert!(function(&fn_name, vec!(), &env).is_none());
-    env.set_function(fn_name.clone(), Rc::new(mock_status(exit)));
+    env.set_function(fn_name.clone(), mock_wrapper(mock_status(exit)));
 
     let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
     env.set_args(args.clone());
@@ -53,6 +117,7 @@ fn should_restore_args_after_completion() {
     assert_eq!(lp.run(next), Ok(exit));
 
     assert_eq!(env.args(), &**args);
+    assert_eq!(env.is_fn_running(), false);
 }
 
 #[test]
@@ -60,7 +125,7 @@ fn should_propagate_errors_and_restore_args() {
     let (mut lp, mut env) = new_test_env();
 
     let fn_name = "fn_name".to_owned();
-    env.set_function(fn_name.clone(), Rc::new(mock_error(false)));
+    env.set_function(fn_name.clone(), mock_wrapper(mock_error(false)));
 
     let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
     env.set_args(args.clone());
@@ -73,6 +138,7 @@ fn should_propagate_errors_and_restore_args() {
     }
 
     assert_eq!(env.args(), &**args);
+    assert_eq!(env.is_fn_running(), false);
 }
 
 #[test]
@@ -80,7 +146,7 @@ fn should_propagate_cancel_and_restore_args() {
     let (_lp, mut env) = new_test_env();
 
     let fn_name = "fn_name".to_owned();
-    env.set_function(fn_name.clone(), Rc::new(mock_must_cancel()));
+    env.set_function(fn_name.clone(), mock_wrapper(mock_must_cancel()));
 
     let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
     env.set_args(args.clone());
@@ -90,6 +156,7 @@ fn should_propagate_cancel_and_restore_args() {
     test_cancel!(future, env);
 
     assert_eq!(env.args(), &**args);
+    assert_eq!(env.is_fn_running(), false);
 }
 
 struct MockFnRecursive<F> {
@@ -129,11 +196,13 @@ fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
         let fn_name = fn_name.clone();
 
         env.set_function(fn_name.clone(), MockFnRecursive::new(move |env| {
+            assert_eq!(env.is_fn_running(), true);
+
             let num_calls = depth.get().saturating_sub(1);
             depth.set(num_calls);
 
             if num_calls <= 0 {
-                Box::new(Rc::new(mock_status(exit)).spawn(env))
+                mock_wrapper(mock_status(exit)).spawn(env)
             } else {
                 let cur_args: Vec<_> = env.args().iter().cloned().collect();
 
@@ -159,4 +228,5 @@ fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
 
     assert_eq!(env.args(), &**args);
     assert_eq!(depth.get(), 0);
+    assert_eq!(env.is_fn_running(), false);
 }

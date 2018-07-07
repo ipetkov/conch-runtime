@@ -69,6 +69,8 @@ requires that the environment support `Spawn`able builtins)
 - **Breaking:** `Sequence` now requires the environment to implement
 `IsInteractiveEnvironment` to avoid situations where it blocks waiting for
 input which is not yet available
+- **Breaking:** `Function` now keeps track of the current function stack size
+and now requires that the environment implement `FunctionFrameEnvironment`
  - Subsequently, other combinators such as `Subshell`, `If`, `Case`,
 `Substitution` and `ParameterSubstitution` also require the additional bound
 for `IsInteractiveEnvironment`

@@ -1,6 +1,7 @@
 use conch_parser::ast;
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
           FileDescEnvironment, FileDescOpener, FunctionEnvironment,
+          FunctionFrameEnvironment,
           RedirectRestorer, SetArgumentsEnvironment, VarRestorer,
           UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use env::builtin::{BuiltinEnvironment, BuiltinUtility};
@@ -46,6 +47,7 @@ impl<V, W, R, S, B, PB, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
               + FileDescEnvironment
               + FileDescOpener
               + FunctionEnvironment<Fn = S>
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
@@ -91,6 +93,7 @@ impl<'a, V, W, R, S, B, PB, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W,
               + FileDescEnvironment
               + FileDescOpener
               + FunctionEnvironment<Fn = S>
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
