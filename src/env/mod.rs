@@ -33,7 +33,8 @@ pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
 pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe, RcFileDescOpenerEnv};
-pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
+pub use self::func::{FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
+                     UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 pub use self::platform_specific_fd_manager::{PlatformSpecificFileDescManagerEnv,
                                              PlatformSpecificAsyncRead,

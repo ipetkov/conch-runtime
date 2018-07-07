@@ -19,9 +19,9 @@ use env::atomic;
 use env::atomic::FnEnv as AtomicFnEnv;
 use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
           ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
-          FileDescEnvironment, FileDescOpener, FnEnv, FunctionEnvironment,
-          IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
-          ReportFailureEnvironment, ShiftArgumentsEnvironment,
+          FileDescEnvironment, FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment,
+          FunctionFrameEnvironment, IsInteractiveEnvironment, LastStatusEnv,
+          LastStatusEnvironment, Pipe, ReportFailureEnvironment, ShiftArgumentsEnvironment,
           SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
           UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
           WorkingDirectoryEnvironment};
@@ -361,6 +361,7 @@ macro_rules! impl_env {
             args_env: A,
             file_desc_manager_env: FM,
             fn_env: $FnEnv<N, $Rc<SpawnBoxed<$Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> $($extra)*>>,
+            fn_frame_env: FnFrameEnv,
             last_status_env: L,
             var_env: V,
             exec_env: EX,
@@ -396,6 +397,7 @@ macro_rules! impl_env {
                     interactive: cfg.interactive,
                     args_env: cfg.args_env,
                     fn_env: $FnEnv::new(),
+                    fn_frame_env: FnFrameEnv::new(),
                     file_desc_manager_env: cfg.file_desc_manager_env,
                     last_status_env: cfg.last_status_env,
                     var_env: cfg.var_env,
@@ -440,6 +442,7 @@ macro_rules! impl_env {
                     args_env: self.args_env.clone(),
                     file_desc_manager_env: self.file_desc_manager_env.clone(),
                     fn_env: self.fn_env.clone(),
+                    fn_frame_env: self.fn_frame_env.clone(),
                     last_status_env: self.last_status_env.clone(),
                     var_env: self.var_env.clone(),
                     exec_env: self.exec_env.clone(),
@@ -468,6 +471,7 @@ macro_rules! impl_env {
                     .field("args_env", &self.args_env)
                     .field("file_desc_manager_env", &self.file_desc_manager_env)
                     .field("functions", &fn_names)
+                    .field("fn_frame_env", &self.fn_frame_env)
                     .field("last_status_env", &self.last_status_env)
                     .field("var_env", &self.var_env)
                     .field("exec_env", &self.exec_env)
@@ -516,6 +520,7 @@ macro_rules! impl_env {
                     args_env: self.args_env.sub_env(),
                     file_desc_manager_env: self.file_desc_manager_env.sub_env(),
                     fn_env: self.fn_env.sub_env(),
+                    fn_frame_env: self.fn_frame_env.sub_env(),
                     last_status_env: self.last_status_env.sub_env(),
                     var_env: self.var_env.sub_env(),
                     exec_env: self.exec_env.sub_env(),
@@ -676,6 +681,23 @@ macro_rules! impl_env {
         {
             fn unset_function(&mut self, name: &Self::FnName) {
                 self.fn_env.unset_function(name);
+            }
+        }
+
+        impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionFrameEnvironment
+            for $Env<A, FM, L, V, EX, WD, B, N, ERR>
+            where N: Hash + Eq + Clone,
+        {
+            fn push_fn_frame(&mut self) {
+                self.fn_frame_env.push_fn_frame()
+            }
+
+            fn pop_fn_frame(&mut self) {
+                self.fn_frame_env.pop_fn_frame()
+            }
+
+            fn is_fn_running(&self) -> bool {
+                self.fn_frame_env.is_fn_running()
             }
         }
 

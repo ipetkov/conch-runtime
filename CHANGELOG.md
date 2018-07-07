@@ -23,6 +23,8 @@ builtin utilities
 supports all provided builtin utilities definitions
 - Added `simple_command_with_restorers` function which allows spawning a simple
 command with the specified redirect and var restorers
+- Added `FunctionFrameEnvironment` trait for tracking the stack size of
+currently executing functions.
 
 ### Changed
 - **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
