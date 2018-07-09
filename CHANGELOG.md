@@ -74,11 +74,15 @@ and now requires that the environment implement `FunctionFrameEnvironment`
  - Subsequently, other combinators such as `Subshell`, `If`, `Case`,
 `Substitution` and `ParameterSubstitution` also require the additional bound
 for `IsInteractiveEnvironment`
+- **Breaking:** the `shift` builtin command's spawned `Future` has been changed
+to potentially write an error message, and is no longer just a simple `ExitStatus`.
 - `SimpleCommand` is now generic over the redirect and var restorers it is
 given. These generic parameters will default to `RedirectRestorer` and
 `VarRestorer` to remain backwards compatible (which was effectively the
 previous behavior as well).
 - `RuntimeError` now implements `From<void::Void>` to satisfy type conversions
+- Builtin commands now print out their error messages as part of their execution instead
+of requiring the environment to report it
 
 ### Deprecated
 - Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`

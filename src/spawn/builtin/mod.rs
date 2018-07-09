@@ -1,31 +1,47 @@
 //! Defines methods for spawning shell builtin commands
 
-use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus};
-use env::ReportFailureEnvironment;
+use {EXIT_ERROR, STDERR_FILENO, Fd, ExitStatus};
+use env::{AsyncIoEnvironment, FileDescEnvironment};
 use futures::{Async, Future, Poll};
-use failure::Fail;
+use spawn::ExitResult;
+use std::fmt;
+use std::io;
 use void::Void;
 
+macro_rules! format_err {
+    ($builtin_name:expr, $e:expr) => {
+        format!("{}: {}\n", $builtin_name, $e).into_bytes()
+    }
+}
+
 macro_rules! try_and_report {
-    ($name:expr, $result:expr, $env:ident) => {
+    ($builtin_name:expr, $result:expr, $env:ident) => {
         match $result {
             Ok(val) => val,
             Err(e) => {
-                $crate::spawn::builtin::try_and_report_impl($name, $env, e);
-                return Ok($crate::future::Async::Ready(EXIT_ERROR.into()));
+                let ret = $crate::spawn::builtin::try_and_report_impl($builtin_name, $env, e);
+                return Ok($crate::future::Async::Ready(ret.map(Into::into)));
             },
         }
     }
 }
 
-fn try_and_report_impl<E: ?Sized, F>(name: &'static str, env: &mut E, failure: F)
-    where E: ReportFailureEnvironment,
-          F: Fail,
+fn try_and_report_impl<E: ?Sized, ERR>(builtin_name: &str, env: &mut E, err: ERR)
+    -> ExitResult<WriteOutputFuture<E::WriteAll>>
+    where E: AsyncIoEnvironment + FileDescEnvironment,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
+          ERR: fmt::Display,
 {
-    env.report_failure(&ErrorWithBuiltinName {
-        name: name,
-        err: failure,
-    })
+    generate_and_write_bytes_to_fd_if_present(
+        builtin_name,
+        env,
+        STDERR_FILENO,
+        EXIT_ERROR,
+        |_| -> Result<_, Void> {
+            Ok(format_err!(builtin_name, err))
+        },
+    )
 }
 
 /// Implements a builtin command which accepts no arguments,
@@ -216,7 +232,6 @@ macro_rules! impl_generic_builtin_cmd {
                   I: Iterator<Item = T>,
                   E: $crate::env::AsyncIoEnvironment,
                   E: $crate::env::FileDescEnvironment,
-                  E: $crate::env::ReportFailureEnvironment,
                   E::FileHandle: Clone,
                   E::IoHandle: From<E::FileHandle>,
                   $(E: $e_bounds),*
@@ -235,22 +250,16 @@ macro_rules! impl_generic_builtin_cmd {
 }
 
 macro_rules! generate_and_print_output {
-    ($name:expr, $env:expr, $generate:expr) => {{
-        let name = $name;
-        let mut env = $env;
+    ($builtin_name:expr, $env:expr, $generate:expr) => {{
+        let ret = $crate::spawn::builtin::generate_and_write_bytes_to_fd_if_present(
+            $builtin_name,
+            $env,
+            $crate::STDOUT_FILENO,
+            $crate::EXIT_SUCCESS,
+            $generate,
+        );
 
-        // If STDOUT is closed, just exit without doing more work
-        let stdout = match env.file_desc($crate::STDOUT_FILENO) {
-            Some((fdes, _)) => fdes.clone(),
-            None => return Ok($crate::future::Async::Ready(EXIT_SUCCESS.into())),
-        };
-
-        let bytes = $crate::spawn::builtin::generate_bytes__(&mut env, $generate);
-        let bytes = try_and_report!(name, bytes, env);
-        let bytes = try_and_report!(name, env.write_all(stdout.into(), bytes), env);
-
-        let future = $crate::spawn::builtin::WriteOutputFuture::from(bytes);
-        Ok($crate::future::Async::Ready($crate::spawn::ExitResult::Pending(future.into())))
+        Ok($crate::future::Async::Ready(ret.map(Into::into)))
     }};
 }
 
@@ -267,29 +276,15 @@ pub use self::colon::{Colon, colon, SpawnedColon};
 pub use self::echo::{Echo, echo, EchoFuture, SpawnedEcho};
 pub use self::false_cmd::{False, false_cmd, SpawnedFalse};
 pub use self::pwd::{Pwd, pwd, PwdFuture, SpawnedPwd};
-pub use self::shift::{Shift, shift, SpawnedShift};
+pub use self::shift::{Shift, shift, ShiftFuture, SpawnedShift};
 pub use self::true_cmd::{True, true_cmd, SpawnedTrue};
-
-#[derive(Debug, Fail)]
-#[fail(display = "{}: {}", name, err)]
-struct ErrorWithBuiltinName<T> {
-    name: &'static str,
-    #[cause]
-    err: T,
-}
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 struct WriteOutputFuture<W> {
     write_all: W,
-}
-
-impl<W> From<W> for WriteOutputFuture<W> {
-    fn from(inner: W) -> Self {
-        Self {
-            write_all: inner,
-        }
-    }
+    /// The exit status to return if we successfully wrote out all bytes without error
+    exit_status_when_complete: ExitStatus,
 }
 
 impl<W> Future for WriteOutputFuture<W>
@@ -300,7 +295,7 @@ impl<W> Future for WriteOutputFuture<W>
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.write_all.poll() {
-            Ok(Async::Ready(_)) => Ok(Async::Ready(EXIT_SUCCESS)),
+            Ok(Async::Ready(_)) => Ok(Async::Ready(self.exit_status_when_complete)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
             // FIXME: report error anywhere? at least for debug logs?
             Err(_) => Ok(Async::Ready(EXIT_ERROR)),
@@ -308,9 +303,90 @@ impl<W> Future for WriteOutputFuture<W>
     }
 }
 
-fn generate_bytes__<E: ?Sized, F, ERR>(env: &mut E, generate: F)
-    -> Result<Vec<u8>, ERR>
-    where for<'a> F: FnOnce(&'a E) -> Result<Vec<u8>, ERR>
+enum WriteBytesError<T> {
+    Custom(T),
+    IoError(io::Error),
+}
+
+impl<T: fmt::Display> fmt::Display for WriteBytesError<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            WriteBytesError::Custom(ref t) => write!(fmt, "{}", t),
+            WriteBytesError::IoError(ref e) => write!(fmt, "{}", e),
+        }
+    }
+}
+
+fn generate_and_write_bytes_to_fd_if_present<E: ?Sized, F, ERR>(
+    builtin_name: &str,
+    env: &mut E,
+    fd: Fd,
+    exit_status_on_success: ExitStatus,
+    generate_bytes: F
+) -> ExitResult<WriteOutputFuture<E::WriteAll>>
+    where E: AsyncIoEnvironment + FileDescEnvironment,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
+          for<'a> F: FnOnce(&'a E) -> Result<Vec<u8>, ERR>,
+          ERR: fmt::Display,
 {
-    generate(env)
+    macro_rules! get_fdes {
+        ($fd:expr, $fallback_status:expr) => {{
+            match get_fdes_or_status(env, fd, exit_status_on_success) {
+                Ok(fdes) => fdes,
+                Err(status) => return status.into(),
+            }
+        }}
+    }
+
+    // If required handle is closed, just exit without doing more work
+    let fdes = get_fdes!(fd, exit_status_on_success);
+
+    generate_bytes(env)
+        .or_else(|err| if fd == STDERR_FILENO {
+            // If the caller already wants us to write data to stderr,
+            // we've already got a handle to it we can just proceed.
+            Ok(format_err!(builtin_name, err))
+        } else {
+            Err(WriteBytesError::Custom(err))
+        })
+        .and_then(|bytes| {
+            write_bytes_to_fd(env, fdes, exit_status_on_success, bytes)
+                .map_err(WriteBytesError::IoError)
+        })
+        .unwrap_or_else(|err| {
+            // If we need to get a handle to stderr but it's closed, we bail out
+            let stderr_fdes = get_fdes!(fd, EXIT_ERROR);
+
+            write_bytes_to_fd(env, stderr_fdes, EXIT_ERROR, format_err!(builtin_name, err))
+                // But if we've failed to create a writer future, we should just bail out
+                // FIXME: debug log this error?
+                .unwrap_or_else(|_e| EXIT_ERROR.into())
+        })
+}
+
+fn write_bytes_to_fd<E: ?Sized>(
+    env: &mut E,
+    fdes: E::IoHandle,
+    exit_status_on_success: ExitStatus,
+    bytes: Vec<u8>
+) -> Result<ExitResult<WriteOutputFuture<E::WriteAll>>, io::Error>
+    where E: AsyncIoEnvironment,
+{
+    env.write_all(fdes, bytes)
+        .map(|write_all| ExitResult::Pending(WriteOutputFuture {
+            write_all: write_all,
+            exit_status_when_complete: exit_status_on_success,
+        }))
+}
+
+fn get_fdes_or_status<E: ?Sized>(env: &E, fd: Fd, fallback_status: ExitStatus)
+    -> Result<E::IoHandle, ExitStatus>
+    where E: AsyncIoEnvironment + FileDescEnvironment,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
+{
+    env.file_desc(fd)
+        .map(|(fdes, _)| E::IoHandle::from(fdes.clone()))
+        .ok_or(fallback_status)
 }

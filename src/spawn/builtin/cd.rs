@@ -1,14 +1,14 @@
-use {EXIT_ERROR, EXIT_SUCCESS, HOME, POLLED_TWICE};
+use {EXIT_SUCCESS, HOME, POLLED_TWICE};
 use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
 use env::{AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment,
-          StringWrapper, ReportFailureEnvironment, VariableEnvironment, WorkingDirectoryEnvironment};
+          StringWrapper, VariableEnvironment, WorkingDirectoryEnvironment};
 use future::{Async, EnvFuture, Poll};
 use path::{NormalizationError, NormalizedPath};
 use spawn::{ExitResult, Spawn};
 use std::borrow::{Borrow, Cow};
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use void::Void;
+use void::{self, Void};
 
 const CD: &str = "cd";
 const ARG_LOGICAL: &str = "L";
@@ -85,7 +85,6 @@ impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
           E: AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
-              + ReportFailureEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
           E::FileHandle: Clone,
@@ -158,7 +157,6 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
           E: AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
-              + ReportFailureEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
           E::FileHandle: Clone,
@@ -176,8 +174,9 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
         let (new_working_dir, should_print_pwd) = match get_new_working_dir(&flags, env) {
             Ok(ret) => ret,
             Err(e) => {
-                super::try_and_report_impl(CD, env, e);
-                return Ok(Async::Ready(EXIT_ERROR.into()));
+                let err: Result<Void, _> = Err(e);
+                let void = try_and_report!(CD, err, env);
+                void::unreachable(void);
             },
         };
 

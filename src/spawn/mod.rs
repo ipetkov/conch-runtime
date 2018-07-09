@@ -227,6 +227,19 @@ pub enum ExitResult<F> {
     Ready(ExitStatus),
 }
 
+impl<F> ExitResult<F> {
+    /// Maps a `ExitResult<F>` to `ExitResult<G>` by applying a function to a
+    /// contained [`Pending`] value, leaving the [`Ready`] value untouched.
+    pub fn map<G, O>(self, op: O) -> ExitResult<G>
+        where O: FnOnce(F) -> G
+    {
+        match self {
+            ExitResult::Pending(f) => ExitResult::Pending(op(f)),
+            ExitResult::Ready(status) => ExitResult::Ready(status),
+        }
+    }
+}
+
 impl<F> From<ExitStatus> for ExitResult<F> {
     fn from(status: ExitStatus) -> Self {
         ExitResult::Ready(status)

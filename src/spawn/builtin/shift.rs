@@ -1,7 +1,9 @@
-use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, Spawn};
+use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use clap::{App, AppSettings, Arg};
-use env::{ArgumentsEnvironment, ReportFailureEnvironment, ShiftArgumentsEnvironment, StringWrapper};
+use env::{AsyncIoEnvironment, ArgumentsEnvironment, FileDescEnvironment,
+          ShiftArgumentsEnvironment, StringWrapper};
 use future::{Async, EnvFuture, Poll};
+use spawn::ExitResult;
 use std::borrow::Cow;
 use void::Void;
 
@@ -9,55 +11,40 @@ use void::Void;
 #[fail(display = "numeric argument required")]
 struct NumericArgumentRequiredError;
 
-/// Represents a `shift` builtin command.
-///
-/// The `shift` builtin command will shift all shell or function positional
-/// arguments up by the specified amount. For example, shifting by 2 will
-/// result in `$1` holding the previous value of `$3`, `$2` holding the
-/// previous value of `$4`, and so on.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Shift<I> {
-    args: I,
-}
+impl_generic_builtin_cmd! {
+    /// Represents a `shift` builtin command.
+    ///
+    /// The `shift` builtin command will shift all shell or function positional
+    /// arguments up by the specified amount. For example, shifting by 2 will
+    /// result in `$1` holding the previous value of `$3`, `$2` holding the
+    /// previous value of `$4`, and so on.
+    pub struct Shift;
 
-/// Creates a new `shift` builtin command with the provided arguments.
-pub fn shift<I>(args: I) -> Shift<I::IntoIter>
-    where I: IntoIterator,
-{
-    Shift {
-        args: args.into_iter(),
-    }
-}
+    /// Creates a new `shift` builtin command with the provided arguments.
+    pub fn shift();
 
-/// A future representing a fully spawned `shift` builtin command.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct SpawnedShift<I> {
-    args: Option<I>,
-}
+    /// A future representing a fully spawned `shift` builtin command.
+    pub struct SpawnedShift;
 
-impl<T, I, E: ?Sized> Spawn<E> for Shift<I>
+    /// A future representing a fully spawned `shift` builtin command
+    /// which no longer requires an environment to run.
+    pub struct ShiftFuture;
+
     where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportFailureEnvironment,
-{
-    type EnvFuture = SpawnedShift<I>;
-    type Future = ExitStatus;
-    type Error = Void;
-
-    fn spawn(self, _env: &E) -> Self::EnvFuture {
-        SpawnedShift {
-            args: Some(self.args),
-        }
-    }
+          E: ArgumentsEnvironment, ShiftArgumentsEnvironment,
 }
 
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportFailureEnvironment,
+          E: AsyncIoEnvironment
+            + ArgumentsEnvironment
+            + FileDescEnvironment
+            + ShiftArgumentsEnvironment,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
 {
-    type Item = ExitStatus;
+    type Item = ExitResult<ShiftFuture<E::WriteAll>>;
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -101,7 +88,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
             EXIT_SUCCESS
         };
 
-        Ok(Async::Ready(ret))
+        Ok(Async::Ready(ret.into()))
     }
 
     fn cancel(&mut self, _env: &mut E) {

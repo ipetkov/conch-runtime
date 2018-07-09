@@ -6,8 +6,7 @@ use future::{Async, EnvFuture, Poll};
 use futures::Future;
 use env::{ArgumentsEnvironment, AsyncIoEnvironment,
           ChangeWorkingDirectoryEnvironment, FileDescEnvironment,
-          RedirectEnvRestorer, ReportFailureEnvironment,
-          ShiftArgumentsEnvironment, StringWrapper,
+          RedirectEnvRestorer, ShiftArgumentsEnvironment, StringWrapper,
           SubEnvironment, VariableEnvironment, VarEnvRestorer,
           WorkingDirectoryEnvironment};
 use spawn::{builtin, ExitResult, Spawn};
@@ -189,7 +188,6 @@ impl<I, R, V, E: ?Sized> Spawn<E> for PreparedBuiltin<I, R, V>
               + AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
-              + ReportFailureEnvironment
               + ShiftArgumentsEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
@@ -251,7 +249,6 @@ impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
               + AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
-              + ReportFailureEnvironment
               + ShiftArgumentsEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
@@ -287,12 +284,12 @@ impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
         let ret = match self.kind {
             SpawnedBuiltinKind::Colon(ref mut f) => try_map!(f, env, ExitResult::from),
             SpawnedBuiltinKind::False(ref mut f) => try_map!(f, env, ExitResult::from),
-            SpawnedBuiltinKind::Shift(ref mut f) => try_map!(f, env, ExitResult::from),
             SpawnedBuiltinKind::True(ref mut f)  => try_map!(f, env, ExitResult::from),
 
-            SpawnedBuiltinKind::Cd(ref mut f)   => try_map_future!(f, env, BuiltinFutureKind::Cd),
-            SpawnedBuiltinKind::Echo(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Echo),
-            SpawnedBuiltinKind::Pwd(ref mut f)  => try_map_future!(f, env, BuiltinFutureKind::Pwd),
+            SpawnedBuiltinKind::Cd(ref mut f)    => try_map_future!(f, env, BuiltinFutureKind::Cd),
+            SpawnedBuiltinKind::Echo(ref mut f)  => try_map_future!(f, env, BuiltinFutureKind::Echo),
+            SpawnedBuiltinKind::Pwd(ref mut f)   => try_map_future!(f, env, BuiltinFutureKind::Pwd),
+            SpawnedBuiltinKind::Shift(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Shift),
         };
 
         self.redirect_restorer.take().map(|mut r| r.restore(env));
@@ -321,6 +318,7 @@ enum BuiltinFutureKind<W> {
     Cd(builtin::CdFuture<W>),
     Echo(builtin::EchoFuture<W>),
     Pwd(builtin::PwdFuture<W>),
+    Shift(builtin::ShiftFuture<W>),
 }
 
 /// A future representing a fully spawned builtin utility which no longer
@@ -342,6 +340,7 @@ impl<W> Future for BuiltinFuture<W>
             BuiltinFutureKind::Cd(ref mut f) => f.poll(),
             BuiltinFutureKind::Echo(ref mut f) => f.poll(),
             BuiltinFutureKind::Pwd(ref mut f) => f.poll(),
+            BuiltinFutureKind::Shift(ref mut f) => f.poll(),
         }
     }
 }
