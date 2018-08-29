@@ -85,12 +85,12 @@ fn run_with_env<T: Spawn<E>, E: ?Sized>(cmd: T, env: &mut E) -> Result<ExitStatu
     }
 }
 
-macro_rules! run_cancel {
+macro_rules! do_run_cancel {
     ($cmd:expr) => {{
         let mut env = MockEnvRc::new();
-        run_cancel!($cmd, CmdRc, env);
+        do_run_cancel!($cmd, CmdRc, env);
         let mut env = MockEnvArc::new();
-        run_cancel!($cmd, CmdArc, env);
+        do_run_cancel!($cmd, CmdArc, env);
     }};
 
     ($cmd:expr, $type:ident, $env:ident) => {{
@@ -153,7 +153,7 @@ fn should_propagate_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    run_cancel!(Simple(mock_must_cancel()));
-    run_cancel!(Compound(mock_must_cancel()));
+    do_run_cancel!(Simple(mock_must_cancel()));
+    do_run_cancel!(Compound(mock_must_cancel()));
     // NB: FunctionDefinitions have nothing to cancel
 }

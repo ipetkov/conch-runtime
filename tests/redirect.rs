@@ -25,10 +25,10 @@ use tokio_core::reactor::Core;
 mod support;
 pub use self::support::*;
 
-macro_rules! eval {
-    ($redirect:expr) => { eval!(eval, $redirect,) };
+macro_rules! redirect_eval {
+    ($redirect:expr) => { redirect_eval!(eval, $redirect,) };
     ($redirect:expr, $lp:expr, $env:expr) => {
-        eval!(eval_with_env, $redirect, &mut $lp, &mut $env)
+        redirect_eval!(eval_with_env, $redirect, &mut $lp, &mut $env)
     };
     ($eval:ident, $redirect:expr, $($arg:expr),*) => {{
         let (ret_ref, ret) = eval_no_compare!($eval, $redirect, $($arg),*);
@@ -309,10 +309,10 @@ fn eval_heredoc() {
 
     for (body, expected) in cases {
         let action = RedirectAction::HereDoc(STDIN_FILENO, expected.clone());
-        assert_eq!(eval!(Heredoc(None, body.clone())), Ok(action));
+        assert_eq!(redirect_eval!(Heredoc(None, body.clone())), Ok(action));
 
         let action = RedirectAction::HereDoc(42, expected.clone());
-        assert_eq!(eval!(Heredoc(Some(42), body.clone())), Ok(action));
+        assert_eq!(redirect_eval!(Heredoc(Some(42), body.clone())), Ok(action));
     }
 }
 
@@ -393,8 +393,8 @@ fn should_eval_dup_close_approprately() {
     let action = Ok(RedirectAction::Close(fd));
     let path = mock_word_fields(Fields::Single("-".to_owned()));
 
-    assert_eq!(eval!(DupRead(Some(fd), path.clone())), action);
-    assert_eq!(eval!(DupWrite(Some(fd), path.clone())), action);
+    assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone())), action);
+    assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone())), action);
 }
 
 #[test]
@@ -409,19 +409,19 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     let path = mock_word_fields(Fields::Single("foo".to_string()));
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc("foo".to_string().into()))));
     assert_eq!(env.file_desc(src_fd), None);
-    assert_eq!(eval!(DupRead(None, path.clone()), lp, env), err.clone());
-    assert_eq!(eval!(DupWrite(None, path.clone()), lp, env), err.clone());
+    assert_eq!(redirect_eval!(DupRead(None, path.clone()), lp, env), err.clone());
+    assert_eq!(redirect_eval!(DupWrite(None, path.clone()), lp, env), err.clone());
 
     let path = mock_word_fields(Fields::Single(src_fd.to_string()));
     let fdes = dev_null();
 
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Read))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Read);
-    assert_eq!(eval!(DupWrite(Some(fd), path.clone()), lp, env), err);
+    assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone()), lp, env), err);
 
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Write))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Write);
-    assert_eq!(eval!(DupRead(Some(fd), path.clone()), lp, env), err);
+    assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone()), lp, env), err);
 }
 
 #[test]
@@ -439,13 +439,13 @@ fn eval_ambiguous_path() {
     for (path, err) in cases {
         let err = Err(MockErr::RedirectionError(Arc::new(err)));
 
-        assert_eq!(eval!(Read(None, path.clone())), err.clone());
-        assert_eq!(eval!(ReadWrite(None, path.clone())), err.clone());
-        assert_eq!(eval!(Write(None, path.clone())), err.clone());
-        assert_eq!(eval!(Clobber(None, path.clone())), err.clone());
-        assert_eq!(eval!(Append(None, path.clone())), err.clone());
-        assert_eq!(eval!(DupRead(None, path.clone())), err.clone());
-        assert_eq!(eval!(DupWrite(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(Read(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(ReadWrite(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(Write(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(Clobber(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(Append(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(DupRead(None, path.clone())), err.clone());
+        assert_eq!(redirect_eval!(DupWrite(None, path.clone())), err.clone());
     }
 }
 
@@ -454,14 +454,14 @@ fn should_propagate_errors() {
     let mock_word = mock_word_error(false);
     let err = Err(MockErr::Fatal(false));
 
-    assert_eq!(eval!(Read(None, mock_word.clone())), err);
-    assert_eq!(eval!(ReadWrite(None, mock_word.clone())), err);
-    assert_eq!(eval!(Write(None, mock_word.clone())), err);
-    assert_eq!(eval!(Clobber(None, mock_word.clone())), err);
-    assert_eq!(eval!(Append(None, mock_word.clone())), err);
-    assert_eq!(eval!(DupRead(None, mock_word.clone())), err);
-    assert_eq!(eval!(DupWrite(None, mock_word.clone())), err);
-    assert_eq!(eval!(Heredoc(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(Read(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(ReadWrite(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(Write(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(Clobber(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(Append(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(DupRead(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(DupWrite(None, mock_word.clone())), err);
+    assert_eq!(redirect_eval!(Heredoc(None, mock_word.clone())), err);
 }
 
 #[test]
