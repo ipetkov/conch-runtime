@@ -24,7 +24,7 @@ matrix:
 
     - rust: beta
     - rust: stable
-    - rust: 1.25.0
+    - rust: 1.26.0
     - os: osx
       rust: stable
 
