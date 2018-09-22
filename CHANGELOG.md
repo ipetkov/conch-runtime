@@ -2,10 +2,15 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.5] - 2018-09-22
 ### Changed
 * The `Pipeline` future now avoids reallocating memory during each `poll`, and
 instead reuses a scratch buffer which is allocated once for the lifetime of the
 future.
+
+### Fixed
+* Tests now avoid the "ambiguous macro name" error, and can build on 1.30
 
 <!--
 ### Added
@@ -92,7 +97,8 @@ not found errors) instead of using the `PATH` env variable of the current proces
 ## 0.1.0 - 2017-08-21
 - First release!
 
-[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/ipetkov/conch-runtime/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/ipetkov/conch-runtime/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/ipetkov/conch-runtime/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ipetkov/conch-runtime/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/ipetkov/conch-runtime/compare/v0.1.1...v0.1.2
