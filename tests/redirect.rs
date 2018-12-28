@@ -112,6 +112,7 @@ fn test_open_redirect<F1, F2>(
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn eval_read() {
     let msg = "hello world";
     let tempdir = mktmp!();
@@ -174,6 +175,7 @@ fn eval_path_is_relative_to_cwd() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn eval_write_and_clobber() {
     let msg = "hello world";
     let tempdir = mktmp!();
@@ -351,6 +353,7 @@ fn apply_redirect_action() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     let mut lp = Core::new().expect("failed to create Core loop");
 
@@ -388,6 +391,7 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_eval_dup_close_approprately() {
     let fd = 5;
     let action = Ok(RedirectAction::Close(fd));
@@ -398,6 +402,7 @@ fn should_eval_dup_close_approprately() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     use RedirectionError::{BadFdSrc, BadFdPerms};
 
@@ -450,6 +455,7 @@ fn eval_ambiguous_path() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_propagate_errors() {
     let mock_word = mock_word_error(false);
     let err = Err(MockErr::Fatal(false));
@@ -465,6 +471,7 @@ fn should_propagate_errors() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_propagate_cancel() {
     let lp = Core::new().expect("failed to create Core loop");
     let mut env = DefaultEnvRc::new(lp.remote(), Some(1)).expect("failed to create env");

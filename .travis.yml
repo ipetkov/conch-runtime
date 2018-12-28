@@ -27,14 +27,6 @@ matrix:
     - rust: 1.26.0
     - os: osx
       rust: stable
-      env:
-        # Travis has been consistently failing on macOS due to exhausting file descriptors
-        # which causes the file test suites to fail (keeping in mind that tokio-core is spinning
-        # up its own reactor file descriptor during each test which makes things worse).
-        # To get around this we'll try to run the test cases with just a single thread.
-        # FIXME(breaking): Once we've fully migrated off tokio-core and to tokio proper,
-        # this can go away
-        - TEST_THREADS='--test-threads 1'
 
 branches:
   only:
@@ -52,7 +44,7 @@ script:
   - cargo test --no-fail-fast ||
     (
       echo 'initial `cargo test` failed, retrying with fewer cores to work around OOM issues' &&
-      cargo test --no-fail-fast --verbose -j 1 -- $TEST_THREADS
+      cargo test --no-fail-fast --verbose -j 1
     )
 
 notifications:
