@@ -2,6 +2,7 @@ use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus};
 use futures::{Async, Future, Poll};
 use void::Void;
 
+/// Implements a generic builtin command without definign a `Spawn` impl.
 #[macro_export]
 macro_rules! impl_generic_builtin_cmd_no_spawn {
     (
@@ -67,6 +68,7 @@ macro_rules! impl_generic_builtin_cmd_no_spawn {
     }
 }
 
+/// Implements a generic builtin command.
 #[macro_export]
 macro_rules! impl_generic_builtin_cmd {
     (
