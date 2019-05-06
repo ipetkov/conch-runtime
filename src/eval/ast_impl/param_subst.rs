@@ -312,7 +312,7 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
     type Item = Fields<T>;
     type Error = F::Error;
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, F::Error> {
         loop {
             let next_state = match *self {
                 Inner::CommandInit(ref mut f) => Inner::Command(try_ready!(f.poll(env))),

@@ -206,7 +206,7 @@ pub fn mock_must_cancel() -> MockCmd {
 impl<E: ?Sized> Spawn<E> for MockCmd {
     type Error = MockErr;
     type EnvFuture = Self;
-    type Future = FutureResult<ExitStatus, Self::Error>;
+    type Future = FutureResult<ExitStatus, MockErr>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self
@@ -224,10 +224,10 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockCmd {
 }
 
 impl<E: ?Sized> EnvFuture<E> for MockCmd {
-    type Item = FutureResult<ExitStatus, Self::Error>;
+    type Item = FutureResult<ExitStatus, MockErr>;
     type Error = MockErr;
 
-    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, MockErr> {
         match *self {
             MockCmd::Status(s) => Ok(Async::Ready(future_result(Ok(s)))),
             MockCmd::Error(ref e) => Err(e.clone()),
@@ -315,7 +315,7 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
     type Item = Fields<String>;
     type Error = MockErr;
 
-    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, MockErr> {
         match *self {
             MockWord::Fields(ref mut f) => Ok(Async::Ready(f.take().expect("polled twice"))),
             MockWord::Error(ref mut e) => Err(e.clone()),
@@ -497,7 +497,7 @@ impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
     type Item = RedirectAction<T>;
     type Error = MockErr;
 
-    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, MockErr> {
         match *self {
             MockRedirect::Action(ref mut a) => Ok(Async::Ready(a.take().expect("polled twice"))),
             MockRedirect::MustCancel(ref mut mc) => mc.poll(),
