@@ -94,10 +94,11 @@ fn smoke() {
         &env
     );
 
-    let (mut redirect_restorer, mut var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
+    let (redirect_restorer, var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
         .unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
+    #[allow(deprecated)]
     redirect_restorer.restore(&mut env);
     assert_eq!(env.file_desc(1), None);
 
@@ -106,6 +107,7 @@ fn smoke() {
     assert_eq!(env.var(&key_empty2), Some(&Rc::new(String::new())));
     assert_eq!(env.var(&key_split), Some(&Rc::new("foo bar".to_owned())));
 
+    #[allow(deprecated)]
     var_restorer.restore(&mut env);
     assert_empty_vars(&env);
 }

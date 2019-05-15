@@ -134,7 +134,7 @@ pub fn eval_redirects_or_cmd_words<R, W, I, E: ?Sized>(words: I, env: &E)
 /// changes from applying these redirections. On error, the redirections will
 /// be automatically restored.
 pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized, RR>(
-    mut restorer: RR,
+    restorer: RR,
     words: I,
     env: &E
 ) -> EvalRedirectOrCmdWord<R, W, I::IntoIter, E, RR>

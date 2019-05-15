@@ -70,6 +70,7 @@ pub trait FileDescExt {
     /// we can handle this usecase by not registering those file descriptors within tokio.
     fn into_evented2(self, handle: &Handle) -> Result<MaybeEventedFd> where Self: Sized {
         // FIXME(breaking): remove this default
+        #[allow(deprecated)]
         self.into_evented(handle).map(MaybeEventedFd::Registered)
     }
 

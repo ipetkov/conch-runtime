@@ -2,7 +2,7 @@ use {CANCELLED_TWICE, Fd, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERRO
      ExitStatus, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExecutableData, ExportedVariableEnvironment,
           FileDescEnvironment, FunctionEnvironment, RedirectEnvRestorer, RedirectRestorer,
-          SetArgumentsEnvironment, VarEnvRestorer, VarEnvRestorer2, VarRestorer,
+          SetArgumentsEnvironment, VarEnvRestorer2, VarRestorer,
           VariableEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment};
 use error::{CommandError, RedirectionError};
 use eval::{eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
@@ -319,7 +319,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                     Err(RedirectOrWordError::Redirect(e)) => return Err(e.into()),
                     Err(RedirectOrWordError::Word(e)) => return Err(e.into()),
 
-                    Ok(Async::Ready((mut red_restorer_inner, var_restorer_inner, words_inner))) => {
+                    Ok(Async::Ready((red_restorer_inner, var_restorer_inner, words_inner))) => {
                         let mut words_inner_iter = words_inner.into_iter();
                         let name_inner = match words_inner_iter.next() {
                             Some(n) => n,
@@ -328,6 +328,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                                 // Any redirect side effects have already been applied, but ensure
                                 // we keep the actual variable values.
                                 drop(var_restorer_inner);
+                                #[allow(deprecated)]
                                 red_restorer_inner.restore(env);
                                 return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
                             },
@@ -352,10 +353,12 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
                     match f.poll(env) {
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         ret => {
-                            let (mut redirect_restorer, mut var_restorer) = restorers.take()
+                            let (redirect_restorer, var_restorer) = restorers.take()
                                 .expect(POLLED_TWICE);
 
+                            #[allow(deprecated)]
                             redirect_restorer.restore(env);
+                            #[allow(deprecated)]
                             var_restorer.restore(env);
                             return ret.map(|async| async.map(|f| {
                                 ExitResult::Pending(SpawnedSimpleCommand {
@@ -383,7 +386,8 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
 
         // Now that we've got all the redirections we care about having the
         // child inherit, we can do the environment cleanup right now.
-        let mut redirect_restorer = redirect_restorer;
+        let redirect_restorer = redirect_restorer;
+        #[allow(deprecated)]
         redirect_restorer.restore(env);
 
         let env_vars = env.env_vars().iter()
@@ -394,6 +398,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
 
         // Once the child is fully bootstrapped (and we are no longer borrowing
         // env vars) we can do the var cleanup.
+        #[allow(deprecated)]
         var_restorer.restore(env);
 
         match child {
@@ -411,8 +416,10 @@ impl<R, V, W, IV, IW, E: ?Sized, S> EnvFuture<E> for SimpleCommand<R, V, W, IV, 
             State::Eval(ref mut eval) => eval.cancel(env),
             State::Func(ref mut restorers, ref mut f) => {
                 f.cancel(env);
-                let (mut redirect_restorer, mut var_restorer) = restorers.take().expect(CANCELLED_TWICE);
+                let (redirect_restorer, var_restorer) = restorers.take().expect(CANCELLED_TWICE);
+                #[allow(deprecated)]
                 redirect_restorer.restore(env);
+                #[allow(deprecated)]
                 var_restorer.restore(env);
             },
             State::Gone => panic!(CANCELLED_TWICE),

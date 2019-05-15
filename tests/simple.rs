@@ -10,7 +10,6 @@ use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions, Pipe};
 use conch_runtime::spawn::simple_command;
 use futures::future::{FutureResult, ok, poll_fn};
-use std::marker::PhantomData;
 use std::rc::Rc;
 use tokio_core::reactor::Core;
 

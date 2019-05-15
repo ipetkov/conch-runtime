@@ -1,6 +1,6 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer,
-          RedirectRestorer, VarEnvRestorer2, VariableEnvironment, VarRestorer};
+          RedirectRestorer, VarEnvRestorer2, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
@@ -257,7 +257,7 @@ pub fn eval_redirects_or_var_assignments_with_restorer<R, V, W, I, E: ?Sized, RR
 /// caller to reverse the changes from applying those assignments. On error, the
 /// assignments will be automatically restored.
 pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, RR, VR>(
-    mut redirect_restorer: RR,
+    redirect_restorer: RR,
     mut var_restorer: VR,
     export_vars: Option<bool>,
     vars: I,

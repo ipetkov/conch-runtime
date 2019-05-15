@@ -180,6 +180,7 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
         where E: AsyncIoEnvironment + FileDescEnvironment,
               E::FileHandle: From<FileDesc>
     {
+        #[allow(deprecated)]
         match action {
             RedirectAction::Close(fd) |
             RedirectAction::Open(fd, _, _) |

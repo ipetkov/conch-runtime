@@ -17,8 +17,6 @@ impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
     type EvalFuture = Redirect<W::EvalFuture>;
 
     fn eval(self, env: &E) -> Self::EvalFuture {
-        use conch_parser::ast;
-
         match self {
             ast::Redirect::Read(fd, w)        => redirect_read(fd, w, env),
             ast::Redirect::ReadWrite(fd, w)   => redirect_readwrite(fd, w, env),
@@ -43,8 +41,6 @@ impl<'a, W, E: ?Sized> RedirectEval<E> for &'a ast::Redirect<W>
     type EvalFuture = Redirect<<&'a W as WordEval<E>>::EvalFuture>;
 
     fn eval(self, env: &E) -> Self::EvalFuture {
-        use conch_parser::ast;
-
         match *self {
             ast::Redirect::Read(fd, ref w)        => redirect_read(fd, w, env),
             ast::Redirect::ReadWrite(fd, ref w)   => redirect_readwrite(fd, w, env),

@@ -15,8 +15,6 @@ impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
     type EvalResult = T;
 
     fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
-        use conch_parser::ast::Parameter;
-
         let get_args = || {
             let args = env.args();
             if args.is_empty() {
@@ -55,8 +53,6 @@ impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
     }
 
     fn assig_name(&self) -> Option<Self::EvalResult> {
-        use conch_parser::ast::Parameter;
-
         match *self {
             Parameter::At            |
             Parameter::Star          |
