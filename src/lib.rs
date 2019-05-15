@@ -31,6 +31,8 @@
 
 #![doc(html_root_url = "https://docs.rs/conch-runtime/0.1")]
 
+#![cfg_attr(all(feature = "conch-parser", feature = "top-level"), recursion_limit="128")]
+
 #![cfg_attr(feature = "clippy", feature(plugin))]
 #![cfg_attr(feature = "clippy", plugin(clippy))]
 
