@@ -31,8 +31,8 @@ matrix:
             cargo test --no-fail-fast --verbose -j 1
             cargo test --no-fail-fast --no-default-features --features 'conch-parser'
           )
-      after_success:
-        - ./ci/install-kcov.sh && ./ci/coverage.sh
+      #after_success:
+      #  - ./ci/install-kcov.sh && ./ci/coverage.sh
 
     - rust: beta
     - rust: stable
