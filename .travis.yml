@@ -51,7 +51,7 @@ matrix:
           )
 
     - rust: stable
-    - rust: 1.26.0
+    - rust: 1.31.0
     - os: osx
       rust: stable
 
