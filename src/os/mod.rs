@@ -10,14 +10,14 @@ pub mod unix {
 
     /// Unix-specific environment extensions
     pub mod env {
-        pub use sys::env::{EventedAsyncIoEnv, ManagedAsyncRead,
-                           ManagedFileDesc, ManagedWriteAll};
+        pub use sys::env::{EventedAsyncIoEnv, ManagedAsyncRead, ManagedFileDesc, ManagedWriteAll};
 
         /// A module which provides atomic implementations (which can be `Send` and
         /// `Sync`) of the various environment interfaces.
         pub mod atomic {
-            pub use sys::env::atomic::{EventedAsyncIoEnv, ManagedAsyncRead,
-                                       ManagedFileDesc, ManagedWriteAll};
+            pub use sys::env::atomic::{
+                EventedAsyncIoEnv, ManagedAsyncRead, ManagedFileDesc, ManagedWriteAll,
+            };
         }
     }
 }

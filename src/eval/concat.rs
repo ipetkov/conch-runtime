@@ -1,6 +1,6 @@
 use env::StringWrapper;
-use future::{Async, EnvFuture, Poll};
 use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use future::{Async, EnvFuture, Poll};
 use std::fmt;
 use std::iter::Fuse;
 use std::mem;
@@ -13,8 +13,9 @@ use std::mem;
 /// field, and the remainder of the newly generated fields will form their own
 /// distinct fields.
 pub fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig) -> Concat<W, I::IntoIter, E>
-    where W: WordEval<E>,
-          I: IntoIterator<Item = W>,
+where
+    W: WordEval<E>,
+    I: IntoIterator<Item = W>,
 {
     let mut iter = words.into_iter().fuse();
     let future = iter.next().map(|w| w.eval_with_config(env, cfg));
@@ -36,8 +37,9 @@ pub fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig) -> Concat
 /// distinct fields.
 #[must_use = "futures do nothing unless polled"]
 pub struct Concat<W, I, E: ?Sized>
-    where W: WordEval<E>,
-          I: Iterator<Item = W>,
+where
+    W: WordEval<E>,
+    I: Iterator<Item = W>,
 {
     split_fields_further: bool,
     fields: Vec<W::EvalResult>,
@@ -46,10 +48,11 @@ pub struct Concat<W, I, E: ?Sized>
 }
 
 impl<W, I, E: ?Sized> fmt::Debug for Concat<W, I, E>
-    where W: WordEval<E> + fmt::Debug,
-          W::EvalResult: fmt::Debug,
-          W::EvalFuture: fmt::Debug,
-          I: Iterator<Item = W> + fmt::Debug,
+where
+    W: WordEval<E> + fmt::Debug,
+    W::EvalResult: fmt::Debug,
+    W::EvalFuture: fmt::Debug,
+    I: Iterator<Item = W> + fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Concat")
@@ -62,8 +65,9 @@ impl<W, I, E: ?Sized> fmt::Debug for Concat<W, I, E>
 }
 
 impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, I, E>
-    where W: WordEval<E>,
-          I: Iterator<Item = W>,
+where
+    W: WordEval<E>,
+    I: Iterator<Item = W>,
 {
     type Item = Fields<W::EvalResult>;
     type Error = W::Error;
@@ -87,7 +91,7 @@ impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, I, E>
                 None => {
                     let fields = mem::replace(&mut self.fields, Vec::new());
                     return Ok(Async::Ready(fields.into()));
-                },
+                }
 
                 Some(ref mut f) => try_ready!(f.poll(env)),
             };
@@ -101,7 +105,7 @@ impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, I, E>
                     let mut new = last.into_owned();
                     new.push_str(next.as_str());
                     self.fields.push(new.into());
-                },
+                }
                 (Some(last), None) => self.fields.push(last),
                 (None, Some(next)) => self.fields.push(next),
                 (None, None) => continue,

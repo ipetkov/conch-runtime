@@ -1,9 +1,9 @@
+use env::AsyncIoEnvironment;
 use env::SubEnvironment;
-use futures::{Async, Future, Poll, Sink, Stream};
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
+use futures::{Async, Future, Poll, Sink, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
-use env::AsyncIoEnvironment;
 use io::FileDesc;
 use mio::would_block;
 use std::borrow::Borrow;
@@ -68,7 +68,8 @@ impl ThreadPoolAsyncIoEnv {
     /// > otherwise operations will fail with a `WouldBlock` error. This is done
     /// > to avoid burning CPU cycles while spinning on read/write operations.
     pub fn create_read_async<T>(&mut self, fd: T) -> ThreadPoolReadAsync
-        where T: 'static + Send + Borrow<FileDesc>
+    where
+        T: 'static + Send + Borrow<FileDesc>,
     {
         let (mut tx, rx) = channel(0); // NB: we have a guaranteed slot for all senders
 
@@ -93,7 +94,7 @@ impl ThreadPoolAsyncIoEnv {
                         }
 
                         len
-                    },
+                    }
 
                     // We explicitly do not handle WouldBlock errors here,
                     // and propagate them to the caller. We expect blocking
@@ -124,7 +125,8 @@ impl ThreadPoolAsyncIoEnv {
     /// > otherwise operations will fail with a `WouldBlock` error. This is done
     /// > to avoid burning CPU cycles while spinning on read/write operations.
     pub fn create_write_all<T>(&mut self, fd: T, data: Vec<u8>) -> ThreadPoolWriteAll
-        where T: 'static + Send + Borrow<FileDesc>
+    where
+        T: 'static + Send + Borrow<FileDesc>,
     {
         // We could use `tokio` IO adapters here, however, it would cause
         // problems if the file descriptor was set to nonblocking mode, since
@@ -134,7 +136,7 @@ impl ThreadPoolAsyncIoEnv {
         // noticed by a caller, instead of silently deadlocking.
         ThreadPoolWriteAll(self.pool.spawn_fn(move || {
             let mut fd = fd.borrow();
-            try!(fd.write_all(&data));
+            fd.write_all(&data)?;
             fd.flush()
         }))
     }
@@ -148,7 +150,8 @@ impl ThreadPoolAsyncIoEnv {
     /// > otherwise operations will fail with a `WouldBlock` error. This is done
     /// > to avoid burning CPU cycles while spinning on read/write operations.
     pub fn create_write_all_best_effort<T>(&mut self, fd: T, data: Vec<u8>)
-        where T: 'static + Send + Borrow<FileDesc>
+    where
+        T: 'static + Send + Borrow<FileDesc>,
     {
         self.create_write_all(fd, data).0.forget();
     }
@@ -174,17 +177,17 @@ impl Read for ThreadPoolReadAsync {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         loop {
             match self.buf {
-                None => {},
-                Some(ref data) if data.is_empty() => {},
+                None => {}
+                Some(ref data) if data.is_empty() => {}
 
                 Some(ref mut data) => {
                     // Safety check so we don't panic when draining
-                    let n = ::std::cmp::min(data.len(), try!(buf.write(data)));
+                    let n = ::std::cmp::min(data.len(), buf.write(data)?);
                     let drain = data.drain(0..n);
                     drop(drain);
 
                     return Ok(n);
-                },
+                }
             }
 
             match self.rx.poll() {
@@ -196,7 +199,7 @@ impl Read for ThreadPoolReadAsync {
                     if self.buf.is_none() {
                         return Ok(0);
                     }
-                },
+                }
 
                 // New buffer not yet ready, we'll get unparked
                 // when it becomes ready for us to consume
@@ -207,7 +210,7 @@ impl Read for ThreadPoolReadAsync {
                 Err(()) => {
                     self.buf = None;
                     return Ok(0);
-                },
+                }
             };
         }
     }

@@ -119,12 +119,14 @@ fn smoke() {
             assert_eq!(run_all!(second, $type, env), Ok(EXIT_SUCCESS));
             let second_registered = env.function(&fn_name).expect("no fn registered").clone();
 
-            let first_result = first_registered.spawn(&env)
+            let first_result = first_registered
+                .spawn(&env)
                 .pin_env(env.clone())
                 .flatten()
                 .wait();
 
-            let second_result = second_registered.spawn(&env)
+            let second_result = second_registered
+                .spawn(&env)
                 .pin_env(env.clone())
                 .flatten()
                 .wait();
@@ -144,10 +146,22 @@ fn smoke() {
 
 #[test]
 fn should_propagate_errors() {
-    assert_eq!(run_all!(Simple(mock_error(true))), Err(MockErr::Fatal(true)));
-    assert_eq!(run_all!(Simple(mock_error(false))), Err(MockErr::Fatal(false)));
-    assert_eq!(run_all!(Compound(mock_error(true))), Err(MockErr::Fatal(true)));
-    assert_eq!(run_all!(Compound(mock_error(false))), Err(MockErr::Fatal(false)));
+    assert_eq!(
+        run_all!(Simple(mock_error(true))),
+        Err(MockErr::Fatal(true))
+    );
+    assert_eq!(
+        run_all!(Simple(mock_error(false))),
+        Err(MockErr::Fatal(false))
+    );
+    assert_eq!(
+        run_all!(Compound(mock_error(true))),
+        Err(MockErr::Fatal(true))
+    );
+    assert_eq!(
+        run_all!(Compound(mock_error(false))),
+        Err(MockErr::Fatal(false))
+    );
     // NB: FunctionDefinitions can't have errors
 }
 

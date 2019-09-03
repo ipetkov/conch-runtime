@@ -9,13 +9,13 @@ struct Broadcast {
 
 impl Write for Broadcast {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        try!(self.stdout.write_all(buf));
-        try!(self.stderr.write_all(buf));
+        self.stdout.write_all(buf)?;
+        self.stderr.write_all(buf)?;
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        try!(self.stdout.flush());
+        self.stdout.flush()?;
         self.stderr.flush()
     }
 }

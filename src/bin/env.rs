@@ -4,7 +4,6 @@ use std::env;
 use std::io::{self, Write};
 
 fn main() {
-
     let mut sorted_map = BTreeMap::new();
 
     for (key, value) in env::vars() {

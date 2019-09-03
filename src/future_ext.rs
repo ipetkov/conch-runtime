@@ -1,6 +1,6 @@
-use {CANCELLED_TWICE, POLLED_TWICE};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
+use {CANCELLED_TWICE, POLLED_TWICE};
 
 /// Private extension of the `EnvFuture` trait.
 pub trait EnvFutureExt<E: ?Sized>: EnvFuture<E> {
@@ -16,9 +16,10 @@ pub trait EnvFutureExt<E: ?Sized>: EnvFuture<E> {
     /// However, this is probably fine to do for compound commands, where the
     /// caller must retain access to an environment.
     fn flatten_future(self) -> FlattenedEnvFuture<Self, Self::Item>
-        where Self::Item: Future,
-              <Self::Item as Future>::Error: From<Self::Error>,
-              Self: Sized,
+    where
+        Self::Item: Future,
+        <Self::Item as Future>::Error: From<Self::Error>,
+        Self: Sized,
     {
         FlattenedEnvFuture::EnvFuture(self)
     }
@@ -50,9 +51,10 @@ impl<E, F> FlattenedEnvFuture<E, F> {
 }
 
 impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
-    where EF: EnvFuture<E, Item = F>,
-          F: Future,
-          F::Error: From<EF::Error>,
+where
+    EF: EnvFuture<E, Item = F>,
+    F: Future,
+    F::Error: From<EF::Error>,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -72,7 +74,7 @@ impl<E: ?Sized, EF, F> EnvFuture<E> for FlattenedEnvFuture<EF, F>
     fn cancel(&mut self, env: &mut E) {
         match *self {
             FlattenedEnvFuture::EnvFuture(ref mut e) => e.cancel(env),
-            FlattenedEnvFuture::Future(_) => {},
+            FlattenedEnvFuture::Future(_) => {}
             FlattenedEnvFuture::Gone => panic!(CANCELLED_TWICE),
         }
 

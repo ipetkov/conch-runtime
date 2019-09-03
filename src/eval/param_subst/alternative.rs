@@ -1,6 +1,6 @@
+use super::is_present;
 use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
-use super::is_present;
 
 /// A future representing a `Alternative` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
@@ -29,31 +29,36 @@ pub fn alternative<P: ?Sized, W, E: ?Sized>(
     param: &P,
     alternative: Option<W>,
     env: &E,
-    cfg: TildeExpansion
+    cfg: TildeExpansion,
 ) -> Alternative<W::EvalFuture>
-    where P: ParamEval<E, EvalResult = W::EvalResult>,
-          W: WordEval<E>,
+where
+    P: ParamEval<E, EvalResult = W::EvalResult>,
+    W: WordEval<E>,
 {
-    let state = match (is_present(strict, param.eval(false, env)).is_some(), alternative) {
+    let state = match (
+        is_present(strict, param.eval(false, env)).is_some(),
+        alternative,
+    ) {
         (true, Some(w)) => {
-            let future = w.eval_with_config(env, WordEvalConfig {
-                split_fields_further: false,
-                tilde_expansion: cfg,
-            });
+            let future = w.eval_with_config(
+                env,
+                WordEvalConfig {
+                    split_fields_further: false,
+                    tilde_expansion: cfg,
+                },
+            );
             State::Alternative(future)
-        },
+        }
 
-        (true, None) |
-        (false, _) => State::Zero,
+        (true, None) | (false, _) => State::Zero,
     };
 
-    Alternative {
-        state: state,
-    }
+    Alternative { state: state }
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for Alternative<F>
-    where F: EnvFuture<E, Item = Fields<T>>,
+where
+    F: EnvFuture<E, Item = Fields<T>>,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -67,7 +72,7 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Alternative<F>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Zero => {},
+            State::Zero => {}
             State::Alternative(ref mut f) => f.cancel(env),
         }
     }

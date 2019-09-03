@@ -5,10 +5,10 @@ extern crate tempdir;
 extern crate tokio_core;
 extern crate void;
 
-use self::conch_runtime::STDOUT_FILENO;
 use self::conch_runtime::error::IsFatalError;
-use self::futures::future::FutureResult;
+use self::conch_runtime::STDOUT_FILENO;
 use self::futures::future::result as future_result;
+use self::futures::future::FutureResult;
 use self::tempdir::TempDir;
 use self::void::{unreachable, Void};
 use std::fs::OpenOptions;
@@ -16,13 +16,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 // Convenience re-exports
-pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
 pub use self::conch_runtime::env::{self, *};
 pub use self::conch_runtime::error::*;
 pub use self::conch_runtime::eval::*;
 pub use self::conch_runtime::future::*;
 pub use self::conch_runtime::path::*;
 pub use self::conch_runtime::spawn::{self, *};
+pub use self::conch_runtime::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS};
 pub use self::futures::{Async, Future, Poll};
 pub use self::tokio_core::reactor::Core;
 
@@ -30,7 +30,14 @@ pub use self::tokio_core::reactor::Core;
 #[macro_export]
 macro_rules! mktmp {
     () => {
-        mktmp_impl(concat!("test-", module_path!(), "-", line!(), "-", column!()))
+        mktmp_impl(concat!(
+            "test-",
+            module_path!(),
+            "-",
+            line!(),
+            "-",
+            column!()
+        ))
     };
 }
 
@@ -44,7 +51,9 @@ pub fn mktmp_impl(path: &str) -> TempDir {
 
 #[macro_export]
 macro_rules! test_cancel {
-    ($future:expr) => { test_cancel!($future, ()) };
+    ($future:expr) => {
+        test_cancel!($future, ())
+    };
     ($future:expr, $env:expr) => {{
         ::support::test_cancel_impl($future, &mut $env);
     }};
@@ -63,8 +72,11 @@ pub const DEV_NULL: &str = "/dev/null";
 pub const DEV_NULL: &str = "NUL";
 
 pub fn dev_null<E: ?Sized + FileDescOpener>(env: &mut E) -> E::OpenedFileHandle {
-    env.open_path(Path::new(DEV_NULL), OpenOptions::new().read(true).write(true))
-        .expect("failed to open DEV_NULL")
+    env.open_path(
+        Path::new(DEV_NULL),
+        OpenOptions::new().read(true).write(true),
+    )
+    .expect("failed to open DEV_NULL")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,7 +111,11 @@ impl self::conch_runtime::error::IsFatalError for MockErr {
 
 impl ::std::fmt::Display for MockErr {
     fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(fmt, "mock {}fatal error", if self.is_fatal() { "non-" } else { "" })
+        write!(
+            fmt,
+            "mock {}fatal error",
+            if self.is_fatal() { "non-" } else { "" }
+        )
     }
 }
 
@@ -236,9 +252,7 @@ impl<E: ?Sized> EnvFuture<E> for MockCmd {
 
     fn cancel(&mut self, _env: &mut E) {
         match *self {
-            MockCmd::Status(_) |
-            MockCmd::Error(_) |
-            MockCmd::Panic(_) => {},
+            MockCmd::Status(_) | MockCmd::Error(_) | MockCmd::Panic(_) => {}
             MockCmd::MustCancel(ref mut mc) => mc.cancel(),
         }
     }
@@ -260,10 +274,7 @@ pub fn mock_word_assert_cfg(cfg: WordEvalConfig) -> MockWord {
     MockWord::AssertCfg(cfg, None)
 }
 
-pub fn mock_word_assert_cfg_with_fields(
-    fields: Fields<String>,
-    cfg: WordEvalConfig,
-) -> MockWord {
+pub fn mock_word_assert_cfg_with_fields(fields: Fields<String>, cfg: WordEvalConfig) -> MockWord {
     MockWord::AssertCfg(cfg, Some(fields))
 }
 
@@ -321,16 +332,14 @@ impl<E: ?Sized> EnvFuture<E> for MockWord {
             MockWord::AssertCfg(_, ref mut fields) => {
                 let ret = fields.take().unwrap_or(Fields::Zero);
                 Ok(Async::Ready(ret))
-            },
+            }
             MockWord::Panic(msg) => panic!("{}", msg),
         }
     }
 
     fn cancel(&mut self, _: &mut E) {
         match *self {
-            MockWord::Fields(_) |
-            MockWord::Error(_) |
-            MockWord::AssertCfg(_, _) => {},
+            MockWord::Fields(_) | MockWord::Error(_) | MockWord::AssertCfg(_, _) => {}
             MockWord::MustCancel(ref mut mc) => mc.cancel(),
             MockWord::Panic(msg) => panic!("{}", msg),
         }
@@ -355,19 +364,17 @@ impl<E: ?Sized> ParamEval<E> for MockParam {
 
     fn eval(&self, split_fields_further: bool, _: &E) -> Option<Fields<Self::EvalResult>> {
         match *self {
-            MockParam::Fields(ref f) |
-            MockParam::FieldsWithName(ref f, _) => f.clone(),
+            MockParam::Fields(ref f) | MockParam::FieldsWithName(ref f, _) => f.clone(),
             MockParam::Split(expect_split, ref f) => {
                 assert_eq!(expect_split, split_fields_further);
                 Some(f.clone())
-            },
+            }
         }
     }
 
     fn assig_name(&self) -> Option<Self::EvalResult> {
         match *self {
-            MockParam::Fields(_) |
-            MockParam::Split(..) => None,
+            MockParam::Fields(_) | MockParam::Split(..) => None,
             MockParam::FieldsWithName(_, ref name) => Some(name.clone()),
         }
     }
@@ -380,10 +387,11 @@ pub enum MockOutCmd {
 }
 
 impl<E: ?Sized> Spawn<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::WriteAll: 'static,
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::WriteAll: 'static,
 {
     type Error = MockErr;
     type EnvFuture = Self;
@@ -395,10 +403,11 @@ impl<E: ?Sized> Spawn<E> for MockOutCmd
 }
 
 impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::WriteAll: 'static,
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::WriteAll: 'static,
 {
     type Error = MockErr;
     type EnvFuture = MockOutCmd;
@@ -410,10 +419,11 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
 }
 
 impl<E: ?Sized> EnvFuture<E> for MockOutCmd
-    where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::WriteAll: 'static,
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::WriteAll: 'static,
 {
     type Item = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
     type Error = MockErr;
@@ -428,13 +438,15 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
             },
         };
 
-        let fd = env.file_desc(STDOUT_FILENO)
+        let fd = env
+            .file_desc(STDOUT_FILENO)
             .expect("failed to get stdout")
             .0
             .clone()
             .into();
 
-        let future = env.write_all(fd, msg.as_bytes().into())
+        let future = env
+            .write_all(fd, msg.as_bytes().into())
             .expect("failed to create write_all future")
             .then(|result| {
                 result.expect("unexpected failure");
@@ -446,7 +458,7 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
 
     fn cancel(&mut self, env: &mut E) {
         match *self {
-            MockOutCmd::Out(_) => {},
+            MockOutCmd::Out(_) => {}
             MockOutCmd::Cmd(ref mut c) => c.cancel(env),
         };
     }
@@ -483,7 +495,8 @@ impl<T, E: ?Sized> RedirectEval<E> for MockRedirect<T> {
 }
 
 impl<'a, T, E: ?Sized> RedirectEval<E> for &'a MockRedirect<T>
-    where T: Clone,
+where
+    T: Clone,
 {
     type Handle = T;
     type Error = MockErr;
@@ -508,8 +521,7 @@ impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
 
     fn cancel(&mut self, _: &mut E) {
         match *self {
-            MockRedirect::Action(_) |
-            MockRedirect::Error(_) => {},
+            MockRedirect::Action(_) | MockRedirect::Error(_) => {}
             MockRedirect::MustCancel(ref mut mc) => mc.cancel(),
         }
     }
@@ -559,9 +571,7 @@ macro_rules! run {
 /// Spawns and syncronously runs the provided command to completion.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
 pub fn run<T: Spawn<E>, E>(cmd: T, env: E, lp: &mut Core) -> Result<ExitStatus, T::Error> {
-    let future = cmd.spawn(&env)
-        .pin_env(env)
-        .flatten();
+    let future = cmd.spawn(&env).pin_env(env).flatten();
 
     lp.run(future)
 }
@@ -576,7 +586,7 @@ macro_rules! run_cancel {
         let ret = run_cancel(cmd);
         assert_eq!(ret_ref, ret);
         ret
-    }}
+    }};
 }
 
 /// Spawns the provided command and polls it a single time to give it a
@@ -593,7 +603,9 @@ pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
 
 #[macro_export]
 macro_rules! eval {
-    ($word:expr, $cfg:expr) => { eval_with_thread_pool!($word, $cfg, 1) }
+    ($word:expr, $cfg:expr) => {
+        eval_with_thread_pool!($word, $cfg, 1)
+    };
 }
 
 #[macro_export]
@@ -607,18 +619,19 @@ macro_rules! eval_with_thread_pool {
         let ret = eval_word(word, cfg, $threads);
         assert_eq!(ret_ref, ret);
         ret
-    }}
+    }};
 }
 
 /// Evaluates a word to completion.
 #[deprecated(note = "use `eval!` macro instead, to cover spawning T and &T")]
-pub fn eval_word<W: WordEval<DefaultEnv<String>>>(word: W, cfg: WordEvalConfig, threads: usize)
-    -> Result<Fields<W::EvalResult>, W::Error>
-{
+pub fn eval_word<W: WordEval<DefaultEnv<String>>>(
+    word: W,
+    cfg: WordEvalConfig,
+    threads: usize,
+) -> Result<Fields<W::EvalResult>, W::Error> {
     let mut lp = Core::new().expect("failed to create Core loop");
     let env = DefaultEnv::<String>::new(lp.handle(), Some(threads)).expect("failed to create env");
-    let future = word.eval_with_config(&env, cfg)
-        .pin_env(env);
+    let future = word.eval_with_config(&env, cfg).pin_env(env);
 
     lp.run(future)
 }

@@ -8,10 +8,10 @@ extern crate tokio_io;
 
 use conch_parser::ast::Redirect;
 use conch_parser::ast::Redirect::*;
-use conch_runtime::{Fd, STDIN_FILENO, STDOUT_FILENO};
 use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment};
 use conch_runtime::eval::{RedirectAction, RedirectEval};
 use conch_runtime::io::{FileDesc, FileDescWrapper, Permissions};
+use conch_runtime::{Fd, STDIN_FILENO, STDOUT_FILENO};
 use futures::future::poll_fn;
 use std::borrow::Cow;
 use std::fs::File;
@@ -48,16 +48,16 @@ macro_rules! eval_no_compare {
     }}
 }
 
-fn eval<T: RedirectEval<DefaultEnvRc>>(redirect: T)
-    -> Result<RedirectAction<T::Handle>, T::Error>
-{
+fn eval<T: RedirectEval<DefaultEnvRc>>(redirect: T) -> Result<RedirectAction<T::Handle>, T::Error> {
     let (mut lp, mut env) = new_env();
     eval_with_env(redirect, &mut lp, &mut env)
 }
 
-fn eval_with_env<T: RedirectEval<DefaultEnvRc>>(redirect: T, lp: &mut Core, env: &mut DefaultEnvRc)
-    -> Result<RedirectAction<T::Handle>, T::Error>
-{
+fn eval_with_env<T: RedirectEval<DefaultEnvRc>>(
+    redirect: T,
+    lp: &mut Core,
+    env: &mut DefaultEnvRc,
+) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut future = redirect.eval(&env);
     lp.run(poll_fn(move || future.poll(env)))
 }
@@ -66,10 +66,10 @@ fn test_open_redirect<F1, F2>(
     cases: Vec<(Fd, Redirect<MockWord>)>,
     correct_permissions: Permissions,
     mut before: F1,
-    mut after: F2
-)
-    where for<'a> F1: FnMut(&'a mut DefaultEnvRc),
-          F2: FnMut(FileDesc)
+    mut after: F2,
+) where
+    for<'a> F1: FnMut(&'a mut DefaultEnvRc),
+    F2: FnMut(FileDesc),
 {
     type RA = RedirectAction<PlatformSpecificManagedHandle>;
 
@@ -81,7 +81,7 @@ fn test_open_redirect<F1, F2>(
                 assert_eq!(perms, correct_permissions);
                 assert_eq!(result_fd, correct_fd);
                 fdes.clone()
-            },
+            }
 
             action => panic!("Unexpected action: {:#?}", action),
         };
@@ -99,15 +99,13 @@ fn test_open_redirect<F1, F2>(
 
     for &(correct_fd, ref redirect) in &cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut lp, &mut env)
-            .expect("redirect eval failed");
+        let action = eval_with_env(redirect, &mut lp, &mut env).expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 
     for (correct_fd, redirect) in cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut lp, &mut env)
-            .expect("redirect eval failed");
+        let action = eval_with_env(redirect, &mut lp, &mut env).expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 }
@@ -124,10 +122,10 @@ fn eval_read() {
 
     let path = mock_word_fields(Fields::Single(file_path.display().to_string()));
 
-    let cases = vec!(
+    let cases = vec![
         (STDIN_FILENO, Read(None, path.clone())),
-        (42,           Read(Some(42), path.clone())),
-    );
+        (42, Read(Some(42), path.clone())),
+    ];
 
     test_open_redirect(
         cases,
@@ -141,7 +139,7 @@ fn eval_read() {
             let mut read = String::new();
             file_desc.read_to_string(&mut read).unwrap();
             assert_eq!(read, msg);
-        }
+        },
     );
 }
 
@@ -151,13 +149,14 @@ fn eval_path_is_relative_to_cwd() {
     let tempdir = mktmp!();
 
     let path = mock_word_fields(Fields::Single("out".to_owned()));
-    let cases = vec!((STDIN_FILENO, Read(None, path)));
+    let cases = vec![(STDIN_FILENO, Read(None, path))];
 
     test_open_redirect(
         cases,
         Permissions::Read,
         |env| {
-            env.change_working_dir(Cow::Borrowed(tempdir.path())).unwrap();
+            env.change_working_dir(Cow::Borrowed(tempdir.path()))
+                .unwrap();
 
             let mut file_path = PathBuf::new();
             file_path.push(tempdir.path());
@@ -171,7 +170,7 @@ fn eval_path_is_relative_to_cwd() {
             let mut read = String::new();
             file_desc.read_to_string(&mut read).unwrap();
             assert_eq!(read, msg);
-        }
+        },
     );
 }
 
@@ -187,13 +186,13 @@ fn eval_write_and_clobber() {
 
     let path = mock_word_fields(Fields::Single(file_path.display().to_string()));
 
-    let cases = vec!(
+    let cases = vec![
         (STDOUT_FILENO, Write(None, path.clone())),
-        (42,            Write(Some(42), path.clone())),
+        (42, Write(Some(42), path.clone())),
         // FIXME: split out clobber tests and check clobber semantics
         (STDOUT_FILENO, Clobber(None, path.clone())),
-        (42,            Clobber(Some(42), path.clone())),
-    );
+        (42, Clobber(Some(42), path.clone())),
+    ];
 
     test_open_redirect(
         cases,
@@ -212,7 +211,7 @@ fn eval_write_and_clobber() {
             let mut read = String::new();
             file.read_to_string(&mut read).unwrap();
             assert_eq!(read, msg);
-        }
+        },
     );
 }
 
@@ -228,10 +227,10 @@ fn eval_read_write() {
 
     let path = mock_word_fields(Fields::Single(file_path.display().to_string()));
 
-    let cases = vec!(
+    let cases = vec![
         (STDIN_FILENO, ReadWrite(None, path.clone())),
-        (42,           ReadWrite(Some(42), path.clone())),
-    );
+        (42, ReadWrite(Some(42), path.clone())),
+    ];
 
     test_open_redirect(
         cases,
@@ -254,7 +253,7 @@ fn eval_read_write() {
             read.clear();
             file.read_to_string(&mut read).unwrap();
             assert_eq!(read, format!("{}{}", original, msg));
-        }
+        },
     );
 }
 
@@ -270,10 +269,10 @@ fn eval_append() {
 
     let path = mock_word_fields(Fields::Single(file_path.display().to_string()));
 
-    let cases = vec!(
+    let cases = vec![
         (STDOUT_FILENO, Append(None, path.clone())),
-        (42,            Append(Some(42), path.clone())),
-    );
+        (42, Append(Some(42), path.clone())),
+    ];
 
     test_open_redirect(
         cases,
@@ -292,23 +291,32 @@ fn eval_append() {
             let mut read = String::new();
             file.read_to_string(&mut read).unwrap();
             assert_eq!(read, format!("{}{}", msg1, msg2));
-        }
+        },
     );
 }
 
 #[test]
 fn eval_heredoc() {
     let single = "single";
-    let fields = vec!("first".to_owned(), "second".to_owned());
+    let fields = vec!["first".to_owned(), "second".to_owned()];
     let joined = Vec::from("firstsecond".as_bytes());
 
-    let cases = vec!(
-        (mock_word_fields(Fields::Zero), vec!()),
-        (mock_word_fields(Fields::Single(single.to_owned())), Vec::from(single.as_bytes())),
+    let cases = vec![
+        (mock_word_fields(Fields::Zero), vec![]),
+        (
+            mock_word_fields(Fields::Single(single.to_owned())),
+            Vec::from(single.as_bytes()),
+        ),
         (mock_word_fields(Fields::At(fields.clone())), joined.clone()),
-        (mock_word_fields(Fields::Star(fields.clone())), joined.clone()),
-        (mock_word_fields(Fields::Split(fields.clone())), joined.clone()),
-    );
+        (
+            mock_word_fields(Fields::Star(fields.clone())),
+            joined.clone(),
+        ),
+        (
+            mock_word_fields(Fields::Split(fields.clone())),
+            joined.clone(),
+        ),
+    ];
 
     for (body, expected) in cases {
         let action = RedirectAction::HereDoc(STDIN_FILENO, expected.clone());
@@ -328,16 +336,21 @@ fn apply_redirect_action() {
 
     let fdes = dev_null(&mut env);
     let perms = Permissions::ReadWrite;
-    RedirectAction::Open(fd, fdes.clone(), perms).apply(&mut env).unwrap();
+    RedirectAction::Open(fd, fdes.clone(), perms)
+        .apply(&mut env)
+        .unwrap();
     assert_eq!(env.file_desc(fd), Some((&fdes, perms)));
 
     RedirectAction::Close(fd).apply(&mut env).unwrap();
     assert_eq!(env.file_desc(fd), None);
 
     let msg = "heredoc body!";
-    RedirectAction::HereDoc(fd, msg.as_bytes().to_owned()).apply(&mut env).unwrap();
+    RedirectAction::HereDoc(fd, msg.as_bytes().to_owned())
+        .apply(&mut env)
+        .unwrap();
 
-    let fdes = env.file_desc(fd)
+    let fdes = env
+        .file_desc(fd)
         .map(|(fdes, perms)| {
             assert_eq!(perms, Permissions::Read);
             fdes.clone()
@@ -347,7 +360,7 @@ fn apply_redirect_action() {
     env.close_file_desc(fd); // Drop any other copies of fdes
 
     let read = env.read_async(fdes).expect("failed to create read future");
-    let (_, data) = lp.run(tokio_io::io::read_to_end(read, vec!())).unwrap();
+    let (_, data) = lp.run(tokio_io::io::read_to_end(read, vec![])).unwrap();
 
     assert_eq!(data, msg.as_bytes());
 }
@@ -371,7 +384,7 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
         let path = mock_word_assert_cfg_with_fields(Fields::Single(DEV_NULL.to_owned()), cfg);
         let dup_close = mock_word_assert_cfg_with_fields(Fields::Single("-".to_owned()), cfg);
 
-        let cases = vec!(
+        let cases = vec![
             Read(None, path.clone()),
             ReadWrite(None, path.clone()),
             Write(None, path.clone()),
@@ -380,12 +393,22 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
             DupRead(None, dup_close.clone()),
             DupWrite(None, dup_close.clone()),
             Heredoc(None, path.clone()),
-        );
+        ];
 
         for redirect in cases {
             let (ret_ref, ret) = eval_no_compare!(redirect.clone(), lp, env);
-            assert!(ret_ref.is_ok(), "unexpected response: {:?} for {:#?}", ret_ref, redirect);
-            assert!(ret.is_ok(), "unexpected response: {:?} for {:#?}", ret, redirect);
+            assert!(
+                ret_ref.is_ok(),
+                "unexpected response: {:?} for {:#?}",
+                ret_ref,
+                redirect
+            );
+            assert!(
+                ret.is_ok(),
+                "unexpected response: {:?} for {:#?}",
+                ret,
+                redirect
+            );
         }
     }
 }
@@ -404,7 +427,7 @@ fn should_eval_dup_close_approprately() {
 #[test]
 #[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
-    use RedirectionError::{BadFdSrc, BadFdPerms};
+    use RedirectionError::{BadFdPerms, BadFdSrc};
 
     let fd = 42;
     let src_fd = 5;
@@ -412,21 +435,41 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     let (mut lp, mut env) = new_env();
 
     let path = mock_word_fields(Fields::Single("foo".to_string()));
-    let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc("foo".to_string().into()))));
+    let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc(
+        "foo".to_string().into(),
+    ))));
     assert_eq!(env.file_desc(src_fd), None);
-    assert_eq!(redirect_eval!(DupRead(None, path.clone()), lp, env), err.clone());
-    assert_eq!(redirect_eval!(DupWrite(None, path.clone()), lp, env), err.clone());
+    assert_eq!(
+        redirect_eval!(DupRead(None, path.clone()), lp, env),
+        err.clone()
+    );
+    assert_eq!(
+        redirect_eval!(DupWrite(None, path.clone()), lp, env),
+        err.clone()
+    );
 
     let path = mock_word_fields(Fields::Single(src_fd.to_string()));
     let fdes = dev_null(&mut env);
 
-    let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Read))));
+    let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(
+        src_fd,
+        Permissions::Read,
+    ))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Read);
-    assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone()), lp, env), err);
+    assert_eq!(
+        redirect_eval!(DupWrite(Some(fd), path.clone()), lp, env),
+        err
+    );
 
-    let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(src_fd, Permissions::Write))));
+    let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(
+        src_fd,
+        Permissions::Write,
+    ))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Write);
-    assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone()), lp, env), err);
+    assert_eq!(
+        redirect_eval!(DupRead(Some(fd), path.clone()), lp, env),
+        err
+    );
 }
 
 #[test]
@@ -434,13 +477,22 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
 fn eval_ambiguous_path() {
     use RedirectionError::Ambiguous;
 
-    let fields = vec!("first".to_owned(), "second".to_owned());
-    let cases = vec!(
-        (mock_word_fields(Fields::Zero), Ambiguous(vec!())),
-        (mock_word_fields(Fields::At(fields.clone())), Ambiguous(fields.clone())),
-        (mock_word_fields(Fields::Star(fields.clone())), Ambiguous(fields.clone())),
-        (mock_word_fields(Fields::Split(fields.clone())), Ambiguous(fields.clone())),
-    );
+    let fields = vec!["first".to_owned(), "second".to_owned()];
+    let cases = vec![
+        (mock_word_fields(Fields::Zero), Ambiguous(vec![])),
+        (
+            mock_word_fields(Fields::At(fields.clone())),
+            Ambiguous(fields.clone()),
+        ),
+        (
+            mock_word_fields(Fields::Star(fields.clone())),
+            Ambiguous(fields.clone()),
+        ),
+        (
+            mock_word_fields(Fields::Split(fields.clone())),
+            Ambiguous(fields.clone()),
+        ),
+    ];
 
     for (path, err) in cases {
         let err = Err(MockErr::RedirectionError(Arc::new(err)));
@@ -477,7 +529,9 @@ fn should_propagate_cancel() {
     let (_, mut env) = new_env();
 
     macro_rules! test_cancel_redirect {
-        ($redirect:expr) => { test_cancel!($redirect.eval(&env), env) }
+        ($redirect:expr) => {
+            test_cancel!($redirect.eval(&env), env)
+        };
     }
 
     test_cancel_redirect!(Read(None, mock_word_must_cancel()));

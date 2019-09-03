@@ -3,15 +3,15 @@
 use futures::Future;
 
 mod boxed_result;
-mod invert;
 mod fuse;
+mod invert;
 mod pinned;
 
-pub use futures::{Async, Poll};
 pub use self::boxed_result::BoxedResult;
-pub use self::invert::InvertStatus;
 pub use self::fuse::Fuse;
+pub use self::invert::InvertStatus;
 pub use self::pinned::Pinned;
+pub use futures::{Async, Poll};
 
 /// A trait for objects that behave exactly like the `Future` trait from the
 /// `futures` crate, however, each object must be polled in the context of some
@@ -83,7 +83,11 @@ pub trait EnvFuture<E: ?Sized> {
 
     /// Pin an environment to this future, allowing the resulting future to be
     /// polled from anywhere without needing the caller to specify an environment.
-    fn pin_env(self, env: E) -> Pinned<E, Self> where E: Sized, Self: Sized {
+    fn pin_env(self, env: E) -> Pinned<E, Self>
+    where
+        E: Sized,
+        Self: Sized,
+    {
         pinned::new(self, env)
     }
 
@@ -100,7 +104,10 @@ pub trait EnvFuture<E: ?Sized> {
     /// or cancelled via `cancel, then it will forever return `NotReady` from
     /// `poll` (never resolve) and will ignore future calls to `cancel`. This,
     /// unlike the trait's `poll` and `cancel` methods, is guaranteed.
-    fn fuse(self) -> Fuse<Self> where Self: Sized {
+    fn fuse(self) -> Fuse<Self>
+    where
+        Self: Sized,
+    {
         fuse::new(self)
     }
 
@@ -110,14 +117,18 @@ pub trait EnvFuture<E: ?Sized> {
     /// adapter will return `Box<Future>` which is useful when type
     /// erasure is desired.
     fn boxed_result<'a>(self) -> BoxedResult<'a, Self>
-        where Self: Sized,
-              Self::Item: 'a + Future,
+    where
+        Self: Sized,
+        Self::Item: 'a + Future,
     {
         boxed_result::new(self)
     }
 }
 
-impl<'a, T: ?Sized, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> {
+impl<'a, T: ?Sized, E: ?Sized> EnvFuture<E> for &'a mut T
+where
+    T: EnvFuture<E>,
+{
     type Item = T::Item;
     type Error = T::Error;
 
@@ -130,7 +141,10 @@ impl<'a, T: ?Sized, E: ?Sized> EnvFuture<E> for &'a mut T where T: EnvFuture<E> 
     }
 }
 
-impl<T: ?Sized, E: ?Sized> EnvFuture<E> for Box<T> where T: EnvFuture<E> {
+impl<T: ?Sized, E: ?Sized> EnvFuture<E> for Box<T>
+where
+    T: EnvFuture<E>,
+{
     type Item = T::Item;
     type Error = T::Error;
 

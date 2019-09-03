@@ -1,8 +1,8 @@
-use {EXIT_ERROR, Spawn};
 use conch_parser::ast;
-use error::RuntimeError;
 use env::LastStatusEnvironment;
+use error::RuntimeError;
 use future::{EnvFuture, Poll};
+use {Spawn, EXIT_ERROR};
 
 /// A future representing the execution of a `Command`.
 #[must_use = "futures do nothing unless polled"]
@@ -19,9 +19,10 @@ enum Inner<F> {
 }
 
 impl<E: ?Sized, T> Spawn<E> for ast::Command<T>
-    where E: LastStatusEnvironment,
-          T: Spawn<E>,
-          T::Error: From<RuntimeError>,
+where
+    E: LastStatusEnvironment,
+    T: Spawn<E>,
+    T::Error: From<RuntimeError>,
 {
     type Error = T::Error;
     type EnvFuture = Command<T::EnvFuture>;
@@ -33,16 +34,15 @@ impl<E: ?Sized, T> Spawn<E> for ast::Command<T>
             ast::Command::List(cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
-        Command {
-            inner: inner,
-        }
+        Command { inner: inner }
     }
 }
 
 impl<'a, E: ?Sized, T> Spawn<E> for &'a ast::Command<T>
-    where E: LastStatusEnvironment,
-          &'a T: Spawn<E>,
-          <&'a T as Spawn<E>>::Error: From<RuntimeError>,
+where
+    E: LastStatusEnvironment,
+    &'a T: Spawn<E>,
+    <&'a T as Spawn<E>>::Error: From<RuntimeError>,
 {
     type Error = <&'a T as Spawn<E>>::Error;
     type EnvFuture = Command<<&'a T as Spawn<E>>::EnvFuture>;
@@ -54,16 +54,15 @@ impl<'a, E: ?Sized, T> Spawn<E> for &'a ast::Command<T>
             ast::Command::List(ref cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
-        Command {
-            inner: inner,
-        }
+        Command { inner: inner }
     }
 }
 
 impl<E: ?Sized, F> EnvFuture<E> for Command<F>
-    where F: EnvFuture<E>,
-          F::Error: From<RuntimeError>,
-          E: LastStatusEnvironment,
+where
+    F: EnvFuture<E>,
+    F::Error: From<RuntimeError>,
+    E: LastStatusEnvironment,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -75,14 +74,14 @@ impl<E: ?Sized, F> EnvFuture<E> for Command<F>
                 // FIXME: eventual job control would be nice
                 env.set_last_status(EXIT_ERROR);
                 Err(RuntimeError::Unimplemented("job control is not currently supported").into())
-            },
+            }
         }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.inner {
             Inner::Pending(ref mut f) => f.cancel(env),
-            Inner::Unimplemented => {},
+            Inner::Unimplemented => {}
         }
     }
 }

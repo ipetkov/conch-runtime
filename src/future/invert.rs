@@ -1,5 +1,5 @@
-use {EXIT_ERROR, ExitStatus, EXIT_SUCCESS};
 use futures::{Async, Future, Poll};
+use {ExitStatus, EXIT_ERROR, EXIT_SUCCESS};
 
 /// A future which represents a possibly inverted exit status.
 ///

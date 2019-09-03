@@ -18,17 +18,17 @@ fn env_path() -> String {
 #[test]
 fn smoke() {
     let word = ast::TopLevelWord(ast::ComplexWord::Single(ast::Word::Simple(
-        ast::SimpleWord::Literal(Rc::new(env_path()))
+        ast::SimpleWord::Literal(Rc::new(env_path())),
     )));
 
     let cmd = ast::TopLevelCommand(ast::Command::List(ast::CommandList {
         first: ast::ListableCommand::Single(ast::PipeableCommand::Simple(Box::new(
             ast::SimpleCommand {
-                redirects_or_env_vars: vec!(),
-                redirects_or_cmd_words: vec!(ast::RedirectOrCmdWord::CmdWord(word)),
-            }
+                redirects_or_env_vars: vec![],
+                redirects_or_cmd_words: vec![ast::RedirectOrCmdWord::CmdWord(word)],
+            },
         ))),
-        rest: vec!(),
+        rest: vec![],
     }));
 
     let lp = Core::new().expect("failed to create Core loop");
@@ -41,21 +41,22 @@ fn smoke() {
 #[test]
 fn smoke_atomic() {
     let word = ast::AtomicTopLevelWord(ast::ComplexWord::Single(ast::Word::Simple(
-        ast::SimpleWord::Literal(Arc::new(env_path()))
+        ast::SimpleWord::Literal(Arc::new(env_path())),
     )));
 
     let cmd = ast::AtomicTopLevelCommand(ast::Command::List(ast::AtomicCommandList {
         first: ast::ListableCommand::Single(ast::PipeableCommand::Simple(Box::new(
             ast::SimpleCommand {
-                redirects_or_env_vars: vec!(),
-                redirects_or_cmd_words: vec!(ast::RedirectOrCmdWord::CmdWord(word)),
-            }
+                redirects_or_env_vars: vec![],
+                redirects_or_cmd_words: vec![ast::RedirectOrCmdWord::CmdWord(word)],
+            },
         ))),
-        rest: vec!(),
+        rest: vec![],
     }));
 
     let lp = Core::new().expect("failed to create Core loop");
-    let mut env = conch_runtime::env::atomic::DefaultEnvArc::new_atomic(lp.remote(), Some(1)).unwrap();
+    let mut env =
+        conch_runtime::env::atomic::DefaultEnvArc::new_atomic(lp.remote(), Some(1)).unwrap();
     env.close_file_desc(conch_runtime::STDOUT_FILENO); // NB: don't dump env vars here
 
     assert_eq!(run!(cmd, lp, env), Ok(EXIT_SUCCESS));

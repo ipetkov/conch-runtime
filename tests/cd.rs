@@ -5,19 +5,21 @@ extern crate tokio_io;
 extern crate void;
 
 use conch_runtime::io::Permissions;
-use futures::future::{Future, poll_fn};
+use futures::future::{poll_fn, Future};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::symlink as symlink_dir;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_dir;
 use std::path::PathBuf;
-#[cfg(unix)] use std::os::unix::fs::symlink as symlink_dir;
-#[cfg(windows)] use std::os::windows::fs::symlink_dir as symlink_dir;
 use std::rc::Rc;
 
 #[macro_use]
 mod support;
-pub use self::support::*;
 pub use self::support::spawn::builtin::cd;
+pub use self::support::*;
 
 struct CdResult {
     initial_cwd: PathBuf,
@@ -28,38 +30,53 @@ struct CdResult {
 }
 
 fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
-    where for<'a> F: FnOnce(&'a mut DefaultEnvRc)
+where
+    for<'a> F: FnOnce(&'a mut DefaultEnvRc),
 {
     let (mut lp, mut env) = new_env_with_threads(4);
 
     let pipe_out = env.open_pipe().expect("err pipe failed");
     let pipe_err = env.open_pipe().expect("out pipe failed");
 
-    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe_out.writer, Permissions::Write);
-    env.set_file_desc(conch_runtime::STDERR_FILENO, pipe_err.writer, Permissions::Write);
+    env.set_file_desc(
+        conch_runtime::STDOUT_FILENO,
+        pipe_out.writer,
+        Permissions::Write,
+    );
+    env.set_file_desc(
+        conch_runtime::STDERR_FILENO,
+        pipe_err.writer,
+        Permissions::Write,
+    );
 
     env_setup(&mut env);
     let initial_cwd = env.current_working_dir().to_path_buf();
 
-    let read_to_end_out = env.read_async(pipe_out.reader).expect("failed to create read_to_end_out");
-    let read_to_end_err = env.read_async(pipe_err.reader).expect("failed to create read_to_end_err");
+    let read_to_end_out = env
+        .read_async(pipe_out.reader)
+        .expect("failed to create read_to_end_out");
+    let read_to_end_err = env
+        .read_async(pipe_err.reader)
+        .expect("failed to create read_to_end_err");
     let read_to_end_out = tokio_io::io::read_to_end(read_to_end_out, Vec::new());
     let read_to_end_err = tokio_io::io::read_to_end(read_to_end_err, Vec::new());
 
-    let mut cd = cd(cd_args.iter().map(|&s| s.to_owned()))
-        .spawn(&env);
+    let mut cd = cd(cd_args.iter().map(|&s| s.to_owned())).spawn(&env);
 
     let env = RefCell::new(env);
     let cd = poll_fn(|| cd.poll(&mut *env.borrow_mut()))
         .flatten()
         .and_then(|exit| {
-            env.borrow_mut().close_file_desc(conch_runtime::STDOUT_FILENO);
-            env.borrow_mut().close_file_desc(conch_runtime::STDERR_FILENO);
+            env.borrow_mut()
+                .close_file_desc(conch_runtime::STDOUT_FILENO);
+            env.borrow_mut()
+                .close_file_desc(conch_runtime::STDERR_FILENO);
             exit
         })
         .map_err(|void| void::unreachable(void));
 
-    let ((_, err), (_, out), exit) = lp.run(read_to_end_err.join3(read_to_end_out, cd))
+    let ((_, err), (_, out), exit) = lp
+        .run(read_to_end_err.join3(read_to_end_out, cd))
         .expect("future failed");
 
     let env = env.borrow();
@@ -73,7 +90,7 @@ fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
         final_cwd: final_cwd,
         out: String::from_utf8(out).expect("out invalid utf8"),
         err: String::from_utf8(err).expect("err invalid utf8"),
-        status: exit
+        status: exit,
     }
 }
 
@@ -84,9 +101,8 @@ fn successful_if_no_stdout() {
 
     let (mut lp, mut env) = new_env_with_no_fds();
 
-    let args: Vec<Rc<String>> = vec!(input.to_string_lossy().into_owned().into());
-    let mut cd = cd(args)
-        .spawn(&env);
+    let args: Vec<Rc<String>> = vec![input.to_string_lossy().into_owned().into()];
+    let mut cd = cd(args).spawn(&env);
 
     let exit = lp.run(poll_fn(|| cd.poll(&mut env)).flatten());
     assert_eq!(exit, Ok(EXIT_SUCCESS));
@@ -125,7 +141,10 @@ fn logical_relative() {
 }
 
 fn make_symlink_and_get_sym_input(tempdir: &tempdir::TempDir) -> PathBuf {
-    let tempdir_path = tempdir.path().canonicalize().expect("failed to canonicalize");
+    let tempdir_path = tempdir
+        .path()
+        .canonicalize()
+        .expect("failed to canonicalize");
 
     let path_real = tempdir_path.join("real");
     let path_sym = tempdir_path.join("sym");
@@ -167,7 +186,8 @@ fn physical_absolute() {
 fn physical_relative() {
     let tempdir = mktmp!();
     let result = run_cd(&["-P", "-L", "-P", ".."], |env| {
-        env.change_working_dir(Cow::Borrowed(tempdir.path())).expect("change dir failed");
+        env.change_working_dir(Cow::Borrowed(tempdir.path()))
+            .expect("change dir failed");
     });
 
     assert_eq!(result.status, EXIT_SUCCESS);
@@ -175,7 +195,10 @@ fn physical_relative() {
     assert_eq!(result.err, "");
     assert_ne!(result.initial_cwd, result.final_cwd);
 
-    let mut expected = result.initial_cwd.canonicalize().expect("canonicalize failed");
+    let mut expected = result
+        .initial_cwd
+        .canonicalize()
+        .expect("canonicalize failed");
     expected.pop();
     assert_eq!(result.final_cwd, expected);
 }
@@ -184,7 +207,10 @@ fn physical_relative() {
 fn no_arg_uses_home_var() {
     let home_dir = mktmp!();
     let result = run_cd(&[], |env| {
-        env.set_var("HOME".to_owned().into(), home_dir.path().to_string_lossy().into_owned().into());
+        env.set_var(
+            "HOME".to_owned().into(),
+            home_dir.path().to_string_lossy().into_owned().into(),
+        );
     });
 
     assert_eq!(result.status, EXIT_SUCCESS);
@@ -198,7 +224,11 @@ fn no_arg_uses_home_var() {
 fn no_arg_unset_home_is_error() {
     let result = run_cd(&[], |env| {
         env.unset_var(&String::from("HOME"));
-        let pwd = env.current_working_dir().to_string_lossy().into_owned().into();
+        let pwd = env
+            .current_working_dir()
+            .to_string_lossy()
+            .into_owned()
+            .into();
         env.set_var(String::from("PWD").into(), pwd);
     });
 
@@ -211,13 +241,19 @@ fn no_arg_unset_home_is_error() {
 fn dash_arg_uses_oldpwd_var() {
     let home_dir = mktmp!();
     let result = run_cd(&["-"], |env| {
-        env.set_var("OLDPWD".to_owned().into(), home_dir.path().to_string_lossy().into_owned().into());
+        env.set_var(
+            "OLDPWD".to_owned().into(),
+            home_dir.path().to_string_lossy().into_owned().into(),
+        );
     });
 
     assert_eq!(result.status, EXIT_SUCCESS);
     assert_ne!(result.initial_cwd, result.final_cwd);
     assert_eq!(result.final_cwd, home_dir.path());
-    assert_eq!(result.out, format!("{}\n", home_dir.path().to_string_lossy()));
+    assert_eq!(
+        result.out,
+        format!("{}\n", home_dir.path().to_string_lossy())
+    );
     assert_eq!(result.err, "");
 }
 
@@ -263,7 +299,8 @@ fn nulls_in_cdargs_treated_as_current_directory() {
             red_herring.path().to_string_lossy(),
         );
         env.set_var("CDPATH".to_owned().into(), val.into());
-        env.change_working_dir(Cow::Borrowed(&tempdir.path())).expect("change dir failed");
+        env.change_working_dir(Cow::Borrowed(&tempdir.path()))
+            .expect("change dir failed");
     });
 
     assert_eq!(result.status, EXIT_SUCCESS);
@@ -277,7 +314,11 @@ fn nulls_in_cdargs_treated_as_current_directory() {
 fn dash_unset_old_pwd_is_error() {
     let result = run_cd(&["-"], |env| {
         env.unset_var(&String::from("OLDPWD"));
-        let pwd = env.current_working_dir().to_string_lossy().into_owned().into();
+        let pwd = env
+            .current_working_dir()
+            .to_string_lossy()
+            .into_owned()
+            .into();
         env.set_var(String::from("PWD").into(), pwd);
     });
 
@@ -290,8 +331,7 @@ fn dash_unset_old_pwd_is_error() {
 #[should_panic]
 fn polling_canceled_pwd_panics() {
     let (_, mut env) = new_env_with_no_fds();
-    let mut cd = cd(Vec::<Rc<String>>::new())
-        .spawn(&env);
+    let mut cd = cd(Vec::<Rc<String>>::new()).spawn(&env);
 
     cd.cancel(&mut env);
     let _ = cd.poll(&mut env);

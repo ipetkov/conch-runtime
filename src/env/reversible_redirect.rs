@@ -1,10 +1,10 @@
-use Fd;
-use io::Permissions;
 use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener};
 use eval::RedirectAction;
+use io::Permissions;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result as IoResult;
+use Fd;
 
 /// An interface for maintaining a state of all file descriptors that have been
 /// modified so that they can be restored later.
@@ -19,9 +19,10 @@ pub trait RedirectEnvRestorer<E: ?Sized> {
 
     /// Applies changes to a given environment after backing up as appropriate.
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-              E::FileHandle: From<E::OpenedFileHandle>,
-              E::IoHandle: From<E::FileHandle>;
+    where
+        E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+        E::FileHandle: From<E::OpenedFileHandle>,
+        E::IoHandle: From<E::FileHandle>;
 
     /// Backs up the original handle of specified file descriptor.
     ///
@@ -36,16 +37,18 @@ pub trait RedirectEnvRestorer<E: ?Sized> {
 }
 
 impl<'a, T, E: ?Sized> RedirectEnvRestorer<E> for &'a mut T
-    where T: RedirectEnvRestorer<E>
+where
+    T: RedirectEnvRestorer<E>,
 {
     fn reserve(&mut self, additional: usize) {
         (**self).reserve(additional);
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-              E::FileHandle: From<E::OpenedFileHandle>,
-              E::IoHandle: From<E::FileHandle>,
+    where
+        E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+        E::FileHandle: From<E::OpenedFileHandle>,
+        E::IoHandle: From<E::FileHandle>,
     {
         (**self).apply_action(action, env)
     }
@@ -68,20 +71,24 @@ impl<'a, T, E: ?Sized> RedirectEnvRestorer<E> for &'a mut T
 /// > thing eventually, and no guarantees can be made.
 #[derive(Clone)]
 pub struct RedirectRestorer<E: ?Sized>
-    where E: FileDescEnvironment,
+where
+    E: FileDescEnvironment,
 {
     /// Any overrides that have been applied (and be undone).
     overrides: HashMap<Fd, Option<(E::FileHandle, Permissions)>>,
 }
 
 impl<E: ?Sized> Eq for RedirectRestorer<E>
-    where E: FileDescEnvironment,
-          E::FileHandle: Eq,
-{}
+where
+    E: FileDescEnvironment,
+    E::FileHandle: Eq,
+{
+}
 
 impl<E: ?Sized> PartialEq<Self> for RedirectRestorer<E>
-    where E: FileDescEnvironment,
-          E::FileHandle: PartialEq,
+where
+    E: FileDescEnvironment,
+    E::FileHandle: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.overrides == other.overrides
@@ -89,8 +96,9 @@ impl<E: ?Sized> PartialEq<Self> for RedirectRestorer<E>
 }
 
 impl<E: ?Sized> fmt::Debug for RedirectRestorer<E>
-    where E: FileDescEnvironment,
-          E::FileHandle: fmt::Debug,
+where
+    E: FileDescEnvironment,
+    E::FileHandle: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("RedirectRestorer")
@@ -100,7 +108,8 @@ impl<E: ?Sized> fmt::Debug for RedirectRestorer<E>
 }
 
 impl<E: ?Sized> Default for RedirectRestorer<E>
-    where E: FileDescEnvironment,
+where
+    E: FileDescEnvironment,
 {
     fn default() -> Self {
         Self::new()
@@ -108,7 +117,8 @@ impl<E: ?Sized> Default for RedirectRestorer<E>
 }
 
 impl<E: ?Sized> RedirectRestorer<E>
-    where E: FileDescEnvironment,
+where
+    E: FileDescEnvironment,
 {
     /// Create a new wrapper.
     pub fn new() -> Self {
@@ -127,22 +137,24 @@ impl<E: ?Sized> RedirectRestorer<E>
 }
 
 impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
-    where E: FileDescEnvironment,
-          E::FileHandle: Clone
+where
+    E: FileDescEnvironment,
+    E::FileHandle: Clone,
 {
     fn reserve(&mut self, additional: usize) {
         self.overrides.reserve(additional);
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-              E::FileHandle: From<E::OpenedFileHandle>,
-              E::IoHandle: From<E::FileHandle>,
+    where
+        E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+        E::FileHandle: From<E::OpenedFileHandle>,
+        E::IoHandle: From<E::FileHandle>,
     {
         match action {
-            RedirectAction::Close(fd) |
-            RedirectAction::Open(fd, _, _) |
-            RedirectAction::HereDoc(fd, _) => self.backup(fd, env),
+            RedirectAction::Close(fd)
+            | RedirectAction::Open(fd, _, _)
+            | RedirectAction::HereDoc(fd, _) => self.backup(fd, env),
         }
 
         action.apply(env)
@@ -150,7 +162,8 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
 
     fn backup(&mut self, fd: Fd, env: &mut E) {
         self.overrides.entry(fd).or_insert_with(|| {
-            env.file_desc(fd).map(|(handle, perms)| (handle.clone(), perms))
+            env.file_desc(fd)
+                .map(|(handle, perms)| (handle.clone(), perms))
         });
     }
 

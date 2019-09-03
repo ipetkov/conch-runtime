@@ -30,8 +30,7 @@ impl Permissions {
     /// Checks if read permissions are granted.
     pub fn readable(&self) -> bool {
         match *self {
-            Permissions::Read |
-            Permissions::ReadWrite => true,
+            Permissions::Read | Permissions::ReadWrite => true,
             Permissions::Write => false,
         }
     }
@@ -40,8 +39,7 @@ impl Permissions {
     pub fn writable(&self) -> bool {
         match *self {
             Permissions::Read => false,
-            Permissions::Write |
-            Permissions::ReadWrite => true,
+            Permissions::Write | Permissions::ReadWrite => true,
         }
     }
 

@@ -1,19 +1,19 @@
 //! A module which defines interfaces for expressing shell builtin utilities,
 //! and provides a default implementations.
 
-use ExitStatus;
+use env::{
+    ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
+    FileDescEnvironment, RedirectEnvRestorer, ShiftArgumentsEnvironment, StringWrapper,
+    SubEnvironment, VarEnvRestorer, VariableEnvironment, WorkingDirectoryEnvironment,
+};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
-use env::{ArgumentsEnvironment, AsyncIoEnvironment,
-          ChangeWorkingDirectoryEnvironment, FileDescEnvironment,
-          RedirectEnvRestorer, ShiftArgumentsEnvironment, StringWrapper,
-          SubEnvironment, VariableEnvironment, VarEnvRestorer,
-          WorkingDirectoryEnvironment};
 use spawn::{builtin, ExitResult, Spawn};
 use std::borrow::Borrow;
 use std::fmt;
 use std::marker::PhantomData;
 use void::Void;
+use ExitStatus;
 
 /// An interface for builtin utilities which can be spawned with some arguments.
 ///
@@ -102,8 +102,7 @@ impl<T> PartialEq<BuiltinEnv<T>> for BuiltinEnv<T> {
 
 impl<T> fmt::Debug for BuiltinEnv<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("BuiltinEnv")
-            .finish()
+        fmt.debug_struct("BuiltinEnv").finish()
     }
 }
 
@@ -137,35 +136,34 @@ impl<T> SubEnvironment for BuiltinEnv<T> {
 
 fn lookup_builtin(name: &str) -> Option<BuiltinKind> {
     match name {
-        "cd"    => Some(BuiltinKind::Cd),
-        ":"     => Some(BuiltinKind::Colon),
-        "echo"  => Some(BuiltinKind::Echo),
+        "cd" => Some(BuiltinKind::Cd),
+        ":" => Some(BuiltinKind::Colon),
+        "echo" => Some(BuiltinKind::Echo),
         "false" => Some(BuiltinKind::False),
-        "pwd"   => Some(BuiltinKind::Pwd),
+        "pwd" => Some(BuiltinKind::Pwd),
         "shift" => Some(BuiltinKind::Shift),
-        "true"  => Some(BuiltinKind::True),
+        "true" => Some(BuiltinKind::True),
 
         _ => None,
     }
 }
 
 impl<T> BuiltinEnvironment for BuiltinEnv<T>
-    where T: StringWrapper,
+where
+    T: StringWrapper,
 {
     type BuiltinName = T;
     type Builtin = Builtin;
 
     fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
-        lookup_builtin(name.as_str())
-            .map(|kind| Builtin {
-                kind: kind,
-            })
+        lookup_builtin(name.as_str()).map(|kind| Builtin { kind: kind })
     }
 }
 
 impl<A, R, V> BuiltinUtility<A, R, V> for Builtin
-    where A: IntoIterator,
-          A::Item: StringWrapper,
+where
+    A: IntoIterator,
+    A::Item: StringWrapper,
 {
     type PreparedBuiltin = PreparedBuiltin<A::IntoIter, R, V>;
 
@@ -180,21 +178,22 @@ impl<A, R, V> BuiltinUtility<A, R, V> for Builtin
 }
 
 impl<I, R, V, E: ?Sized> Spawn<E> for PreparedBuiltin<I, R, V>
-    where I: Iterator,
-          I::Item: StringWrapper,
-          R: RedirectEnvRestorer<E>,
-          V: VarEnvRestorer<E>,
-          E: ArgumentsEnvironment
-              + AsyncIoEnvironment
-              + ChangeWorkingDirectoryEnvironment
-              + FileDescEnvironment
-              + ShiftArgumentsEnvironment
-              + VariableEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::VarName: Borrow<String> + From<String>,
-          E::Var: Borrow<String> + From<String>,
+where
+    I: Iterator,
+    I::Item: StringWrapper,
+    R: RedirectEnvRestorer<E>,
+    V: VarEnvRestorer<E>,
+    E: ArgumentsEnvironment
+        + AsyncIoEnvironment
+        + ChangeWorkingDirectoryEnvironment
+        + FileDescEnvironment
+        + ShiftArgumentsEnvironment
+        + VariableEnvironment
+        + WorkingDirectoryEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::VarName: Borrow<String> + From<String>,
+    E::Var: Borrow<String> + From<String>,
 {
     type EnvFuture = SpawnedBuiltin<I, R, V>;
     type Future = ExitResult<BuiltinFuture<E::WriteAll>>;
@@ -203,13 +202,13 @@ impl<I, R, V, E: ?Sized> Spawn<E> for PreparedBuiltin<I, R, V>
     fn spawn(self, env: &E) -> Self::EnvFuture {
         let args = self.args;
         let kind = match self.kind {
-            BuiltinKind::Cd    => SpawnedBuiltinKind::Cd(builtin::cd(args).spawn(env)),
+            BuiltinKind::Cd => SpawnedBuiltinKind::Cd(builtin::cd(args).spawn(env)),
             BuiltinKind::Colon => SpawnedBuiltinKind::Colon(builtin::colon().spawn(env)),
-            BuiltinKind::Echo  => SpawnedBuiltinKind::Echo(builtin::echo(args).spawn(env)),
+            BuiltinKind::Echo => SpawnedBuiltinKind::Echo(builtin::echo(args).spawn(env)),
             BuiltinKind::False => SpawnedBuiltinKind::False(builtin::false_cmd().spawn(env)),
-            BuiltinKind::Pwd   => SpawnedBuiltinKind::Pwd(builtin::pwd(args).spawn(env)),
+            BuiltinKind::Pwd => SpawnedBuiltinKind::Pwd(builtin::pwd(args).spawn(env)),
             BuiltinKind::Shift => SpawnedBuiltinKind::Shift(builtin::shift(args).spawn(env)),
-            BuiltinKind::True  => SpawnedBuiltinKind::True(builtin::true_cmd().spawn(env)),
+            BuiltinKind::True => SpawnedBuiltinKind::True(builtin::true_cmd().spawn(env)),
         };
 
         SpawnedBuiltin {
@@ -241,21 +240,22 @@ pub struct SpawnedBuiltin<I, R, V> {
 }
 
 impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
-    where I: Iterator,
-          I::Item: StringWrapper,
-          R: RedirectEnvRestorer<E>,
-          V: VarEnvRestorer<E>,
-          E: ArgumentsEnvironment
-              + AsyncIoEnvironment
-              + ChangeWorkingDirectoryEnvironment
-              + FileDescEnvironment
-              + ShiftArgumentsEnvironment
-              + VariableEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::VarName: Borrow<String> + From<String>,
-          E::Var: Borrow<String> + From<String>,
+where
+    I: Iterator,
+    I::Item: StringWrapper,
+    R: RedirectEnvRestorer<E>,
+    V: VarEnvRestorer<E>,
+    E: ArgumentsEnvironment
+        + AsyncIoEnvironment
+        + ChangeWorkingDirectoryEnvironment
+        + FileDescEnvironment
+        + ShiftArgumentsEnvironment
+        + VariableEnvironment
+        + WorkingDirectoryEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::VarName: Borrow<String> + From<String>,
+    E::Var: Borrow<String> + From<String>,
 {
     type Item = ExitResult<BuiltinFuture<E::WriteAll>>;
     type Error = Void;
@@ -267,29 +267,31 @@ impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     result => result.map(|async| async.map($mapper)),
                 }
-            }}
+            }};
         }
 
         macro_rules! try_map_future {
             ($future:expr, $env:ident, $mapper:path) => {{
                 try_map!($future, $env, |er| match er {
                     ExitResult::Ready(e) => ExitResult::Ready(e),
-                    ExitResult::Pending(f) => ExitResult::Pending(BuiltinFuture {
-                        kind: $mapper(f),
-                    }),
+                    ExitResult::Pending(f) => {
+                        ExitResult::Pending(BuiltinFuture { kind: $mapper(f) })
+                    }
                 })
-            }}
+            }};
         }
 
         let ret = match self.kind {
             SpawnedBuiltinKind::Colon(ref mut f) => try_map!(f, env, ExitResult::from),
             SpawnedBuiltinKind::False(ref mut f) => try_map!(f, env, ExitResult::from),
-            SpawnedBuiltinKind::True(ref mut f)  => try_map!(f, env, ExitResult::from),
+            SpawnedBuiltinKind::True(ref mut f) => try_map!(f, env, ExitResult::from),
 
-            SpawnedBuiltinKind::Cd(ref mut f)    => try_map_future!(f, env, BuiltinFutureKind::Cd),
-            SpawnedBuiltinKind::Echo(ref mut f)  => try_map_future!(f, env, BuiltinFutureKind::Echo),
-            SpawnedBuiltinKind::Pwd(ref mut f)   => try_map_future!(f, env, BuiltinFutureKind::Pwd),
-            SpawnedBuiltinKind::Shift(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Shift),
+            SpawnedBuiltinKind::Cd(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Cd),
+            SpawnedBuiltinKind::Echo(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Echo),
+            SpawnedBuiltinKind::Pwd(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Pwd),
+            SpawnedBuiltinKind::Shift(ref mut f) => {
+                try_map_future!(f, env, BuiltinFutureKind::Shift)
+            }
         };
 
         self.redirect_restorer.take().map(|mut r| r.restore(env));
@@ -299,13 +301,13 @@ impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
 
     fn cancel(&mut self, env: &mut E) {
         match self.kind {
-            SpawnedBuiltinKind::Cd(ref mut f)    => f.cancel(env),
+            SpawnedBuiltinKind::Cd(ref mut f) => f.cancel(env),
             SpawnedBuiltinKind::Colon(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::Echo(ref mut f)  => f.cancel(env),
+            SpawnedBuiltinKind::Echo(ref mut f) => f.cancel(env),
             SpawnedBuiltinKind::False(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::Pwd(ref mut f)   => f.cancel(env),
+            SpawnedBuiltinKind::Pwd(ref mut f) => f.cancel(env),
             SpawnedBuiltinKind::Shift(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::True(ref mut f)  => f.cancel(env),
+            SpawnedBuiltinKind::True(ref mut f) => f.cancel(env),
         }
 
         self.redirect_restorer.take().map(|mut r| r.restore(env));
@@ -330,7 +332,8 @@ pub struct BuiltinFuture<W> {
 }
 
 impl<W> Future for BuiltinFuture<W>
-    where W: Future,
+where
+    W: Future,
 {
     type Item = ExitStatus;
     type Error = Void;

@@ -1,12 +1,12 @@
 //! A module defining the various kinds of errors that may arise
 //! while executing commands.
 
+use super::Fd;
 use failure::Fail;
 use io::Permissions;
 use std::convert::From;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
-use super::Fd;
 use void;
 
 /// Determines whether an error should be treated as "fatal".
@@ -51,10 +51,10 @@ impl IsFatalError for ExpansionError {
     fn is_fatal(&self) -> bool {
         // According to POSIX expansion errors should always be considered fatal
         match *self {
-            ExpansionError::DivideByZero |
-            ExpansionError::NegativeExponent |
-            ExpansionError::BadAssig(_) |
-            ExpansionError::EmptyParameter(_, _) => true,
+            ExpansionError::DivideByZero
+            | ExpansionError::NegativeExponent
+            | ExpansionError::BadAssig(_)
+            | ExpansionError::EmptyParameter(_, _) => true,
         }
     }
 }
@@ -80,10 +80,12 @@ impl PartialEq for RedirectionError {
         use self::RedirectionError::*;
 
         match (self, other) {
-            (&Io(ref e1, ref a),         &Io(ref e2, ref b))         => e1.kind() == e2.kind() && a == b,
-            (&Ambiguous(ref a),          &Ambiguous(ref b))          => a == b,
-            (&BadFdSrc(ref a),           &BadFdSrc(ref b))           => a == b,
-            (&BadFdPerms(fd_a, perms_a), &BadFdPerms(fd_b, perms_b)) => fd_a == fd_b && perms_a == perms_b,
+            (&Io(ref e1, ref a), &Io(ref e2, ref b)) => e1.kind() == e2.kind() && a == b,
+            (&Ambiguous(ref a), &Ambiguous(ref b)) => a == b,
+            (&BadFdSrc(ref a), &BadFdSrc(ref b)) => a == b,
+            (&BadFdPerms(fd_a, perms_a), &BadFdPerms(fd_b, perms_b)) => {
+                fd_a == fd_b && perms_a == perms_b
+            }
             _ => false,
         }
     }
@@ -95,22 +97,30 @@ impl Display for RedirectionError {
             RedirectionError::Ambiguous(ref v) => {
                 write!(fmt, "a redirect path evaluated to multiple fields: ")?;
                 let mut iter = v.iter();
-                if let Some(s) = iter.next() { try!(write!(fmt, "{}", s)); }
-                for s in iter { try!(write!(fmt, " {}", s)); }
+                if let Some(s) = iter.next() {
+                    write!(fmt, "{}", s)?;
+                }
+                for s in iter {
+                    write!(fmt, " {}", s)?;
+                }
                 Ok(())
-            },
+            }
 
             RedirectionError::BadFdSrc(ref fd) => {
                 let description = "attempted to duplicate an invalid file descriptor";
                 write!(fmt, "{}: {}", description, fd)
-            },
+            }
 
             RedirectionError::BadFdPerms(fd, perms) => {
                 let description = "attmpted to duplicate a file descritpor with Read/Write access that differs from the original";
-                write!(fmt, "{}: {}, desired permissions: {}", description, fd, perms)
-            },
+                write!(
+                    fmt,
+                    "{}: {}, desired permissions: {}",
+                    description, fd, perms
+                )
+            }
 
-            RedirectionError::Io(ref e, None)           => write!(fmt, "{}", e),
+            RedirectionError::Io(ref e, None) => write!(fmt, "{}", e),
             RedirectionError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
         }
     }
@@ -119,10 +129,10 @@ impl Display for RedirectionError {
 impl IsFatalError for RedirectionError {
     fn is_fatal(&self) -> bool {
         match *self {
-            RedirectionError::Ambiguous(_) |
-            RedirectionError::BadFdSrc(_) |
-            RedirectionError::BadFdPerms(_, _) |
-            RedirectionError::Io(_, _) => false,
+            RedirectionError::Ambiguous(_)
+            | RedirectionError::BadFdSrc(_)
+            | RedirectionError::BadFdPerms(_, _)
+            | RedirectionError::Io(_, _) => false,
         }
     }
 }
@@ -146,9 +156,9 @@ impl PartialEq for CommandError {
         use self::CommandError::*;
 
         match (self, other) {
-            (&NotFound(ref a),      &NotFound(ref b))      |
-            (&NotExecutable(ref a), &NotExecutable(ref b)) => a == b,
-            (&Io(ref e1, ref a),    &Io(ref e2, ref b))    => e1.kind() == e2.kind() && a == b,
+            (&NotFound(ref a), &NotFound(ref b))
+            | (&NotExecutable(ref a), &NotExecutable(ref b)) => a == b,
+            (&Io(ref e1, ref a), &Io(ref e2, ref b)) => e1.kind() == e2.kind() && a == b,
             _ => false,
         }
     }
@@ -168,9 +178,9 @@ impl Display for CommandError {
 impl IsFatalError for CommandError {
     fn is_fatal(&self) -> bool {
         match *self {
-            CommandError::NotFound(_) |
-            CommandError::NotExecutable(_) |
-            CommandError::Io(_, _) => false,
+            CommandError::NotFound(_) | CommandError::NotExecutable(_) | CommandError::Io(_, _) => {
+                false
+            }
         }
     }
 }
@@ -197,11 +207,11 @@ impl PartialEq for RuntimeError {
         use self::RuntimeError::*;
 
         match (self, other) {
-            (&Io(ref e1, ref a),    &Io(ref e2, ref b))    => e1.kind() == e2.kind() && a == b,
-            (&Expansion(ref a),     &Expansion(ref b))     => a == b,
-            (&Redirection(ref a),   &Redirection(ref b))   => a == b,
-            (&Command(ref a),       &Command(ref b))       => a == b,
-            (&Unimplemented(a),     &Unimplemented(b))     => a == b,
+            (&Io(ref e1, ref a), &Io(ref e2, ref b)) => e1.kind() == e2.kind() && a == b,
+            (&Expansion(ref a), &Expansion(ref b)) => a == b,
+            (&Redirection(ref a), &Redirection(ref b)) => a == b,
+            (&Command(ref a), &Command(ref b)) => a == b,
+            (&Unimplemented(a), &Unimplemented(b)) => a == b,
             _ => false,
         }
     }
@@ -210,11 +220,11 @@ impl PartialEq for RuntimeError {
 impl Display for RuntimeError {
     fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
         match *self {
-            RuntimeError::Expansion(ref e)    => write!(fmt, "{}", e),
-            RuntimeError::Redirection(ref e)  => write!(fmt, "{}", e),
-            RuntimeError::Command(ref e)      => write!(fmt, "{}", e),
-            RuntimeError::Unimplemented(e)    => write!(fmt, "{}", e),
-            RuntimeError::Io(ref e, None)     => write!(fmt, "{}", e),
+            RuntimeError::Expansion(ref e) => write!(fmt, "{}", e),
+            RuntimeError::Redirection(ref e) => write!(fmt, "{}", e),
+            RuntimeError::Command(ref e) => write!(fmt, "{}", e),
+            RuntimeError::Unimplemented(e) => write!(fmt, "{}", e),
+            RuntimeError::Io(ref e, None) => write!(fmt, "{}", e),
             RuntimeError::Io(ref e, Some(ref path)) => write!(fmt, "{}: {}", e, path),
         }
     }
@@ -223,11 +233,10 @@ impl Display for RuntimeError {
 impl IsFatalError for RuntimeError {
     fn is_fatal(&self) -> bool {
         match *self {
-            RuntimeError::Expansion(ref e)   => e.is_fatal(),
+            RuntimeError::Expansion(ref e) => e.is_fatal(),
             RuntimeError::Redirection(ref e) => e.is_fatal(),
-            RuntimeError::Command(ref e)     => e.is_fatal(),
-            RuntimeError::Io(_, _) |
-            RuntimeError::Unimplemented(_) => false,
+            RuntimeError::Command(ref e) => e.is_fatal(),
+            RuntimeError::Io(_, _) | RuntimeError::Unimplemented(_) => false,
         }
     }
 }

@@ -2,15 +2,13 @@
 
 extern crate conch_runtime;
 
-use conch_runtime::eval::{Fields, remove_smallest_prefix};
+use conch_runtime::eval::{remove_smallest_prefix, Fields};
 
 #[macro_use]
 mod support;
 pub use self::support::*;
 
-fn eval<W: Into<Option<MockWord>>>(param: &MockParam, word: W)
-    -> Result<Fields<String>, MockErr>
-{
+fn eval<W: Into<Option<MockWord>>>(param: &MockParam, word: W) -> Result<Fields<String>, MockErr> {
     let env = ();
     remove_smallest_prefix(param, word.into(), &env)
         .pin_env(env)
@@ -22,10 +20,10 @@ fn should_evaluate_appropriately() {
     let must_not_run = mock_word_panic("should not run");
     let mock_word = mock_word_fields(Fields::Single("abc*".to_owned()));
     let mock_word_wild = mock_word_fields(Fields::Single("*".to_owned()));
-    let mock_word_split = mock_word_fields(Fields::Split(vec!(
+    let mock_word_split = mock_word_fields(Fields::Split(vec![
         "abc".to_owned(),
         "\u{1F4A9}".to_owned(),
-    )));
+    ]));
 
     // Param not present
     let param = MockParam::Fields(None);
@@ -35,12 +33,24 @@ fn should_evaluate_appropriately() {
     // Present and non-empty
     let s = "abc \u{1F4A9} d abced".to_owned();
     let param = MockParam::Fields(Some(Fields::Single(s.clone())));
-    assert_eq!(eval(&param, mock_word.clone()), Ok(Fields::Single(" \u{1F4A9} d abced".to_owned())));
-    assert_eq!(eval(&param, mock_word_wild), Ok(Fields::Single(s.to_owned())));
-    assert_eq!(eval(&param, mock_word_split), Ok(Fields::Single(" d abced".to_owned())));
+    assert_eq!(
+        eval(&param, mock_word.clone()),
+        Ok(Fields::Single(" \u{1F4A9} d abced".to_owned()))
+    );
+    assert_eq!(
+        eval(&param, mock_word_wild),
+        Ok(Fields::Single(s.to_owned()))
+    );
+    assert_eq!(
+        eval(&param, mock_word_split),
+        Ok(Fields::Single(" d abced".to_owned()))
+    );
     assert_eq!(eval(&param, None), Ok(Fields::Single(s.clone())));
     let param = MockParam::Fields(Some(Fields::Single("abc".to_owned())));
-    assert_eq!(eval(&param, mock_word.clone()), Ok(Fields::Single("".to_owned())));
+    assert_eq!(
+        eval(&param, mock_word.clone()),
+        Ok(Fields::Single("".to_owned()))
+    );
 
     // Present but empty
     let fields = Fields::Single("".to_owned());
@@ -64,12 +74,18 @@ fn should_propagate_errors_from_word_if_applicable() {
 
     // Present and non-empty
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
-    assert_eq!(eval(&param, mock_word_error(false)), Err(MockErr::Fatal(false)));
+    assert_eq!(
+        eval(&param, mock_word_error(false)),
+        Err(MockErr::Fatal(false))
+    );
     eval(&param, None).unwrap();
 
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    assert_eq!(eval(&param, mock_word_error(true)), Err(MockErr::Fatal(true)));
+    assert_eq!(
+        eval(&param, mock_word_error(true)),
+        Err(MockErr::Fatal(true))
+    );
     eval(&param, None).unwrap();
 }
 

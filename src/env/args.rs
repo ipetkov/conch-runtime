@@ -282,9 +282,9 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
-    use RefCounted;
-    use env::SubEnvironment;
     use super::*;
+    use env::SubEnvironment;
+    use RefCounted;
 
     #[test]
     fn test_name() {
@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn test_sub_env_no_needless_clone() {
         let name = ::std::rc::Rc::new("shell");
-        let args = vec!("one".into(), "two".into(), "three".into());
+        let args = vec!["one".into(), "two".into(), "three".into()];
         let env = ArgsEnv::with_name_and_args(name, args.clone());
 
         let mut env = env.sub_env();
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn test_args() {
         let name = "shell";
-        let args = vec!("one", "two", "three");
+        let args = vec!["one", "two", "three"];
         let env = ArgsEnv::with_name_and_args(name, args.clone());
 
         assert_eq!(env.args_len(), args.len());
@@ -329,11 +329,11 @@ mod tests {
 
     #[test]
     fn test_set_args() {
-        let args_old = vec!("1", "2", "3");
+        let args_old = vec!["1", "2", "3"];
         let mut env = ArgsEnv::with_name_and_args("shell", args_old.clone());
 
         {
-            let args_new = vec!("4", "5", "6");
+            let args_new = vec!["4", "5", "6"];
             assert_eq!(env.args(), args_old);
             let prev = env.set_args(args_new.clone().into());
             assert_eq!(*prev, args_old);
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_shift_args() {
-        let mut env = ArgsEnv::with_name_and_args("shell", vec!("1", "2", "3", "4", "5", "6"));
+        let mut env = ArgsEnv::with_name_and_args("shell", vec!["1", "2", "3", "4", "5", "6"]);
         let _copy = env.sub_env();
 
         env.shift_args(0);

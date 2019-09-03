@@ -1,7 +1,7 @@
-use IntoInner;
 use io::FileDesc;
 use std::io::Result as IoResult;
 use sys;
+use IntoInner;
 
 /// A wrapper for a reader and writer OS pipe pair.
 #[derive(Debug)]
@@ -17,7 +17,7 @@ impl Pipe {
     /// On Unix systems, both file descriptors of the pipe will have their CLOEXEC flags set,
     /// however, note that the setting of the flags is nonatomic on BSD systems.
     pub fn new() -> IoResult<Pipe> {
-        let (reader, writer) = try!(sys::io::pipe());
+        let (reader, writer) = sys::io::pipe()?;
         Ok(Pipe {
             reader: FileDesc::from_inner(reader),
             writer: FileDesc::from_inner(writer),
@@ -27,14 +27,17 @@ impl Pipe {
 
 #[cfg(test)]
 mod tests {
+    use super::Pipe;
     use std::io::{Read, Write};
     use std::thread;
-    use super::Pipe;
 
     #[test]
     fn smoke() {
         let msg = "pipe message";
-        let Pipe { mut reader, mut writer } = Pipe::new().unwrap();
+        let Pipe {
+            mut reader,
+            mut writer,
+        } = Pipe::new().unwrap();
 
         let guard = thread::spawn(move || {
             writer.write_all(msg.as_bytes()).unwrap();

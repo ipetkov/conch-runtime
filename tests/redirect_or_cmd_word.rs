@@ -16,7 +16,7 @@ fn smoke() {
 
     {
         let env = env.sub_env();
-        let future = eval_redirects_or_cmd_words::<MockRedirect<_>, MockWord, _, _>(vec!(), &env)
+        let future = eval_redirects_or_cmd_words::<MockRedirect<_>, MockWord, _, _>(vec![], &env)
             .pin_env(env);
         let (_restorer, words) = lp.run(future).unwrap();
         assert!(words.is_empty());
@@ -25,18 +25,20 @@ fn smoke() {
     assert_eq!(env.file_desc(1), None);
     let fdes = dev_null(&mut env);
     let mut future = eval_redirects_or_cmd_words(
-        vec!(
-            RedirectOrCmdWord::Redirect(mock_redirect(
-                RedirectAction::Open(1, fdes.clone(), Permissions::Write)
-            )),
+        vec![
+            RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
+                1,
+                fdes.clone(),
+                Permissions::Write,
+            ))),
             RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Zero)),
             RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single("foo".to_owned()))),
-            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Split(vec!(
+            RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Split(vec![
                 "bar".to_owned(),
                 "baz".to_owned(),
-            )))),
-        ),
-        &env
+            ]))),
+        ],
+        &env,
     );
 
     let (mut restorer, words) = lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
@@ -45,7 +47,10 @@ fn smoke() {
     restorer.restore(&mut env);
     assert_eq!(env.file_desc(1), None);
 
-    assert_eq!(words, vec!("foo".to_owned(), "bar".to_owned(), "baz".to_owned()));
+    assert_eq!(
+        words,
+        vec!("foo".to_owned(), "bar".to_owned(), "baz".to_owned())
+    );
 }
 
 #[test]
@@ -56,14 +61,16 @@ fn should_propagate_errors_and_restore_redirects() {
         assert_eq!(env.file_desc(1), None);
 
         let mut future = eval_redirects_or_cmd_words(
-            vec!(
-                RedirectOrCmdWord::Redirect(mock_redirect(
-                    RedirectAction::Open(1, dev_null(&mut env), Permissions::Write)
-                )),
+            vec![
+                RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
+                    1,
+                    dev_null(&mut env),
+                    Permissions::Write,
+                ))),
                 RedirectOrCmdWord::CmdWord(mock_word_error(false)),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
-            ),
-            &env
+            ],
+            &env,
         );
 
         let err = EvalRedirectOrCmdWordError::CmdWord(MockErr::Fatal(false));
@@ -75,14 +82,16 @@ fn should_propagate_errors_and_restore_redirects() {
         assert_eq!(env.file_desc(1), None);
 
         let mut future = eval_redirects_or_cmd_words(
-            vec!(
-                RedirectOrCmdWord::Redirect(mock_redirect(
-                    RedirectAction::Open(1, dev_null(&mut env), Permissions::Write)
-                )),
+            vec![
+                RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
+                    1,
+                    dev_null(&mut env),
+                    Permissions::Write,
+                ))),
                 RedirectOrCmdWord::Redirect(mock_redirect_error(false)),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
-            ),
-            &env
+            ],
+            &env,
         );
 
         let err = EvalRedirectOrCmdWordError::Redirect(MockErr::Fatal(false));
@@ -107,9 +116,11 @@ fn should_propagate_cancel_and_restore_redirects() {
     test_cancel!(
         eval_redirects_or_cmd_words(
             vec!(
-                RedirectOrCmdWord::Redirect(mock_redirect(
-                    RedirectAction::Open(1, dev_null(&mut env), Permissions::Write)
-                )),
+                RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
+                    1,
+                    dev_null(&mut env),
+                    Permissions::Write
+                ))),
                 RedirectOrCmdWord::Redirect(mock_redirect_must_cancel()),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
             ),

@@ -20,31 +20,40 @@ mod reversible_var;
 mod string_wrapper;
 mod var;
 
-pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment};
-pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment,
-                         ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll,
-                         RcUnwrappingAsyncIoEnv};
+pub use self::args::{
+    ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
+};
+pub use self::async_io::{
+    ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, RcUnwrappingAsyncIoEnv, ThreadPoolAsyncIoEnv,
+    ThreadPoolReadAsync, ThreadPoolWriteAll,
+};
 pub use self::builtin::BuiltinEnvironment;
-pub use self::cur_dir::{ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv,
-                        WorkingDirectoryEnvironment};
-pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, DefaultEnvRc, EnvConfig,
-                         Env};
-pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
+pub use self::cur_dir::{
+    ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
+};
+pub use self::env_impl::{
+    DefaultEnv, DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnvRc, Env, EnvConfig,
+};
+pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
-pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe, RcFileDescOpenerEnv};
-pub use self::func::{FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
-                     UnsetFunctionEnvironment};
+pub use self::fd_opener::{
+    ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe, RcFileDescOpenerEnv,
+};
+pub use self::func::{
+    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
+};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
-pub use self::platform_specific_fd_manager::{PlatformSpecificFileDescManagerEnv,
-                                             PlatformSpecificAsyncRead,
-                                             PlatformSpecificManagedHandle,
-                                             PlatformSpecificWriteAll};
+pub use self::platform_specific_fd_manager::{
+    PlatformSpecificAsyncRead, PlatformSpecificFileDescManagerEnv, PlatformSpecificManagedHandle,
+    PlatformSpecificWriteAll,
+};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
 pub use self::string_wrapper::StringWrapper;
-pub use self::var::{ExportedVariableEnvironment, VarEnv, VariableEnvironment,
-                    UnsetVariableEnvironment};
+pub use self::var::{
+    ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
+};
 
 /// A module which provides atomic implementations (which can be `Send` and
 /// `Sync`) of the various environment interfaces.
@@ -59,8 +68,8 @@ pub mod atomic {
     pub use super::fd::AtomicFileDescEnv as FileDescEnv;
     pub use super::func::AtomicFnEnv as FnEnv;
     pub use super::platform_specific_fd_manager::{
-        AtomicPlatformSpecificFileDescManagerEnv as PlatformSpecificFileDescManagerEnv,
         AtomicPlatformSpecificAsyncRead as PlatformSpecificAsyncRead,
+        AtomicPlatformSpecificFileDescManagerEnv as PlatformSpecificFileDescManagerEnv,
         AtomicPlatformSpecificManagedHandle as PlatformSpecificManagedHandle,
         AtomicPlatformSpecificWriteAll as PlatformSpecificWriteAll,
     };

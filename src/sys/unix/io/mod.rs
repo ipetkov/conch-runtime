@@ -1,14 +1,14 @@
 //! Defines interfaces and methods for doing IO operations on UNIX file descriptors.
 
-use IntoInner;
 use io::FileDesc;
 use libc::{self, c_void, size_t};
-use sys::cvt_r;
 use std::fs::File;
 use std::io::{Result, SeekFrom};
 use std::mem;
-use std::os::unix::io::{RawFd, AsRawFd, FromRawFd, IntoRawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::process::Stdio;
+use sys::cvt_r;
+use IntoInner;
 
 mod fd_ext;
 
@@ -36,11 +36,15 @@ impl FromRawFd for FileDesc {
 }
 
 impl AsRawFd for FileDesc {
-    fn as_raw_fd(&self) -> RawFd { self.inner().inner() }
+    fn as_raw_fd(&self) -> RawFd {
+        self.inner().inner()
+    }
 }
 
 impl IntoRawFd for FileDesc {
-    fn into_raw_fd(self) -> RawFd { unsafe { self.into_inner().into_inner() } }
+    fn into_raw_fd(self) -> RawFd {
+        unsafe { self.into_inner().into_inner() }
+    }
 }
 
 impl From<File> for FileDesc {
@@ -52,9 +56,7 @@ impl From<File> for FileDesc {
 impl RawIo {
     /// Takes ownership of and wraps an OS file descriptor.
     pub unsafe fn new(fd: RawFd) -> Self {
-        RawIo {
-            fd: fd,
-        }
+        RawIo { fd: fd }
     }
 
     /// Unwraps the underlying file descriptor and transfers ownership to the caller.
@@ -67,34 +69,34 @@ impl RawIo {
     }
 
     /// Returns the underlying file descriptor without transfering ownership.
-    pub fn inner(&self) -> RawFd { self.fd }
+    pub fn inner(&self) -> RawFd {
+        self.fd
+    }
 
     /// Duplicates the underlying file descriptor via `libc::dup`.
     pub fn duplicate(&self) -> Result<Self> {
-        unsafe {
-            Ok(RawIo::new(try!(cvt_r(|| { libc::dup(self.fd) }))))
-        }
+        unsafe { Ok(RawIo::new(cvt_r(|| libc::dup(self.fd))?)) }
     }
 
     /// Reads from the underlying file descriptor.
     // Taken from rust: libstd/sys/unix/fd.rs
     pub fn read_inner(&self, buf: &mut [u8]) -> Result<usize> {
-        let ret = try!(cvt_r(|| unsafe {
-            libc::read(self.fd,
-                       buf.as_mut_ptr() as *mut c_void,
-                       buf.len() as size_t)
-        }));
+        let ret = cvt_r(|| unsafe {
+            libc::read(
+                self.fd,
+                buf.as_mut_ptr() as *mut c_void,
+                buf.len() as size_t,
+            )
+        })?;
         Ok(ret as usize)
     }
 
     /// Writes to the underlying file descriptor.
     // Taken from rust: libstd/sys/unix/fd.rs
     pub fn write_inner(&self, buf: &[u8]) -> Result<usize> {
-        let ret = try!(cvt_r(|| unsafe {
-            libc::write(self.fd,
-                        buf.as_ptr() as *const c_void,
-                        buf.len() as size_t)
-        }));
+        let ret = cvt_r(|| unsafe {
+            libc::write(self.fd, buf.as_ptr() as *const c_void, buf.len() as size_t)
+        })?;
         Ok(ret as usize)
     }
 
@@ -110,7 +112,7 @@ impl RawIo {
             SeekFrom::End(off) => (libc::SEEK_END, off as libc::off_t),
             SeekFrom::Current(off) => (libc::SEEK_CUR, off as libc::off_t),
         };
-        let n = try!(cvt_r(|| unsafe { libc::lseek(self.fd, pos, whence) }));
+        let n = cvt_r(|| unsafe { libc::lseek(self.fd, pos, whence) })?;
         Ok(n as u64)
     }
 
@@ -123,7 +125,7 @@ impl RawIo {
     /// Sets the `CLOEXEC` flag on the descriptor to the desired state
     pub fn set_cloexec(&self, set: bool) -> Result<()> {
         unsafe {
-            let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFD)));
+            let flags = cvt_r(|| libc::fcntl(self.fd, libc::F_GETFD))?;
             let new_flags = if set {
                 flags | libc::FD_CLOEXEC
             } else {
@@ -139,7 +141,7 @@ impl RawIo {
     /// changed by someone else while sharing immutably.
     pub fn set_nonblock(&mut self, set: bool) -> Result<()> {
         unsafe {
-            let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFL)));
+            let flags = cvt_r(|| libc::fcntl(self.fd, libc::F_GETFL))?;
             let new_flags = if set {
                 flags | libc::O_NONBLOCK
             } else {
@@ -165,7 +167,9 @@ impl Drop for RawIo {
 /// Duplicates a file descriptor and sets its CLOEXEC flag.
 unsafe fn dup_fd_cloexec(fd: RawFd) -> Result<RawIo> {
     let min_fd = libc::STDERR_FILENO + 1;
-    Ok(RawIo::new(try!(cvt_r(|| { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, min_fd) }))))
+    Ok(RawIo::new(cvt_r(|| {
+        libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, min_fd)
+    })?))
 }
 
 /// Creates and returns a `(reader, writer)` pipe pair.
@@ -175,9 +179,7 @@ unsafe fn dup_fd_cloexec(fd: RawFd) -> Result<RawIo> {
 pub fn pipe() -> Result<(RawIo, RawIo)> {
     unsafe {
         let mut fds = [0; 2];
-        try!(cvt_r(|| {
-            libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC)
-        }));
+        cvt_r(|| libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC))?;
 
         let reader = RawIo::new(fds[0]);
         let writer = RawIo::new(fds[1]);
@@ -194,14 +196,12 @@ pub fn pipe() -> Result<(RawIo, RawIo)> {
 pub fn pipe() -> Result<(RawIo, RawIo)> {
     unsafe {
         let mut fds = [0; 2];
-        try!(cvt_r(|| {
-            libc::pipe(fds.as_mut_ptr())
-        }));
+        cvt_r(|| libc::pipe(fds.as_mut_ptr()))?;
         let reader = RawIo::new(fds[0]);
         let writer = RawIo::new(fds[1]);
 
-        try!(reader.set_cloexec(true));
-        try!(writer.set_cloexec(true));
+        reader.set_cloexec(true)?;
+        writer.set_cloexec(true)?;
 
         Ok((reader, writer))
     }
@@ -211,16 +211,14 @@ pub fn pipe() -> Result<(RawIo, RawIo)> {
 pub fn dup_stdio() -> Result<(RawIo, RawIo, RawIo)> {
     unsafe {
         Ok((
-            try!(dup_fd_cloexec(libc::STDIN_FILENO)),
-            try!(dup_fd_cloexec(libc::STDOUT_FILENO)),
-            try!(dup_fd_cloexec(libc::STDERR_FILENO))
+            dup_fd_cloexec(libc::STDIN_FILENO)?,
+            dup_fd_cloexec(libc::STDOUT_FILENO)?,
+            dup_fd_cloexec(libc::STDERR_FILENO)?,
         ))
     }
 }
 
 /// Returns the process ID of the calling process
 pub fn getpid() -> libc::pid_t {
-    unsafe {
-        libc::getpid()
-    }
+    unsafe { libc::getpid() }
 }

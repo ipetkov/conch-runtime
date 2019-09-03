@@ -4,8 +4,8 @@ extern crate conch_parser as syntax;
 extern crate conch_runtime as runtime;
 extern crate futures;
 
+use futures::future::{ok, FutureResult};
 use futures::{Async, Poll};
-use futures::future::{FutureResult, ok};
 use runtime::io::{FileDescWrapper, Permissions};
 use runtime::{STDIN_FILENO, STDOUT_FILENO};
 use std::rc::Rc;
@@ -17,7 +17,7 @@ pub use self::support::*;
 
 #[test]
 fn empty_pipeline_is_noop() {
-    let list: ListableCommand<MockCmd> = ListableCommand::Pipe(false, vec!());
+    let list: ListableCommand<MockCmd> = ListableCommand::Pipe(false, vec![]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
@@ -39,19 +39,19 @@ fn single_command_propagates_error() {
 
 #[test]
 fn single_command_status_inversion() {
-    let list = ListableCommand::Pipe(true, vec!(mock_status(EXIT_SUCCESS)));
+    let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_SUCCESS)]);
     assert_eq!(run!(list), Ok(EXIT_ERROR));
 
-    let list = ListableCommand::Pipe(true, vec!(mock_status(EXIT_ERROR)));
+    let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_ERROR)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn single_command_status_inversion_on_error() {
-    let list = ListableCommand::Pipe(true, vec!(mock_error(false)));
+    let list = ListableCommand::Pipe(true, vec![mock_error(false)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 
-    let list = ListableCommand::Pipe(true, vec!(mock_error(true)));
+    let list = ListableCommand::Pipe(true, vec![mock_error(true)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
@@ -80,8 +80,7 @@ fn single_command_env_changes_remain() {
             Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
 
-        fn cancel(&mut self, _env: &mut DefaultEnvRc) {
-        }
+        fn cancel(&mut self, _env: &mut DefaultEnvRc) {}
     }
 
     let var = VAR.to_owned();
@@ -95,64 +94,68 @@ fn single_command_env_changes_remain() {
 #[test]
 fn multiple_commands_propagates_last_status() {
     let exit = ExitStatus::Code(42);
-    let list = ListableCommand::Pipe(false, vec!(
-        mock_status(EXIT_SUCCESS),
-        mock_status(EXIT_ERROR),
-        mock_status(exit),
-    ));
+    let list = ListableCommand::Pipe(
+        false,
+        vec![
+            mock_status(EXIT_SUCCESS),
+            mock_status(EXIT_ERROR),
+            mock_status(exit),
+        ],
+    );
     assert_eq!(run!(list), Ok(exit));
 }
 
 #[test]
 fn multiple_commands_propagates_last_error() {
-    let list = ListableCommand::Pipe(false, vec!(
-        mock_status(EXIT_SUCCESS),
-        mock_status(EXIT_ERROR),
-        mock_error(false),
-    ));
+    let list = ListableCommand::Pipe(
+        false,
+        vec![
+            mock_status(EXIT_SUCCESS),
+            mock_status(EXIT_ERROR),
+            mock_error(false),
+        ],
+    );
     run!(list).unwrap_err();
 
-    let list = ListableCommand::Pipe(false, vec!(
-        mock_status(EXIT_SUCCESS),
-        mock_status(EXIT_ERROR),
-        mock_error(true),
-    ));
+    let list = ListableCommand::Pipe(
+        false,
+        vec![
+            mock_status(EXIT_SUCCESS),
+            mock_status(EXIT_ERROR),
+            mock_error(true),
+        ],
+    );
     run!(list).unwrap_err();
 }
 
 #[test]
 fn multiple_commands_swallows_inner_errors() {
-    let list = ListableCommand::Pipe(false, vec!(
-        mock_error(false),
-        mock_error(true),
-        mock_status(EXIT_SUCCESS),
-    ));
+    let list = ListableCommand::Pipe(
+        false,
+        vec![
+            mock_error(false),
+            mock_error(true),
+            mock_status(EXIT_SUCCESS),
+        ],
+    );
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn multiple_commands_status_inversion() {
-    let list = ListableCommand::Pipe(true, vec!(
-        mock_status(EXIT_SUCCESS),
-    ));
+    let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_SUCCESS)]);
     assert_eq!(run!(list), Ok(EXIT_ERROR));
 
-    let list = ListableCommand::Pipe(true, vec!(
-        mock_status(EXIT_ERROR),
-    ));
+    let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_ERROR)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn multiple_commands_status_inversion_on_error() {
-    let list = ListableCommand::Pipe(true, vec!(
-        mock_error(false),
-    ));
+    let list = ListableCommand::Pipe(true, vec![mock_error(false)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 
-    let list = ListableCommand::Pipe(true, vec!(
-        mock_error(true),
-    ));
+    let list = ListableCommand::Pipe(true, vec![mock_error(true)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
@@ -195,37 +198,47 @@ fn multiple_commands_smoke() {
             Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
 
-        fn cancel(&mut self, _env: &mut DefaultEnvRc) {
-        }
+        fn cancel(&mut self, _env: &mut DefaultEnvRc) {}
     }
 
     let mut writer = None;
     let mut reader = None;
 
     {
-        let list = ListableCommand::Pipe(false, vec!(
-            MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
-                let fdes_perms = env.file_desc(STDOUT_FILENO).unwrap();
-                assert_eq!(fdes_perms.1, Permissions::Write);
-                writer = Some(fdes_perms.0.clone());
-            }))),
-            MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
-                let fdes_perms = env.file_desc(STDIN_FILENO).unwrap();
-                assert_eq!(fdes_perms.1, Permissions::Read);
-                reader = Some(fdes_perms.0.clone());
-            }))),
-        ));
+        let list = ListableCommand::Pipe(
+            false,
+            vec![
+                MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
+                    let fdes_perms = env.file_desc(STDOUT_FILENO).unwrap();
+                    assert_eq!(fdes_perms.1, Permissions::Write);
+                    writer = Some(fdes_perms.0.clone());
+                }))),
+                MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
+                    let fdes_perms = env.file_desc(STDIN_FILENO).unwrap();
+                    assert_eq!(fdes_perms.1, Permissions::Read);
+                    reader = Some(fdes_perms.0.clone());
+                }))),
+            ],
+        );
         assert_eq!(run!(list), Ok(EXIT_SUCCESS));
     }
 
     // Verify we are the only owners of the pipe ends,
     // there shouldn't be any other copies lying around
-    let mut writer = writer.unwrap().try_unwrap().expect("failed to unwrap writer");
-    let mut reader = reader.unwrap().try_unwrap().expect("failed to unwrap reader");
+    let mut writer = writer
+        .unwrap()
+        .try_unwrap()
+        .expect("failed to unwrap writer");
+    let mut reader = reader
+        .unwrap()
+        .try_unwrap()
+        .expect("failed to unwrap reader");
 
     let msg = "secret message";
     let join = thread::spawn(move || {
-        writer.write_all(msg.as_bytes()).expect("failed to write message")
+        writer
+            .write_all(msg.as_bytes())
+            .expect("failed to write message")
     });
 
     let mut read = String::new();
@@ -237,9 +250,7 @@ fn multiple_commands_smoke() {
 
 #[test]
 fn single_command_should_propagate_cancel() {
-    let list = ListableCommand::Pipe(false, vec!(
-        mock_must_cancel(),
-    ));
+    let list = ListableCommand::Pipe(false, vec![mock_must_cancel()]);
 
     run_cancel!(list);
 }

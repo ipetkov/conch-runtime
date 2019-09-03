@@ -1,17 +1,17 @@
 //! Defines methods for spawning shell builtin commands
 
-use {EXIT_ERROR, STDERR_FILENO, Fd, ExitStatus};
 use env::{AsyncIoEnvironment, FileDescEnvironment};
 use futures::{Async, Future, Poll};
 use spawn::ExitResult;
 use std::fmt;
 use std::io;
 use void::Void;
+use {ExitStatus, Fd, EXIT_ERROR, STDERR_FILENO};
 
 macro_rules! format_err {
     ($builtin_name:expr, $e:expr) => {
         format!("{}: {}\n", $builtin_name, $e).into_bytes()
-    }
+    };
 }
 
 macro_rules! try_and_report {
@@ -21,26 +21,28 @@ macro_rules! try_and_report {
             Err(e) => {
                 let ret = $crate::spawn::builtin::try_and_report_impl($builtin_name, $env, e);
                 return Ok($crate::future::Async::Ready(ret.map(Into::into)));
-            },
+            }
         }
-    }
+    };
 }
 
-fn try_and_report_impl<E: ?Sized, ERR>(builtin_name: &str, env: &mut E, err: ERR)
-    -> ExitResult<WriteOutputFuture<E::WriteAll>>
-    where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          ERR: fmt::Display,
+fn try_and_report_impl<E: ?Sized, ERR>(
+    builtin_name: &str,
+    env: &mut E,
+    err: ERR,
+) -> ExitResult<WriteOutputFuture<E::WriteAll>>
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    ERR: fmt::Display,
 {
     generate_and_write_bytes_to_fd_if_present(
         builtin_name,
         env,
         STDERR_FILENO,
         EXIT_ERROR,
-        |_| -> Result<_, Void> {
-            Ok(format_err!(builtin_name, err))
-        },
+        |_| -> Result<_, Void> { Ok(format_err!(builtin_name, err)) },
     )
 }
 
@@ -271,13 +273,13 @@ mod pwd;
 mod shift;
 mod true_cmd;
 
-pub use self::cd::{Cd, cd, CdFuture, SpawnedCd};
-pub use self::colon::{Colon, colon, SpawnedColon};
-pub use self::echo::{Echo, echo, EchoFuture, SpawnedEcho};
-pub use self::false_cmd::{False, false_cmd, SpawnedFalse};
-pub use self::pwd::{Pwd, pwd, PwdFuture, SpawnedPwd};
-pub use self::shift::{Shift, shift, ShiftFuture, SpawnedShift};
-pub use self::true_cmd::{True, true_cmd, SpawnedTrue};
+pub use self::cd::{cd, Cd, CdFuture, SpawnedCd};
+pub use self::colon::{colon, Colon, SpawnedColon};
+pub use self::echo::{echo, Echo, EchoFuture, SpawnedEcho};
+pub use self::false_cmd::{false_cmd, False, SpawnedFalse};
+pub use self::pwd::{pwd, Pwd, PwdFuture, SpawnedPwd};
+pub use self::shift::{shift, Shift, ShiftFuture, SpawnedShift};
+pub use self::true_cmd::{true_cmd, SpawnedTrue, True};
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
@@ -288,7 +290,8 @@ struct WriteOutputFuture<W> {
 }
 
 impl<W> Future for WriteOutputFuture<W>
-    where W: Future
+where
+    W: Future,
 {
     type Item = ExitStatus;
     type Error = Void;
@@ -322,13 +325,14 @@ fn generate_and_write_bytes_to_fd_if_present<E: ?Sized, F, ERR>(
     env: &mut E,
     fd: Fd,
     exit_status_on_success: ExitStatus,
-    generate_bytes: F
+    generate_bytes: F,
 ) -> ExitResult<WriteOutputFuture<E::WriteAll>>
-    where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          for<'a> F: FnOnce(&'a E) -> Result<Vec<u8>, ERR>,
-          ERR: fmt::Display,
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    for<'a> F: FnOnce(&'a E) -> Result<Vec<u8>, ERR>,
+    ERR: fmt::Display,
 {
     macro_rules! get_fdes {
         ($fd:expr, $fallback_status:expr) => {{
@@ -336,19 +340,21 @@ fn generate_and_write_bytes_to_fd_if_present<E: ?Sized, F, ERR>(
                 Ok(fdes) => fdes,
                 Err(status) => return status.into(),
             }
-        }}
+        }};
     }
 
     // If required handle is closed, just exit without doing more work
     let fdes = get_fdes!(fd, exit_status_on_success);
 
     generate_bytes(env)
-        .or_else(|err| if fd == STDERR_FILENO {
-            // If the caller already wants us to write data to stderr,
-            // we've already got a handle to it we can just proceed.
-            Ok(format_err!(builtin_name, err))
-        } else {
-            Err(WriteBytesError::Custom(err))
+        .or_else(|err| {
+            if fd == STDERR_FILENO {
+                // If the caller already wants us to write data to stderr,
+                // we've already got a handle to it we can just proceed.
+                Ok(format_err!(builtin_name, err))
+            } else {
+                Err(WriteBytesError::Custom(err))
+            }
         })
         .and_then(|bytes| {
             write_bytes_to_fd(env, fdes, exit_status_on_success, bytes)
@@ -369,22 +375,28 @@ fn write_bytes_to_fd<E: ?Sized>(
     env: &mut E,
     fdes: E::IoHandle,
     exit_status_on_success: ExitStatus,
-    bytes: Vec<u8>
+    bytes: Vec<u8>,
 ) -> Result<ExitResult<WriteOutputFuture<E::WriteAll>>, io::Error>
-    where E: AsyncIoEnvironment,
+where
+    E: AsyncIoEnvironment,
 {
-    env.write_all(fdes, bytes)
-        .map(|write_all| ExitResult::Pending(WriteOutputFuture {
+    env.write_all(fdes, bytes).map(|write_all| {
+        ExitResult::Pending(WriteOutputFuture {
             write_all: write_all,
             exit_status_when_complete: exit_status_on_success,
-        }))
+        })
+    })
 }
 
-fn get_fdes_or_status<E: ?Sized>(env: &E, fd: Fd, fallback_status: ExitStatus)
-    -> Result<E::IoHandle, ExitStatus>
-    where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
+fn get_fdes_or_status<E: ?Sized>(
+    env: &E,
+    fd: Fd,
+    fallback_status: ExitStatus,
+) -> Result<E::IoHandle, ExitStatus>
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
 {
     env.file_desc(fd)
         .map(|(fdes, _)| E::IoHandle::from(fdes.clone()))

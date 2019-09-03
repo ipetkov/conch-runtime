@@ -14,11 +14,13 @@ pub use self::assign::{assign, Assign};
 pub use self::default::{default, EvalDefault};
 pub use self::error::{error, Error};
 pub use self::len::len;
-pub use self::remove::{remove_largest_prefix, remove_largest_suffix,
-                       remove_smallest_prefix, remove_smallest_suffix};
-pub use self::remove::{RemoveLargestPrefix, RemoveLargestSuffix,
-                       RemoveSmallestPrefix, RemoveSmallestSuffix};
-pub use self::split::{Split, split};
+pub use self::remove::{
+    remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix, remove_smallest_suffix,
+};
+pub use self::remove::{
+    RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix, RemoveSmallestSuffix,
+};
+pub use self::split::{split, Split};
 
 /// Determines if a `Fields` variant can be considered non-empty/non-null.
 ///

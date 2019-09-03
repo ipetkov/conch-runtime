@@ -16,7 +16,9 @@ pub trait RefCounted<T>: Sized + Clone + Deref<Target = T> + From<T> {
     /// references, the inner data is cloned.
     ///
     /// This is also referred to as a copy-on-write.
-    fn make_mut(&mut self) -> &mut T where T: Clone;
+    fn make_mut(&mut self) -> &mut T
+    where
+        T: Clone;
 }
 
 impl<T> RefCounted<T> for Rc<T> {
@@ -24,7 +26,10 @@ impl<T> RefCounted<T> for Rc<T> {
         Rc::get_mut(self)
     }
 
-    fn make_mut(&mut self) -> &mut T where T: Clone {
+    fn make_mut(&mut self) -> &mut T
+    where
+        T: Clone,
+    {
         Rc::make_mut(self)
     }
 }
@@ -34,7 +39,10 @@ impl<T> RefCounted<T> for Arc<T> {
         Arc::get_mut(self)
     }
 
-    fn make_mut(&mut self) -> &mut T where T: Clone {
+    fn make_mut(&mut self) -> &mut T
+    where
+        T: Clone,
+    {
         Arc::make_mut(self)
     }
 }

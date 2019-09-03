@@ -1,12 +1,13 @@
 use conch_parser::ast;
+use eval::{concat, Concat, Fields, WordEval, WordEvalConfig};
 use future::{EnvFuture, Poll};
-use eval::{Concat, concat, Fields, WordEval, WordEvalConfig};
 use std::fmt;
 use std::slice;
 use std::vec;
 
 impl<W, E: ?Sized> WordEval<E> for ast::ComplexWord<W>
-    where W: WordEval<E>,
+where
+    W: WordEval<E>,
 {
     type EvalResult = W::EvalResult;
     type Error = W::Error;
@@ -18,14 +19,13 @@ impl<W, E: ?Sized> WordEval<E> for ast::ComplexWord<W>
             ast::ComplexWord::Concat(v) => State::Concat(concat(v, env, cfg)),
         };
 
-        ComplexWord {
-            state: state,
-        }
+        ComplexWord { state: state }
     }
 }
 
 impl<'a, W, E: ?Sized> WordEval<E> for &'a ast::ComplexWord<W>
-    where &'a W: WordEval<E>,
+where
+    &'a W: WordEval<E>,
 {
     type EvalResult = <&'a W as WordEval<E>>::EvalResult;
     type Error = <&'a W as WordEval<E>>::Error;
@@ -37,26 +37,26 @@ impl<'a, W, E: ?Sized> WordEval<E> for &'a ast::ComplexWord<W>
             ast::ComplexWord::Concat(ref v) => State::Concat(concat(v, env, cfg)),
         };
 
-        ComplexWord {
-            state: state,
-        }
+        ComplexWord { state: state }
     }
 }
 
 /// A future representing the evaluation of a `ComplexWord`.
 #[must_use = "futures do nothing unless polled"]
 pub struct ComplexWord<W, I, E: ?Sized>
-    where W: WordEval<E>,
-          I: Iterator<Item = W>
+where
+    W: WordEval<E>,
+    I: Iterator<Item = W>,
 {
     state: State<W, I, E>,
 }
 
 impl<W, I, E: ?Sized> fmt::Debug for ComplexWord<W, I, E>
-    where W: WordEval<E> + fmt::Debug,
-          W::EvalResult: fmt::Debug,
-          W::EvalFuture: fmt::Debug,
-          I: Iterator<Item = W> + fmt::Debug,
+where
+    W: WordEval<E> + fmt::Debug,
+    W::EvalResult: fmt::Debug,
+    W::EvalFuture: fmt::Debug,
+    I: Iterator<Item = W> + fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ComplexWord")
@@ -66,39 +66,34 @@ impl<W, I, E: ?Sized> fmt::Debug for ComplexWord<W, I, E>
 }
 
 enum State<W, I, E: ?Sized>
-    where W: WordEval<E>,
-          I: Iterator<Item = W>,
+where
+    W: WordEval<E>,
+    I: Iterator<Item = W>,
 {
     Single(W::EvalFuture),
     Concat(Concat<W, I, E>),
 }
 
 impl<W, I, E: ?Sized> fmt::Debug for State<W, I, E>
-    where W: WordEval<E> + fmt::Debug,
-          W::EvalResult: fmt::Debug,
-          W::EvalFuture: fmt::Debug,
-          I: Iterator<Item = W> + fmt::Debug,
+where
+    W: WordEval<E> + fmt::Debug,
+    W::EvalResult: fmt::Debug,
+    W::EvalFuture: fmt::Debug,
+    I: Iterator<Item = W> + fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            State::Single(ref f) => {
-                fmt.debug_tuple("State::Single")
-                    .field(f)
-                    .finish()
-            },
+            State::Single(ref f) => fmt.debug_tuple("State::Single").field(f).finish(),
 
-            State::Concat(ref f) => {
-                fmt.debug_tuple("State::Concat")
-                    .field(f)
-                    .finish()
-            },
+            State::Concat(ref f) => fmt.debug_tuple("State::Concat").field(f).finish(),
         }
     }
 }
 
 impl<W, I, E: ?Sized> EnvFuture<E> for ComplexWord<W, I, E>
-    where W: WordEval<E>,
-          I: Iterator<Item = W>,
+where
+    W: WordEval<E>,
+    I: Iterator<Item = W>,
 {
     type Item = Fields<W::EvalResult>;
     type Error = W::Error;

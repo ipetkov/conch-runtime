@@ -3,8 +3,8 @@ extern crate futures;
 extern crate tokio_io;
 extern crate void;
 
-use conch_runtime::{Fd, STDOUT_FILENO};
 use conch_runtime::io::Permissions;
+use conch_runtime::{Fd, STDOUT_FILENO};
 use futures::future::poll_fn;
 use std::cell::RefCell;
 use std::io;
@@ -12,8 +12,8 @@ use std::rc::Rc;
 
 #[macro_use]
 mod support;
-pub use self::support::*;
 pub use self::support::env::builtin::*;
+pub use self::support::*;
 
 struct Output {
     out: String,
@@ -28,9 +28,7 @@ struct MockRedirectRestorer {
 
 impl MockRedirectRestorer {
     fn new() -> Self {
-        Self {
-            restored: false,
-        }
+        Self { restored: false }
     }
 }
 
@@ -47,11 +45,15 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for MockRedirectRestorer {
         unimplemented!()
     }
 
-    fn apply_action(&mut self, _action: RedirectAction<E::FileHandle>, _env: &mut E)
-        -> io::Result<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-              E::FileHandle: From<E::OpenedFileHandle>,
-              E::IoHandle: From<E::FileHandle>,
+    fn apply_action(
+        &mut self,
+        _action: RedirectAction<E::FileHandle>,
+        _env: &mut E,
+    ) -> io::Result<()>
+    where
+        E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+        E::FileHandle: From<E::OpenedFileHandle>,
+        E::IoHandle: From<E::FileHandle>,
     {
         unimplemented!()
     }
@@ -72,9 +74,7 @@ struct MockVarRestorer {
 
 impl MockVarRestorer {
     fn new() -> Self {
-        Self {
-            restored: false,
-        }
+        Self { restored: false }
     }
 }
 
@@ -87,7 +87,8 @@ impl Drop for MockVarRestorer {
 }
 
 impl<E: ?Sized> VarEnvRestorer<E> for MockVarRestorer
-    where E: VariableEnvironment,
+where
+    E: VariableEnvironment,
 {
     fn reserve(&mut self, _additional: usize) {
         unimplemented!()
@@ -98,7 +99,7 @@ impl<E: ?Sized> VarEnvRestorer<E> for MockVarRestorer
         _name: E::VarName,
         _val: E::Var,
         _exported: Option<bool>,
-        _env: &mut E
+        _env: &mut E,
     ) {
         unimplemented!()
     }
@@ -125,7 +126,8 @@ fn run_builtin(name: &str, args: &[&str]) -> Output {
 }
 
 fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
-    where for<'a> F: FnOnce(&'a mut DefaultEnvRc)
+where
+    for<'a> F: FnOnce(&'a mut DefaultEnvRc),
 {
     let (mut lp, mut env) = new_env_with_threads(2);
 
@@ -134,13 +136,15 @@ fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
 
     prep(&mut env);
 
-    let read_to_end_out = env.read_async(pipe_out.reader).expect("failed to create read_to_end_out");
+    let read_to_end_out = env
+        .read_async(pipe_out.reader)
+        .expect("failed to create read_to_end_out");
     let read_to_end_out = tokio_io::io::read_to_end(read_to_end_out, Vec::new());
 
-    let args = args.iter()
-        .map(|&s| rc(s));
+    let args = args.iter().map(|&s| rc(s));
 
-    let builtin = env.builtin(&rc(name))
+    let builtin = env
+        .builtin(&rc(name))
         .expect(&format!("did not find builtin for `{}`", name))
         .prepare(args, MockRedirectRestorer::new(), MockVarRestorer::new());
 
@@ -170,13 +174,13 @@ fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
 fn test_cancel_impl(name: &str) {
     let (_lp, mut env) = new_env();
 
-    let args: Vec<Rc<String>> = vec!();
-    let builtin = env.builtin(&rc(name))
+    let args: Vec<Rc<String>> = vec![];
+    let builtin = env
+        .builtin(&rc(name))
         .expect(&format!("did not find builtin for `{}`", name))
         .prepare(args, MockRedirectRestorer::new(), MockVarRestorer::new());
 
-    builtin.spawn(&env)
-        .cancel(&mut env);
+    builtin.spawn(&env).cancel(&mut env);
 }
 
 #[test]
@@ -215,17 +219,20 @@ fn builtin_smoke_false() {
 fn builtin_smoke_pwd() {
     let output = run_builtin("pwd", &[]);
     assert_eq!(output.exit, EXIT_SUCCESS);
-    assert_eq!(output.out, format!("{}\n", output.env.current_working_dir().display()));
+    assert_eq!(
+        output.out,
+        format!("{}\n", output.env.current_working_dir().display())
+    );
 }
 
 #[test]
 fn builtin_smoke_shift() {
-    let mut args = vec!(
+    let mut args = vec![
         Rc::new(String::from("first")),
         Rc::new(String::from("second")),
         Rc::new(String::from("third")),
         Rc::new(String::from("fourth")),
-    );
+    ];
     let output = run_builtin_with_prep("shift", &["2"], |env| {
         env.set_args(Rc::new(args.clone()));
     });
@@ -251,7 +258,7 @@ macro_rules! test_cancel {
         fn $name() {
             test_cancel_impl($builtin);
         }
-    }
+    };
 }
 
 test_cancel!(fn builtin_cancel_cd, "cd");

@@ -1,16 +1,18 @@
 //! A module which defines evaluating any kind of redirection.
 
-use {Fd, STDIN_FILENO, STDOUT_FILENO};
-use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
-          IsInteractiveEnvironment, StringWrapper, WorkingDirectoryEnvironment};
-use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use env::{
+    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
+    StringWrapper, WorkingDirectoryEnvironment,
+};
 use error::RedirectionError;
+use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use io::Permissions;
 use std::borrow::Cow;
-use std::path::Path;
 use std::fs::OpenOptions;
 use std::io::Result as IoResult;
+use std::path::Path;
+use {Fd, STDIN_FILENO, STDOUT_FILENO};
 
 /// Indicates what changes should be made to the environment as a result
 /// of a successful `Redirect` evaluation.
@@ -30,20 +32,23 @@ pub enum RedirectAction<T> {
 impl<T> RedirectAction<T> {
     /// Applies changes to a given environment as appropriate.
     pub fn apply<E: ?Sized>(self, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-              E::FileHandle: From<T> + From<E::OpenedFileHandle>,
-              E::IoHandle: From<E::FileHandle>,
+    where
+        E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+        E::FileHandle: From<T> + From<E::OpenedFileHandle>,
+        E::IoHandle: From<E::FileHandle>,
     {
         match self {
             RedirectAction::Close(fd) => env.close_file_desc(fd),
-            RedirectAction::Open(fd, file_desc, perms) => env.set_file_desc(fd, file_desc.into(), perms),
+            RedirectAction::Open(fd, file_desc, perms) => {
+                env.set_file_desc(fd, file_desc.into(), perms)
+            }
             RedirectAction::HereDoc(fd, body) => {
                 let pipe = env.open_pipe()?;
                 env.set_file_desc(fd, pipe.reader.into(), Permissions::Read);
 
                 let writer = E::FileHandle::from(pipe.writer);
                 env.write_all_best_effort(E::IoHandle::from(writer), body);
-            },
+            }
         }
 
         Ok(())
@@ -69,19 +74,29 @@ pub trait RedirectEval<E: ?Sized> {
 }
 
 fn eval_path<W, E: ?Sized>(path: W, env: &E) -> W::EvalFuture
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
-    path.eval_with_config(env, WordEvalConfig {
-        tilde_expansion: TildeExpansion::First,
-        split_fields_further: env.is_interactive(),
-    })
+    path.eval_with_config(
+        env,
+        WordEvalConfig {
+            tilde_expansion: TildeExpansion::First,
+            split_fields_further: env.is_interactive(),
+        },
+    )
 }
 
-fn redirect<W, E: ?Sized>(fd: Fd, path: W, opts: OpenOptions, perms: Permissions, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+fn redirect<W, E: ?Sized>(
+    fd: Fd,
+    path: W,
+    opts: OpenOptions,
+    perms: Permissions,
+    env: &E,
+) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     Redirect {
         state: State::Open(fd, eval_path(path, env), opts, perms),
@@ -91,10 +106,10 @@ fn redirect<W, E: ?Sized>(fd: Fd, path: W, opts: OpenOptions, perms: Permissions
 /// Evaluate a redirect which will open a file for reading.
 ///
 /// If `fd` is not specified, then `STDIN_FILENO` will be used.
-pub fn redirect_read<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_read<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     let fd = fd.unwrap_or(STDIN_FILENO);
     let perms = Permissions::Read;
@@ -108,10 +123,10 @@ pub fn redirect_read<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
 /// If `fd` is not specified, then `STDOUT_FILENO` will be used.
 ///
 /// > *Note*: checks for `noclobber` are not yet implemented.
-pub fn redirect_write<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_write<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     // FIXME: check for and fail if noclobber option is set
     redirect_clobber(fd, path, env)
@@ -120,10 +135,10 @@ pub fn redirect_write<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
 /// Evaluate a redirect which will open a file for reading and writing.
 ///
 /// If `fd` is not specified, then `STDIN_FILENO` will be used.
-pub fn redirect_readwrite<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_readwrite<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     let fd = fd.unwrap_or(STDIN_FILENO);
     let perms = Permissions::ReadWrite;
@@ -135,10 +150,10 @@ pub fn redirect_readwrite<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
 /// `noclobber` option is set.
 ///
 /// If `fd` is not specified, then `STDOUT_FILENO` will be used.
-pub fn redirect_clobber<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_clobber<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     let fd = fd.unwrap_or(STDOUT_FILENO);
     let perms = Permissions::Write;
@@ -149,10 +164,10 @@ pub fn redirect_clobber<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
 /// Evaluate a redirect which will open a file in append mode.
 ///
 /// If `fd` is not specified, then `STDOUT_FILENO` will be used.
-pub fn redirect_append<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_append<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     let fd = fd.unwrap_or(STDOUT_FILENO);
     let mut opts = OpenOptions::new();
@@ -161,10 +176,15 @@ pub fn redirect_append<W, E: ?Sized>(fd: Option<Fd>, path: W, env: &E)
     redirect(fd, path, opts, Permissions::Write, env)
 }
 
-fn redirect_dup<W, E: ?Sized>(dst_fd: Fd, src_fd: W, readable: bool, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+fn redirect_dup<W, E: ?Sized>(
+    dst_fd: Fd,
+    src_fd: W,
+    readable: bool,
+    env: &E,
+) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     Redirect {
         state: State::Dup(dst_fd, eval_path(src_fd, env), readable),
@@ -176,10 +196,14 @@ fn redirect_dup<W, E: ?Sized>(dst_fd: Fd, src_fd: W, readable: bool, env: &E)
 /// evaluates to `-`.
 ///
 /// If `fd` is not specified, then `STDIN_FILENO` will be used.
-pub fn redirect_dup_read<W, E: ?Sized>(dst_fd: Option<Fd>, src_fd: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_dup_read<W, E: ?Sized>(
+    dst_fd: Option<Fd>,
+    src_fd: W,
+    env: &E,
+) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     redirect_dup(dst_fd.unwrap_or(STDIN_FILENO), src_fd, true, env)
 }
@@ -189,10 +213,14 @@ pub fn redirect_dup_read<W, E: ?Sized>(dst_fd: Option<Fd>, src_fd: W, env: &E)
 /// evaluates to `-`.
 ///
 /// If `fd` is not specified, then `STDOUT_FILENO` will be used.
-pub fn redirect_dup_write<W, E: ?Sized>(dst_fd: Option<Fd>, src_fd: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_dup_write<W, E: ?Sized>(
+    dst_fd: Option<Fd>,
+    src_fd: W,
+    env: &E,
+) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     redirect_dup(dst_fd.unwrap_or(STDOUT_FILENO), src_fd, false, env)
 }
@@ -200,10 +228,14 @@ pub fn redirect_dup_write<W, E: ?Sized>(dst_fd: Option<Fd>, src_fd: W, env: &E)
 /// Evaluate a redirect which write the body of a *here-document* into `fd`.
 ///
 /// If `fd` is not specified, then `STDIN_FILENO` will be used.
-pub fn redirect_heredoc<W, E: ?Sized>(fd: Option<Fd>, heredoc: W, env: &E)
-    -> Redirect<W::EvalFuture>
-    where W: WordEval<E>,
-          E: IsInteractiveEnvironment,
+pub fn redirect_heredoc<W, E: ?Sized>(
+    fd: Option<Fd>,
+    heredoc: W,
+    env: &E,
+) -> Redirect<W::EvalFuture>
+where
+    W: WordEval<E>,
+    E: IsInteractiveEnvironment,
 {
     Redirect {
         state: State::HereDoc(fd.unwrap_or(STDIN_FILENO), eval_path(heredoc, env)),
@@ -225,14 +257,15 @@ enum State<F> {
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
-    where T: StringWrapper,
-          F: EnvFuture<E, Item = Fields<T>>,
-          F::Error: From<RedirectionError>,
-          E: FileDescEnvironment
-              + FileDescOpener
-              + IsInteractiveEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone + From<E::OpenedFileHandle>,
+where
+    T: StringWrapper,
+    F: EnvFuture<E, Item = Fields<T>>,
+    F::Error: From<RedirectionError>,
+    E: FileDescEnvironment
+        + FileDescOpener
+        + IsInteractiveEnvironment
+        + WorkingDirectoryEnvironment,
+    E::FileHandle: Clone + From<E::OpenedFileHandle>,
 {
     type Item = RedirectAction<E::FileHandle>;
     type Error = F::Error;
@@ -242,19 +275,17 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
             ($f:expr, $env:expr) => {{
                 match try_ready!($f.poll($env)) {
                     Fields::Single(path) => path,
-                    Fields::At(mut v)   |
-                    Fields::Star(mut v) |
-                    Fields::Split(mut v) => {
+                    Fields::At(mut v) | Fields::Star(mut v) | Fields::Split(mut v) => {
                         if v.len() == 1 {
                             v.pop().unwrap()
                         } else {
                             let v = v.into_iter().map(StringWrapper::into_owned).collect();
                             return Err(RedirectionError::Ambiguous(v).into());
                         }
-                    },
+                    }
                     Fields::Zero => return Err(RedirectionError::Ambiguous(Vec::new()).into()),
                 }
-            }}
+            }};
         }
 
         let action = match self.state {
@@ -262,17 +293,18 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
             State::Open(fd, ref mut f, ref opts, perms) => {
                 let requested_path = poll_path!(f, env);
 
-                let fdesc ={
-                    let actual_path = env.path_relative_to_working_dir(
-                        Cow::Borrowed(Path::new(requested_path.as_str()))
-                    );
+                let fdesc = {
+                    let actual_path = env.path_relative_to_working_dir(Cow::Borrowed(Path::new(
+                        requested_path.as_str(),
+                    )));
 
                     env.open_path(&*actual_path, opts)
                 };
 
-                fdesc.map(|fdesc| RedirectAction::Open(fd, E::FileHandle::from(fdesc), perms))
+                fdesc
+                    .map(|fdesc| RedirectAction::Open(fd, E::FileHandle::from(fdesc), perms))
                     .map_err(|err| RedirectionError::Io(err, Some(requested_path.into_owned())))?
-            },
+            }
 
             State::Dup(dst_fd, ref mut f, readable) => {
                 let src_fd = poll_path!(f, env);
@@ -293,22 +325,24 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
                         } else {
                             return Err(RedirectionError::BadFdPerms(fd, perms).into());
                         }
-                    },
+                    }
 
                     None => return Err(RedirectionError::BadFdSrc(src_fd.to_owned()).into()),
                 };
 
-                let perms = if readable { Permissions::Read } else { Permissions::Write };
+                let perms = if readable {
+                    Permissions::Read
+                } else {
+                    Permissions::Write
+                };
                 RedirectAction::Open(dst_fd, src_fdes, perms)
-            },
+            }
 
             State::HereDoc(fd, ref mut f) => {
                 let body = match try_ready!(f.poll(env)) {
                     Fields::Zero => Vec::new(),
                     Fields::Single(path) => path.into_owned().into_bytes(),
-                    Fields::At(mut v)   |
-                    Fields::Star(mut v) |
-                    Fields::Split(mut v) => {
+                    Fields::At(mut v) | Fields::Star(mut v) | Fields::Split(mut v) => {
                         if v.len() == 1 {
                             v.pop().unwrap().into_owned().into_bytes()
                         } else {
@@ -319,11 +353,11 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
                             }
                             body
                         }
-                    },
+                    }
                 };
 
                 RedirectAction::HereDoc(fd, body)
-            },
+            }
         };
 
         Ok(Async::Ready(action))
@@ -331,9 +365,9 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Redirect<F>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Open(_, ref mut f, _, _) |
-            State::Dup(_, ref mut f, _) |
-            State::HereDoc(_, ref mut f) => f.cancel(env),
+            State::Open(_, ref mut f, _, _)
+            | State::Dup(_, ref mut f, _)
+            | State::HereDoc(_, ref mut f) => f.cancel(env),
         }
     }
 }

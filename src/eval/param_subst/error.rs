@@ -1,9 +1,9 @@
+use super::is_present;
+use env::{StringWrapper, VariableEnvironment};
 use error::ExpansionError;
-use env::{StringWrapper,VariableEnvironment};
 use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use std::fmt::Display;
-use super::is_present;
 
 /// A future representing a `Error` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
@@ -33,39 +33,42 @@ pub fn error<P: ?Sized, W, E: ?Sized>(
     param: &P,
     error: Option<W>,
     env: &E,
-    cfg: TildeExpansion
+    cfg: TildeExpansion,
 ) -> Error<P::EvalResult, W::EvalFuture>
-    where P: ParamEval<E> + Display,
-          W: WordEval<E>,
+where
+    P: ParamEval<E> + Display,
+    W: WordEval<E>,
 {
     let state = match is_present(strict, param.eval(false, env)) {
-        fields@Some(_) => State::ParamVal(fields),
+        fields @ Some(_) => State::ParamVal(fields),
         None => {
             let param_display = param.to_string();
 
             match error {
                 Some(w) => {
-                    let future = w.eval_with_config(env, WordEvalConfig {
-                        split_fields_further: false,
-                        tilde_expansion: cfg,
-                    });
+                    let future = w.eval_with_config(
+                        env,
+                        WordEvalConfig {
+                            split_fields_further: false,
+                            tilde_expansion: cfg,
+                        },
+                    );
                     State::Error(Some(param_display), future)
-                },
+                }
                 None => State::EmptyParameter(Some(param_display)),
             }
-        },
+        }
     };
 
-    Error {
-        state: state,
-    }
+    Error { state: state }
 }
 
 impl<T, FT, F, E: ?Sized> EnvFuture<E> for Error<T, F>
-    where FT: StringWrapper,
-          F: EnvFuture<E, Item = Fields<FT>>,
-          F::Error: From<ExpansionError>,
-          E: VariableEnvironment,
+where
+    FT: StringWrapper,
+    F: EnvFuture<E, Item = Fields<FT>>,
+    F::Error: From<ExpansionError>,
+    E: VariableEnvironment,
 {
     type Item = Fields<T>;
     type Error = F::Error;
@@ -75,24 +78,23 @@ impl<T, FT, F, E: ?Sized> EnvFuture<E> for Error<T, F>
             State::ParamVal(ref mut fields) => {
                 let ret = fields.take().expect("polled twice");
                 Ok(Async::Ready(ret))
-            },
+            }
             State::EmptyParameter(ref mut param) => {
                 let param = param.take().expect("polled twice");
                 let msg = String::from("parameter null or not set");
                 Err(ExpansionError::EmptyParameter(param, msg).into())
-            },
+            }
             State::Error(ref mut param, ref mut f) => {
                 let err = try_ready!(f.poll(env)).join().into_owned();
                 let param = param.take().expect("polled twice");
                 Err(ExpansionError::EmptyParameter(param, err).into())
-            },
+            }
         }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::ParamVal(_) |
-            State::EmptyParameter(_) => {},
+            State::ParamVal(_) | State::EmptyParameter(_) => {}
             State::Error(_, ref mut f) => f.cancel(env),
         }
     }

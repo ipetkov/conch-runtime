@@ -4,10 +4,10 @@ mod file_desc_wrapper;
 mod permissions;
 mod pipe;
 
-use IntoInner;
-use sys;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 use std::process::Stdio;
+use sys;
+use IntoInner;
 
 pub use self::file_desc_wrapper::FileDescWrapper;
 pub use self::permissions::Permissions;
@@ -35,7 +35,7 @@ impl FileDesc {
 
     /// Duplicates the underlying OS file primitive.
     pub fn duplicate(&self) -> Result<Self> {
-        Ok(Self::from_inner(try!(self.inner().duplicate())))
+        Ok(Self::from_inner(self.inner().duplicate()?))
     }
 
     fn read(&self, buf: &mut [u8]) -> Result<usize> {
@@ -76,7 +76,9 @@ impl IntoInner for FileDesc {
 }
 
 impl Into<Stdio> for FileDesc {
-    fn into(self) -> Stdio { self.into_inner().into() }
+    fn into(self) -> Stdio {
+        self.into_inner().into()
+    }
 }
 
 impl Read for FileDesc {
@@ -125,11 +127,11 @@ impl<'a> Seek for &'a FileDesc {
 
 /// Duplicates handles for (stdin, stdout, stderr) and returns them in that order.
 pub(crate) fn dup_stdio() -> Result<(FileDesc, FileDesc, FileDesc)> {
-    let (stdin, stdout, stderr) = try!(sys::io::dup_stdio());
+    let (stdin, stdout, stderr) = sys::io::dup_stdio()?;
     Ok((
         FileDesc::from_inner(stdin),
         FileDesc::from_inner(stdout),
-        FileDesc::from_inner(stderr)
+        FileDesc::from_inner(stderr),
     ))
 }
 

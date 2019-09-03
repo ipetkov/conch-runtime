@@ -1,10 +1,10 @@
-use POLLED_TWICE;
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper};
 use future::{EnvFuture, Poll};
 use spawn::ExitResult;
-use std::iter::Peekable;
 use std::cmp;
+use std::iter::Peekable;
 use void::Void;
+use POLLED_TWICE;
 
 impl_generic_builtin_cmd! {
     /// Represents a `echo` builtin command which will
@@ -31,20 +31,18 @@ struct Flags {
 }
 
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
-    where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
+where
+    T: StringWrapper,
+    I: Iterator<Item = T>,
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
 {
     type Item = ExitResult<EchoFuture<E::WriteAll>>;
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let args = self.args.take()
-            .expect(POLLED_TWICE)
-            .fuse()
-            .peekable();
+        let args = self.args.take().expect(POLLED_TWICE).fuse().peekable();
 
         generate_and_print_output!("echo", env, |_| -> Result<_, Void> {
             let (flags, args) = parse_args(args);
@@ -58,8 +56,9 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
 }
 
 fn parse_args<I>(mut args: Peekable<I>) -> (Flags, Option<Peekable<I>>)
-    where I: Iterator,
-          I::Item: StringWrapper,
+where
+    I: Iterator,
+    I::Item: StringWrapper,
 {
     // NB: echo behaves a bit unconventionally (at least by clap standards)
     // when it comes to argument parsing: the POSIX spec notes that echo
@@ -80,13 +79,13 @@ fn parse_args<I>(mut args: Peekable<I>) -> (Flags, Option<Peekable<I>>)
                 if parse_arg(&mut flags, arg.as_str()) {
                     break;
                 }
-            },
+            }
 
             None => return (flags, None),
         }
 
         let _ = args.next();
-    };
+    }
 
     (flags, Some(args))
 }
@@ -118,8 +117,9 @@ fn parse_arg(flags: &mut Flags, arg: &str) -> bool {
 }
 
 fn generate_output<I>(flags: Flags, mut args: I) -> Vec<u8>
-    where I: Iterator,
-          I::Item: StringWrapper,
+where
+    I: Iterator,
+    I::Item: StringWrapper,
 {
     let mut out = String::new();
     let mut suppress_newline = flags.suppress_newline;
@@ -131,7 +131,7 @@ fn generate_output<I>(flags: Flags, mut args: I) -> Vec<u8>
             } else {
                 out.push_str($arg.as_str());
             }
-        }}
+        }};
     }
 
     args.next().map(|first| push!(first));
@@ -161,7 +161,7 @@ fn push_escaped_arg(out: &mut String, mut arg: &str) -> bool {
             None => {
                 out.push_str(arg);
                 break;
-            },
+            }
         };
 
         let mut chars = arg.chars();
@@ -196,17 +196,17 @@ fn push_escaped_arg(out: &mut String, mut arg: &str) -> bool {
             Some('0') => {
                 parse_numeric!(3, 8);
                 out.push_str("\\0");
-            },
+            }
             Some('x') => {
                 parse_numeric!(2, 16);
                 out.push_str("\\x");
-            },
+            }
 
             Some(c) => {
                 // treat unrecognized escapes as literals
                 out.push('\\');
                 out.push(c);
-            },
+            }
 
             None => {
                 // treat an incomplete escape as a literal

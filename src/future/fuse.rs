@@ -29,11 +29,9 @@ impl<E: ?Sized, F: EnvFuture<E>> EnvFuture<E> for Fuse<F> {
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         match self.future.as_mut().map(|f| f.poll(env)) {
-            None |
-            Some(Ok(Async::NotReady)) => Ok(Async::NotReady),
+            None | Some(Ok(Async::NotReady)) => Ok(Async::NotReady),
 
-            Some(ret@Ok(Async::Ready(_))) |
-            Some(ret@Err(_)) => {
+            Some(ret @ Ok(Async::Ready(_))) | Some(ret @ Err(_)) => {
                 self.future = None;
                 ret
             }

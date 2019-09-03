@@ -1,7 +1,7 @@
 use conch_parser::ast;
-use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportFailureEnvironment};
-use spawn::{AndOr, AndOrList, ExitResult, Spawn, and_or_list};
+use error::IsFatalError;
+use spawn::{and_or_list, AndOr, AndOrList, ExitResult, Spawn};
 use std::slice;
 use std::vec;
 
@@ -22,9 +22,10 @@ pub struct AndOrRefIter<I> {
 }
 
 impl<E: ?Sized, T> Spawn<E> for ast::AndOrList<T>
-    where E: LastStatusEnvironment + ReportFailureEnvironment,
-          T: Spawn<E>,
-          T::Error: IsFatalError,
+where
+    E: LastStatusEnvironment + ReportFailureEnvironment,
+    T: Spawn<E>,
+    T::Error: IsFatalError,
 {
     type Error = T::Error;
     type EnvFuture = AndOrList<T, vec::IntoIter<AndOr<T>>, E>;
@@ -37,22 +38,26 @@ impl<E: ?Sized, T> Spawn<E> for ast::AndOrList<T>
 }
 
 impl<'a, E: ?Sized, T> Spawn<E> for &'a ast::AndOrList<T>
-    where E: LastStatusEnvironment + ReportFailureEnvironment,
-          &'a T: Spawn<E>,
-          <&'a T as Spawn<E>>::Error: IsFatalError,
+where
+    E: LastStatusEnvironment + ReportFailureEnvironment,
+    &'a T: Spawn<E>,
+    <&'a T as Spawn<E>>::Error: IsFatalError,
 {
     type Error = <&'a T as Spawn<E>>::Error;
     type EnvFuture = AndOrList<&'a T, AndOrRefIter<slice::Iter<'a, ast::AndOr<T>>>, E>;
     type Future = ExitResult<<&'a T as Spawn<E>>::Future>;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
-        let iter = AndOrRefIter { iter: self.rest.iter() };
+        let iter = AndOrRefIter {
+            iter: self.rest.iter(),
+        };
         and_or_list(&self.first, iter, env)
     }
 }
 
 impl<'a, I, T: 'a> Iterator for AndOrRefIter<I>
-    where I: Iterator<Item = &'a ast::AndOr<T>>,
+where
+    I: Iterator<Item = &'a ast::AndOr<T>>,
 {
     type Item = AndOr<&'a T>;
 

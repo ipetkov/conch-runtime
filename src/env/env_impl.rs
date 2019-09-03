@@ -1,32 +1,33 @@
-use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use error::{CommandError, RuntimeError};
-use io::Permissions;
 use failure::Fail;
+use io::Permissions;
 use spawn::SpawnBoxed;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
-use std::hash::Hash;
 use std::fmt;
 use std::fs::OpenOptions;
+use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
 use std::path::Path;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 use tokio_core::reactor::{Handle, Remote};
+use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 
 use env::atomic;
 use env::atomic::FnEnv as AtomicFnEnv;
-use env::{ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
-          ExecEnv, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
-          FileDescEnvironment, FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment,
-          FunctionFrameEnvironment, IsInteractiveEnvironment, LastStatusEnv,
-          LastStatusEnvironment, Pipe, ReportFailureEnvironment, ShiftArgumentsEnvironment,
-          SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetFunctionEnvironment,
-          UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
-          WorkingDirectoryEnvironment};
-use env::PlatformSpecificFileDescManagerEnv;
 use env::builtin::{BuiltinEnv, BuiltinEnvironment};
+use env::PlatformSpecificFileDescManagerEnv;
+use env::{
+    ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, ExecEnv,
+    ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
+    FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
+    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment,
+    SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper, SubEnvironment,
+    UnsetFunctionEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
+    VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
+};
 
 /// A struct for configuring a new `Env` instance.
 ///
@@ -92,7 +93,10 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
     }
 
     /// Change the type of the `file_desc_manager_env` instance.
-    pub fn change_file_desc_manager_env<T>(self, file_desc_manager_env: T) -> EnvConfig<A, T, L, V, EX, WD, B, N, ERR> {
+    pub fn change_file_desc_manager_env<T>(
+        self,
+        file_desc_manager_env: T,
+    ) -> EnvConfig<A, T, L, V, EX, WD, B, N, ERR> {
         EnvConfig {
             interactive: self.interactive,
             args_env: self.args_env,
@@ -108,7 +112,10 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
     }
 
     /// Change the type of the `last_status_env` instance.
-    pub fn change_last_status_env<T>(self, last_status_env: T) -> EnvConfig<A, FM, T, V, EX, WD, B, N, ERR> {
+    pub fn change_last_status_env<T>(
+        self,
+        last_status_env: T,
+    ) -> EnvConfig<A, FM, T, V, EX, WD, B, N, ERR> {
         EnvConfig {
             interactive: self.interactive,
             args_env: self.args_env,
@@ -156,7 +163,10 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
     }
 
     /// Change the type of the `working_dir_env` instance.
-    pub fn change_working_dir_env<T>(self, working_dir_env: T) -> EnvConfig<A, FM, L, V, EX, T, B, N, ERR> {
+    pub fn change_working_dir_env<T>(
+        self,
+        working_dir_env: T,
+    ) -> EnvConfig<A, FM, L, V, EX, T, B, N, ERR> {
         EnvConfig {
             interactive: self.interactive,
             args_env: self.args_env,
@@ -172,9 +182,10 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
     }
 
     /// Change the type of the `builtin_env` instance.
-    pub fn change_builtin_env<T>(self, builtin_env: T)
-        -> EnvConfig<A, FM, L, V, EX, WD, T, N, ERR>
-    {
+    pub fn change_builtin_env<T>(
+        self,
+        builtin_env: T,
+    ) -> EnvConfig<A, FM, L, V, EX, WD, T, N, ERR> {
         EnvConfig {
             interactive: self.interactive,
             args_env: self.args_env,
@@ -188,7 +199,6 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
             fn_error: self.fn_error,
         }
     }
-
 
     /// Change the type of the `fn_name` instance.
     pub fn change_fn_name<T>(self) -> EnvConfig<A, FM, L, V, EX, WD, B, T, ERR> {
@@ -243,18 +253,17 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
 /// let cfg2 = DefaultEnvConfig::<Rc<String>>::new(lp.handle(), Some(2));
 /// # }
 /// ```
-pub type DefaultEnvConfig<T> =
-    EnvConfig<
-        ArgsEnv<T>,
-        PlatformSpecificFileDescManagerEnv,
-        LastStatusEnv,
-        VarEnv<T, T>,
-        ExecEnv,
-        VirtualWorkingDirEnv,
-        BuiltinEnv<T>,
-        T,
-        RuntimeError,
-    >;
+pub type DefaultEnvConfig<T> = EnvConfig<
+    ArgsEnv<T>,
+    PlatformSpecificFileDescManagerEnv,
+    LastStatusEnv,
+    VarEnv<T, T>,
+    ExecEnv,
+    VirtualWorkingDirEnv,
+    BuiltinEnv<T>,
+    T,
+    RuntimeError,
+>;
 
 /// A default environment configuration using provided (non-atomic) implementations.
 /// and `Rc<String>` to represent shell values.
@@ -279,24 +288,26 @@ pub type DefaultEnvConfigRc = DefaultEnvConfig<Rc<String>>;
 /// let cfg2 = DefaultEnvConfig::<Arc<String>>::new_atomic(lp.remote(), Some(2));
 /// # }
 /// ```
-pub type DefaultAtomicEnvConfig<T> =
-    EnvConfig<
-        atomic::ArgsEnv<T>,
-        atomic::PlatformSpecificFileDescManagerEnv,
-        LastStatusEnv,
-        atomic::VarEnv<T, T>,
-        ExecEnv,
-        atomic::VirtualWorkingDirEnv,
-        BuiltinEnv<T>,
-        T,
-        RuntimeError,
-    >;
+pub type DefaultAtomicEnvConfig<T> = EnvConfig<
+    atomic::ArgsEnv<T>,
+    atomic::PlatformSpecificFileDescManagerEnv,
+    LastStatusEnv,
+    atomic::VarEnv<T, T>,
+    ExecEnv,
+    atomic::VirtualWorkingDirEnv,
+    BuiltinEnv<T>,
+    T,
+    RuntimeError,
+>;
 
 /// A default environment configuration using provided (atomic) implementations.
 /// and `Arc<String>` to represent shell values.
 pub type DefaultAtomicEnvConfigArc = DefaultAtomicEnvConfig<Arc<String>>;
 
-impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
+impl<T> DefaultEnvConfig<T>
+where
+    T: Eq + Hash + From<String>,
+{
     /// Creates a new `DefaultEnvConfig` using default environment components.
     ///
     /// A `tokio` `Remote` handle is required for performing async IO on
@@ -306,7 +317,7 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
     pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         let file_desc_manager_env = PlatformSpecificFileDescManagerEnv::with_process_stdio(
             handle.clone(),
-            fallback_num_threads
+            fallback_num_threads,
         )?;
 
         Ok(DefaultEnvConfig {
@@ -316,7 +327,7 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
             exec_env: ExecEnv::new(handle.remote().clone()),
-            working_dir_env: try!(VirtualWorkingDirEnv::with_process_working_dir()),
+            working_dir_env: VirtualWorkingDirEnv::with_process_working_dir()?,
             builtin_env: BuiltinEnv::new(),
             fn_name: PhantomData,
             fn_error: PhantomData,
@@ -324,7 +335,10 @@ impl<T> DefaultEnvConfig<T> where T: Eq + Hash + From<String> {
     }
 }
 
-impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
+impl<T> DefaultAtomicEnvConfig<T>
+where
+    T: Eq + Hash + From<String>,
+{
     /// Creates a new `atomic::DefaultConfig` using default environment components.
     ///
     /// A `tokio` `Remote` handle is required for performing async IO on
@@ -334,7 +348,7 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
     pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
         let file_desc_manager_env = atomic::PlatformSpecificFileDescManagerEnv::with_process_stdio(
             remote.clone(),
-            fallback_num_threads
+            fallback_num_threads,
         )?;
 
         Ok(DefaultAtomicEnvConfig {
@@ -344,7 +358,7 @@ impl<T> DefaultAtomicEnvConfig<T> where T: Eq + Hash + From<String> {
             last_status_env: LastStatusEnv::new(),
             var_env: atomic::VarEnv::with_process_env_vars(),
             exec_env: ExecEnv::new(remote),
-            working_dir_env: try!(atomic::VirtualWorkingDirEnv::with_process_working_dir()),
+            working_dir_env: atomic::VirtualWorkingDirEnv::with_process_working_dir()?,
             builtin_env: BuiltinEnv::new(),
             fn_name: PhantomData,
             fn_error: PhantomData,
@@ -881,18 +895,17 @@ impl_env!(
 /// let env2 = DefaultEnv::<Rc<String>>::new(lp.handle(), Some(2));
 /// # }
 /// ```
-pub type DefaultEnv<T> =
-    Env<
-        ArgsEnv<T>,
-        PlatformSpecificFileDescManagerEnv,
-        LastStatusEnv,
-        VarEnv<T, T>,
-        ExecEnv,
-        VirtualWorkingDirEnv,
-        BuiltinEnv<T>,
-        T,
-        RuntimeError,
-    >;
+pub type DefaultEnv<T> = Env<
+    ArgsEnv<T>,
+    PlatformSpecificFileDescManagerEnv,
+    LastStatusEnv,
+    VarEnv<T, T>,
+    ExecEnv,
+    VirtualWorkingDirEnv,
+    BuiltinEnv<T>,
+    T,
+    RuntimeError,
+>;
 
 /// A default environment configured with provided (non-atomic) implementations,
 /// and `Rc<String>` to represent shell values.
@@ -919,24 +932,26 @@ pub type DefaultEnvRc = DefaultEnv<Rc<String>>;
 /// let env2 = DefaultEnv::<Arc<String>>::new_atomic(lp.remote(), Some(2));
 /// # }
 /// ```
-pub type DefaultAtomicEnv<T> =
-    AtomicEnv<
-        atomic::ArgsEnv<T>,
-        atomic::PlatformSpecificFileDescManagerEnv,
-        LastStatusEnv,
-        atomic::VarEnv<T, T>,
-        ExecEnv,
-        atomic::VirtualWorkingDirEnv,
-        BuiltinEnv<T>,
-        T,
-        RuntimeError,
-    >;
+pub type DefaultAtomicEnv<T> = AtomicEnv<
+    atomic::ArgsEnv<T>,
+    atomic::PlatformSpecificFileDescManagerEnv,
+    LastStatusEnv,
+    atomic::VarEnv<T, T>,
+    ExecEnv,
+    atomic::VirtualWorkingDirEnv,
+    BuiltinEnv<T>,
+    T,
+    RuntimeError,
+>;
 
 /// A default environment configured with provided (atomic) implementations,
 /// and uses `Arc<String>` to represent shell values.
 pub type DefaultAtomicEnvArc = DefaultAtomicEnv<Arc<String>>;
 
-impl<T> DefaultEnv<T> where T: StringWrapper {
+impl<T> DefaultEnv<T>
+where
+    T: StringWrapper,
+{
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
@@ -945,7 +960,10 @@ impl<T> DefaultEnv<T> where T: StringWrapper {
     }
 }
 
-impl<T> DefaultAtomicEnv<T> where T: StringWrapper {
+impl<T> DefaultAtomicEnv<T>
+where
+    T: StringWrapper,
+{
     /// Creates a new default environment.
     ///
     /// See the definition of `atomic::DefaultEnvConfig` for what configuration will be used.

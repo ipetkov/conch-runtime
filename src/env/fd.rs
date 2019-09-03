@@ -1,11 +1,11 @@
-use {Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-use io::{dup_stdio, FileDesc, Permissions};
 use env::SubEnvironment;
+use io::{dup_stdio, FileDesc, Permissions};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result;
 use std::rc::Rc;
 use std::sync::Arc;
+use {Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
 /// An interface for setting and getting shell file descriptors.
 pub trait FileDescEnvironment {
@@ -177,10 +177,10 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
-    use {RefCounted, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
-    use io::Permissions;
-    use env::SubEnvironment;
     use super::*;
+    use env::SubEnvironment;
+    use io::Permissions;
+    use {RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
     #[test]
     fn test_set_get_and_close_file_desc() {
@@ -205,7 +205,7 @@ mod tests {
         let perms = Permissions::ReadWrite;
         let file_desc = "file_desc";
 
-        let env = FileDescEnv::with_fds(vec!((fd, file_desc, perms)));
+        let env = FileDescEnv::with_fds(vec![(fd, file_desc, perms)]);
         assert_eq!(env.file_desc(fd), Some((&file_desc, perms)));
 
         let mut env = env.sub_env();
@@ -231,10 +231,10 @@ mod tests {
         let fdes = "fdes";
         let fdes_close_in_child = "fdes_close_in_child";
 
-        let parent = FileDescEnv::with_fds(vec!(
+        let parent = FileDescEnv::with_fds(vec![
             (fd, fdes, perms),
             (fd_close_in_child, fdes_close_in_child, perms),
-        ));
+        ]);
 
         assert_eq!(parent.file_desc(fd_open_in_child), None);
 
@@ -246,13 +246,22 @@ mod tests {
             child.set_file_desc(fd_open_in_child, fdes_open_in_child, child_perms);
             child.close_file_desc(fd_close_in_child);
 
-            assert_eq!(child.file_desc(fd), Some((&fdes_open_in_child, child_perms)));
-            assert_eq!(child.file_desc(fd_open_in_child), Some((&fdes_open_in_child, child_perms)));
+            assert_eq!(
+                child.file_desc(fd),
+                Some((&fdes_open_in_child, child_perms))
+            );
+            assert_eq!(
+                child.file_desc(fd_open_in_child),
+                Some((&fdes_open_in_child, child_perms))
+            );
             assert_eq!(child.file_desc(fd_close_in_child), None);
         }
 
         assert_eq!(parent.file_desc(fd), Some((&fdes, perms)));
-        assert_eq!(parent.file_desc(fd_close_in_child), Some((&fdes_close_in_child, perms)));
+        assert_eq!(
+            parent.file_desc(fd_close_in_child),
+            Some((&fdes_close_in_child, perms))
+        );
         assert_eq!(parent.file_desc(fd_open_in_child), None);
     }
 }

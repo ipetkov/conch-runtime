@@ -1,8 +1,7 @@
-use ExitStatus;
 use env::SubEnvironment;
 use error::CommandError;
-use futures::{Async, Future, IntoFuture, Poll};
 use futures::sync::oneshot;
+use futures::{Async, Future, IntoFuture, Poll};
 use io::FileDesc;
 use std::borrow::Cow;
 use std::ffi::OsStr;
@@ -12,6 +11,7 @@ use std::path::Path;
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
 use tokio_process::{CommandExt, StatusAsync};
+use ExitStatus;
 
 /// Any data required to execute a child process.
 #[derive(Debug, PartialEq, Eq)]
@@ -40,12 +40,16 @@ pub struct ExecutableData<'a> {
 impl<'a> ExecutableData<'a> {
     /// Ensures all inner data is fully owned and thus lifted to a `'static` lifetime.
     pub fn into_owned(self) -> ExecutableData<'static> {
-        let args = self.args.into_iter()
+        let args = self
+            .args
+            .into_iter()
             .map(Cow::into_owned)
             .map(Cow::Owned)
             .collect();
 
-        let env_vars = self.env_vars.into_iter()
+        let env_vars = self
+            .env_vars
+            .into_iter()
             .map(|(k, v)| (Cow::Owned(k.into_owned()), Cow::Owned(v.into_owned())))
             .collect();
 
@@ -108,15 +112,11 @@ impl fmt::Debug for ExecEnv {
 impl ExecEnv {
     /// Construct a new environment with a `Remote` to a `tokio` event loop.
     pub fn new(remote: Remote) -> Self {
-        ExecEnv {
-            remote: remote,
-        }
+        ExecEnv { remote: remote }
     }
 }
 
-fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
-    -> Result<StatusAsync, CommandError>
-{
+fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> Result<StatusAsync, CommandError> {
     let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
     let name = data.name;
@@ -143,9 +143,9 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
 fn convert_to_string(os_str: Cow<OsStr>) -> String {
     match os_str {
         Cow::Borrowed(s) => s.to_string_lossy().into_owned(),
-        Cow::Owned(string) => string.into_string().unwrap_or_else(|s| {
-            s.as_os_str().to_string_lossy().into_owned()
-        }),
+        Cow::Owned(string) => string
+            .into_string()
+            .unwrap_or_else(|s| s.as_os_str().to_string_lossy().into_owned()),
     }
 }
 
@@ -174,13 +174,14 @@ impl ExecutableEnvironment for ExecEnv {
 
     fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
         let inner = match self.remote.handle() {
-            Some(handle) => Inner::Child(Box::new(try!(spawn_child(data, &handle)))),
+            Some(handle) => Inner::Child(Box::new(spawn_child(data, &handle)?)),
             None => {
                 let (tx, rx) = oneshot::channel();
 
                 let data = data.into_owned();
                 self.remote.spawn(move |handle| {
-                    spawn_child(data, handle).into_future()
+                    spawn_child(data, handle)
+                        .into_future()
                         .and_then(|child| child.map_err(|err| CommandError::Io(err, None)))
                         .then(|status| {
                             // If receiver has hung up we'll just give up
@@ -189,12 +190,10 @@ impl ExecutableEnvironment for ExecEnv {
                 });
 
                 Inner::Remote(rx)
-            },
+            }
         };
 
-        Ok(Child {
-            inner: inner,
-        })
+        Ok(Child { inner: inner })
     }
 }
 
@@ -218,16 +217,8 @@ enum Inner {
 impl fmt::Debug for Inner {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Inner::Child(ref inner) => {
-                fmt.debug_tuple("Inner::Child")
-                    .field(&inner)
-                    .finish()
-            },
-            Inner::Remote(ref rx) => {
-                fmt.debug_tuple("Inner::Remote")
-                    .field(rx)
-                    .finish()
-            },
+            Inner::Child(ref inner) => fmt.debug_tuple("Inner::Child").field(&inner).finish(),
+            Inner::Remote(ref rx) => fmt.debug_tuple("Inner::Remote").field(rx).finish(),
         }
     }
 }
@@ -245,13 +236,14 @@ impl Future for Child {
             },
 
             Inner::Remote(ref mut rx) => match rx.poll() {
-                Ok(Async::Ready(status)) => Ok(try!(status)),
+                Ok(Async::Ready(status)) => Ok(status?),
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(cancelled) => Err(IoError::new(IoErrorKind::Other, cancelled)),
             },
         };
 
-        result.map(ExitStatus::from)
+        result
+            .map(ExitStatus::from)
             .map(Async::Ready)
             .map_err(|err| CommandError::Io(err, None))
     }

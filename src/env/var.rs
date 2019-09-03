@@ -1,4 +1,3 @@
-use RefCounted;
 use env::SubEnvironment;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
@@ -6,6 +5,7 @@ use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
+use RefCounted;
 
 /// An interface for setting and getting shell and environment variables.
 pub trait VariableEnvironment {
@@ -16,7 +16,9 @@ pub trait VariableEnvironment {
     /// Get the value of some variable. The values of both shell-only
     /// and environment variables will be looked up and returned.
     fn var<Q: ?Sized>(&self, name: &Q) -> Option<&Self::Var>
-        where Self::VarName: Borrow<Q>, Q: Hash + Eq;
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq;
     /// Set the value of some variable, maintaining its status as an
     /// environment variable if previously set as such.
     fn set_var(&mut self, name: Self::VarName, val: Self::Var);
@@ -30,7 +32,9 @@ impl<'a, T: ?Sized + VariableEnvironment> VariableEnvironment for &'a mut T {
     type Var = T::Var;
 
     fn var<Q: ?Sized>(&self, name: &Q) -> Option<&Self::Var>
-        where Self::VarName: Borrow<Q>, Q: Hash + Eq,
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq,
     {
         (**self).var(name)
     }
@@ -68,12 +72,16 @@ impl<'a, T: ?Sized + ExportedVariableEnvironment> ExportedVariableEnvironment fo
 pub trait UnsetVariableEnvironment: VariableEnvironment {
     /// Unset the value of some variable (including environment variables).
     fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-        where Self::VarName: Borrow<Q>, Q: Hash + Eq;
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq;
 }
 
 impl<'a, T: ?Sized + UnsetVariableEnvironment> UnsetVariableEnvironment for &'a mut T {
     fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-        where Self::VarName: Borrow<Q>, Q: Hash + Eq,
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq,
     {
         (**self).unset_var(name);
     }
@@ -243,9 +251,9 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
-    use RefCounted;
-    use env::SubEnvironment;
     use super::*;
+    use env::SubEnvironment;
+    use RefCounted;
 
     #[test]
     fn test_set_get_unset_var() {
@@ -266,7 +274,7 @@ mod tests {
         let name = "var";
         let value = "value";
 
-        let mut env = VarEnv::with_env_vars(vec!((exported, exported_value)));
+        let mut env = VarEnv::with_env_vars(vec![(exported, exported_value)]);
         assert_eq!(env.exported_var(&exported), Some((&exported_value, true)));
 
         assert_eq!(env.var(&name), None);
@@ -313,16 +321,13 @@ mod tests {
         let name = "name".to_owned();
         let val = "value".to_owned();
 
-        let mut env = VarEnv::with_env_vars(vec!(
+        let mut env = VarEnv::with_env_vars(vec![
             (env_name1.clone(), env_val1.clone()),
             (env_name2.clone(), env_val2.clone()),
-        ));
+        ]);
         env.set_var(name, val);
 
-        let correct = vec!(
-            (&env_name1, &env_val1),
-            (&env_name2, &env_val2),
-        );
+        let correct = vec![(&env_name1, &env_val1), (&env_name2, &env_val2)];
 
         let vars: HashSet<(&String, &String)> = HashSet::from_iter(env.env_vars().into_owned());
         assert_eq!(vars, HashSet::from_iter(correct));
@@ -365,15 +370,12 @@ mod tests {
         let name2 = "var2".to_owned();
         let value2 = "value2".to_owned();
 
-        let env = VarEnv::with_env_vars(vec!(
+        let env = VarEnv::with_env_vars(vec![
             (name1.clone(), value1.clone()),
             (name2.clone(), value2.clone()),
-        ));
+        ]);
 
-        let env_vars = HashSet::from_iter(vec!(
-            (&name1, &value1),
-            (&name2, &value2),
-        ));
+        let env_vars = HashSet::from_iter(vec![(&name1, &value1), (&name2, &value2)]);
 
         let vars: HashSet<(&String, &String)> = HashSet::from_iter(env.env_vars().into_owned());
         assert_eq!(vars, env_vars);

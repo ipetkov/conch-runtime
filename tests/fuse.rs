@@ -20,7 +20,10 @@ impl EnvFuture<()> for MockFuture {
     type Error = ();
 
     fn poll(&mut self, _env: &mut ()) -> Poll<Self::Item, Self::Error> {
-        self.0.take().expect("cannot be polled after completion").map(Async::Ready)
+        self.0
+            .take()
+            .expect("cannot be polled after completion")
+            .map(Async::Ready)
     }
 
     fn cancel(&mut self, _env: &mut ()) {

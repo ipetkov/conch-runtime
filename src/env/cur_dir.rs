@@ -46,7 +46,8 @@ pub trait ChangeWorkingDirectoryEnvironment: WorkingDirectoryEnvironment {
 }
 
 impl<'b, T: ?Sized> ChangeWorkingDirectoryEnvironment for &'b mut T
-    where T: ChangeWorkingDirectoryEnvironment
+where
+    T: ChangeWorkingDirectoryEnvironment,
 {
     fn change_working_dir<'a>(&mut self, path: Cow<'a, Path>) -> io::Result<()> {
         (**self).change_working_dir(path)

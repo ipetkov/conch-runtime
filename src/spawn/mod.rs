@@ -1,9 +1,9 @@
 //! Defines methods for spawning commands into futures.
 
-use ExitStatus;
 use future::{Async, EnvFuture, Poll};
 use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
+use ExitStatus;
 
 mod and_or;
 mod builtin_exec;
@@ -22,29 +22,30 @@ mod substitution;
 mod swallow_non_fatal;
 mod vec_sequence;
 
-pub mod builtin;
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
+pub mod builtin;
 
 // Private definitions
 use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 
 // Pub reexports
-pub use self::and_or::{AndOr, AndOrList, and_or_list};
+pub use self::and_or::{and_or_list, AndOr, AndOrList};
 pub use self::builtin_exec::builtin;
-pub use self::case::{Case, case, PatternBodyPair};
-pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
-pub use self::func_exec::{Function, function, function_body};
-pub use self::if_cmd::{If, if_cmd};
-pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirections};
-pub use self::loop_cmd::{Loop, loop_cmd};
-pub use self::pipeline::{Pipeline, pipeline, SpawnedPipeline};
-pub use self::sequence::{Sequence, sequence};
-pub use self::simple::{SimpleCommand, simple_command, simple_command_with_restorers,
-                       SpawnedSimpleCommand};
-pub use self::subshell::{Subshell, subshell};
-pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
-pub use self::swallow_non_fatal::{SwallowNonFatal, swallow_non_fatal_errors};
+pub use self::case::{case, Case, PatternBodyPair};
+pub use self::for_cmd::{for_args, for_loop, for_with_args, For, ForArgs};
+pub use self::func_exec::{function, function_body, Function};
+pub use self::if_cmd::{if_cmd, If};
+pub use self::local_redirections::{spawn_with_local_redirections, LocalRedirections};
+pub use self::loop_cmd::{loop_cmd, Loop};
+pub use self::pipeline::{pipeline, Pipeline, SpawnedPipeline};
+pub use self::sequence::{sequence, Sequence};
+pub use self::simple::{
+    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
+};
+pub use self::subshell::{subshell, Subshell};
+pub use self::substitution::{substitution, Substitution, SubstitutionEnvFuture};
+pub use self::swallow_non_fatal::{swallow_non_fatal_errors, SwallowNonFatal};
 
 /// A trait for spawning commands into an `EnvFuture` which can be
 /// polled to completion.
@@ -87,7 +88,8 @@ pub trait Spawn<E: ?Sized> {
 }
 
 impl<'a, 'b: 'a, T, E: ?Sized> Spawn<E> for &'a &'b T
-    where &'b T: Spawn<E>
+where
+    &'b T: Spawn<E>,
 {
     type EnvFuture = <&'b T as Spawn<E>>::EnvFuture;
     type Future = <&'b T as Spawn<E>>::Future;
@@ -111,7 +113,8 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
 
 #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
 impl<'a, E: ?Sized, T: 'a> Spawn<E> for &'a Box<T>
-    where &'a T: Spawn<E>,
+where
+    &'a T: Spawn<E>,
 {
     type EnvFuture = <&'a T as Spawn<E>>::EnvFuture;
     type Future = <&'a T as Spawn<E>>::Future;
@@ -175,7 +178,8 @@ pub trait Ref: Copy {}
 impl<'a, T> Ref for &'a T {}
 
 impl<S, E: ?Sized> SpawnRef<E> for S
-    where S: Spawn<E> + Ref,
+where
+    S: Spawn<E> + Ref,
 {
     type EnvFuture = S::EnvFuture;
     type Future = S::Future;
@@ -187,11 +191,8 @@ impl<S, E: ?Sized> SpawnRef<E> for S
 }
 
 /// Type alias for boxed futures that represent spawning a command.
-pub type BoxSpawnEnvFuture<'a, E, ERR> = Box<dyn 'a + EnvFuture<
-    E,
-    Item = BoxStatusFuture<'a, ERR>,
-    Error = ERR
->>;
+pub type BoxSpawnEnvFuture<'a, E, ERR> =
+    Box<dyn 'a + EnvFuture<E, Item = BoxStatusFuture<'a, ERR>, Error = ERR>>;
 
 /// Type alias for a boxed future which will resolve to an `ExitStatus`.
 pub type BoxStatusFuture<'a, ERR> = Box<dyn 'a + Future<Item = ExitStatus, Error = ERR>>;
@@ -204,15 +205,21 @@ pub trait SpawnBoxed<E: ?Sized> {
     type Error;
 
     /// Identical to `Spawn::spawn` but does not move `self` and returns boxed futures.
-    fn spawn_boxed<'a>(&'a self, env: &E) -> BoxSpawnEnvFuture<'a, E, Self::Error> where E: 'a;
+    fn spawn_boxed<'a>(&'a self, env: &E) -> BoxSpawnEnvFuture<'a, E, Self::Error>
+    where
+        E: 'a;
 }
 
 impl<S, ERR, E: ?Sized> SpawnBoxed<E> for S
-    where for<'a> &'a S: Spawn<E, Error = ERR>,
+where
+    for<'a> &'a S: Spawn<E, Error = ERR>,
 {
     type Error = ERR;
 
-    fn spawn_boxed<'a>(&'a self, env: &E) -> BoxSpawnEnvFuture<'a, E, Self::Error> where E: 'a {
+    fn spawn_boxed<'a>(&'a self, env: &E) -> BoxSpawnEnvFuture<'a, E, Self::Error>
+    where
+        E: 'a,
+    {
         Box::from(self.spawn(env).boxed_result())
     }
 }
@@ -231,7 +238,8 @@ impl<F> ExitResult<F> {
     /// Maps a `ExitResult<F>` to `ExitResult<G>` by applying a function to a
     /// contained [`Pending`] value, leaving the [`Ready`] value untouched.
     pub fn map<G, O>(self, op: O) -> ExitResult<G>
-        where O: FnOnce(F) -> G
+    where
+        O: FnOnce(F) -> G,
     {
         match self {
             ExitResult::Pending(f) => ExitResult::Pending(op(f)),
@@ -247,7 +255,8 @@ impl<F> From<ExitStatus> for ExitResult<F> {
 }
 
 impl<F> Future for ExitResult<F>
-    where F: Future<Item = ExitStatus>
+where
+    F: Future<Item = ExitStatus>,
 {
     type Item = F::Item;
     type Error = F::Error;

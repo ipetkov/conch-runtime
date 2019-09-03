@@ -1,18 +1,20 @@
-use {ExitStatus, POLLED_TWICE, Spawn, STDOUT_FILENO};
-use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
-          LastStatusEnvironment, Pipe, ReportFailureEnvironment, SubEnvironment};
+use env::{
+    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
+    LastStatusEnvironment, Pipe, ReportFailureEnvironment, SubEnvironment,
+};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
 use io::Permissions;
-use spawn::{ExitResult, Subshell, subshell};
+use spawn::{subshell, ExitResult, Subshell};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Error as IoError;
 use std::mem;
+use tokio_io::io::{read_to_end, ReadToEnd};
 use tokio_io::AsyncRead;
-use tokio_io::io::{ReadToEnd, read_to_end};
 use void::unreachable;
+use {ExitStatus, Spawn, POLLED_TWICE, STDOUT_FILENO};
 
 /// A future that represents the spawning of a command substitution.
 ///
@@ -25,26 +27,30 @@ pub struct SubstitutionEnvFuture<I> {
 }
 
 impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
-    where I: Iterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError + From<IoError>,
-          E: AsyncIoEnvironment
-            + FileDescEnvironment
-            + FileDescOpener
-            + IsInteractiveEnvironment
-            + LastStatusEnvironment
-            + ReportFailureEnvironment
-            + SubEnvironment,
-          E::FileHandle: From<E::OpenedFileHandle>,
-          E::IoHandle: From<E::OpenedFileHandle>,
-          E::Read: AsyncRead,
+where
+    I: Iterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError + From<IoError>,
+    E: AsyncIoEnvironment
+        + FileDescEnvironment
+        + FileDescOpener
+        + IsInteractiveEnvironment
+        + LastStatusEnvironment
+        + ReportFailureEnvironment
+        + SubEnvironment,
+    E::FileHandle: From<E::OpenedFileHandle>,
+    E::IoHandle: From<E::OpenedFileHandle>,
+    E::Read: AsyncRead,
 {
     type Item = Substitution<I, E::Read, E>;
     type Error = S::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let body = self.body.take().expect(POLLED_TWICE);
-        let Pipe { reader: cmd_output, writer: cmd_stdout_fd } = env.open_pipe()?;
+        let Pipe {
+            reader: cmd_output,
+            writer: cmd_stdout_fd,
+        } = env.open_pipe()?;
 
         let mut env = env.sub_env();
         let cmd_stdout_fd: E::FileHandle = cmd_stdout_fd.into();
@@ -73,19 +79,21 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
 /// trailing newlines trimmed.
 #[must_use = "futures do nothing unless polled"]
 pub struct Substitution<I, R, E>
-    where I: Iterator,
-          I::Item: Spawn<E>,
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
 {
     inner: JoinSubshellAndReadToEnd<I, R, E>,
 }
 
 impl<I, R, S, E> fmt::Debug for Substitution<I, R, E>
-    where E: fmt::Debug,
-          I: Iterator<Item = S> + fmt::Debug,
-          R: fmt::Debug,
-          S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    E: fmt::Debug,
+    I: Iterator<Item = S> + fmt::Debug,
+    R: fmt::Debug,
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Substitution")
@@ -95,11 +103,12 @@ impl<I, R, S, E> fmt::Debug for Substitution<I, R, E>
 }
 
 impl<I, R, S, E> Future for Substitution<I, R, E>
-    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
-          I: Iterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError + From<IoError>,
-          R: AsyncRead,
+where
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    I: Iterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError + From<IoError>,
+    R: AsyncRead,
 {
     type Item = String;
     type Error = S::Error;
@@ -117,9 +126,7 @@ impl<I, R, S, E> Future for Substitution<I, R, E>
 
         let ret = match String::from_utf8_lossy(&buf) {
             Cow::Owned(s) => s,
-            Cow::Borrowed(_) => unsafe {
-                String::from_utf8_unchecked(buf)
-            },
+            Cow::Borrowed(_) => unsafe { String::from_utf8_unchecked(buf) },
         };
 
         Ok(Async::Ready(ret))
@@ -127,41 +134,42 @@ impl<I, R, S, E> Future for Substitution<I, R, E>
 }
 
 enum FlattenSubshell<I, E>
-    where I: Iterator,
-          I::Item: Spawn<E>,
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
 {
     Subshell(Subshell<I, E>),
     Flatten(ExitResult<<I::Item as Spawn<E>>::Future>),
 }
 
 impl<I, S, E> fmt::Debug for FlattenSubshell<I, E>
-    where E: fmt::Debug,
-          I: Iterator<Item = S> + fmt::Debug,
-          S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    E: fmt::Debug,
+    I: Iterator<Item = S> + fmt::Debug,
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            FlattenSubshell::Subshell(ref s) => {
-                fmt.debug_tuple("FlattenSubshell::Subshell")
-                    .field(s)
-                    .finish()
-            },
-            FlattenSubshell::Flatten(ref f) => {
-                fmt.debug_tuple("FlattenSubshell::Flatten")
-                    .field(f)
-                    .finish()
-            },
+            FlattenSubshell::Subshell(ref s) => fmt
+                .debug_tuple("FlattenSubshell::Subshell")
+                .field(s)
+                .finish(),
+            FlattenSubshell::Flatten(ref f) => fmt
+                .debug_tuple("FlattenSubshell::Flatten")
+                .field(f)
+                .finish(),
         }
     }
 }
 
 impl<I, S, E> Future for FlattenSubshell<I, E>
-    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
-          I: Iterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError,
+where
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    I: Iterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError,
 {
     type Item = ExitStatus;
     type Error = S::Error;
@@ -192,7 +200,7 @@ enum MaybeDone<F, T> {
 impl<F: Future> MaybeDone<F, F::Item> {
     fn poll(&mut self) -> Result<bool, F::Error> {
         let res = match *self {
-            MaybeDone::NotYet(ref mut f) => try!(f.poll()),
+            MaybeDone::NotYet(ref mut f) => f.poll()?,
             MaybeDone::Done(_) => return Ok(true),
             MaybeDone::Gone => panic!(POLLED_TWICE),
         };
@@ -215,20 +223,22 @@ impl<F: Future> MaybeDone<F, F::Item> {
 
 #[must_use = "futures do nothing unless polled"]
 struct JoinSubshellAndReadToEnd<I, R, E>
-    where I: Iterator,
-          I::Item: Spawn<E>,
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
 {
     read_to_end: MaybeDone<ReadToEnd<R>, (R, Vec<u8>)>,
     subshell: MaybeDone<FlattenSubshell<I, E>, ExitStatus>,
 }
 
 impl<I, R, S, E> fmt::Debug for JoinSubshellAndReadToEnd<I, R, E>
-    where E: fmt::Debug,
-          I: Iterator<Item = S> + fmt::Debug,
-          R: fmt::Debug,
-          S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    E: fmt::Debug,
+    I: Iterator<Item = S> + fmt::Debug,
+    R: fmt::Debug,
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("JoinSubshellAndReadToEnd")
@@ -239,8 +249,9 @@ impl<I, R, S, E> fmt::Debug for JoinSubshellAndReadToEnd<I, R, E>
 }
 
 impl<I, R, E> JoinSubshellAndReadToEnd<I, R, E>
-    where I: Iterator,
-          I::Item: Spawn<E>,
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
 {
     fn erase(&mut self) {
         self.subshell = MaybeDone::Gone;
@@ -249,11 +260,12 @@ impl<I, R, E> JoinSubshellAndReadToEnd<I, R, E>
 }
 
 impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
-    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
-          I: Iterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError + From<IoError>,
-          R: AsyncRead,
+where
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    I: Iterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError + From<IoError>,
+    R: AsyncRead,
 {
     type Item = Vec<u8>;
     type Error = S::Error;
@@ -264,7 +276,7 @@ impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
             Err(e) => {
                 self.erase();
                 return Err(e.into());
-            },
+            }
         };
 
         let all_done = match self.subshell.poll() {
@@ -272,7 +284,7 @@ impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
             Err(e) => {
                 self.erase();
                 return Err(e);
-            },
+            }
         };
 
         if all_done {
@@ -286,7 +298,8 @@ impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
 /// Spawns any iterable collection of sequential items whose standard output
 /// will be captured (and trailing newlines trimmed).
 pub fn substitution<I>(body: I) -> SubstitutionEnvFuture<I::IntoIter>
-    where I: IntoIterator,
+where
+    I: IntoIterator,
 {
     SubstitutionEnvFuture {
         body: Some(body.into_iter()),

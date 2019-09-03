@@ -4,8 +4,8 @@ use futures::future::poll_fn;
 use std::rc::Rc;
 
 mod support;
-pub use self::support::*;
 pub use self::support::spawn::builtin::shift;
+pub use self::support::*;
 
 fn run_shift(
     env_args_starting: &[&str],
@@ -15,21 +15,25 @@ fn run_shift(
 ) {
     // NB: Suppress usage dumping errors to console
     let (mut lp, mut env) = new_env_with_no_fds();
-    env.set_args(Rc::new(env_args_starting.iter()
-        .map(|&s| s.to_owned())
-        .map(Rc::new)
-        .collect::<Vec<_>>()
+    env.set_args(Rc::new(
+        env_args_starting
+            .iter()
+            .map(|&s| s.to_owned())
+            .map(Rc::new)
+            .collect::<Vec<_>>(),
     ));
 
     let shift = shift(shift_args.iter().map(|&s| s.to_owned()));
 
     let mut shift = shift.spawn(&env);
-    let exit = lp.run(poll_fn(|| shift.poll(&mut env)).flatten())
+    let exit = lp
+        .run(poll_fn(|| shift.poll(&mut env)).flatten())
         .expect("command failed");
 
     assert_eq!(exit, expected_status);
 
-    let env_args_expected = env_args_expected.iter()
+    let env_args_expected = env_args_expected
+        .iter()
         .map(|&s| s.to_owned())
         .map(Rc::new)
         .collect::<Vec<_>>();
@@ -76,8 +80,7 @@ fn shift_multiple_arg_does_nothing_and_exit_with_error() {
 #[should_panic]
 fn polling_canceled_shift_panics() {
     let (_, mut env) = new_env_with_no_fds();
-    let mut shift = shift(Vec::<Rc<String>>::new())
-        .spawn(&env);
+    let mut shift = shift(Vec::<Rc<String>>::new()).spawn(&env);
 
     shift.cancel(&mut env);
     let _ = shift.poll(&mut env);

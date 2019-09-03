@@ -29,13 +29,19 @@ impl<E, F> Pinned<E, F> {
 
     /// Cancels the inner future, thus restoring any environment state
     /// before unwrapping the environment.
-    pub fn unwrap_and_cancel(mut self) -> E where F: EnvFuture<E> {
+    pub fn unwrap_and_cancel(mut self) -> E
+    where
+        F: EnvFuture<E>,
+    {
         self.future.cancel(&mut self.env);
         self.env
     }
 }
 
-impl<E, F> Future for Pinned<E, F> where F: EnvFuture<E> {
+impl<E, F> Future for Pinned<E, F>
+where
+    F: EnvFuture<E>,
+{
     type Item = F::Item;
     type Error = F::Error;
 

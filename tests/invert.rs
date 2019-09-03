@@ -1,5 +1,5 @@
-extern crate futures;
 extern crate conch_runtime;
+extern crate futures;
 
 mod support;
 pub use self::support::*;
@@ -35,5 +35,8 @@ fn inverted_should_swallow_errors() {
 fn inverted_should_invert_status() {
     let inner = ok(ExitStatus::Code(42));
     assert_eq!(InvertStatus::new(true, inner).wait(), Ok(EXIT_SUCCESS));
-    assert_eq!(InvertStatus::new(true, ok(EXIT_SUCCESS)).wait(), Ok(EXIT_ERROR));
+    assert_eq!(
+        InvertStatus::new(true, ok(EXIT_SUCCESS)).wait(),
+        Ok(EXIT_ERROR)
+    );
 }

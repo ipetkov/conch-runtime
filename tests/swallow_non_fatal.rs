@@ -36,7 +36,6 @@ impl<E: ?Sized> EnvFuture<E> for MustCancelBridge {
     type Error = MockErr;
 
     fn poll(&mut self, _: &mut E) -> Poll<Self::Item, Self::Error> {
-
         self.0.poll()
     }
 

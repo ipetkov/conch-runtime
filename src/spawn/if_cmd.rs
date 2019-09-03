@@ -1,10 +1,12 @@
-use {EXIT_SUCCESS, Spawn};
-use error::IsFatalError;
 use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment};
+use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
-use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, GuardBodyPair, Sequence, sequence,
-            SwallowNonFatal, swallow_non_fatal_errors};
+use spawn::{
+    sequence, swallow_non_fatal_errors, EnvFutureExt, ExitResult, FlattenedEnvFuture,
+    GuardBodyPair, Sequence, SwallowNonFatal,
+};
 use std::fmt;
+use {Spawn, EXIT_SUCCESS};
 
 /// Spawns an `If` commands from number of conditional branches.
 ///
@@ -13,46 +15,48 @@ use std::fmt;
 /// the `else` branch will be run, if present. Otherwise, the `If` command
 /// will exit successfully.
 pub fn if_cmd<C, I, E: ?Sized>(conditionals: C, else_branch: Option<I>) -> If<C::IntoIter, I, E>
-    where C: IntoIterator<Item = GuardBodyPair<I>>,
-          I: IntoIterator,
-          I::Item: Spawn<E>,
+where
+    C: IntoIterator<Item = GuardBodyPair<I>>,
+    I: IntoIterator,
+    I::Item: Spawn<E>,
 {
     If {
         state: State::Conditionals {
             current: None,
             conditionals: conditionals.into_iter(),
             else_branch: else_branch,
-        }
+        },
     }
 }
 
 /// A future representing the execution of an `if` command.
 #[must_use = "futures do nothing unless polled"]
 pub struct If<C, I, E: ?Sized>
-    where I: IntoIterator,
-          I::Item: Spawn<E>,
+where
+    I: IntoIterator,
+    I::Item: Spawn<E>,
 {
     state: State<C, I, E>,
 }
 
 impl<S, C, I, E: ?Sized> fmt::Debug for If<C, I, E>
-    where C: fmt::Debug,
-          I: IntoIterator<Item = S> + fmt::Debug,
-          I::IntoIter: fmt::Debug,
-          S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    C: fmt::Debug,
+    I: IntoIterator<Item = S> + fmt::Debug,
+    I::IntoIter: fmt::Debug,
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("If")
-            .field("state", &self.state)
-            .finish()
+        fmt.debug_struct("If").field("state", &self.state).finish()
     }
 }
 
 enum State<C, I, E: ?Sized>
-    where I: IntoIterator,
-          I::Item: Spawn<E>,
+where
+    I: IntoIterator,
+    I::Item: Spawn<E>,
 {
     Conditionals {
         current: Option<Branch<I::IntoIter, E>>,
@@ -64,35 +68,38 @@ enum State<C, I, E: ?Sized>
 }
 
 impl<S, C, I, E: ?Sized> fmt::Debug for State<C, I, E>
-    where C: fmt::Debug,
-          I: IntoIterator<Item = S> + fmt::Debug,
-          I::IntoIter: fmt::Debug,
-          S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    C: fmt::Debug,
+    I: IntoIterator<Item = S> + fmt::Debug,
+    I::IntoIter: fmt::Debug,
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            State::Conditionals { ref current, ref conditionals, ref else_branch } => {
-                fmt.debug_struct("State::Conditionals")
-                    .field("current", current)
-                    .field("conditionals", conditionals)
-                    .field("else_branch", else_branch)
-                    .finish()
-            },
-            State::Body(ref b) => fmt.debug_tuple("State::Body")
-                .field(b)
+            State::Conditionals {
+                ref current,
+                ref conditionals,
+                ref else_branch,
+            } => fmt
+                .debug_struct("State::Conditionals")
+                .field("current", current)
+                .field("conditionals", conditionals)
+                .field("else_branch", else_branch)
                 .finish(),
+            State::Body(ref b) => fmt.debug_tuple("State::Body").field(b).finish(),
         }
     }
 }
 
 impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
-    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
-          C: Iterator<Item = GuardBodyPair<I>>,
-          I: IntoIterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError,
+where
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    C: Iterator<Item = GuardBodyPair<I>>,
+    I: IntoIterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError,
 {
     type Item = ExitResult<S::Future>;
     type Error = S::Error;
@@ -103,7 +110,7 @@ impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
                 State::Conditionals {
                     ref mut current,
                     ref mut conditionals,
-                    ref mut else_branch
+                    ref mut else_branch,
                 } => {
                     let body = if let Some(ref mut branch) = *current {
                         try_ready!(branch.poll(env))
@@ -123,17 +130,15 @@ impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
                                 });
 
                                 continue;
-                            },
-
-                            None => {
-                                match else_branch.take() {
-                                    Some(els) => State::Body(sequence(els)),
-                                    None => {
-                                        let exit = ExitResult::Ready(EXIT_SUCCESS);
-                                        return Ok(Async::Ready(exit));
-                                    },
-                                }
                             }
+
+                            None => match else_branch.take() {
+                                Some(els) => State::Body(sequence(els)),
+                                None => {
+                                    let exit = ExitResult::Ready(EXIT_SUCCESS);
+                                    return Ok(Async::Ready(exit));
+                                }
+                            },
                         },
                     }
                 }
@@ -147,11 +152,13 @@ impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Conditionals { ref mut current, ..  } => {
+            State::Conditionals {
+                ref mut current, ..
+            } => {
                 if let Some(ref mut branch) = *current {
                     branch.cancel(env)
                 }
-            },
+            }
 
             State::Body(ref mut f) => f.cancel(env),
         }
@@ -166,18 +173,20 @@ type FlattenedSequence<I, F, E> = FlattenedEnvFuture<Sequence<I, E>, ExitResult<
 /// can be run by the caller.
 #[must_use = "futures do nothing unless polled"]
 struct Branch<I, E: ?Sized>
-    where I: Iterator,
-          I::Item: Spawn<E>,
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
 {
     guard: SwallowNonFatal<FlattenedSequence<I, <I::Item as Spawn<E>>::Future, E>>,
     body: Option<I>,
 }
 
 impl<I, S, E: ?Sized> fmt::Debug for Branch<I, E>
-    where I: Iterator<Item = S> + fmt::Debug,
-          S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    I: Iterator<Item = S> + fmt::Debug,
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Branch")
@@ -188,10 +197,11 @@ impl<I, S, E: ?Sized> fmt::Debug for Branch<I, E>
 }
 
 impl<S, I, E: ?Sized> EnvFuture<E> for Branch<I, E>
-    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
-          I: Iterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError,
+where
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    I: Iterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError,
 {
     type Item = Option<I>;
     type Error = S::Error;

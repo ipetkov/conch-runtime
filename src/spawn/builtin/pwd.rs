@@ -1,12 +1,11 @@
-use POLLED_TWICE;
 use clap::{App, AppSettings, Arg};
-use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper,
-          WorkingDirectoryEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper, WorkingDirectoryEnvironment};
 use future::{EnvFuture, Poll};
 use path::{has_dot_components, NormalizationError, NormalizedPath};
 use spawn::ExitResult;
 use std::path::Path;
 use void::Void;
+use POLLED_TWICE;
 
 impl_generic_builtin_cmd! {
     /// Represents a `pwd` builtin command which will
@@ -28,13 +27,12 @@ impl_generic_builtin_cmd! {
 }
 
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
-    where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: AsyncIoEnvironment
-              + FileDescEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
+where
+    T: StringWrapper,
+    I: Iterator<Item = T>,
+    E: AsyncIoEnvironment + FileDescEnvironment + WorkingDirectoryEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
 {
     type Item = ExitResult<PwdFuture<E::WriteAll>>;
     type Error = Void;
@@ -61,7 +59,9 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
                  .help("Display the physical current working directory (all symbolic links resolved).")
             );
 
-        let app_args = self.args.take()
+        let app_args = self
+            .args
+            .take()
             .expect(POLLED_TWICE)
             .into_iter()
             .map(StringWrapper::into_owned);
@@ -99,6 +99,7 @@ fn logical(path: &Path) -> Result<Vec<u8>, NormalizationError> {
 
 fn physical(path: &Path) -> Result<Vec<u8>, NormalizationError> {
     let mut normalized_path = NormalizedPath::new();
-    normalized_path.join_normalized_physical(path)
+    normalized_path
+        .join_normalized_physical(path)
         .map(|()| normalized_path.to_string_lossy().into_owned().into_bytes())
 }

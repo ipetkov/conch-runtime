@@ -12,9 +12,10 @@ mod support;
 pub use self::support::*;
 
 fn run_subshell<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc>>::Error>
-    where I: IntoIterator,
-          I::Item: Spawn<DefaultEnvRc>,
-          <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError + From<Void>
+where
+    I: IntoIterator,
+    I::Item: Spawn<DefaultEnvRc>,
+    <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError + From<Void>,
 {
     let (mut lp, env) = new_env();
     let future = subshell(cmds, &env).flatten();
@@ -24,10 +25,7 @@ fn run_subshell<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc
 #[test]
 fn should_resolve_to_last_status() {
     let exit = ExitStatus::Code(42);
-    let cmds = vec!(
-        mock_status(EXIT_SUCCESS),
-        mock_status(exit),
-    );
+    let cmds = vec![mock_status(EXIT_SUCCESS), mock_status(exit)];
 
     assert_eq!(run_subshell(cmds), Ok(exit));
 }
@@ -40,27 +38,18 @@ fn should_resolve_successfully_for_no_commands() {
 
 #[test]
 fn should_swallow_errors() {
-    let cmds = vec!(
-        mock_error(false),
-        mock_status(EXIT_SUCCESS),
-    );
+    let cmds = vec![mock_error(false), mock_status(EXIT_SUCCESS)];
 
     assert_eq!(run_subshell(cmds), Ok(EXIT_SUCCESS));
 
-    let cmds = vec!(
-        mock_error(true),
-        mock_status(EXIT_SUCCESS),
-    );
+    let cmds = vec![mock_error(true), mock_status(EXIT_SUCCESS)];
 
     assert_eq!(run_subshell(cmds), Ok(EXIT_ERROR));
 }
 
 #[test]
 fn should_terminate_on_fatal_errors_but_swallow_them() {
-    let cmds = vec!(
-        mock_error(true),
-        mock_panic("should not run"),
-    );
+    let cmds = vec![mock_error(true), mock_panic("should not run")];
 
     assert_eq!(run_subshell(cmds), Ok(EXIT_ERROR));
 }
@@ -72,9 +61,7 @@ fn should_isolate_parent_env_from_any_changes() {
     let original_status = ExitStatus::Code(5);
     env.set_last_status(original_status);
 
-    let cmds = vec!(
-        mock_status(ExitStatus::Code(42)),
-    );
+    let cmds = vec![mock_status(ExitStatus::Code(42))];
 
     let future = subshell(cmds, &env).flatten();
     lp.run(future).expect("subshell failed");

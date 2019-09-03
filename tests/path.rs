@@ -1,6 +1,8 @@
 use std::fs;
-#[cfg(unix)] use std::os::unix::fs::symlink as symlink_dir;
-#[cfg(windows)] use std::os::windows::fs::symlink_dir as symlink_dir;
+#[cfg(unix)]
+use std::os::unix::fs::symlink as symlink_dir;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_dir;
 use std::path::{Path, PathBuf};
 
 #[macro_use]
@@ -33,9 +35,8 @@ fn join_logical_normalizes_relative_paths() {
 
 #[test]
 fn new_normalized_logical_normalizes_relative_paths() {
-    let path = NormalizedPath::new_normalized_logical(PathBuf::from(
-        "foo/bar/./../qux/./bar/../baz"
-    ));
+    let path =
+        NormalizedPath::new_normalized_logical(PathBuf::from("foo/bar/./../qux/./bar/../baz"));
     assert_eq!(*path, Path::new("foo/qux/baz"));
 }
 
@@ -44,8 +45,9 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
     // NB: on windows we apparently can't append a path with `/` separators
     // if the path we're joining to has already been canonicalized
     fn join_path<I>(path: &Path, components: I) -> PathBuf
-        where I: IntoIterator,
-              I::Item: AsRef<Path>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<Path>,
     {
         let mut buf = path.to_path_buf();
         for c in components {
@@ -56,7 +58,10 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
     }
 
     let tempdir = mktmp!();
-    let tempdir_path = tempdir.path().canonicalize().expect("failed to canonicalize");
+    let tempdir_path = tempdir
+        .path()
+        .canonicalize()
+        .expect("failed to canonicalize");
 
     let path_real = tempdir_path.join("real");
     let path_sym = tempdir_path.join("sym");
@@ -100,7 +105,8 @@ fn join_physical_normalizes_paths_and_resolves_symlinks() {
 
         let to_join = ["..", "if_this_exists_the_world_has_ended", "..", "foo", "."];
         let to_join_buf = join_path(&path_sym, &to_join);
-        path.join_normalized_physical(to_join_buf.clone()).unwrap_err();
+        path.join_normalized_physical(to_join_buf.clone())
+            .unwrap_err();
         assert_eq!(path, orig_path);
 
         NormalizedPath::new_normalized_physical(to_join_buf)

@@ -41,11 +41,11 @@ fn test_escaped_eval() {
 
 #[test]
 fn test_special_literals_eval_properly() {
-    assert_eval_equals_single(Star,        "*".to_owned());
-    assert_eval_equals_single(Question,    "?".to_owned());
-    assert_eval_equals_single(SquareOpen,  "[".to_owned());
+    assert_eval_equals_single(Star, "*".to_owned());
+    assert_eval_equals_single(Question, "?".to_owned());
+    assert_eval_equals_single(SquareOpen, "[".to_owned());
     assert_eval_equals_single(SquareClose, "]".to_owned());
-    assert_eval_equals_single(Colon,       ":".to_owned());
+    assert_eval_equals_single(Colon, ":".to_owned());
 }
 
 #[test]
@@ -60,9 +60,7 @@ fn test_lone_tilde_expansion() {
     env.set_var("HOME".to_owned(), home_value.clone());
 
     let word: SimpleWord = Tilde;
-    let result = word.eval_with_config(&mut env, cfg)
-        .pin_env(env)
-        .wait();
+    let result = word.eval_with_config(&mut env, cfg).pin_env(env).wait();
 
     assert_eq!(result, Ok(Fields::Single(home_value)));
 }
@@ -117,17 +115,15 @@ fn test_param_splitting() {
     for &split in &[true, false] {
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All, // Should have no effect
-            split_fields_further: split, // Should have effect
+            split_fields_further: split,          // Should have effect
         };
 
         // Specific fields here aren't too important
-        let fields = Fields::Split(vec!("~".to_owned(), "foo".to_owned()));
+        let fields = Fields::Split(vec!["~".to_owned(), "foo".to_owned()]);
 
         let mut env = VarEnv::<String, String>::new();
         let word: SimpleWord = Param(MockParam::Split(split, fields.clone()));
-        let result = word.eval_with_config(&mut env, cfg)
-            .pin_env(env)
-            .wait();
+        let result = word.eval_with_config(&mut env, cfg).pin_env(env).wait();
 
         assert_eq!(result, Ok(fields));
     }

@@ -1,18 +1,19 @@
-use {EXIT_SUCCESS, ExitStatus, POLLED_TWICE};
-use future::{Async, EnvFuture, Poll};
-use futures::Future;
 use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use error::IsFatalError;
-use spawn::{ExitResult, SpawnRef, SwallowNonFatal, swallow_non_fatal_errors};
+use future::{Async, EnvFuture, Poll};
+use futures::Future;
+use spawn::{swallow_non_fatal_errors, ExitResult, SpawnRef, SwallowNonFatal};
 use std::fmt;
 use std::mem;
+use {ExitStatus, EXIT_SUCCESS, POLLED_TWICE};
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 struct Bridge<F>(Option<F>);
 
 impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
-    where F: Future<Item = ExitStatus>
+where
+    F: Future<Item = ExitStatus>,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -31,7 +32,10 @@ impl<F, E: ?Sized> EnvFuture<E> for Bridge<F>
 type Last<F> = SwallowNonFatal<Bridge<ExitResult<F>>>;
 
 #[must_use = "futures do nothing unless polled"]
-pub struct VecSequence<S, E: ?Sized> where S: SpawnRef<E> {
+pub struct VecSequence<S, E: ?Sized>
+where
+    S: SpawnRef<E>,
+{
     state: State<VecSequenceWithLast<S, E>, S, Last<S::Future>>,
 }
 
@@ -42,9 +46,10 @@ enum State<V, S, L> {
 }
 
 impl<S, E: ?Sized> fmt::Debug for VecSequence<S, E>
-    where S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    S: SpawnRef<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("VecSequence")
@@ -53,18 +58,22 @@ impl<S, E: ?Sized> fmt::Debug for VecSequence<S, E>
     }
 }
 
-impl<S, E: ?Sized> VecSequence<S, E> where S: SpawnRef<E> {
+impl<S, E: ?Sized> VecSequence<S, E>
+where
+    S: SpawnRef<E>,
+{
     pub fn new(commands: Vec<S>) -> Self {
         VecSequence {
-            state: State::Init(VecSequenceWithLast::new(commands))
+            state: State::Init(VecSequenceWithLast::new(commands)),
         }
     }
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
-    where S: SpawnRef<E>,
-          S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment,
+where
+    S: SpawnRef<E>,
+    S::Error: IsFatalError,
+    E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = (Vec<S>, ExitStatus);
     type Error = S::Error;
@@ -75,13 +84,13 @@ impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
                 State::Init(ref mut f) => {
                     let (body, last) = try_ready!(f.poll(env));
                     State::Last(body, swallow_non_fatal_errors(Bridge(Some(last))))
-                },
+                }
 
                 State::Last(ref mut body, ref mut last) => {
                     let status = try_ready!(last.poll(env));
                     let body = mem::replace(body, Vec::new());
                     return Ok(Async::Ready((body, status)));
-                },
+                }
             };
 
             self.state = next_state
@@ -101,8 +110,9 @@ impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
 struct MapToExitResult<F>(F);
 
 impl<F, E: ?Sized> EnvFuture<E> for MapToExitResult<F>
-    where F: EnvFuture<E>,
-          F::Item: Future<Item = ExitStatus, Error = F::Error>,
+where
+    F: EnvFuture<E>,
+    F::Item: Future<Item = ExitStatus, Error = F::Error>,
 {
     type Item = ExitResult<F::Item>;
     type Error = F::Error;
@@ -119,15 +129,19 @@ impl<F, E: ?Sized> EnvFuture<E> for MapToExitResult<F>
 
 /// Identical to `VecSequence` but yields the last command's `Future`.
 #[must_use = "futures do nothing unless polled"]
-pub struct VecSequenceWithLast<S, E: ?Sized> where S: SpawnRef<E> {
+pub struct VecSequenceWithLast<S, E: ?Sized>
+where
+    S: SpawnRef<E>,
+{
     commands: Vec<S>,
     current: Option<SwallowNonFatal<MapToExitResult<S::EnvFuture>>>,
     next_idx: usize,
 }
 
 impl<S, E: ?Sized> fmt::Debug for VecSequenceWithLast<S, E>
-    where S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
+where
+    S: SpawnRef<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("VecSequenceWithLast")
@@ -138,7 +152,10 @@ impl<S, E: ?Sized> fmt::Debug for VecSequenceWithLast<S, E>
     }
 }
 
-impl<S, E: ?Sized> VecSequenceWithLast<S, E> where S: SpawnRef<E> {
+impl<S, E: ?Sized> VecSequenceWithLast<S, E>
+where
+    S: SpawnRef<E>,
+{
     pub fn new(commands: Vec<S>) -> Self {
         VecSequenceWithLast {
             commands: commands,
@@ -149,9 +166,10 @@ impl<S, E: ?Sized> VecSequenceWithLast<S, E> where S: SpawnRef<E> {
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for VecSequenceWithLast<S, E>
-    where S: SpawnRef<E>,
-          S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment,
+where
+    S: SpawnRef<E>,
+    S::Error: IsFatalError,
+    E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = (Vec<S>, ExitResult<S::Future>);
     type Error = S::Error;
@@ -165,12 +183,14 @@ impl<S, E: ?Sized> EnvFuture<E> for VecSequenceWithLast<S, E>
                 ExitResult::Ready(EXIT_SUCCESS)
             };
 
-            let next = self.commands.get(self.next_idx)
+            let next = self
+                .commands
+                .get(self.next_idx)
                 .map(|cmd| swallow_non_fatal_errors(MapToExitResult(cmd.spawn_ref(env))));
             self.next_idx += 1;
 
             match next {
-                cur@Some(_) => self.current = cur,
+                cur @ Some(_) => self.current = cur,
                 None => {
                     let commands = mem::replace(&mut self.commands, Vec::new());
                     return Ok(Async::Ready((commands, ret)));
@@ -183,4 +203,3 @@ impl<S, E: ?Sized> EnvFuture<E> for VecSequenceWithLast<S, E>
         self.current.as_mut().map(|f| f.cancel(env));
     }
 }
-

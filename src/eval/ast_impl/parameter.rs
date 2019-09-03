@@ -1,16 +1,17 @@
-use ExitStatus;
 use conch_parser::ast::Parameter;
 use env::{ArgumentsEnvironment, LastStatusEnvironment, StringWrapper, VariableEnvironment};
 use eval::{Fields, ParamEval};
 use io::getpid;
 use std::borrow::Borrow;
+use ExitStatus;
 
 const EXIT_SIGNAL_OFFSET: u32 = 128;
 
 impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
-    where T: StringWrapper,
-          E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
-          E::VarName: Borrow<String>,
+where
+    T: StringWrapper,
+    E: ArgumentsEnvironment<Arg = T> + LastStatusEnvironment + VariableEnvironment<Var = T>,
+    E::VarName: Borrow<String>,
 {
     type EvalResult = T;
 
@@ -54,15 +55,15 @@ impl<T, E: ?Sized> ParamEval<E> for Parameter<T>
 
     fn assig_name(&self) -> Option<Self::EvalResult> {
         match *self {
-            Parameter::At            |
-            Parameter::Star          |
-            Parameter::Pound         |
-            Parameter::Dollar        |
-            Parameter::Dash          |
-            Parameter::Bang          |
-            Parameter::Question      |
-            Parameter::Positional(_) => None,
-            Parameter::Var(ref var)  => Some(var.clone()),
+            Parameter::At
+            | Parameter::Star
+            | Parameter::Pound
+            | Parameter::Dollar
+            | Parameter::Dash
+            | Parameter::Bang
+            | Parameter::Question
+            | Parameter::Positional(_) => None,
+            Parameter::Var(ref var) => Some(var.clone()),
         }
     }
 }

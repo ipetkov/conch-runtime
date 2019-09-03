@@ -1,7 +1,7 @@
-use {ExitStatus, EXIT_ERROR};
-use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportFailureEnvironment};
+use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
+use {ExitStatus, EXIT_ERROR};
 
 /// A future representing a word evaluation and conditionally splitting it afterwards.
 #[must_use = "futures do nothing unless polled"]
@@ -15,16 +15,15 @@ pub struct SwallowNonFatal<F> {
 ///
 /// All other responses are propagated through as is.
 pub fn swallow_non_fatal_errors<F>(inner: F) -> SwallowNonFatal<F> {
-    SwallowNonFatal {
-        inner: inner,
-    }
+    SwallowNonFatal { inner: inner }
 }
 
 impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
-    where F: EnvFuture<E>,
-          F::Item: From<ExitStatus>,
-          F::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment,
+where
+    F: EnvFuture<E>,
+    F::Item: From<ExitStatus>,
+    F::Error: IsFatalError,
+    E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -40,7 +39,7 @@ impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
                     env.report_failure(&e);
                     Ok(Async::Ready(EXIT_ERROR.into()))
                 }
-            },
+            }
         }
     }
 

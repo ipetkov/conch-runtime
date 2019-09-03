@@ -23,7 +23,8 @@ fn is_interactive() {
 
         let ret: Result<_, ()> = Ok(());
         ret
-    })).unwrap();
+    }))
+    .unwrap();
 }
 
 #[test]
@@ -31,9 +32,9 @@ fn sets_pwd_and_oldpwd_env_vars() {
     let mut lp = Core::new().unwrap();
     let handle = lp.handle();
 
-    let mut env = lp.run(lazy(|| {
-        DefaultEnv::<String>::new(handle, Some(1))
-    })).unwrap();
+    let mut env = lp
+        .run(lazy(|| DefaultEnv::<String>::new(handle, Some(1))))
+        .unwrap();
 
     let old_cwd;
     {
@@ -46,12 +47,16 @@ fn sets_pwd_and_oldpwd_env_vars() {
         assert_eq!(pwd, Some(&old_cwd));
     }
 
-    env.change_working_dir(Cow::Borrowed(mktmp!().path())).expect("failed to cd");
+    env.change_working_dir(Cow::Borrowed(mktmp!().path()))
+        .expect("failed to cd");
 
     let oldpwd = env.var("OLDPWD");
     let pwd = env.var("PWD");
 
     assert_eq!(oldpwd, Some(&old_cwd));
     assert_ne!(oldpwd, pwd);
-    assert_eq!(pwd.map(|s| &**s), Some(&*env.current_working_dir().to_string_lossy()));
+    assert_eq!(
+        pwd.map(|s| &**s),
+        Some(&*env.current_working_dir().to_string_lossy())
+    );
 }

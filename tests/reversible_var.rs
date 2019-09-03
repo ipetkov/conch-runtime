@@ -1,13 +1,15 @@
 extern crate conch_runtime;
 
-use conch_runtime::env::{ExportedVariableEnvironment, VarEnv, VarEnvRestorer,
-                         VarRestorer, VariableEnvironment, UnsetVariableEnvironment};
+use conch_runtime::env::{
+    ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VarEnvRestorer, VarRestorer,
+    VariableEnvironment,
+};
 
 #[test]
 fn smoke() {
     let key_exported = "key_exported";
     let val_existing_exported = "var_exported";
-    let mut env = VarEnv::with_env_vars(vec!((key_exported, val_existing_exported)));
+    let mut env = VarEnv::with_env_vars(vec![(key_exported, val_existing_exported)]);
 
     let key_existing = "key_existing";
     let val_existing = "val_existing";

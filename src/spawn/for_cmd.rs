@@ -1,6 +1,7 @@
-use {EXIT_ERROR, EXIT_SUCCESS};
+use env::{
+    ArgumentsEnvironment, LastStatusEnvironment, ReportFailureEnvironment, VariableEnvironment,
+};
 use error::IsFatalError;
-use env::{ArgumentsEnvironment, LastStatusEnvironment, ReportFailureEnvironment, VariableEnvironment};
 use eval::WordEval;
 use future::{Async, EnvFuture, Poll};
 use spawn::{ExitResult, SpawnRef, VecSequence, VecSequenceWithLast};
@@ -8,20 +9,26 @@ use std::fmt;
 use std::iter::Peekable;
 use std::mem;
 use std::vec;
+use {EXIT_ERROR, EXIT_SUCCESS};
 
 /// Spawns a `for` loop with all the fields when `words` are evaluated, or with
 /// the environment's currently set arguments if no `words` are specified.
 ///
 /// For each element in the environment's arguments, `name` will be assigned
 /// with its value and `body` will be executed.
-pub fn for_loop<T, I, S, E: ?Sized>(name: T, words: Option<I>, body: Vec<S>, env: &E)
-    -> For<I::IntoIter, S, E>
-    where I: IntoIterator,
-          I::Item: WordEval<E>,
-          S: SpawnRef<E>,
-          E: ArgumentsEnvironment + VariableEnvironment,
-          E::VarName: From<T>,
-          E::Var: From<E::Arg>,
+pub fn for_loop<T, I, S, E: ?Sized>(
+    name: T,
+    words: Option<I>,
+    body: Vec<S>,
+    env: &E,
+) -> For<I::IntoIter, S, E>
+where
+    I: IntoIterator,
+    I::Item: WordEval<E>,
+    S: SpawnRef<E>,
+    E: ArgumentsEnvironment + VariableEnvironment,
+    E::VarName: From<T>,
+    E::Var: From<E::Arg>,
 {
     let kind = match words {
         Some(ws) => {
@@ -35,27 +42,30 @@ pub fn for_loop<T, I, S, E: ?Sized>(name: T, words: Option<I>, body: Vec<S>, env
                 name: Some(name.into()),
                 body: body,
             }
-        },
+        }
         None => Kind::Loop(for_args(name, body, env)),
     };
 
-    For {
-        kind: kind,
-    }
+    For { kind: kind }
 }
 
 /// Spawns a `for` loop with the environment's currently set arguments.
 ///
 /// For each element in the environment's arguments, `name` will be assigned
 /// with its value and `body` will be executed.
-pub fn for_args<T, S, E: ?Sized>(name: T, body: Vec<S>, env: &E)
-    -> ForArgs<vec::IntoIter<E::Var>, S, E>
-    where S: SpawnRef<E>,
-          E: ArgumentsEnvironment + VariableEnvironment,
-          E::VarName: From<T>,
-          E::Var: From<E::Arg>,
+pub fn for_args<T, S, E: ?Sized>(
+    name: T,
+    body: Vec<S>,
+    env: &E,
+) -> ForArgs<vec::IntoIter<E::Var>, S, E>
+where
+    S: SpawnRef<E>,
+    E: ArgumentsEnvironment + VariableEnvironment,
+    E::VarName: From<T>,
+    E::Var: From<E::Arg>,
 {
-    let args = env.args()
+    let args = env
+        .args()
         .into_iter()
         .cloned()
         .map(E::Var::from)
@@ -68,12 +78,16 @@ pub fn for_args<T, S, E: ?Sized>(name: T, body: Vec<S>, env: &E)
 ///
 /// For each element in `args`, `name` will be assigned with its value and
 /// `body` will be executed.
-pub fn for_with_args<T, I, S, E: ?Sized>(name: T, args: I, body: Vec<S>)
-    -> ForArgs<I::IntoIter, S, E>
-    where I: IntoIterator<Item = E::Var>,
-          S: SpawnRef<E>,
-          E: VariableEnvironment,
-          E::VarName: From<T>,
+pub fn for_with_args<T, I, S, E: ?Sized>(
+    name: T,
+    args: I,
+    body: Vec<S>,
+) -> ForArgs<I::IntoIter, S, E>
+where
+    I: IntoIterator<Item = E::Var>,
+    S: SpawnRef<E>,
+    E: VariableEnvironment,
+    E::VarName: From<T>,
 {
     ForArgs {
         name: Some(name.into()),
@@ -100,41 +114,42 @@ type ForKind<V, I, F, N, S, E> = Kind<V, I, F, N, S, ForArgs<vec::IntoIter<V>, S
 /// A future representing the execution of a `for` loop command.
 #[must_use = "futures do nothing unless polled"]
 pub struct For<I, S, E: ?Sized>
-    where I: Iterator,
-          I::Item: WordEval<E>,
-          S: SpawnRef<E>,
-          E: VariableEnvironment,
+where
+    I: Iterator,
+    I::Item: WordEval<E>,
+    S: SpawnRef<E>,
+    E: VariableEnvironment,
 {
     #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     kind: ForKind<E::Var, I, <I::Item as WordEval<E>>::EvalFuture, E::VarName, S, E>,
 }
 
 impl<I, W, S, E: ?Sized> fmt::Debug for For<I, S, E>
-    where I: Iterator<Item = W> + fmt::Debug,
-          W: WordEval<E> + fmt::Debug,
-          W::EvalFuture: fmt::Debug,
-          S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
-          E: VariableEnvironment,
-          E::Var: fmt::Debug,
-          E::VarName: fmt::Debug,
+where
+    I: Iterator<Item = W> + fmt::Debug,
+    W: WordEval<E> + fmt::Debug,
+    W::EvalFuture: fmt::Debug,
+    S: SpawnRef<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
+    E: VariableEnvironment,
+    E::Var: fmt::Debug,
+    E::VarName: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("For")
-            .field("kind", &self.kind)
-            .finish()
+        fmt.debug_struct("For").field("kind", &self.kind).finish()
     }
 }
 
 impl<I, W, S, E: ?Sized> EnvFuture<E> for For<I, S, E>
-    where I: Iterator<Item = W>,
-          W: WordEval<E>,
-          W::EvalResult: Into<E::Var>,
-          S: SpawnRef<E>,
-          S::Error: From<W::Error> + IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment,
-          E::VarName: Clone,
+where
+    I: Iterator<Item = W>,
+    W: WordEval<E>,
+    W::EvalResult: Into<E::Var>,
+    S: SpawnRef<E>,
+    S::Error: From<W::Error> + IsFatalError,
+    E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment,
+    E::VarName: Clone,
 {
     type Item = ExitResult<S::Future>;
     type Error = S::Error;
@@ -156,8 +171,8 @@ impl<I, W, S, E: ?Sized> EnvFuture<E> for For<I, S, E>
                                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                                 Err(e) => {
                                     env.set_last_status(EXIT_ERROR);
-                                    return Err(e.into())
-                                },
+                                    return Err(e.into());
+                                }
                             };
                         }
 
@@ -172,7 +187,7 @@ impl<I, W, S, E: ?Sized> EnvFuture<E> for For<I, S, E>
                     let body = mem::replace(body, Vec::new());
 
                     Kind::Loop(for_with_args(name, args, body))
-                },
+                }
 
                 Kind::Loop(ref mut l) => return l.poll(env),
             };
@@ -183,7 +198,11 @@ impl<I, W, S, E: ?Sized> EnvFuture<E> for For<I, S, E>
 
     fn cancel(&mut self, env: &mut E) {
         match self.kind {
-            Kind::Word { ref mut current, .. } => { current.as_mut().map(|f| f.cancel(env)); },
+            Kind::Word {
+                ref mut current, ..
+            } => {
+                current.as_mut().map(|f| f.cancel(env));
+            }
             Kind::Loop(ref mut l) => l.cancel(env),
         }
     }
@@ -192,9 +211,10 @@ impl<I, W, S, E: ?Sized> EnvFuture<E> for For<I, S, E>
 /// A future representing the execution of a `for` loop command.
 #[must_use = "futures do nothing unless polled"]
 pub struct ForArgs<I, S, E: ?Sized>
-    where I: Iterator,
-          S: SpawnRef<E>,
-          E: VariableEnvironment,
+where
+    I: Iterator,
+    S: SpawnRef<E>,
+    E: VariableEnvironment,
 {
     name: Option<E::VarName>,
     args: Peekable<I>,
@@ -203,13 +223,14 @@ pub struct ForArgs<I, S, E: ?Sized>
 }
 
 impl<I, S, E: ?Sized> fmt::Debug for ForArgs<I, S, E>
-    where I: Iterator + fmt::Debug,
-          I::Item: fmt::Debug,
-          S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
-          E: VariableEnvironment,
-          E::VarName: fmt::Debug
+where
+    I: Iterator + fmt::Debug,
+    I::Item: fmt::Debug,
+    S: SpawnRef<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
+    E: VariableEnvironment,
+    E::VarName: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ForArgs")
@@ -221,38 +242,35 @@ impl<I, S, E: ?Sized> fmt::Debug for ForArgs<I, S, E>
     }
 }
 
-enum State<S, E: ?Sized> where S: SpawnRef<E> {
+enum State<S, E: ?Sized>
+where
+    S: SpawnRef<E>,
+{
     Init(VecSequence<S, E>),
     Last(VecSequenceWithLast<S, E>),
 }
 
 impl<S, E: ?Sized> fmt::Debug for State<S, E>
-    where S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    S: SpawnRef<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            State::Init(ref init) => {
-                fmt.debug_tuple("State::Init")
-                    .field(init)
-                    .finish()
-            },
-            State::Last(ref last) => {
-                fmt.debug_tuple("State::Last")
-                    .field(last)
-                    .finish()
-            },
+            State::Init(ref init) => fmt.debug_tuple("State::Init").field(init).finish(),
+            State::Last(ref last) => fmt.debug_tuple("State::Last").field(last).finish(),
         }
     }
 }
 
 impl<I, S, E: ?Sized> EnvFuture<E> for ForArgs<I, S, E>
-    where I: Iterator<Item = E::Var>,
-          S: SpawnRef<E>,
-          S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment,
-          E::VarName: Clone,
+where
+    I: Iterator<Item = E::Var>,
+    S: SpawnRef<E>,
+    S::Error: IsFatalError,
+    E: LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment,
+    E::VarName: Clone,
 {
     type Item = ExitResult<S::Future>;
     type Error = S::Error;
@@ -265,13 +283,13 @@ impl<I, S, E: ?Sized> EnvFuture<E> for ForArgs<I, S, E>
                     self.body = body;
                     env.set_last_status(status);
                     status
-                },
+                }
 
                 Some(State::Last(ref mut last)) => {
                     let (body, result) = try_ready!(last.poll(env));
                     self.body = body;
                     return Ok(Async::Ready(result));
-                },
+                }
 
                 None => EXIT_SUCCESS,
             };

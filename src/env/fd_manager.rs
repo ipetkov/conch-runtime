@@ -1,22 +1,26 @@
-use Fd;
-use io::Permissions;
 use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
+use io::Permissions;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
+use Fd;
 
 /// A marker trait for implementations which can open, store, and perform
 /// async I/O operations on file handles.
-pub trait FileDescManagerEnvironment: FileDescOpener
+pub trait FileDescManagerEnvironment:
+    FileDescOpener
     + FileDescEnvironment<FileHandle = <Self as FileDescOpener>::OpenedFileHandle>
     + AsyncIoEnvironment<IoHandle = <Self as FileDescOpener>::OpenedFileHandle>
-{}
+{
+}
 
 impl<T> FileDescManagerEnvironment for T
-    where T: FileDescOpener,
-          T: FileDescEnvironment<FileHandle = <T as FileDescOpener>::OpenedFileHandle>,
-          T: AsyncIoEnvironment<IoHandle = <T as FileDescOpener>::OpenedFileHandle>,
-{}
+where
+    T: FileDescOpener,
+    T: FileDescEnvironment<FileHandle = <T as FileDescOpener>::OpenedFileHandle>,
+    T: AsyncIoEnvironment<IoHandle = <T as FileDescOpener>::OpenedFileHandle>,
+{
+}
 
 /// An environment implementation which manages opening, storing, and performing
 /// async I/O operations on file descriptor handles.
@@ -39,9 +43,10 @@ impl<O, S, A> FileDescManagerEnv<O, S, A> {
 }
 
 impl<O, S, A> SubEnvironment for FileDescManagerEnv<O, S, A>
-    where O: SubEnvironment,
-          S: SubEnvironment,
-          A: SubEnvironment,
+where
+    O: SubEnvironment,
+    S: SubEnvironment,
+    A: SubEnvironment,
 {
     fn sub_env(&self) -> Self {
         Self {
@@ -53,28 +58,30 @@ impl<O, S, A> SubEnvironment for FileDescManagerEnv<O, S, A>
 }
 
 impl<O, S, A> FileDescOpener for FileDescManagerEnv<O, S, A>
-    where O: FileDescOpener,
-          A: AsyncIoEnvironment,
-          A::IoHandle: From<O::OpenedFileHandle>,
+where
+    O: FileDescOpener,
+    A: AsyncIoEnvironment,
+    A::IoHandle: From<O::OpenedFileHandle>,
 {
     type OpenedFileHandle = A::IoHandle;
 
     fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
-        self.opener.open_path(path, opts).map(Self::OpenedFileHandle::from)
+        self.opener
+            .open_path(path, opts)
+            .map(Self::OpenedFileHandle::from)
     }
 
     fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
-        self.opener.open_pipe().map(|pipe| {
-            Pipe {
-                reader: pipe.reader.into(),
-                writer: pipe.writer.into(),
-            }
+        self.opener.open_pipe().map(|pipe| Pipe {
+            reader: pipe.reader.into(),
+            writer: pipe.writer.into(),
         })
     }
 }
 
 impl<O, S, A> FileDescEnvironment for FileDescManagerEnv<O, S, A>
-    where S: FileDescEnvironment,
+where
+    S: FileDescEnvironment,
 {
     type FileHandle = S::FileHandle;
 
@@ -92,7 +99,8 @@ impl<O, S, A> FileDescEnvironment for FileDescManagerEnv<O, S, A>
 }
 
 impl<O, S, A> AsyncIoEnvironment for FileDescManagerEnv<O, S, A>
-    where A: AsyncIoEnvironment
+where
+    A: AsyncIoEnvironment,
 {
     type IoHandle = A::IoHandle;
     type Read = A::Read;

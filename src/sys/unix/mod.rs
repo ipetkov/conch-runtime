@@ -8,8 +8,9 @@ pub mod io;
 
 /// Unix-specific environment extensions
 pub mod env {
-    pub use super::fd_manager::{EventedAsyncIoEnv, ManagedAsyncRead,
-                                ManagedFileDesc, ManagedWriteAll};
+    pub use super::fd_manager::{
+        EventedAsyncIoEnv, ManagedAsyncRead, ManagedFileDesc, ManagedWriteAll,
+    };
 
     /// A module which provides atomic implementations (which can be `Send` and
     /// `Sync`) of the various environment interfaces.

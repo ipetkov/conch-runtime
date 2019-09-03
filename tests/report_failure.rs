@@ -1,11 +1,12 @@
 extern crate conch_runtime;
-#[macro_use] extern crate failure;
+#[macro_use]
+extern crate failure;
 extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 
-use conch_runtime::STDERR_FILENO;
 use conch_runtime::io::Permissions;
+use conch_runtime::STDERR_FILENO;
 use tokio_core::reactor::Core;
 
 #[macro_use]

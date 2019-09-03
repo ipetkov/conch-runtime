@@ -1,11 +1,13 @@
-use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use clap::{App, AppSettings, Arg};
-use env::{AsyncIoEnvironment, ArgumentsEnvironment, FileDescEnvironment,
-          ShiftArgumentsEnvironment, StringWrapper};
+use env::{
+    ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment, ShiftArgumentsEnvironment,
+    StringWrapper,
+};
 use future::{Async, EnvFuture, Poll};
 use spawn::ExitResult;
 use std::borrow::Cow;
 use void::Void;
+use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 
 #[derive(Debug, Fail)]
 #[fail(display = "numeric argument required")]
@@ -35,14 +37,12 @@ impl_generic_builtin_cmd! {
 }
 
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
-    where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: AsyncIoEnvironment
-            + ArgumentsEnvironment
-            + FileDescEnvironment
-            + ShiftArgumentsEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
+where
+    T: StringWrapper,
+    I: Iterator<Item = T>,
+    E: AsyncIoEnvironment + ArgumentsEnvironment + FileDescEnvironment + ShiftArgumentsEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
 {
     type Item = ExitResult<ShiftFuture<E::WriteAll>>;
     type Error = Void;
@@ -56,25 +56,31 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
             .setting(AppSettings::NoBinaryName)
             .setting(AppSettings::DisableVersion)
             .about("Shifts positional parameters such that (n+1)th parameter becomes $1, and so on")
-            .arg(Arg::with_name(AMT_ARG_NAME)
-                .help("the amount of arguments to shift")
-                .long_help("the amount of arguments to shift. Must be non negative and <= to $#")
-                .validator(|amt| {
-                    amt.parse::<usize>()
-                        .map(|_| ())
-                        .map_err(|_| NumericArgumentRequiredError.to_string())
-                })
-                .default_value(DEFAULT_SHIFT_AMOUNT)
+            .arg(
+                Arg::with_name(AMT_ARG_NAME)
+                    .help("the amount of arguments to shift")
+                    .long_help(
+                        "the amount of arguments to shift. Must be non negative and <= to $#",
+                    )
+                    .validator(|amt| {
+                        amt.parse::<usize>()
+                            .map(|_| ())
+                            .map_err(|_| NumericArgumentRequiredError.to_string())
+                    })
+                    .default_value(DEFAULT_SHIFT_AMOUNT),
             );
 
-        let app_args = self.args.take()
+        let app_args = self
+            .args
+            .take()
             .expect(POLLED_TWICE)
             .into_iter()
             .map(StringWrapper::into_owned);
 
         let matches = try_and_report!(SHIFT, app.get_matches_from_safe(app_args), env);
 
-        let amt_arg = matches.value_of_lossy(AMT_ARG_NAME)
+        let amt_arg = matches
+            .value_of_lossy(AMT_ARG_NAME)
             .unwrap_or(Cow::Borrowed(DEFAULT_SHIFT_AMOUNT))
             .parse()
             .map_err(|_| NumericArgumentRequiredError);

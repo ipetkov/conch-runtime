@@ -1,9 +1,9 @@
+use super::is_present;
 use env::{StringWrapper, VariableEnvironment};
 use error::ExpansionError;
 use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
 use std::fmt::Display;
-use super::is_present;
 
 /// A future representing a `Assign` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
@@ -34,40 +34,41 @@ pub fn assign<P: ?Sized, W, E: ?Sized>(
     param: &P,
     assign: Option<W>,
     env: &E,
-    cfg: TildeExpansion
+    cfg: TildeExpansion,
 ) -> Assign<W::EvalResult, W::EvalFuture>
-    where P: ParamEval<E, EvalResult = W::EvalResult> + Display,
-          W: WordEval<E>,
+where
+    P: ParamEval<E, EvalResult = W::EvalResult> + Display,
+    W: WordEval<E>,
 {
     let state = match is_present(strict, param.eval(false, env)) {
-        fields@Some(_) => State::ParamVal(fields),
-        None => {
-            match param.assig_name() {
-                None => State::BadAssig(Some(param.to_string())),
-                Some(assig_name) => match assign {
-                    None => State::EmptyAssign(Some(assig_name)),
-                    Some(w) => {
-                        let future = w.eval_with_config(env, WordEvalConfig {
+        fields @ Some(_) => State::ParamVal(fields),
+        None => match param.assig_name() {
+            None => State::BadAssig(Some(param.to_string())),
+            Some(assig_name) => match assign {
+                None => State::EmptyAssign(Some(assig_name)),
+                Some(w) => {
+                    let future = w.eval_with_config(
+                        env,
+                        WordEvalConfig {
                             split_fields_further: false,
                             tilde_expansion: cfg,
-                        });
-                        State::Assign(Some(assig_name), future)
-                    },
-                },
-            }
+                        },
+                    );
+                    State::Assign(Some(assig_name), future)
+                }
+            },
         },
     };
 
-    Assign {
-        state: state,
-    }
+    Assign { state: state }
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for Assign<T, F>
-    where T: StringWrapper,
-          F: EnvFuture<E, Item = Fields<T>>,
-          F::Error: From<ExpansionError>,
-          E: VariableEnvironment<VarName = T, Var = T>,
+where
+    T: StringWrapper,
+    F: EnvFuture<E, Item = Fields<T>>,
+    F::Error: From<ExpansionError>,
+    E: VariableEnvironment<VarName = T, Var = T>,
 {
     type Item = Fields<T>;
     type Error = F::Error;
@@ -77,32 +78,30 @@ impl<T, F, E: ?Sized> EnvFuture<E> for Assign<T, F>
             State::ParamVal(ref mut fields) => {
                 let ret = fields.take().expect("polled twice");
                 Ok(Async::Ready(ret))
-            },
+            }
             State::BadAssig(ref mut param) => {
                 let param = param.take().expect("polled twice");
                 Err(ExpansionError::BadAssig(param).into())
-            },
+            }
 
             State::EmptyAssign(ref mut assig_name) => {
                 let name = assig_name.take().expect("polled twice");
                 env.set_var(name, T::from(String::new()));
                 Ok(Async::Ready(Fields::Zero))
-            },
+            }
 
             State::Assign(ref mut assig_name, ref mut f) => {
                 let fields = try_ready!(f.poll(env));
                 let name = assig_name.take().expect("polled twice");
                 env.set_var(name, fields.clone().join());
                 Ok(Async::Ready(fields))
-            },
+            }
         }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::ParamVal(_) |
-            State::BadAssig(_) |
-            State::EmptyAssign(_) => {},
+            State::ParamVal(_) | State::BadAssig(_) | State::EmptyAssign(_) => {}
             State::Assign(_, ref mut f) => f.cancel(env),
         }
     }

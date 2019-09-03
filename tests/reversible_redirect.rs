@@ -1,11 +1,12 @@
 extern crate conch_runtime;
 
+use conch_runtime::env::{
+    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, PlatformSpecificAsyncRead,
+    PlatformSpecificWriteAll, RedirectEnvRestorer, RedirectRestorer,
+};
+use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::Fd;
-use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
-                         Pipe, PlatformSpecificAsyncRead,
-                         PlatformSpecificWriteAll, RedirectRestorer, RedirectEnvRestorer};
-use conch_runtime::eval::RedirectAction;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
@@ -28,7 +29,9 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
     type FileHandle = T;
 
     fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
-        self.fds.get(&fd).map(|&(ref handle, perms)| (handle, perms))
+        self.fds
+            .get(&fd)
+            .map(|&(ref handle, perms)| (handle, perms))
     }
 
     fn set_file_desc(&mut self, fd: Fd, handle: Self::FileHandle, perms: Permissions) {
@@ -96,25 +99,59 @@ fn smoke() {
     let restorer: &mut dyn RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
 
     // Existing fd set to multiple other values
-    restorer.apply_action(RedirectAction::Open(1, S("x"), Permissions::Read), &mut env).unwrap();
-    restorer.apply_action(RedirectAction::Open(1, S("y"), Permissions::Write), &mut env).unwrap();
-    restorer.apply_action(RedirectAction::HereDoc(1, vec!()), &mut env).unwrap();
+    restorer
+        .apply_action(RedirectAction::Open(1, S("x"), Permissions::Read), &mut env)
+        .unwrap();
+    restorer
+        .apply_action(
+            RedirectAction::Open(1, S("y"), Permissions::Write),
+            &mut env,
+        )
+        .unwrap();
+    restorer
+        .apply_action(RedirectAction::HereDoc(1, vec![]), &mut env)
+        .unwrap();
 
     // Existing fd closed, then opened
-    restorer.apply_action(RedirectAction::Close(2), &mut env).unwrap();
-    restorer.apply_action(RedirectAction::Open(2, S("z"), Permissions::Write), &mut env).unwrap();
+    restorer
+        .apply_action(RedirectAction::Close(2), &mut env)
+        .unwrap();
+    restorer
+        .apply_action(
+            RedirectAction::Open(2, S("z"), Permissions::Write),
+            &mut env,
+        )
+        .unwrap();
 
     // Existing fd changed, then closed
-    restorer.apply_action(RedirectAction::Open(3, S("w"), Permissions::Write), &mut env).unwrap();
-    restorer.apply_action(RedirectAction::Close(3), &mut env).unwrap();
+    restorer
+        .apply_action(
+            RedirectAction::Open(3, S("w"), Permissions::Write),
+            &mut env,
+        )
+        .unwrap();
+    restorer
+        .apply_action(RedirectAction::Close(3), &mut env)
+        .unwrap();
 
     // Nonexistent fd set, then changed
-    restorer.apply_action(RedirectAction::HereDoc(4, vec!()), &mut env).unwrap();
-    restorer.apply_action(RedirectAction::Open(4, S("s"), Permissions::Write), &mut env).unwrap();
+    restorer
+        .apply_action(RedirectAction::HereDoc(4, vec![]), &mut env)
+        .unwrap();
+    restorer
+        .apply_action(
+            RedirectAction::Open(4, S("s"), Permissions::Write),
+            &mut env,
+        )
+        .unwrap();
 
     // Nonexistent fd set, then closed
-    restorer.apply_action(RedirectAction::Open(5, S("t"), Permissions::Read), &mut env).unwrap();
-    restorer.apply_action(RedirectAction::Close(5), &mut env).unwrap();
+    restorer
+        .apply_action(RedirectAction::Open(5, S("t"), Permissions::Read), &mut env)
+        .unwrap();
+    restorer
+        .apply_action(RedirectAction::Close(5), &mut env)
+        .unwrap();
 
     assert!(env_original != env);
     restorer.restore(&mut env);

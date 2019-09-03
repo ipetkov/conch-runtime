@@ -10,9 +10,11 @@ pub use self::support::*;
 
 const CFG: TildeExpansion = TildeExpansion::All;
 
-fn eval<W: Into<Option<MockWord>>>(strict: bool, param: &MockParam, word: W)
-    -> Result<Fields<String>, MockErr>
-{
+fn eval<W: Into<Option<MockWord>>>(
+    strict: bool,
+    param: &MockParam,
+    word: W,
+) -> Result<Fields<String>, MockErr> {
     let env = ();
     alternative(strict, param, word.into(), &env, CFG)
         .pin_env(env)
@@ -34,14 +36,23 @@ fn should_evaluate_appropriately() {
 
     // Present and non-empty
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
-    assert_eq!(eval(false, &param, mock_word.clone()), Ok(word_fields.clone()));
-    assert_eq!(eval(true, &param, mock_word.clone()), Ok(word_fields.clone()));
+    assert_eq!(
+        eval(false, &param, mock_word.clone()),
+        Ok(word_fields.clone())
+    );
+    assert_eq!(
+        eval(true, &param, mock_word.clone()),
+        Ok(word_fields.clone())
+    );
     assert_eq!(eval(false, &param, None), Ok(Fields::Zero));
     assert_eq!(eval(true, &param, None), Ok(Fields::Zero));
 
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    assert_eq!(eval(false, &param, mock_word.clone()), Ok(word_fields.clone()));
+    assert_eq!(
+        eval(false, &param, mock_word.clone()),
+        Ok(word_fields.clone())
+    );
     assert_eq!(eval(true, &param, must_not_run.clone()), Ok(Fields::Zero));
     assert_eq!(eval(false, &param, None), Ok(Fields::Zero));
     assert_eq!(eval(true, &param, None), Ok(Fields::Zero));
@@ -74,14 +85,23 @@ fn should_propagate_errors_from_word_if_applicable() {
 
     // Present and non-empty
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
-    assert_eq!(eval(false, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
-    assert_eq!(eval(true, &param, mock_word_error(false)), Err(MockErr::Fatal(false)));
+    assert_eq!(
+        eval(false, &param, mock_word_error(false)),
+        Err(MockErr::Fatal(false))
+    );
+    assert_eq!(
+        eval(true, &param, mock_word_error(false)),
+        Err(MockErr::Fatal(false))
+    );
     eval(false, &param, None).unwrap();
     eval(true, &param, None).unwrap();
 
     // Present but empty
     let param = MockParam::Fields(Some(Fields::Single("".to_owned())));
-    assert_eq!(eval(false, &param, mock_word_error(true)), Err(MockErr::Fatal(true)));
+    assert_eq!(
+        eval(false, &param, mock_word_error(true)),
+        Err(MockErr::Fatal(true))
+    );
     eval(true, &param, must_not_run.clone()).unwrap();
     eval(false, &param, None).unwrap();
     eval(true, &param, None).unwrap();

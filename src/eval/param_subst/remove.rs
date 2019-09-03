@@ -1,7 +1,7 @@
-use glob;
 use env::StringWrapper;
 use eval::{Fields, ParamEval, Pattern, WordEval};
 use future::{Async, EnvFuture, Poll};
+use glob;
 
 const PAT_REMOVE_MATCH_OPTS: glob::MatchOptions = glob::MatchOptions {
     case_sensitive: true,
@@ -12,11 +12,16 @@ const PAT_REMOVE_MATCH_OPTS: glob::MatchOptions = glob::MatchOptions {
 /// Evaluates a parameter and remove a pattern from it.
 ///
 /// Note: field splitting will NOT be done at any point.
-fn remove_pattern<P: ?Sized, W, E: ?Sized, R>(param: &P, pat: Option<W>, env: &E, remover: R)
-    -> RemovePattern<P::EvalResult, Pattern<W::EvalFuture>, R>
-    where P: ParamEval<E>,
-          W: WordEval<E>,
-          R: PatRemover,
+fn remove_pattern<P: ?Sized, W, E: ?Sized, R>(
+    param: &P,
+    pat: Option<W>,
+    env: &E,
+    remover: R,
+) -> RemovePattern<P::EvalResult, Pattern<W::EvalFuture>, R>
+where
+    P: ParamEval<E>,
+    W: WordEval<E>,
+    R: PatRemover,
 {
     let (val, future) = match param.eval(false, env) {
         Some(val) => (val, pat.map(|w| w.eval_as_pattern(env))),
@@ -49,9 +54,10 @@ struct RemovePattern<T, F, R> {
 }
 
 impl<T, F, R, E: ?Sized> EnvFuture<E> for RemovePattern<T, F, R>
-    where T: StringWrapper,
-          F: EnvFuture<E, Item = glob::Pattern>,
-          R: PatRemover,
+where
+    T: StringWrapper,
+    F: EnvFuture<E, Item = glob::Pattern>,
+    R: PatRemover,
 {
     type Item = Fields<T>;
     type Error = F::Error;
@@ -62,7 +68,9 @@ impl<T, F, R, E: ?Sized> EnvFuture<E> for RemovePattern<T, F, R>
             None => None,
         };
 
-        let (param_val, pat_remover) = self.param_val_pat_remover_pair.take()
+        let (param_val, pat_remover) = self
+            .param_val_pat_remover_pair
+            .take()
             .expect("polled twice");
 
         let pat = match pat {
@@ -74,11 +82,11 @@ impl<T, F, R, E: ?Sized> EnvFuture<E> for RemovePattern<T, F, R>
         let map = |v: Vec<_>| v.into_iter().map(&remove).collect();
 
         let ret = match param_val {
-            Fields::Zero      => Fields::Zero,
+            Fields::Zero => Fields::Zero,
             Fields::Single(s) => Fields::Single(remove(s)),
-            Fields::At(v)     => Fields::At(map(v)),
-            Fields::Star(v)   => Fields::Star(map(v)),
-            Fields::Split(v)  => Fields::Split(map(v)),
+            Fields::At(v) => Fields::At(map(v)),
+            Fields::Star(v) => Fields::Star(map(v)),
+            Fields::Split(v) => Fields::Split(map(v)),
         };
 
         Ok(Async::Ready(ret))
@@ -273,7 +281,6 @@ impl PatRemover for LargestPrefixPatRemover {
                 // candidate == "", nothing to trim
                 None => return src,
             };
-
         }
     }
 }

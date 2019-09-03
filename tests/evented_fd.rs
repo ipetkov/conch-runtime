@@ -15,11 +15,11 @@ use conch_runtime::os::unix::env::{EventedAsyncIoEnv, ManagedFileDesc};
 use conch_runtime::os::unix::io::{FileDescExt, MaybeEventedFd};
 use std::fs::File;
 use std::io::{ErrorKind, Read, Result, Write};
-use std::time::Duration;
 use std::thread;
-use tokio_io::AsyncRead;
-use tokio_io::io::read_to_end;
+use std::time::Duration;
 use tokio_core::reactor::Core;
+use tokio_io::io::read_to_end;
+use tokio_io::AsyncRead;
 
 struct TimesRead<R> {
     times_read: usize,
@@ -41,17 +41,17 @@ impl<R: AsyncRead> AsyncRead for TimesRead<R> {}
 impl<R: Read> Read for TimesRead<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.reader.read(buf) {
-            ret@Ok(0) => ret,
-            ret@Ok(_) => {
+            ret @ Ok(0) => ret,
+            ret @ Ok(_) => {
                 self.times_read += 1;
                 ret
-            },
+            }
             Err(e) => {
                 if e.kind() == ErrorKind::WouldBlock {
                     self.times_would_block += 1;
                 }
                 Err(e)
-            },
+            }
         }
     }
 }
@@ -63,7 +63,8 @@ fn evented_is_async() {
     let Pipe { reader, mut writer } = Pipe::new().expect("failed to create pipe");
 
     let mut lp = Core::new().expect("failed to create event loop");
-    let reader = reader.into_evented(&lp.handle())
+    let reader = reader
+        .into_evented(&lp.handle())
         .expect("failed to register reader with event loop");
 
     let reader = if let MaybeEventedFd::Registered(fd) = reader {
@@ -82,11 +83,14 @@ fn evented_is_async() {
         }
     });
 
-    let (tr, data) = lp.run(read_to_end(TimesRead::new(reader), vec!()))
+    let (tr, data) = lp
+        .run(read_to_end(TimesRead::new(reader), vec![]))
         .map(|(tr, data)| (tr, String::from_utf8(data).expect("invaild utf8")))
         .expect("future did not exit successfully");
 
-    join_handle.join().expect("thread did not exit successfully");
+    join_handle
+        .join()
+        .expect("thread did not exit successfully");
 
     assert_eq!(data, msg);
 
@@ -116,7 +120,8 @@ fn evented_supports_regular_files() {
 
         env.write_all(fd, msg.to_owned().into_bytes())
             .expect("failed to create write_all")
-    })).expect("failed to write data");
+    }))
+    .expect("failed to write data");
 
     // Test spawning outside of the event loop
     let fd = File::open(path)
@@ -125,7 +130,8 @@ fn evented_supports_regular_files() {
         .expect("failed to open file");
 
     let data = env.read_async(fd).expect("failed to get data");
-    let data = lp.run(read_to_end(data, vec!()))
+    let data = lp
+        .run(read_to_end(data, vec![]))
         .map(|(_, data)| String::from_utf8(data).expect("invaild utf8"))
         .expect("future did not exit successfully");
 

@@ -1,10 +1,10 @@
-use RefCounted;
 use env::SubEnvironment;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
+use RefCounted;
 
 /// An interface for setting and getting shell functions.
 pub trait FunctionEnvironment {
@@ -65,15 +65,15 @@ pub trait FunctionFrameEnvironment {
 
 impl<'a, T: ?Sized + FunctionFrameEnvironment> FunctionFrameEnvironment for &'a mut T {
     fn push_fn_frame(&mut self) {
-	(**self).push_fn_frame()
+        (**self).push_fn_frame()
     }
 
     fn pop_fn_frame(&mut self) {
-	(**self).pop_fn_frame()
+        (**self).pop_fn_frame()
     }
 
     fn is_fn_running(&self) -> bool {
-	(**self).is_fn_running()
+        (**self).is_fn_running()
     }
 }
 
@@ -86,9 +86,7 @@ pub struct FnFrameEnv {
 impl FnFrameEnv {
     /// Create a new environment instance.
     pub fn new() -> Self {
-        Self {
-            num_frames: 0,
-        }
+        Self { num_frames: 0 }
     }
 }
 
@@ -99,7 +97,9 @@ impl FunctionFrameEnvironment for FnFrameEnv {
     ///
     /// Panics if the number of pushed frames overflows a `usize`.
     fn push_fn_frame(&mut self) {
-        self.num_frames = self.num_frames.checked_add(1)
+        self.num_frames = self
+            .num_frames
+            .checked_add(1)
             .expect("function frame overflow");
     }
 
@@ -223,9 +223,9 @@ impl_env!(
 
 #[cfg(test)]
 mod tests {
-    use RefCounted;
-    use env::SubEnvironment;
     use super::*;
+    use env::SubEnvironment;
+    use RefCounted;
 
     #[test]
     fn test_set_get_unset_function() {

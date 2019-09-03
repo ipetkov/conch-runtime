@@ -1,6 +1,5 @@
 //! Defines interfaces and methods for doing IO operations on Windows HANDLEs.
 
-use IntoInner;
 use io::FileDesc;
 use std::fs::File;
 use std::io::{ErrorKind, Result, SeekFrom};
@@ -15,9 +14,11 @@ use winapi::um::handleapi::{CloseHandle, DuplicateHandle, INVALID_HANDLE_VALUE};
 use winapi::um::namedpipeapi::CreatePipe;
 use winapi::um::processenv::GetStdHandle;
 use winapi::um::processthreadsapi::{GetCurrentProcess, GetCurrentProcessId};
-use winapi::um::winbase::{FILE_BEGIN, FILE_CURRENT, FILE_END, STD_ERROR_HANDLE,
-                          STD_INPUT_HANDLE, STD_OUTPUT_HANDLE};
+use winapi::um::winbase::{
+    FILE_BEGIN, FILE_CURRENT, FILE_END, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+};
 use winapi::um::winnt::{DUPLICATE_SAME_ACCESS, LARGE_INTEGER};
+use IntoInner;
 
 /// A wrapper around an owned Windows HANDLE. The wrapper
 /// allows reading from or write to the HANDLE, and will
@@ -44,11 +45,15 @@ impl FromRawHandle for FileDesc {
 }
 
 impl AsRawHandle for FileDesc {
-    fn as_raw_handle(&self) -> RawHandle { self.inner().inner() }
+    fn as_raw_handle(&self) -> RawHandle {
+        self.inner().inner()
+    }
 }
 
 impl IntoRawHandle for FileDesc {
-    fn into_raw_handle(self) -> RawHandle { unsafe { self.into_inner().into_inner() } }
+    fn into_raw_handle(self) -> RawHandle {
+        unsafe { self.into_inner().into_inner() }
+    }
 }
 
 impl From<File> for FileDesc {
@@ -66,9 +71,7 @@ impl RawIo {
     pub unsafe fn new(handle: RawHandle) -> Self {
         assert!(!handle.is_null(), "null handle");
 
-        RawIo {
-            handle: handle,
-        }
+        RawIo { handle: handle }
     }
 
     /// Unwraps the underlying HANDLE and transfers ownership to the caller.
@@ -100,7 +103,7 @@ impl RawIo {
                     &mut ret,
                     0 as DWORD,
                     FALSE,
-                    DUPLICATE_SAME_ACCESS
+                    DUPLICATE_SAME_ACCESS,
                 )
             })?;
             Ok(RawIo::new(ret))
@@ -117,7 +120,7 @@ impl RawIo {
                 buf.as_ptr() as LPVOID,
                 buf.len() as DWORD,
                 &mut read,
-                ptr::null_mut()
+                ptr::null_mut(),
             )
         });
 
@@ -130,7 +133,7 @@ impl RawIo {
             // EOF on the pipe.
             Err(ref e) if e.kind() == ErrorKind::BrokenPipe => Ok(0),
 
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
 
@@ -144,7 +147,7 @@ impl RawIo {
                 buf.as_ptr() as LPVOID,
                 buf.len() as DWORD,
                 &mut amt,
-                ptr::null_mut()
+                ptr::null_mut(),
             )
         })?;
         Ok(amt as usize)
@@ -207,7 +210,7 @@ pub fn dup_stdio() -> Result<(RawIo, RawIo, RawIo)> {
                 &mut new_handle,
                 0 as DWORD,
                 FALSE,
-                DUPLICATE_SAME_ACCESS
+                DUPLICATE_SAME_ACCESS,
             ))?;
 
             Ok(RawIo::new(new_handle))
@@ -217,13 +220,11 @@ pub fn dup_stdio() -> Result<(RawIo, RawIo, RawIo)> {
     Ok((
         dup_handle(STD_INPUT_HANDLE)?,
         dup_handle(STD_OUTPUT_HANDLE)?,
-        dup_handle(STD_ERROR_HANDLE)?
+        dup_handle(STD_ERROR_HANDLE)?,
     ))
 }
 
 /// Retrieves the process identifier of the calling process.
 pub fn getpid() -> DWORD {
-    unsafe {
-        GetCurrentProcessId()
-    }
+    unsafe { GetCurrentProcessId() }
 }

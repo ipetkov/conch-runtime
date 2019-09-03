@@ -1,4 +1,4 @@
-use env::{ExportedVariableEnvironment, VariableEnvironment, UnsetVariableEnvironment};
+use env::{ExportedVariableEnvironment, UnsetVariableEnvironment, VariableEnvironment};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -21,7 +21,7 @@ pub trait VarEnvRestorer<E: ?Sized + VariableEnvironment> {
         name: E::VarName,
         val: E::Var,
         exported: Option<bool>,
-        env: &mut E
+        env: &mut E,
     );
 
     /// Backup and unset the value of some variable (including environment variables).
@@ -40,8 +40,9 @@ pub trait VarEnvRestorer<E: ?Sized + VariableEnvironment> {
 }
 
 impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
-    where T: VarEnvRestorer<E>,
-          E: VariableEnvironment,
+where
+    T: VarEnvRestorer<E>,
+    E: VariableEnvironment,
 {
     fn reserve(&mut self, additional: usize) {
         (**self).reserve(additional);
@@ -52,7 +53,7 @@ impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
         name: E::VarName,
         val: E::Var,
         exported: Option<bool>,
-        env: &mut E
+        env: &mut E,
     ) {
         (**self).set_exported_var(name, val, exported, env);
     }
@@ -79,22 +80,26 @@ impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
 /// > thing eventually, and no guarantees can be made.
 #[derive(Clone)]
 pub struct VarRestorer<E: ?Sized>
-    where E: VariableEnvironment,
+where
+    E: VariableEnvironment,
 {
     /// Any overrides that have been applied (and be undone).
     overrides: HashMap<E::VarName, Option<(E::Var, bool)>>,
 }
 
 impl<E: ?Sized> Eq for VarRestorer<E>
-    where E: VariableEnvironment,
-          E::VarName: Eq,
-          E::Var: Eq,
-{}
+where
+    E: VariableEnvironment,
+    E::VarName: Eq,
+    E::Var: Eq,
+{
+}
 
 impl<E: ?Sized> PartialEq<Self> for VarRestorer<E>
-    where E: VariableEnvironment,
-          E::VarName: Eq,
-          E::Var: Eq,
+where
+    E: VariableEnvironment,
+    E::VarName: Eq,
+    E::Var: Eq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.overrides == other.overrides
@@ -102,9 +107,10 @@ impl<E: ?Sized> PartialEq<Self> for VarRestorer<E>
 }
 
 impl<E: ?Sized> fmt::Debug for VarRestorer<E>
-    where E: VariableEnvironment,
-          E::VarName: fmt::Debug,
-          E::Var: fmt::Debug,
+where
+    E: VariableEnvironment,
+    E::VarName: fmt::Debug,
+    E::Var: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("VarRestorer")
@@ -114,7 +120,8 @@ impl<E: ?Sized> fmt::Debug for VarRestorer<E>
 }
 
 impl<E: ?Sized> Default for VarRestorer<E>
-    where E: VariableEnvironment,
+where
+    E: VariableEnvironment,
 {
     fn default() -> Self {
         Self::new()
@@ -122,7 +129,8 @@ impl<E: ?Sized> Default for VarRestorer<E>
 }
 
 impl<E: ?Sized> VarRestorer<E>
-    where E: VariableEnvironment,
+where
+    E: VariableEnvironment,
 {
     /// Create a new wrapper.
     pub fn new() -> Self {
@@ -141,9 +149,10 @@ impl<E: ?Sized> VarRestorer<E>
 }
 
 impl<E: ?Sized> VarEnvRestorer<E> for VarRestorer<E>
-    where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
-          E::VarName: Clone,
-          E::Var: Clone,
+where
+    E: ExportedVariableEnvironment + UnsetVariableEnvironment,
+    E::VarName: Clone,
+    E::Var: Clone,
 {
     fn reserve(&mut self, additional: usize) {
         self.overrides.reserve(additional);
@@ -154,7 +163,7 @@ impl<E: ?Sized> VarEnvRestorer<E> for VarRestorer<E>
         name: E::VarName,
         val: E::Var,
         exported: Option<bool>,
-        env: &mut E
+        env: &mut E,
     ) {
         self.backup(name.clone(), env);
 
@@ -171,9 +180,9 @@ impl<E: ?Sized> VarEnvRestorer<E> for VarRestorer<E>
 
     fn backup(&mut self, key: E::VarName, env: &E) {
         let value = env.exported_var(&key);
-        self.overrides.entry(key).or_insert_with(|| {
-            value.map(|(val, exported)| (val.clone(), exported))
-        });
+        self.overrides
+            .entry(key)
+            .or_insert_with(|| value.map(|(val, exported)| (val.clone(), exported)));
     }
 
     fn restore(&mut self, env: &mut E) {

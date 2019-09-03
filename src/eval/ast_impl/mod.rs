@@ -6,8 +6,8 @@ use eval::{RedirectOrCmdWord, RedirectOrVarAssig};
 
 mod arith;
 mod complex_word;
-mod parameter;
 mod param_subst;
+mod parameter;
 mod redirect;
 mod simple_word;
 mod word;

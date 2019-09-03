@@ -1,8 +1,8 @@
 extern crate conch_runtime;
 extern crate futures;
 
-use conch_runtime::ExitStatus;
 use conch_runtime::future::EnvFuture;
+use conch_runtime::ExitStatus;
 use futures::Future;
 
 #[test]

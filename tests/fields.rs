@@ -1,21 +1,13 @@
 extern crate conch_runtime;
 
+use conch_runtime::env::{UnsetVariableEnvironment, VarEnv, VariableEnvironment};
 use conch_runtime::eval::Fields::*;
-use conch_runtime::env::{VarEnv, VariableEnvironment, UnsetVariableEnvironment};
 
 #[test]
 fn test_fields_is_null() {
-    let empty_strs = vec!(
-        "".to_owned(),
-        "".to_owned(),
-        "".to_owned(),
-    );
+    let empty_strs = vec!["".to_owned(), "".to_owned(), "".to_owned()];
 
-    let mostly_non_empty_strs = vec!(
-        "foo".to_owned(),
-        "".to_owned(),
-        "bar".to_owned(),
-    );
+    let mostly_non_empty_strs = vec!["foo".to_owned(), "".to_owned(), "bar".to_owned()];
 
     assert_eq!(Zero::<String>.is_null(), true);
     assert_eq!(Single("".to_owned()).is_null(), true);
@@ -31,11 +23,7 @@ fn test_fields_is_null() {
 
 #[test]
 fn test_fields_join() {
-    let strs = vec!(
-        "foo".to_owned(),
-        "".to_owned(),
-        "bar".to_owned(),
-    );
+    let strs = vec!["foo".to_owned(), "".to_owned(), "bar".to_owned()];
 
     assert_eq!(Zero::<String>.join(), "");
     assert_eq!(Single("foo".to_owned()).join(), "foo");
@@ -47,11 +35,11 @@ fn test_fields_join() {
 #[test]
 fn test_fields_join_with_ifs() {
     let ifs = "IFS".to_owned();
-    let strs = vec!(
+    let strs = vec![
         "foo".to_owned(),
         "".to_owned(), // Empty strings should not be eliminated
         "bar".to_owned(),
-    );
+    ];
 
     let mut env = VarEnv::new();
 
@@ -81,11 +69,7 @@ fn test_fields_join_with_ifs() {
 #[test]
 fn test_fields_from_vec() {
     let s = "foo".to_owned();
-    let strs = vec!(
-        s.clone(),
-        "".to_owned(),
-        "bar".to_owned(),
-    );
+    let strs = vec![s.clone(), "".to_owned(), "bar".to_owned()];
 
     assert_eq!(Zero::<String>, Vec::<String>::new().into());
     assert_eq!(Single(s.clone()), vec!(s.clone()).into());
@@ -104,18 +88,26 @@ fn test_fields_from_t() {
 #[test]
 fn test_fields_into_iter() {
     let s = "foo".to_owned();
-    let strs = vec!(
-        s.clone(),
-        "".to_owned(),
-        "bar".to_owned(),
-    );
+    let strs = vec![s.clone(), "".to_owned(), "bar".to_owned()];
 
-    let empty: Vec<String> = vec!();
+    let empty: Vec<String> = vec![];
     assert_eq!(empty, Zero::<String>.into_iter().collect::<Vec<_>>());
-    assert_eq!(vec!(s.clone()), Single(s.clone()).into_iter().collect::<Vec<_>>());
-    assert_eq!(strs.clone(), At(strs.clone()).into_iter().collect::<Vec<_>>());
-    assert_eq!(strs.clone(), Star(strs.clone()).into_iter().collect::<Vec<_>>());
-    assert_eq!(strs.clone(), Split(strs.clone()).into_iter().collect::<Vec<_>>());
+    assert_eq!(
+        vec!(s.clone()),
+        Single(s.clone()).into_iter().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        strs.clone(),
+        At(strs.clone()).into_iter().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        strs.clone(),
+        Star(strs.clone()).into_iter().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        strs.clone(),
+        Split(strs.clone()).into_iter().collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -124,10 +116,10 @@ fn test_eval_parameter_substitution_splitting_default_ifs() {
     env.unset_var("IFS");
 
     // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
-    assert_eq!(Single(" \t\nfoo \t\nbar \t\n".to_owned()).split(&env), Split(vec!(
-        "foo".to_owned(),
-        "bar".to_owned(),
-    )));
+    assert_eq!(
+        Single(" \t\nfoo \t\nbar \t\n".to_owned()).split(&env),
+        Split(vec!("foo".to_owned(), "bar".to_owned(),))
+    );
 
     assert_eq!(Single("".to_owned()).split(&env), Zero);
 }
@@ -138,21 +130,27 @@ fn test_splitting_with_custom_ifs() {
     env.set_var("IFS".to_owned(), "0 ".to_owned());
 
     // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
-    assert_eq!(Single("   foo000bar   ".to_owned()).split(&env), Split(vec!(
-        "foo".to_owned(),
-        "".to_owned(),
-        "".to_owned(),
-        "bar".to_owned(),
-    )));
+    assert_eq!(
+        Single("   foo000bar   ".to_owned()).split(&env),
+        Split(vec!(
+            "foo".to_owned(),
+            "".to_owned(),
+            "".to_owned(),
+            "bar".to_owned(),
+        ))
+    );
 
-    assert_eq!(Single("  00 0 00  0 ".to_owned()).split(&env), Split(vec!(
-        "".to_owned(),
-        "".to_owned(),
-        "".to_owned(),
-        "".to_owned(),
-        "".to_owned(),
-        "".to_owned(),
-    )));
+    assert_eq!(
+        Single("  00 0 00  0 ".to_owned()).split(&env),
+        Split(vec!(
+            "".to_owned(),
+            "".to_owned(),
+            "".to_owned(),
+            "".to_owned(),
+            "".to_owned(),
+            "".to_owned(),
+        ))
+    );
 
     assert_eq!(Single("".to_owned()).split(&env), Zero);
 }

@@ -1,11 +1,11 @@
-use {EXIT_SUCCESS, ExitStatus};
-use error::IsFatalError;
 use env::{LastStatusEnvironment, ReportFailureEnvironment};
+use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::task;
 use spawn::{GuardBodyPair, SpawnRef, VecSequence};
 use std::fmt;
 use std::mem;
+use {ExitStatus, EXIT_SUCCESS};
 
 /// Spawns a loop command such as `While` or `Until` using a guard and a body.
 ///
@@ -21,7 +21,9 @@ use std::mem;
 pub fn loop_cmd<S, E: ?Sized>(
     invert_guard_status: bool,
     guard_body_pair: GuardBodyPair<Vec<S>>,
-) -> Loop<S, E> where S: SpawnRef<E>,
+) -> Loop<S, E>
+where
+    S: SpawnRef<E>,
 {
     Loop {
         invert_guard_status: invert_guard_status,
@@ -34,7 +36,9 @@ pub fn loop_cmd<S, E: ?Sized>(
 
 /// A future representing the execution of a loop (e.g. `while`/`until`) command.
 #[must_use = "futures do nothing unless polled"]
-pub struct Loop<S, E: ?Sized> where S: SpawnRef<E>
+pub struct Loop<S, E: ?Sized>
+where
+    S: SpawnRef<E>,
 {
     invert_guard_status: bool,
     guard: Vec<S>,
@@ -44,9 +48,10 @@ pub struct Loop<S, E: ?Sized> where S: SpawnRef<E>
 }
 
 impl<S, E: ?Sized> fmt::Debug for Loop<S, E>
-    where S: SpawnRef<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
+where
+    S: SpawnRef<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Loop")
@@ -67,9 +72,10 @@ enum State<V> {
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
-    where S: SpawnRef<E>,
-          S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportFailureEnvironment,
+where
+    S: SpawnRef<E>,
+    S::Error: IsFatalError,
+    E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = ExitStatus;
     type Error = S::Error;
@@ -121,7 +127,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
                     env.set_last_status(status);
                     let body = mem::replace(&mut self.body, Vec::new());
                     Some(State::Body(VecSequence::new(body)))
-                },
+                }
 
                 State::Body(ref mut f) => {
                     let (body, status) = try_ready!(f.poll(env));
@@ -129,7 +135,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
                     self.body = body;
                     env.set_last_status(status);
                     None
-                },
+                }
             };
 
             self.state = next_state.unwrap_or_else(|| {
@@ -141,9 +147,8 @@ impl<S, E: ?Sized> EnvFuture<E> for Loop<S, E>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Init => {},
-            State::Guard(ref mut f) |
-            State::Body(ref mut f) => f.cancel(env),
+            State::Init => {}
+            State::Guard(ref mut f) | State::Body(ref mut f) => f.cancel(env),
         }
     }
 }

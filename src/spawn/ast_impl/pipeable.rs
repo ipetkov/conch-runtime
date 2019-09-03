@@ -1,4 +1,3 @@
-use {EXIT_SUCCESS, POLLED_TWICE};
 use conch_parser::ast;
 use env::FunctionEnvironment;
 use future::{Async, EnvFuture, Poll};
@@ -6,6 +5,7 @@ use futures::future::Either;
 use spawn::{ExitResult, Spawn, SpawnBoxed};
 use std::rc::Rc;
 use std::sync::Arc;
+use {EXIT_SUCCESS, POLLED_TWICE};
 
 /// A future representing the spawning of a `PipeableCommand`.
 #[must_use = "futures do nothing unless polled"]
@@ -22,11 +22,12 @@ enum State<N, S, C, F> {
 }
 
 impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableCommand<N, S, C, F>
-    where S: EnvFuture<E>,
-          C: EnvFuture<E, Error = S::Error>,
-          E: FunctionEnvironment,
-          E::FnName: From<N>,
-          E::Fn: From<F>,
+where
+    S: EnvFuture<E>,
+    C: EnvFuture<E, Error = S::Error>,
+    E: FunctionEnvironment,
+    E::FnName: From<N>,
+    E::Fn: From<F>,
 {
     type Item = ExitResult<Either<S::Item, C::Item>>;
     type Error = S::Error;
@@ -39,7 +40,7 @@ impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableCommand<N, S, C, F>
                 let (name, body) = data.take().expect(POLLED_TWICE);
                 env.set_function(name.into(), body.into());
                 return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
-            },
+            }
         };
 
         Ok(Async::Ready(ExitResult::Pending(ret)))
@@ -49,7 +50,7 @@ impl<N, S, C, F, E: ?Sized> EnvFuture<E> for PipeableCommand<N, S, C, F>
         match self.state {
             State::Simple(ref mut f) => f.cancel(env),
             State::Compound(ref mut f) => f.cancel(env),
-            State::FnDef(_) => {},
+            State::FnDef(_) => {}
         }
     }
 }

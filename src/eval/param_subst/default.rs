@@ -1,6 +1,6 @@
+use super::is_present;
 use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
 use future::{Async, EnvFuture, Poll};
-use super::is_present;
 
 /// A future representing a `Default` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]
@@ -28,32 +28,35 @@ pub fn default<P: ?Sized, W, E: ?Sized>(
     param: &P,
     default: Option<W>,
     env: &E,
-    cfg: TildeExpansion
+    cfg: TildeExpansion,
 ) -> EvalDefault<W::EvalResult, W::EvalFuture>
-    where P: ParamEval<E, EvalResult = W::EvalResult>,
-          W: WordEval<E>,
+where
+    P: ParamEval<E, EvalResult = W::EvalResult>,
+    W: WordEval<E>,
 {
     let state = match is_present(strict, param.eval(false, env)) {
-        fields@Some(_) => State::ParamVal(fields),
+        fields @ Some(_) => State::ParamVal(fields),
         None => match default {
             None => State::ParamVal(Some(Fields::Zero)),
             Some(w) => {
-                let future = w.eval_with_config(env, WordEvalConfig {
-                    split_fields_further: false,
-                    tilde_expansion: cfg,
-                });
+                let future = w.eval_with_config(
+                    env,
+                    WordEvalConfig {
+                        split_fields_further: false,
+                        tilde_expansion: cfg,
+                    },
+                );
                 State::Default(future)
             }
         },
     };
 
-    EvalDefault {
-        state: state,
-    }
+    EvalDefault { state: state }
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for EvalDefault<T, F>
-    where F: EnvFuture<E, Item = Fields<T>>,
+where
+    F: EnvFuture<E, Item = Fields<T>>,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -63,14 +66,14 @@ impl<T, F, E: ?Sized> EnvFuture<E> for EvalDefault<T, F>
             State::ParamVal(ref mut fields) => {
                 let ret = fields.take().expect("polled twice");
                 Ok(Async::Ready(ret))
-            },
+            }
             State::Default(ref mut f) => f.poll(env),
         }
     }
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::ParamVal(..) => {},
+            State::ParamVal(..) => {}
             State::Default(ref mut f) => f.cancel(env),
         }
     }

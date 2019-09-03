@@ -53,7 +53,7 @@ fn test_eval_expands_first_tilde_and_splits_words() {
 
 #[test]
 fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
-    use conch_runtime::env::{VariableEnvironment, VarEnv};
+    use conch_runtime::env::{VarEnv, VariableEnvironment};
 
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::All,
@@ -64,55 +64,67 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
     env.set_var("IFS".to_owned(), "!".to_owned());
 
     {
-        let word = MockWordCfg { cfg: cfg, fields: Fields::Zero };
+        let word = MockWordCfg {
+            cfg: cfg,
+            fields: Fields::Zero,
+        };
         let mut env = env.clone();
-        assert_eq!(word.eval_as_assignment(&mut env).pin_env(env).wait(), Ok("".to_owned()));
+        assert_eq!(
+            word.eval_as_assignment(&mut env).pin_env(env).wait(),
+            Ok("".to_owned())
+        );
     }
 
     {
         let msg = "foo".to_owned();
-        let word = MockWordCfg { cfg: cfg, fields: Fields::Single(msg.clone()) };
+        let word = MockWordCfg {
+            cfg: cfg,
+            fields: Fields::Single(msg.clone()),
+        };
         let mut env = env.clone();
-        assert_eq!(word.eval_as_assignment(&mut env).pin_env(env).wait(), Ok(msg));
+        assert_eq!(
+            word.eval_as_assignment(&mut env).pin_env(env).wait(),
+            Ok(msg)
+        );
     }
 
     {
         let word = MockWordCfg {
             cfg: cfg,
-            fields: Fields::At(vec!(
-                "foo".to_owned(),
-                "bar".to_owned(),
-            )),
+            fields: Fields::At(vec!["foo".to_owned(), "bar".to_owned()]),
         };
 
         let mut env = env.clone();
-        assert_eq!(word.eval_as_assignment(&mut env).pin_env(env).wait(), Ok("foo bar".to_owned()));
+        assert_eq!(
+            word.eval_as_assignment(&mut env).pin_env(env).wait(),
+            Ok("foo bar".to_owned())
+        );
     }
 
     {
         let word = MockWordCfg {
             cfg: cfg,
-            fields: Fields::Split(vec!(
-                "foo".to_owned(),
-                "bar".to_owned(),
-            )),
+            fields: Fields::Split(vec!["foo".to_owned(), "bar".to_owned()]),
         };
 
         let mut env = env.clone();
-        assert_eq!(word.eval_as_assignment(&mut env).pin_env(env).wait(), Ok("foo bar".to_owned()));
+        assert_eq!(
+            word.eval_as_assignment(&mut env).pin_env(env).wait(),
+            Ok("foo bar".to_owned())
+        );
     }
 
     {
         let word = MockWordCfg {
             cfg: cfg,
-            fields: Fields::Star(vec!(
-                "foo".to_owned(),
-                "bar".to_owned(),
-            )),
+            fields: Fields::Star(vec!["foo".to_owned(), "bar".to_owned()]),
         };
 
         let mut env = env.clone();
-        assert_eq!(word.eval_as_assignment(&mut env).pin_env(env).wait(), Ok("foo!bar".to_owned()));
+        assert_eq!(
+            word.eval_as_assignment(&mut env).pin_env(env).wait(),
+            Ok("foo!bar".to_owned())
+        );
     }
 }
 
@@ -123,11 +135,7 @@ fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_f
             tilde_expansion: TildeExpansion::First,
             split_fields_further: false,
         },
-        fields: Fields::Split(vec!(
-            "foo".to_owned(),
-            "*?".to_owned(),
-            "bar".to_owned(),
-        )),
+        fields: Fields::Split(vec!["foo".to_owned(), "*?".to_owned(), "bar".to_owned()]),
     };
 
     let mut env = ();

@@ -23,16 +23,16 @@ fn smoke_open_path() {
 
     let mut opts = OpenOptions::new();
     opts.write(true).create(true);
-    let mut writer = opener.open_path(&file_path, &opts)
+    let mut writer = opener
+        .open_path(&file_path, &opts)
         .expect("failed to open writer");
-    writer.write_all(msg.as_bytes())
-        .expect("write failed");
+    writer.write_all(msg.as_bytes()).expect("write failed");
 
-    let mut reader = opener.open_path(&file_path, OpenOptions::new().read(true))
+    let mut reader = opener
+        .open_path(&file_path, OpenOptions::new().read(true))
         .expect("failed to open reader");
     let mut result = String::new();
-    reader.read_to_string(&mut result)
-        .expect("write failed");
+    reader.read_to_string(&mut result).expect("write failed");
 
     assert_eq!(result, msg);
 }
@@ -40,7 +40,11 @@ fn smoke_open_path() {
 #[test]
 fn smoke_pipe() {
     let msg = "pipe message";
-    let Pipe { mut reader, mut writer } = FileDescOpenerEnv::new().open_pipe()
+    let Pipe {
+        mut reader,
+        mut writer,
+    } = FileDescOpenerEnv::new()
+        .open_pipe()
         .expect("failed to open pipe");
 
     let guard = thread::spawn(move || {

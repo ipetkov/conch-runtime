@@ -1,10 +1,12 @@
-use env::{ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment,
-          ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, FunctionEnvironment,
-          FunctionFrameEnvironment,
-          IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment,
-          RedirectRestorer, SetArgumentsEnvironment, StringWrapper, SubEnvironment,
-          UnsetVariableEnvironment, VarRestorer, WorkingDirectoryEnvironment};
+use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord, TopLevelCommand, TopLevelWord};
 use env::builtin::{BuiltinEnvironment, BuiltinUtility};
+use env::{
+    ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
+    FileDescEnvironment, FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment,
+    IsInteractiveEnvironment, LastStatusEnvironment, RedirectRestorer, ReportFailureEnvironment,
+    SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment, VarRestorer,
+    WorkingDirectoryEnvironment,
+};
 use error::RuntimeError;
 use eval::{Fields, WordEval, WordEvalConfig};
 use failure::Fail;
@@ -16,7 +18,6 @@ use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::vec::IntoIter;
-use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord, TopLevelCommand, TopLevelWord};
 
 macro_rules! impl_top_level_cmd {
     ($type: ident, $Rc:ident, $($extra_bounds:tt)*) => {

@@ -16,54 +16,50 @@ fn compound_command_kind_smoke() {
     let mock_word = mock_word_fields(Fields::Single("foo".to_owned()));
 
     let exit = ExitStatus::Code(42);
-    let cmd: Kind = CompoundCommandKind::Brace(vec!(
-        mock_status(ExitStatus::Code(5)),
-        mock_status(exit),
-    ));
+    let cmd: Kind =
+        CompoundCommandKind::Brace(vec![mock_status(ExitStatus::Code(5)), mock_status(exit)]);
     assert_eq!(run!(cmd), Ok(exit));
 
     let cmd: Kind = CompoundCommandKind::If {
-        conditionals: vec!(GuardBodyPair {
-            guard: vec!(mock_status(EXIT_SUCCESS)),
-            body: vec!(mock_status(exit)),
-        }),
+        conditionals: vec![GuardBodyPair {
+            guard: vec![mock_status(EXIT_SUCCESS)],
+            body: vec![mock_status(exit)],
+        }],
         else_branch: None,
     };
     assert_eq!(run!(cmd), Ok(exit));
 
     let cmd: Kind = CompoundCommandKind::For {
         var: Rc::new("var".to_owned()),
-        words: Some(vec!(mock_word.clone())),
-        body: vec!(mock_status(exit)),
+        words: Some(vec![mock_word.clone()]),
+        body: vec![mock_status(exit)],
     };
     assert_eq!(run!(cmd), Ok(exit));
 
     let cmd: Kind = CompoundCommandKind::Case {
         word: mock_word.clone(),
-        arms: vec!(PatternBodyPair {
-            patterns: vec!(mock_word_fields(Fields::Single("*".to_owned()))),
-            body: vec!(mock_status(exit)),
-        }),
+        arms: vec![PatternBodyPair {
+            patterns: vec![mock_word_fields(Fields::Single("*".to_owned()))],
+            body: vec![mock_status(exit)],
+        }],
     };
     assert_eq!(run!(cmd), Ok(exit));
 
     let cmd: Kind = CompoundCommandKind::While(GuardBodyPair {
-        guard: vec!(mock_error(true)),
-        body: vec!(),
+        guard: vec![mock_error(true)],
+        body: vec![],
     });
     assert_eq!(run!(cmd), Err(MockErr::Fatal(true)));
 
     let cmd: Kind = CompoundCommandKind::Until(GuardBodyPair {
-        guard: vec!(mock_error(true)),
-        body: vec!(),
+        guard: vec![mock_error(true)],
+        body: vec![],
     });
     assert_eq!(run!(cmd), Err(MockErr::Fatal(true)));
 
     let exit = ExitStatus::Code(42);
-    let cmd: Kind = CompoundCommandKind::Subshell(vec!(
-        mock_status(ExitStatus::Code(5)),
-        mock_status(exit),
-    ));
+    let cmd: Kind =
+        CompoundCommandKind::Subshell(vec![mock_status(ExitStatus::Code(5)), mock_status(exit)]);
     assert_eq!(run!(cmd), Ok(exit));
 }
 
@@ -71,14 +67,14 @@ fn compound_command_kind_smoke() {
 fn compound_command_kind_cancel_smoke() {
     let should_not_run = mock_panic("should not run");
 
-    let cmd: Kind = CompoundCommandKind::Brace(vec!(mock_must_cancel()));
+    let cmd: Kind = CompoundCommandKind::Brace(vec![mock_must_cancel()]);
     run_cancel!(cmd);
 
     let cmd: Kind = CompoundCommandKind::If {
-        conditionals: vec!(GuardBodyPair {
-            guard: vec!(mock_must_cancel()),
-            body: vec!(should_not_run.clone()),
-        }),
+        conditionals: vec![GuardBodyPair {
+            guard: vec![mock_must_cancel()],
+            body: vec![should_not_run.clone()],
+        }],
         else_branch: None,
     };
     run_cancel!(cmd);
@@ -86,25 +82,25 @@ fn compound_command_kind_cancel_smoke() {
     let cmd: Kind = CompoundCommandKind::For {
         var: Rc::new("var".to_owned()),
         words: None,
-        body: vec!(mock_must_cancel()),
+        body: vec![mock_must_cancel()],
     };
     run_cancel!(cmd);
 
     let cmd: Kind = CompoundCommandKind::Case {
         word: mock_word_must_cancel(),
-        arms: vec!(),
+        arms: vec![],
     };
     run_cancel!(cmd);
 
     let cmd: Kind = CompoundCommandKind::While(GuardBodyPair {
-        guard: vec!(mock_must_cancel()),
-        body: vec!(),
+        guard: vec![mock_must_cancel()],
+        body: vec![],
     });
     run_cancel!(cmd);
 
     let cmd: Kind = CompoundCommandKind::Until(GuardBodyPair {
-        guard: vec!(mock_must_cancel()),
-        body: vec!(),
+        guard: vec![mock_must_cancel()],
+        body: vec![],
     });
     run_cancel!(cmd);
 

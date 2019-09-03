@@ -4,9 +4,9 @@ extern crate conch_parser;
 extern crate conch_runtime;
 
 use conch_parser::ast::Arithmetic;
+use conch_runtime::env::{VarEnv, VariableEnvironment};
 use conch_runtime::error::ExpansionError;
 use conch_runtime::eval::ArithEval;
-use conch_runtime::env::{VarEnv, VariableEnvironment};
 
 #[test]
 fn test_eval_arith() {
@@ -23,7 +23,7 @@ fn test_eval_arith() {
     let var_string = "var string".to_owned();
     let var_string_value = "asdf";
 
-    env.set_var(var.clone(),        var_value.to_string());
+    env.set_var(var.clone(), var_value.to_string());
     env.set_var(var_string.clone(), var_string_value.to_owned());
 
     assert_eq!(lit(5).eval(env), Ok(5));
@@ -78,13 +78,22 @@ fn test_eval_arith() {
 
     assert_eq!(Pow(lit(4), lit(3)).eval(env), Ok(64));
     assert_eq!(Pow(lit(4), lit(0)).eval(env), Ok(1));
-    assert_eq!(Pow(lit(4), lit(-2)).eval(env), Err(ExpansionError::NegativeExponent));
+    assert_eq!(
+        Pow(lit(4), lit(-2)).eval(env),
+        Err(ExpansionError::NegativeExponent)
+    );
 
     assert_eq!(Div(lit(6), lit(2)).eval(env), Ok(3));
-    assert_eq!(Div(lit(1), lit(0)).eval(env), Err(ExpansionError::DivideByZero));
+    assert_eq!(
+        Div(lit(1), lit(0)).eval(env),
+        Err(ExpansionError::DivideByZero)
+    );
 
     assert_eq!(Modulo(lit(6), lit(5)).eval(env), Ok(1));
-    assert_eq!(Modulo(lit(1), lit(0)).eval(env), Err(ExpansionError::DivideByZero));
+    assert_eq!(
+        Modulo(lit(1), lit(0)).eval(env),
+        Err(ExpansionError::DivideByZero)
+    );
 
     assert_eq!(Mult(lit(3), lit(2)).eval(env), Ok(6));
     assert_eq!(Mult(lit(1), lit(0)).eval(env), Ok(0));
@@ -126,11 +135,18 @@ fn test_eval_arith() {
     assert_eq!(Assign(var.clone(), lit(42)).eval(env), Ok(42));
     assert_eq!(env.var(&var).map(|s| &**s), Some("42"));
 
-    assert_eq!(Sequence(vec!(
-        Assign("x".to_owned(), lit(5)),
-        Assign("y".to_owned(), lit(10)),
-        Add(Box::new(PreIncr("x".to_owned())), Box::new(PostDecr("y".to_owned()))),
-    )).eval(env), Ok(16));
+    assert_eq!(
+        Sequence(vec!(
+            Assign("x".to_owned(), lit(5)),
+            Assign("y".to_owned(), lit(10)),
+            Add(
+                Box::new(PreIncr("x".to_owned())),
+                Box::new(PostDecr("y".to_owned()))
+            ),
+        ))
+        .eval(env),
+        Ok(16)
+    );
 
     assert_eq!(env.var("x").map(|s| &**s), Some("6"));
     assert_eq!(env.var("y").map(|s| &**s), Some("9"));

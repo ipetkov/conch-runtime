@@ -3,8 +3,8 @@
 extern crate conch_parser;
 extern crate tokio_core;
 
-use conch_parser::ast::{Arithmetic, ParameterSubstitution};
 use conch_parser::ast::ParameterSubstitution::*;
+use conch_parser::ast::{Arithmetic, ParameterSubstitution};
 use tokio_core::reactor::Core;
 
 #[macro_use]
@@ -24,21 +24,20 @@ fn should_evaluate_appropriately() {
     let empty_param_with_name = MockParam::FieldsWithName(None, "name".to_owned());
     let param_val = "barfoobar".to_owned();
     let param = MockParam::Fields(Some(Fields::Single(param_val.clone())));
-    let word_val = Fields::Split(vec!(
-        "some".to_owned(),
-        "word".to_owned(),
-        "val".to_owned(),
-    ));
+    let word_val = Fields::Split(vec!["some".to_owned(), "word".to_owned(), "val".to_owned()]);
     let word = Some(mock_word_fields(Fields::Single("some word val".to_owned())));
 
-    let subst: ParamSubst = Command(vec!(MockOutCmd::Out("foo bar")));
+    let subst: ParamSubst = Command(vec![MockOutCmd::Out("foo bar")]);
     assert_eq!(
         eval_with_thread_pool!(subst, CFG, 2),
         Ok(Fields::Split(vec!("foo".to_owned(), "bar".to_owned())))
     );
 
     let subst: ParamSubst = Len(param.clone());
-    assert_eq!(eval!(subst, CFG), Ok(Fields::Single(param_val.len().to_string())));
+    assert_eq!(
+        eval!(subst, CFG),
+        Ok(Fields::Single(param_val.len().to_string()))
+    );
     let subst: ParamSubst = Arith(None);
     assert_eq!(eval!(subst, CFG), Ok(Fields::Single(0.to_string())));
     let subst: ParamSubst = Arith(Some(Arithmetic::Literal(5)));
@@ -73,7 +72,7 @@ fn should_propagate_errors_from_word_if_applicable() {
     let empty_param_with_name = MockParam::FieldsWithName(None, "name".to_owned());
     let param = MockParam::Fields(Some(Fields::Single("foo".to_owned())));
 
-    let subst: ParamSubst = Command(vec!(MockOutCmd::Cmd(mock_error(true))));
+    let subst: ParamSubst = Command(vec![MockOutCmd::Cmd(mock_error(true))]);
     assert_eq!(eval!(subst, CFG), Ok(Fields::Zero));
     // NB: Nothing to test for Len or Arith
     let subst: ParamSubst = Default(true, empty_param.clone(), error.clone());

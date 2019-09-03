@@ -2,8 +2,8 @@ extern crate conch_runtime;
 extern crate futures;
 extern crate tokio_core;
 
-use conch_runtime::spawn::{BoxSpawnEnvFuture, BoxStatusFuture, function};
-use futures::future::{FutureResult, poll_fn};
+use conch_runtime::spawn::{function, BoxSpawnEnvFuture, BoxStatusFuture};
+use futures::future::{poll_fn, FutureResult};
 use std::rc::Rc;
 use tokio_core::reactor::Core;
 
@@ -25,11 +25,15 @@ type TestEnv = Env<
 
 fn new_test_env() -> (Core, TestEnv) {
     let lp = Core::new().expect("failed to create Core loop");
-    let env = Env::with_config(DefaultEnvConfig::new(lp.handle(), Some(1))
-        .expect("failed to create test env")
-        .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1)))
-        .change_var_env(VarEnv::new())
-        .change_fn_error::<MockErr>()
+    let env = Env::with_config(
+        DefaultEnvConfig::new(lp.handle(), Some(1))
+            .expect("failed to create test env")
+            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(
+                lp.handle(),
+                Some(1),
+            ))
+            .change_var_env(VarEnv::new())
+            .change_fn_error::<MockErr>(),
     );
 
     (lp, env)
@@ -51,7 +55,8 @@ fn mock_wrapper(cmd: MockCmd) -> Rc<MockCmdWrapper> {
 }
 
 impl<E: ?Sized> Spawn<E> for MockCmdWrapper
-    where E: FunctionFrameEnvironment,
+where
+    E: FunctionFrameEnvironment,
 {
     type Error = MockErr;
     type EnvFuture = Self;
@@ -63,7 +68,8 @@ impl<E: ?Sized> Spawn<E> for MockCmdWrapper
 }
 
 impl<'a, E: ?Sized> Spawn<E> for &'a MockCmdWrapper
-    where E: FunctionFrameEnvironment,
+where
+    E: FunctionFrameEnvironment,
 {
     type Error = MockErr;
     type EnvFuture = MockCmdWrapper;
@@ -75,7 +81,8 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockCmdWrapper
 }
 
 impl<E: ?Sized> EnvFuture<E> for MockCmdWrapper
-    where E: FunctionFrameEnvironment,
+where
+    E: FunctionFrameEnvironment,
 {
     type Item = FutureResult<ExitStatus, Self::Error>;
     type Error = MockErr;
@@ -108,12 +115,14 @@ fn should_restore_args_after_completion() {
     assert!(function(&fn_name, vec!(), &env).is_none());
     env.set_function(fn_name.clone(), mock_wrapper(mock_status(exit)));
 
-    let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
+    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
-    let mut future = function(&fn_name, vec!("qux".to_owned()), &env)
-        .expect("failed to find function");
-    let next = lp.run(poll_fn(|| future.poll(&mut env))).expect("env future failed");
+    let mut future =
+        function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
+    let next = lp
+        .run(poll_fn(|| future.poll(&mut env)))
+        .expect("env future failed");
     assert_eq!(lp.run(next), Ok(exit));
 
     assert_eq!(env.args(), &**args);
@@ -127,11 +136,11 @@ fn should_propagate_errors_and_restore_args() {
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_error(false)));
 
-    let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
+    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
-    let mut future = function(&fn_name, vec!("qux".to_owned()), &env)
-        .expect("failed to find function");
+    let mut future =
+        function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
     match lp.run(poll_fn(|| future.poll(&mut env))) {
         Ok(_) => panic!("unexpected success"),
         Err(e) => assert_eq!(e, MockErr::Fatal(false)),
@@ -148,11 +157,10 @@ fn should_propagate_cancel_and_restore_args() {
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_must_cancel()));
 
-    let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
+    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
-    let future = function(&fn_name, vec!("qux".to_owned()), &env)
-        .expect("failed to find function");
+    let future = function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
     test_cancel!(future, env);
 
     assert_eq!(env.args(), &**args);
@@ -164,15 +172,17 @@ struct MockFnRecursive<F> {
 }
 
 impl<F> MockFnRecursive<F> {
-    fn new(f: F) -> Rc<Self> where F: Fn(&TestEnv) -> BoxSpawnEnvFuture<'static, TestEnv, MockErr> {
-        Rc::new(MockFnRecursive {
-            callback: f
-        })
+    fn new(f: F) -> Rc<Self>
+    where
+        F: Fn(&TestEnv) -> BoxSpawnEnvFuture<'static, TestEnv, MockErr>,
+    {
+        Rc::new(MockFnRecursive { callback: f })
     }
 }
 
 impl<'a, F> Spawn<TestEnv> for &'a MockFnRecursive<F>
-    where F: Fn(&TestEnv) -> BoxSpawnEnvFuture<'static, TestEnv, MockErr>
+where
+    F: Fn(&TestEnv) -> BoxSpawnEnvFuture<'static, TestEnv, MockErr>,
 {
     type EnvFuture = BoxSpawnEnvFuture<'static, TestEnv, Self::Error>;
     type Future = BoxStatusFuture<'static, Self::Error>;
@@ -195,35 +205,39 @@ fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
         let depth_copy = depth.clone();
         let fn_name = fn_name.clone();
 
-        env.set_function(fn_name.clone(), MockFnRecursive::new(move |env| {
-            assert_eq!(env.is_fn_running(), true);
+        env.set_function(
+            fn_name.clone(),
+            MockFnRecursive::new(move |env| {
+                assert_eq!(env.is_fn_running(), true);
 
-            let num_calls = depth.get().saturating_sub(1);
-            depth.set(num_calls);
+                let num_calls = depth.get().saturating_sub(1);
+                depth.set(num_calls);
 
-            if num_calls <= 0 {
-                mock_wrapper(mock_status(exit)).spawn(env)
-            } else {
-                let cur_args: Vec<_> = env.args().iter().cloned().collect();
+                if num_calls <= 0 {
+                    mock_wrapper(mock_status(exit)).spawn(env)
+                } else {
+                    let cur_args: Vec<_> = env.args().iter().cloned().collect();
 
-                let mut next_args = cur_args.clone();
-                next_args.reverse();
-                next_args.push(format!("arg{}", num_calls));
+                    let mut next_args = cur_args.clone();
+                    next_args.reverse();
+                    next_args.push(format!("arg{}", num_calls));
 
-                Box::new(function(&fn_name, next_args, env)
-                    .expect("failed to find function"))
-            }
-        }));
+                    Box::new(function(&fn_name, next_args, env).expect("failed to find function"))
+                }
+            }),
+        );
 
         depth_copy
     };
 
-    let args = Rc::new(vec!("foo".to_owned(), "bar".to_owned()));
+    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
-    let mut future = function(&fn_name, vec!("qux".to_owned()), &env)
-        .expect("failed to find function");
-    let next = lp.run(poll_fn(|| future.poll(&mut env))).expect("env future failed");
+    let mut future =
+        function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
+    let next = lp
+        .run(poll_fn(|| future.poll(&mut env)))
+        .expect("env future failed");
     assert_eq!(lp.run(next), Ok(exit));
 
     assert_eq!(env.args(), &**args);

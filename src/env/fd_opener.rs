@@ -1,7 +1,7 @@
-use io::{FileDesc, Pipe as OsPipe};
 use env::SubEnvironment;
-use std::io;
+use io::{FileDesc, Pipe as OsPipe};
 use std::fs::OpenOptions;
+use std::io;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;

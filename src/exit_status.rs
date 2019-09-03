@@ -5,13 +5,13 @@ use std::process;
 use void::Void;
 
 /// Exit code for commands that exited successfully.
-pub const EXIT_SUCCESS:            ExitStatus = ExitStatus::Code(0);
+pub const EXIT_SUCCESS: ExitStatus = ExitStatus::Code(0);
 /// Exit code for commands that did not exit successfully.
-pub const EXIT_ERROR:              ExitStatus = ExitStatus::Code(1);
+pub const EXIT_ERROR: ExitStatus = ExitStatus::Code(1);
 /// Exit code for commands which are not executable.
 pub const EXIT_CMD_NOT_EXECUTABLE: ExitStatus = ExitStatus::Code(126);
 /// Exit code for missing commands.
-pub const EXIT_CMD_NOT_FOUND:      ExitStatus = ExitStatus::Code(127);
+pub const EXIT_CMD_NOT_FOUND: ExitStatus = ExitStatus::Code(127);
 
 /// Describes the result of a process after it has terminated.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -36,7 +36,7 @@ impl ExitStatus {
 impl fmt::Display for ExitStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ExitStatus::Code(code)   => write!(f, "exit code: {}", code),
+            ExitStatus::Code(code) => write!(f, "exit code: {}", code),
             ExitStatus::Signal(code) => write!(f, "signal: {}", code),
         }
     }

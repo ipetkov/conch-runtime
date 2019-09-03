@@ -1,7 +1,8 @@
-use {EXIT_SUCCESS, HOME, POLLED_TWICE};
 use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
-use env::{AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment,
-          StringWrapper, VariableEnvironment, WorkingDirectoryEnvironment};
+use env::{
+    AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment, StringWrapper,
+    VariableEnvironment, WorkingDirectoryEnvironment,
+};
 use future::{Async, EnvFuture, Poll};
 use path::{NormalizationError, NormalizedPath};
 use spawn::{ExitResult, Spawn};
@@ -9,6 +10,7 @@ use std::borrow::{Borrow, Cow};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use void::{self, Void};
+use {EXIT_SUCCESS, HOME, POLLED_TWICE};
 
 const CD: &str = "cd";
 const ARG_LOGICAL: &str = "L";
@@ -80,17 +82,18 @@ impl_generic_builtin_cmd_no_spawn! {
 }
 
 impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
-    where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: AsyncIoEnvironment
-              + ChangeWorkingDirectoryEnvironment
-              + FileDescEnvironment
-              + VariableEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::VarName: Borrow<String> + From<String>,
-          E::Var: Borrow<String> + From<String>,
+where
+    T: StringWrapper,
+    I: Iterator<Item = T>,
+    E: AsyncIoEnvironment
+        + ChangeWorkingDirectoryEnvironment
+        + FileDescEnvironment
+        + VariableEnvironment
+        + WorkingDirectoryEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::VarName: Borrow<String> + From<String>,
+    E::Var: Borrow<String> + From<String>,
 {
     type EnvFuture = SpawnedCd<I>;
     type Future = ExitResult<CdFuture<E::WriteAll>>;
@@ -98,38 +101,43 @@ impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
 
     fn spawn(self, _env: &E) -> Self::EnvFuture {
         SpawnedCd {
-            args: Some(self.args)
+            args: Some(self.args),
         }
     }
 }
 
 impl<I> SpawnedCd<I> {
     fn get_matches(&mut self) -> ClapResult<ArgMatches<'static>>
-        where I: Iterator,
-              I::Item: StringWrapper,
+    where
+        I: Iterator,
+        I::Item: StringWrapper,
     {
         let app = App::new(CD)
             .setting(AppSettings::NoBinaryName)
             .setting(AppSettings::DisableVersion)
             .about("Changes the current working directory of the shell")
             .long_about(LONG_ABOUT)
-            .arg(Arg::with_name(ARG_LOGICAL)
-                 .short(ARG_LOGICAL)
-                 .multiple(true)
-                 .overrides_with(ARG_PHYSICAL)
-                 .help("Handle paths logically (symbolic links will not be resolved)")
+            .arg(
+                Arg::with_name(ARG_LOGICAL)
+                    .short(ARG_LOGICAL)
+                    .multiple(true)
+                    .overrides_with(ARG_PHYSICAL)
+                    .help("Handle paths logically (symbolic links will not be resolved)"),
             )
-            .arg(Arg::with_name(ARG_PHYSICAL)
-                 .short(ARG_PHYSICAL)
-                 .multiple(true)
-                 .overrides_with(ARG_LOGICAL)
-                 .help("Handle paths physically (all symbolic links resolved)")
+            .arg(
+                Arg::with_name(ARG_PHYSICAL)
+                    .short(ARG_PHYSICAL)
+                    .multiple(true)
+                    .overrides_with(ARG_LOGICAL)
+                    .help("Handle paths physically (all symbolic links resolved)"),
             )
-            .arg(Arg::with_name(ARG_DIR)
-                 .help("An absolute or relative path for the what shall become the new working directory")
-            );
+            .arg(Arg::with_name(ARG_DIR).help(
+                "An absolute or relative path for the what shall become the new working directory",
+            ));
 
-        let app_args = self.args.take()
+        let app_args = self
+            .args
+            .take()
             .expect(POLLED_TWICE)
             .into_iter()
             .map(StringWrapper::into_owned);
@@ -152,17 +160,18 @@ fn get_flags<'a>(matches: &'a ArgMatches<'a>) -> Flags<'a> {
 }
 
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
-    where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: AsyncIoEnvironment
-              + ChangeWorkingDirectoryEnvironment
-              + FileDescEnvironment
-              + VariableEnvironment
-              + WorkingDirectoryEnvironment,
-          E::FileHandle: Clone,
-          E::IoHandle: From<E::FileHandle>,
-          E::VarName: Borrow<String> + From<String>,
-          E::Var: Borrow<String> + From<String>,
+where
+    T: StringWrapper,
+    I: Iterator<Item = T>,
+    E: AsyncIoEnvironment
+        + ChangeWorkingDirectoryEnvironment
+        + FileDescEnvironment
+        + VariableEnvironment
+        + WorkingDirectoryEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+    E::VarName: Borrow<String> + From<String>,
+    E::Var: Borrow<String> + From<String>,
 {
     type Item = ExitResult<CdFuture<E::WriteAll>>;
     type Error = Void;
@@ -177,14 +186,18 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
                 let err: Result<Void, _> = Err(e);
                 let void = try_and_report!(CD, err, env);
                 void::unreachable(void);
-            },
+            }
         };
 
         let new_working_dir = new_working_dir.into_inner();
-        match try_and_report!(CD, perform_cd_change(should_print_pwd, new_working_dir, env), env) {
-            Some(pwd) => generate_and_print_output!(CD, env, |_| -> Result<_, Void> {
-                Ok(pwd.into_bytes())
-            }),
+        match try_and_report!(
+            CD,
+            perform_cd_change(should_print_pwd, new_working_dir, env),
+            env
+        ) {
+            Some(pwd) => {
+                generate_and_print_output!(CD, env, |_| -> Result<_, Void> { Ok(pwd.into_bytes()) })
+            }
             None => Ok(Async::Ready(ExitResult::from(EXIT_SUCCESS))),
         }
     }
@@ -194,11 +207,11 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
     }
 }
 
-fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E)
-    -> Result<(NormalizedPath, bool), CdError>
-    where E: VariableEnvironment + WorkingDirectoryEnvironment,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
+fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E) -> Result<(NormalizedPath, bool), CdError>
+where
+    E: VariableEnvironment + WorkingDirectoryEnvironment,
+    E::VarName: Borrow<String>,
+    E::Var: Borrow<String>,
 {
     let (new_working_dir, should_print_pwd) = get_dir_arg(flags.dir, env)?;
     let new_working_dir = if flags.resolve_symlinks {
@@ -207,7 +220,7 @@ fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E)
                 let mut normalized_path = NormalizedPath::new();
                 normalized_path.join_normalized_physical(dir)?;
                 normalized_path
-            },
+            }
             Cow::Owned(b) => NormalizedPath::new_normalized_physical(b)?,
         }
     } else {
@@ -216,7 +229,7 @@ fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E)
                 let mut normalized_path = NormalizedPath::new();
                 normalized_path.join_normalized_logial(dir);
                 normalized_path
-            },
+            }
             Cow::Owned(buf) => NormalizedPath::new_normalized_logical(buf),
         }
     };
@@ -224,11 +237,14 @@ fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E)
     Ok((new_working_dir, should_print_pwd))
 }
 
-fn get_dir_arg<'a, E: ?Sized>(dir: Option<&'a str>, env: &'a E)
-    -> Result<(Cow<'a, Path>, bool), VarNotDefinedError>
-    where E: VariableEnvironment + WorkingDirectoryEnvironment,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
+fn get_dir_arg<'a, E: ?Sized>(
+    dir: Option<&'a str>,
+    env: &'a E,
+) -> Result<(Cow<'a, Path>, bool), VarNotDefinedError>
+where
+    E: VariableEnvironment + WorkingDirectoryEnvironment,
+    E::VarName: Borrow<String>,
+    E::Var: Borrow<String>,
 {
     let mut should_print_pwd = false;
     let dir = match dir {
@@ -240,14 +256,15 @@ fn get_dir_arg<'a, E: ?Sized>(dir: Option<&'a str>, env: &'a E)
             Some(oldpwd) => {
                 should_print_pwd = true;
                 Path::new((*oldpwd).borrow())
-            },
+            }
             None => return Err(VarNotDefinedError::OldPwd),
         },
         Some(d) => Path::new(d),
     };
 
     let candidate = if is_cdpath_candidate(dir) {
-        env.var(&CDPATH).and_then(|cdpath| cdpath_candidate(dir, cdpath.borrow().as_str(), env))
+        env.var(&CDPATH)
+            .and_then(|cdpath| cdpath_candidate(dir, cdpath.borrow().as_str(), env))
     } else {
         None
     };
@@ -256,7 +273,7 @@ fn get_dir_arg<'a, E: ?Sized>(dir: Option<&'a str>, env: &'a E)
         Some(c) => {
             should_print_pwd = true;
             c
-        },
+        }
         None => env.path_relative_to_working_dir(Cow::Borrowed(dir)),
     };
 
@@ -269,40 +286,42 @@ fn is_cdpath_candidate(path: &Path) -> bool {
     }
 
     match path.components().next() {
-        Some(Component::CurDir) |
-        Some(Component::ParentDir) => false,
+        Some(Component::CurDir) | Some(Component::ParentDir) => false,
         _ => true,
     }
 }
 
-fn cdpath_candidate<'a, E: ?Sized>(dir: &'a Path, cdpaths: &'a str, env: &'a E)
-    -> Option<Cow<'a, Path>>
-    where E: WorkingDirectoryEnvironment
+fn cdpath_candidate<'a, E: ?Sized>(
+    dir: &'a Path,
+    cdpaths: &'a str,
+    env: &'a E,
+) -> Option<Cow<'a, Path>>
+where
+    E: WorkingDirectoryEnvironment,
 {
-    cdpaths.split(':')
+    cdpaths
+        .split(':')
         .map(PathBuf::from)
         .map(|buf| buf.join(dir))
         .map(|buf| env.path_relative_to_working_dir(Cow::Owned(buf)))
         .find(|path| path.is_dir())
 }
 
-fn perform_cd_change<E: ?Sized>(should_print_pwd: bool, new_working_dir: PathBuf, env: &mut E)
-    -> io::Result<Option<String>>
-    where E: ChangeWorkingDirectoryEnvironment
-              + VariableEnvironment
-              + WorkingDirectoryEnvironment,
-          E::VarName: From<String>,
-          E::Var: From<String>,
+fn perform_cd_change<E: ?Sized>(
+    should_print_pwd: bool,
+    new_working_dir: PathBuf,
+    env: &mut E,
+) -> io::Result<Option<String>>
+where
+    E: ChangeWorkingDirectoryEnvironment + VariableEnvironment + WorkingDirectoryEnvironment,
+    E::VarName: From<String>,
+    E::Var: From<String>,
 {
-    let old_pwd = env.current_working_dir()
-        .to_string_lossy()
-        .into_owned();
+    let old_pwd = env.current_working_dir().to_string_lossy().into_owned();
 
     env.change_working_dir(Cow::Owned(new_working_dir))?;
 
-    let pwd = env.current_working_dir()
-        .to_string_lossy()
-        .into_owned();
+    let pwd = env.current_working_dir().to_string_lossy().into_owned();
 
     let ret = if should_print_pwd {
         Some(format!("{}\n", pwd))

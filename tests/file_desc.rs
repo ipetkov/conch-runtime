@@ -14,7 +14,10 @@ pub use self::support::*;
 fn test_file_desc_duplicate() {
     let msg1 = "pipe message one\n";
     let msg2 = "pipe message two\n";
-    let Pipe { mut reader, mut writer } = Pipe::new().unwrap();
+    let Pipe {
+        mut reader,
+        mut writer,
+    } = Pipe::new().unwrap();
 
     let guard = thread::spawn(move || {
         writer.write_all(msg1.as_bytes()).unwrap();

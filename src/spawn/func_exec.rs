@@ -1,23 +1,27 @@
-use {CANCELLED_TWICE, POLLED_TWICE, Spawn};
 use env::{FunctionEnvironment, FunctionFrameEnvironment, SetArgumentsEnvironment};
 use future::{Async, EnvFuture, Poll};
 use std::fmt;
+use {Spawn, CANCELLED_TWICE, POLLED_TWICE};
 
 /// Creates a future adapter that will attempt to execute a function (if it has
 /// been defined) with a given set of arguments.
 pub fn function<A, E: ?Sized>(name: &E::FnName, args: A, env: &E) -> Option<Function<E::Fn, E>>
-    where E: FunctionEnvironment + SetArgumentsEnvironment,
-          E::Args: From<A>,
-          E::Fn: Clone + Spawn<E>,
+where
+    E: FunctionEnvironment + SetArgumentsEnvironment,
+    E::Args: From<A>,
+    E::Fn: Clone + Spawn<E>,
 {
-    env.function(name).cloned().map(|func| function_body(func, args))
+    env.function(name)
+        .cloned()
+        .map(|func| function_body(func, args))
 }
 
 /// Creates a future adapter that will execute a function body with the given set of arguments.
 pub fn function_body<S, A, E: ?Sized>(body: S, args: A) -> Function<S, E>
-    where S: Spawn<E>,
-          E: SetArgumentsEnvironment,
-          E::Args: From<A>,
+where
+    S: Spawn<E>,
+    E: SetArgumentsEnvironment,
+    E::Args: From<A>,
 {
     Function {
         state: State::Init(Some((body, args.into()))),
@@ -27,8 +31,9 @@ pub fn function_body<S, A, E: ?Sized>(body: S, args: A) -> Function<S, E>
 /// A future that represents the execution of a function registered in an environment.
 #[must_use = "futures do nothing unless polled"]
 pub struct Function<S, E: ?Sized>
-    where S: Spawn<E>,
-          E: SetArgumentsEnvironment,
+where
+    S: Spawn<E>,
+    E: SetArgumentsEnvironment,
 {
     state: State<S, S::EnvFuture, E::Args>,
 }
@@ -41,10 +46,11 @@ enum State<S, F, A> {
 }
 
 impl<S, E: ?Sized> fmt::Debug for Function<S, E>
-    where S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          E: SetArgumentsEnvironment,
-          E::Args: fmt::Debug,
+where
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    E: SetArgumentsEnvironment,
+    E::Args: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Function")
@@ -54,8 +60,9 @@ impl<S, E: ?Sized> fmt::Debug for Function<S, E>
 }
 
 impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
-    where S: Spawn<E>,
-          E: FunctionFrameEnvironment + SetArgumentsEnvironment,
+where
+    S: Spawn<E>,
+    E: FunctionFrameEnvironment + SetArgumentsEnvironment,
 {
     type Item = S::Future;
     type Error = S::Error;
@@ -70,7 +77,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
                     let old_args = env.set_args(args);
 
                     State::Pending(func.spawn(env), Some(old_args))
-                },
+                }
 
                 State::Pending(ref mut f, ref mut old_args) => match f.poll(env) {
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
@@ -78,7 +85,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
                         env.set_args(old_args.take().expect(POLLED_TWICE));
                         env.pop_fn_frame();
                         return ret;
-                    },
+                    }
                 },
 
                 State::Gone => panic!(POLLED_TWICE),
@@ -90,13 +97,13 @@ impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
 
     fn cancel(&mut self, env: &mut E) {
         match self.state {
-            State::Init(_) => {},
+            State::Init(_) => {}
             State::Pending(ref mut f, ref mut old_args) => {
                 let old_args = old_args.take().expect(CANCELLED_TWICE);
                 f.cancel(env);
                 env.set_args(old_args);
                 env.pop_fn_frame();
-            },
+            }
             State::Gone => panic!(CANCELLED_TWICE),
         }
 

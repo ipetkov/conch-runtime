@@ -21,11 +21,12 @@ pub fn split<F>(split_fields_further: bool, future: F) -> Split<F> {
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for Split<F>
-    where T: StringWrapper,
-          F: EnvFuture<E, Item = Fields<T>>,
-          E: VariableEnvironment,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
+where
+    T: StringWrapper,
+    F: EnvFuture<E, Item = Fields<T>>,
+    E: VariableEnvironment,
+    E::VarName: Borrow<String>,
+    E::Var: Borrow<String>,
 {
     type Item = F::Item;
     type Error = F::Error;

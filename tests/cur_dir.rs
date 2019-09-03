@@ -44,7 +44,8 @@ fn change_cur_dir_should_accept_absolute_paths() {
 
     let mut env = VirtualWorkingDirEnv::with_process_working_dir().unwrap();
 
-    env.change_working_dir(Cow::Borrowed(tempdir.path())).expect("change_working_dir failed");
+    env.change_working_dir(Cow::Borrowed(tempdir.path()))
+        .expect("change_working_dir failed");
     assert_eq!(env.current_working_dir(), tempdir.path());
 }
 
@@ -54,7 +55,8 @@ fn change_cur_dir_should_accept_relative_paths() {
 
     let mut env = VirtualWorkingDirEnv::new(PathBuf::from(tempdir.path())).unwrap();
 
-    env.change_working_dir(Cow::Borrowed(Path::new(".."))).expect("change_working_dir failed");
+    env.change_working_dir(Cow::Borrowed(Path::new("..")))
+        .expect("change_working_dir failed");
 
     let mut expected = PathBuf::new();
     expected.push(tempdir.path());

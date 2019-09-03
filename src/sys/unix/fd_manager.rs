@@ -1,14 +1,14 @@
+use env::{AsyncIoEnvironment, SubEnvironment};
 use futures::{Async, Future, Poll};
 use io::{FileDesc, FileDescWrapper};
 use os::unix::io::{FileDescExt, MaybeEventedFd};
-use env::{AsyncIoEnvironment, SubEnvironment};
-use tokio_core::reactor::{Handle, Remote};
-use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_io::io::{WriteAll, write_all};
 use std::cell::RefCell;
 use std::io::{self, Read, Write};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use tokio_core::reactor::{Handle, Remote};
+use tokio_io::io::{write_all, WriteAll};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 #[derive(Debug)]
 enum Inner {
@@ -19,17 +19,17 @@ enum Inner {
 impl Inner {
     fn file_desc(&self) -> &FileDesc {
         match *self {
-            Inner::Unregistered(ref fd) |
-            Inner::Evented(MaybeEventedFd::RegularFile(ref fd)) => fd,
+            Inner::Unregistered(ref fd) | Inner::Evented(MaybeEventedFd::RegularFile(ref fd)) => fd,
             Inner::Evented(MaybeEventedFd::Registered(ref pe)) => pe.get_ref().get_ref(),
         }
     }
 
     fn unwrap_file_desc(self) -> io::Result<FileDesc> {
         match self {
-            Inner::Unregistered(fd) |
-            Inner::Evented(MaybeEventedFd::RegularFile(fd)) => Ok(fd),
-            Inner::Evented(MaybeEventedFd::Registered(ref pe)) => pe.get_ref().get_ref().duplicate(),
+            Inner::Unregistered(fd) | Inner::Evented(MaybeEventedFd::RegularFile(fd)) => Ok(fd),
+            Inner::Evented(MaybeEventedFd::Registered(ref pe)) => {
+                pe.get_ref().get_ref().duplicate()
+            }
         }
     }
 }
@@ -49,13 +49,15 @@ impl ManagedFileDesc {
     }
 
     fn access_inner<F, R>(&self, f: F) -> R
-        where for<'a> F: FnOnce(&'a Inner) -> R
+    where
+        for<'a> F: FnOnce(&'a Inner) -> R,
     {
         f(&*self.inner.borrow())
     }
 
     fn mutate_inner<F, R>(&self, f: F) -> R
-        where for<'a> F: FnOnce(&'a mut Inner) -> R
+    where
+        for<'a> F: FnOnce(&'a mut Inner) -> R,
     {
         f(&mut *self.inner.borrow_mut())
     }
@@ -85,19 +87,19 @@ impl AtomicManagedFileDesc {
     }
 
     fn access_inner<F, R>(&self, f: F) -> R
-        where for<'a> F: FnOnce(&'a Inner) -> R
+    where
+        for<'a> F: FnOnce(&'a Inner) -> R,
     {
-        let guard = self.inner.read()
-            .unwrap_or_else(|p| panic!("{}", p));
+        let guard = self.inner.read().unwrap_or_else(|p| panic!("{}", p));
 
         f(&*guard)
     }
 
     fn mutate_inner<F, R>(&self, f: F) -> R
-        where for<'a> F: FnOnce(&'a mut Inner) -> R
+    where
+        for<'a> F: FnOnce(&'a mut Inner) -> R,
     {
-        let mut guard = self.inner.write()
-            .unwrap_or_else(|p| panic!("{}", p));
+        let mut guard = self.inner.write().unwrap_or_else(|p| panic!("{}", p));
 
         f(&mut *guard)
     }
@@ -106,17 +108,15 @@ impl AtomicManagedFileDesc {
 impl FileDescWrapper for AtomicManagedFileDesc {
     fn try_unwrap(self) -> io::Result<FileDesc> {
         match Arc::try_unwrap(self.inner) {
-            Ok(lock) => {
-                lock.into_inner()
-                    .unwrap_or_else(|p| panic!("{}", p))
-                    .unwrap_file_desc()
-            },
-            Err(inner) => {
-                inner.read()
-                    .unwrap_or_else(|p| panic!("{}", p))
-                    .file_desc()
-                    .duplicate()
-            },
+            Ok(lock) => lock
+                .into_inner()
+                .unwrap_or_else(|p| panic!("{}", p))
+                .unwrap_file_desc(),
+            Err(inner) => inner
+                .read()
+                .unwrap_or_else(|p| panic!("{}", p))
+                .file_desc()
+                .duplicate(),
         }
     }
 }

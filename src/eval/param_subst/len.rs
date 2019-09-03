@@ -5,7 +5,8 @@ use eval::{Fields, ParamEval};
 ///
 /// The resulting length will be converted to the same type as `P::EvalResult`.
 pub fn len<P, E: ?Sized>(param: &P, env: &E) -> P::EvalResult
-    where P: ParamEval<E>
+where
+    P: ParamEval<E>,
 {
     // We won't do field splitting here because any field expansions
     // should be done on the result we are about to return, and not the
@@ -15,8 +16,7 @@ pub fn len<P, E: ?Sized>(param: &P, env: &E) -> P::EvalResult
 
         Fields::Single(s) => s.as_str().len(),
 
-        Fields::At(v) |
-        Fields::Star(v) => v.len(),
+        Fields::At(v) | Fields::Star(v) => v.len(),
 
         // Since we should have specified NO field splitting above,
         // this variant should never occur, but since we cannot control

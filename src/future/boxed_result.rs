@@ -12,8 +12,9 @@ pub struct BoxedResult<'a, EF> {
 }
 
 pub fn new<'a, F: EnvFuture<E>, E: ?Sized>(future: F) -> BoxedResult<'a, F>
-    where F: EnvFuture<E>,
-          F::Item: 'a + Future,
+where
+    F: EnvFuture<E>,
+    F::Item: 'a + Future,
 {
     BoxedResult {
         inner: future,
@@ -22,9 +23,10 @@ pub fn new<'a, F: EnvFuture<E>, E: ?Sized>(future: F) -> BoxedResult<'a, F>
 }
 
 impl<'a, EF, F, E: ?Sized> EnvFuture<E> for BoxedResult<'a, EF>
-    where EF: EnvFuture<E, Item = F>,
-          F: 'a + Future,
-          F::Error: From<EF::Error>,
+where
+    EF: EnvFuture<E, Item = F>,
+    F: 'a + Future,
+    F::Error: From<EF::Error>,
 {
     type Item = Box<dyn 'a + Future<Item = F::Item, Error = F::Error>>;
     type Error = F::Error;

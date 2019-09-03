@@ -1,14 +1,16 @@
-use {Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-use futures::{Future, Poll};
-use io::{FileDesc, FileDescWrapper, Permissions, dup_stdio};
-use env::{AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv,
-          FileDescOpener, FileDescOpenerEnv, Pipe, SubEnvironment};
 use env::atomic::FileDescEnv as AtomicFileDescEnv;
+use env::{
+    AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv, FileDescOpener,
+    FileDescOpenerEnv, Pipe, SubEnvironment,
+};
+use futures::{Future, Poll};
+use io::{dup_stdio, FileDesc, FileDescWrapper, Permissions};
 use std::fs::OpenOptions;
 use std::io::{Error as IoError, Read, Result as IoResult};
 use std::path::Path;
 use tokio_core::reactor::{Handle, Remote};
 use tokio_io::AsyncRead;
+use {Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
 macro_rules! impl_env {
     (
@@ -231,13 +233,19 @@ impl_env! {
     AtomicInnerWriteAll,
 }
 
-#[cfg(unix)] type InnerFileHandle = ::os::unix::env::ManagedFileDesc;
-#[cfg(unix)] type InnerAsyncRead = ::os::unix::env::ManagedAsyncRead;
-#[cfg(unix)] type InnerWriteAll = ::os::unix::env::ManagedWriteAll;
+#[cfg(unix)]
+type InnerFileHandle = ::os::unix::env::ManagedFileDesc;
+#[cfg(unix)]
+type InnerAsyncRead = ::os::unix::env::ManagedAsyncRead;
+#[cfg(unix)]
+type InnerWriteAll = ::os::unix::env::ManagedWriteAll;
 
-#[cfg(not(unix))] type InnerFileHandle = ::std::rc::Rc<::io::FileDesc>;
-#[cfg(not(unix))] type InnerAsyncRead = ::env::async_io::ThreadPoolReadAsync;
-#[cfg(not(unix))] type InnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
+#[cfg(not(unix))]
+type InnerFileHandle = ::std::rc::Rc<::io::FileDesc>;
+#[cfg(not(unix))]
+type InnerAsyncRead = ::env::async_io::ThreadPoolReadAsync;
+#[cfg(not(unix))]
+type InnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 
 #[cfg(unix)]
 type Inner = FileDescManagerEnv<
@@ -264,7 +272,7 @@ impl PlatformSpecificFileDescManagerEnv {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
                 fd_env,
-                ::os::unix::env::EventedAsyncIoEnv::new(handle)
+                ::os::unix::env::EventedAsyncIoEnv::new(handle),
             )
         };
 
@@ -272,7 +280,7 @@ impl PlatformSpecificFileDescManagerEnv {
         let get_inner = |_: Handle, num_threads: Option<usize>| {
             let thread_pool = num_threads.map_or_else(
                 || ::env::async_io::ThreadPoolAsyncIoEnv::new_num_cpus(),
-                ::env::async_io::ThreadPoolAsyncIoEnv::new
+                ::env::async_io::ThreadPoolAsyncIoEnv::new,
             );
 
             FileDescManagerEnv::new(
@@ -288,13 +296,19 @@ impl PlatformSpecificFileDescManagerEnv {
     }
 }
 
-#[cfg(unix)] type AtomicInnerFileHandle = ::os::unix::env::atomic::ManagedFileDesc;
-#[cfg(unix)] type AtomicInnerAsyncRead = ::os::unix::env::atomic::ManagedAsyncRead;
-#[cfg(unix)] type AtomicInnerWriteAll = ::os::unix::env::atomic::ManagedWriteAll;
+#[cfg(unix)]
+type AtomicInnerFileHandle = ::os::unix::env::atomic::ManagedFileDesc;
+#[cfg(unix)]
+type AtomicInnerAsyncRead = ::os::unix::env::atomic::ManagedAsyncRead;
+#[cfg(unix)]
+type AtomicInnerWriteAll = ::os::unix::env::atomic::ManagedWriteAll;
 
-#[cfg(not(unix))] type AtomicInnerFileHandle = ::std::sync::Arc<::io::FileDesc>;
-#[cfg(not(unix))] type AtomicInnerAsyncRead = ::env::async_io::ThreadPoolReadAsync;
-#[cfg(not(unix))] type AtomicInnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
+#[cfg(not(unix))]
+type AtomicInnerFileHandle = ::std::sync::Arc<::io::FileDesc>;
+#[cfg(not(unix))]
+type AtomicInnerAsyncRead = ::env::async_io::ThreadPoolReadAsync;
+#[cfg(not(unix))]
+type AtomicInnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 
 #[cfg(unix)]
 type AtomicInner = FileDescManagerEnv<
@@ -321,7 +335,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
                 fd_env,
-                ::os::unix::env::atomic::EventedAsyncIoEnv::new(remote)
+                ::os::unix::env::atomic::EventedAsyncIoEnv::new(remote),
             )
         };
 
@@ -329,7 +343,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
         let get_inner = |_: Remote, num_threads: Option<usize>| {
             let thread_pool = num_threads.map_or_else(
                 || ::env::async_io::ThreadPoolAsyncIoEnv::new_num_cpus(),
-                ::env::async_io::ThreadPoolAsyncIoEnv::new
+                ::env::async_io::ThreadPoolAsyncIoEnv::new,
             );
 
             FileDescManagerEnv::new(
@@ -357,9 +371,7 @@ struct ArcShimAsyncIoEnv {
 #[cfg(not(unix))]
 impl ArcShimAsyncIoEnv {
     fn new(inner: ::env::async_io::ThreadPoolAsyncIoEnv) -> Self {
-        Self {
-            inner: inner,
-        }
+        Self { inner: inner }
     }
 }
 
@@ -386,7 +398,7 @@ impl AsyncIoEnvironment for ArcShimAsyncIoEnv {
 impl SubEnvironment for ArcShimAsyncIoEnv {
     fn sub_env(&self) -> Self {
         Self {
-            inner: self.inner.sub_env()
+            inner: self.inner.sub_env(),
         }
     }
 }

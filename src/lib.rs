@@ -29,12 +29,12 @@
 //! times during local development)
 
 #![doc(html_root_url = "https://docs.rs/conch-runtime/0.1")]
-
-#![cfg_attr(all(feature = "conch-parser", feature = "top-level"), recursion_limit="128")]
-
+#![cfg_attr(
+    all(feature = "conch-parser", feature = "top-level"),
+    recursion_limit = "128"
+)]
 #![cfg_attr(all(not(test), feature = "cargo-clippy"), deny(print_stdout))]
 #![cfg_attr(feature = "cargo-clippy", deny(wrong_self_convention))]
-
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
@@ -43,21 +43,27 @@
 #![deny(unused_qualifications)]
 
 // Unix only libs
-#[cfg(unix)] extern crate libc;
+#[cfg(unix)]
+extern crate libc;
 
 // Windows only libs
-#[cfg(windows)] extern crate winapi;
+#[cfg(windows)]
+extern crate winapi;
 
 extern crate clap;
 #[cfg(feature = "conch-parser")]
 extern crate conch_parser;
-#[macro_use] extern crate failure;
-#[macro_use] extern crate futures;
+#[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate futures;
 extern crate futures_cpupool;
 extern crate glob;
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
 extern crate mio;
-#[macro_use] extern crate rental;
+#[macro_use]
+extern crate rental;
 extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_process;
@@ -77,14 +83,16 @@ mod exit_status;
 mod future_ext;
 mod ref_counted;
 #[cfg(unix)]
-#[path="sys/unix/mod.rs"]
+#[path = "sys/unix/mod.rs"]
 mod sys;
 #[cfg(windows)]
-#[path="sys/windows/mod.rs"]
+#[path = "sys/windows/mod.rs"]
 mod sys;
 
-pub use self::exit_status::{EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS};
 pub use self::exit_status::ExitStatus;
+pub use self::exit_status::{
+    EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
+};
 pub use self::ref_counted::RefCounted;
 pub use self::spawn::Spawn;
 

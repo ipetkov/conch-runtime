@@ -1,10 +1,10 @@
 //! A module for evaluating arbitrary shell components such as words,
 //! parameter subsitutions, redirections, and others.
 
-use future::{Async, EnvFuture, Poll};
-use glob;
 use env::{StringWrapper, VariableEnvironment};
 use error::ExpansionError;
+use future::{Async, EnvFuture, Poll};
+use glob;
 use std::borrow::Borrow;
 
 mod concat;
@@ -18,23 +18,29 @@ mod redirect_or_var_assig;
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
 
-pub use self::concat::{Concat, concat};
+pub use self::concat::{concat, Concat};
 pub use self::double_quoted::{double_quoted, DoubleQuoted};
 pub use self::fields::Fields;
-pub use self::param_subst::{alternative, assign, default, error, len,
-                            remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix,
-                            remove_smallest_suffix, split};
-pub use self::param_subst::{Alternative, Assign, EvalDefault, Error, RemoveLargestPrefix,
-                            RemoveLargestSuffix, RemoveSmallestPrefix, RemoveSmallestSuffix, Split};
-pub use self::redirect::{Redirect, RedirectAction, RedirectEval,
-                         redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write,
-                         redirect_heredoc, redirect_read, redirect_readwrite, redirect_write};
-pub use self::redirect_or_cmd_word::{EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError,
-                                    RedirectOrCmdWord, eval_redirects_or_cmd_words,
-                                    eval_redirects_or_cmd_words_with_restorer};
-pub use self::redirect_or_var_assig::{EvalRedirectOrVarAssig, EvalRedirectOrVarAssigError,
-                                      RedirectOrVarAssig,
-                                      eval_redirects_or_var_assignments_with_restorers};
+pub use self::param_subst::{
+    alternative, assign, default, error, len, remove_largest_prefix, remove_largest_suffix,
+    remove_smallest_prefix, remove_smallest_suffix, split,
+};
+pub use self::param_subst::{
+    Alternative, Assign, Error, EvalDefault, RemoveLargestPrefix, RemoveLargestSuffix,
+    RemoveSmallestPrefix, RemoveSmallestSuffix, Split,
+};
+pub use self::redirect::{
+    redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
+    redirect_read, redirect_readwrite, redirect_write, Redirect, RedirectAction, RedirectEval,
+};
+pub use self::redirect_or_cmd_word::{
+    eval_redirects_or_cmd_words, eval_redirects_or_cmd_words_with_restorer, EvalRedirectOrCmdWord,
+    EvalRedirectOrCmdWordError, RedirectOrCmdWord,
+};
+pub use self::redirect_or_var_assig::{
+    eval_redirects_or_var_assignments_with_restorers, EvalRedirectOrVarAssig,
+    EvalRedirectOrVarAssigError, RedirectOrVarAssig,
+};
 
 /// A trait for evaluating parameters.
 pub trait ParamEval<E: ?Sized> {
@@ -119,10 +125,13 @@ pub trait WordEval<E: ?Sized>: Sized {
     /// have been quoted).
     fn eval(self, env: &E) -> Self::EvalFuture {
         // FIXME: implement path expansion here
-        self.eval_with_config(env, WordEvalConfig {
-            tilde_expansion: TildeExpansion::First,
-            split_fields_further: true,
-        })
+        self.eval_with_config(
+            env,
+            WordEvalConfig {
+                tilde_expansion: TildeExpansion::First,
+                split_fields_further: true,
+            },
+        )
     }
 
     /// Evaluates a word in a given environment without doing field and pathname expansions.
@@ -131,15 +140,19 @@ pub trait WordEval<E: ?Sized>: Sized {
     /// will be performed, however. In addition, if multiple fields arise as a result
     /// of evaluating `$@` or `$*`, the fields will be joined with a single space.
     fn eval_as_assignment(self, env: &E) -> Assignment<Self::EvalFuture>
-        where E: VariableEnvironment,
-              E::VarName: Borrow<String>,
-              E::Var: Borrow<String>,
+    where
+        E: VariableEnvironment,
+        E::VarName: Borrow<String>,
+        E::Var: Borrow<String>,
     {
         Assignment {
-            f: self.eval_with_config(env, WordEvalConfig {
-                tilde_expansion: TildeExpansion::All,
-                split_fields_further: false,
-            }),
+            f: self.eval_with_config(
+                env,
+                WordEvalConfig {
+                    tilde_expansion: TildeExpansion::All,
+                    split_fields_further: false,
+                },
+            ),
         }
     }
 
@@ -148,10 +161,13 @@ pub trait WordEval<E: ?Sized>: Sized {
     // FIXME: globbing should be done relative to the shell's cwd WITHOUT changing the process's cwd
     fn eval_as_pattern(self, env: &E) -> Pattern<Self::EvalFuture> {
         Pattern {
-            f: self.eval_with_config(env, WordEvalConfig {
-                tilde_expansion: TildeExpansion::First,
-                split_fields_further: false,
-            }),
+            f: self.eval_with_config(
+                env,
+                WordEvalConfig {
+                    tilde_expansion: TildeExpansion::First,
+                    split_fields_further: false,
+                },
+            ),
         }
     }
 
@@ -178,7 +194,8 @@ impl<E: ?Sized, W: WordEval<E>> WordEval<E> for Box<W> {
 }
 
 impl<'a, E: ?Sized, W: 'a> WordEval<E> for &'a Box<W>
-    where &'a W: WordEval<E>,
+where
+    &'a W: WordEval<E>,
 {
     type EvalResult = <&'a W as WordEval<E>>::EvalResult;
     type Error = <&'a W as WordEval<E>>::Error;
@@ -198,22 +215,22 @@ pub struct Assignment<F> {
 }
 
 impl<E: ?Sized, T, F> EnvFuture<E> for Assignment<F>
-    where E: VariableEnvironment,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
-          T: StringWrapper,
-          F: EnvFuture<E, Item = Fields<T>>,
+where
+    E: VariableEnvironment,
+    E::VarName: Borrow<String>,
+    E::Var: Borrow<String>,
+    T: StringWrapper,
+    F: EnvFuture<E, Item = Fields<T>>,
 {
     type Item = T;
     type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let ret = match try_ready!(self.f.poll(env)) {
-            f@Fields::Zero      |
-            f@Fields::Single(_) |
-            f@Fields::At(_)     |
-            f@Fields::Split(_) => f.join(),
-            f@Fields::Star(_) => f.join_with_ifs(env),
+            f @ Fields::Zero | f @ Fields::Single(_) | f @ Fields::At(_) | f @ Fields::Split(_) => {
+                f.join()
+            }
+            f @ Fields::Star(_) => f.join_with_ifs(env),
         };
 
         Ok(Async::Ready(ret))
@@ -232,8 +249,9 @@ pub struct Pattern<F> {
 }
 
 impl<E: ?Sized, T, F> EnvFuture<E> for Pattern<F>
-    where F: EnvFuture<E, Item = Fields<T>>,
-          T: StringWrapper,
+where
+    F: EnvFuture<E, Item = Fields<T>>,
+    T: StringWrapper,
 {
     type Item = glob::Pattern;
     type Error = F::Error;
@@ -252,7 +270,9 @@ impl<E: ?Sized, T, F> EnvFuture<E> for Pattern<F>
         let pat = try_ready!(self.f.poll(env)).join();
         let pat = glob::Pattern::new(pat.as_str())
             .or_else(|_| glob::Pattern::new(&glob::Pattern::escape(pat.as_str())));
-        Ok(Async::Ready(pat.expect("pattern compilation unexpectedly failed")))
+        Ok(Async::Ready(
+            pat.expect("pattern compilation unexpectedly failed"),
+        ))
     }
 
     fn cancel(&mut self, env: &mut E) {

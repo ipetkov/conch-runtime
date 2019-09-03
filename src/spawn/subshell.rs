@@ -1,11 +1,13 @@
-use {EXIT_ERROR, Spawn};
-use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment};
+use env::{
+    IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment,
+};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
-use spawn::{ExitResult, Sequence, sequence};
+use spawn::{sequence, ExitResult, Sequence};
 use std::fmt;
 use void::Void;
+use {Spawn, EXIT_ERROR};
 
 /// A future that represents the sequential execution of commands in a subshell
 /// environment.
@@ -14,19 +16,21 @@ use void::Void;
 /// previous commands. All errors are reported and swallowed.
 #[must_use = "futures do nothing unless polled"]
 pub struct Subshell<I, E>
-    where I: Iterator,
-          I::Item: Spawn<E>,
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
 {
     env: E,
     inner: Sequence<I, E>,
 }
 
 impl<I, E> fmt::Debug for Subshell<I, E>
-    where E: fmt::Debug,
-          I: Iterator + fmt::Debug,
-          I::Item: Spawn<E> + fmt::Debug,
-          <I::Item as Spawn<E>>::EnvFuture: fmt::Debug,
-          <I::Item as Spawn<E>>::Future: fmt::Debug,
+where
+    E: fmt::Debug,
+    I: Iterator + fmt::Debug,
+    I::Item: Spawn<E> + fmt::Debug,
+    <I::Item as Spawn<E>>::EnvFuture: fmt::Debug,
+    <I::Item as Spawn<E>>::Future: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Subshell")
@@ -37,10 +41,11 @@ impl<I, E> fmt::Debug for Subshell<I, E>
 }
 
 impl<S, I, E> Future for Subshell<I, E>
-    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
-          I: Iterator<Item = S>,
-          S: Spawn<E>,
-          S::Error: IsFatalError,
+where
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    I: Iterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError,
 {
     type Item = ExitResult<S::Future>;
     type Error = Void;
@@ -52,7 +57,7 @@ impl<S, I, E> Future for Subshell<I, E>
             Err(err) => {
                 self.env.report_failure(&err);
                 Ok(Async::Ready(ExitResult::Ready(EXIT_ERROR)))
-            },
+            }
         }
     }
 }
@@ -63,9 +68,10 @@ impl<S, I, E> Future for Subshell<I, E>
 /// The `env` parameter will be copied as a `SubEnvironment`, in whose context
 /// the commands will be executed.
 pub fn subshell<I, E: ?Sized>(iter: I, env: &E) -> Subshell<I::IntoIter, E>
-    where I: IntoIterator,
-          I::Item: Spawn<E>,
-          E: LastStatusEnvironment + ReportFailureEnvironment + SubEnvironment,
+where
+    I: IntoIterator,
+    I::Item: Spawn<E>,
+    E: LastStatusEnvironment + ReportFailureEnvironment + SubEnvironment,
 {
     Subshell {
         env: env.sub_env(),

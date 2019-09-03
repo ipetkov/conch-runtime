@@ -31,12 +31,9 @@ pub struct NormalizedPath {
 
 pub(crate) fn has_dot_components(path: &Path) -> bool {
     path.components().any(|c| match c {
-        Component::CurDir |
-        Component::ParentDir => true,
+        Component::CurDir | Component::ParentDir => true,
 
-        Component::Prefix(_) |
-        Component::RootDir |
-        Component::Normal(_) => false,
+        Component::Prefix(_) | Component::RootDir | Component::Normal(_) => false,
     })
 }
 
@@ -77,11 +74,9 @@ impl NormalizedPath {
             Ok(normalized_path)
         } else {
             // Ensure we've resolved all possible symlinks
-            let normalized_path = buf.canonicalize()
-                .map_err(|e| NormalizationError {
-                    err: e,
-                    path: buf,
-                })?;
+            let normalized_path = buf
+                .canonicalize()
+                .map_err(|e| NormalizationError { err: e, path: buf })?;
 
             Ok(Self {
                 normalized_path: normalized_path,
@@ -115,14 +110,14 @@ impl NormalizedPath {
     fn perform_join_normalized_logical(&mut self, path: &Path) {
         for component in path.components() {
             match component {
-                c@Component::Prefix(_) |
-                c@Component::RootDir |
-                c@Component::Normal(_) => self.normalized_path.push(c.as_os_str()),
+                c @ Component::Prefix(_) | c @ Component::RootDir | c @ Component::Normal(_) => {
+                    self.normalized_path.push(c.as_os_str())
+                }
 
-                Component::CurDir => {},
+                Component::CurDir => {}
                 Component::ParentDir => {
                     self.normalized_path.pop();
-                },
+                }
             }
         }
     }
@@ -141,9 +136,10 @@ impl NormalizedPath {
     /// If an error occurs while resolving symlinks, the current path buffer
     /// will be reset to its previous state (as if the call never happened)
     /// before the error is propagated to the caller.
-    pub fn join_normalized_physical<P: AsRef<Path>>(&mut self, path: P)
-        -> Result<(), NormalizationError>
-    {
+    pub fn join_normalized_physical<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+    ) -> Result<(), NormalizationError> {
         self.join_normalized_physical_(path.as_ref())
     }
 
@@ -154,19 +150,22 @@ impl NormalizedPath {
             // If we have no relative components to resolve then we can avoid
             // multiple reallocations by pushing the entiere path at once.
             self.normalized_path.push(path);
-            self.normalized_path = self.normalized_path.canonicalize()
-                .map_err(|e| NormalizationError {
-                    err: e,
-                    path: self.normalized_path.clone(),
-                })?;
+            self.normalized_path =
+                self.normalized_path
+                    .canonicalize()
+                    .map_err(|e| NormalizationError {
+                        err: e,
+                        path: self.normalized_path.clone(),
+                    })?;
 
             Ok(())
         }
     }
 
-    fn perform_join_normalized_physical_for_dot_components(&mut self, path: &Path)
-        -> Result<(), NormalizationError>
-    {
+    fn perform_join_normalized_physical_for_dot_components(
+        &mut self,
+        path: &Path,
+    ) -> Result<(), NormalizationError> {
         let orig_path = self.normalized_path.clone();
         self.perform_join_normalized_physical(path)
             .map_err(|e| NormalizationError {
@@ -178,15 +177,15 @@ impl NormalizedPath {
     fn perform_join_normalized_physical(&mut self, path: &Path) -> io::Result<()> {
         for component in path.components() {
             match component {
-                c@Component::Prefix(_) |
-                c@Component::RootDir |
-                c@Component::Normal(_) => self.normalized_path.push(c.as_os_str()),
+                c @ Component::Prefix(_) | c @ Component::RootDir | c @ Component::Normal(_) => {
+                    self.normalized_path.push(c.as_os_str())
+                }
 
-                Component::CurDir => {},
+                Component::CurDir => {}
                 Component::ParentDir => {
                     self.normalized_path = self.normalized_path.canonicalize()?;
                     self.normalized_path.pop();
-                },
+                }
             }
         }
 

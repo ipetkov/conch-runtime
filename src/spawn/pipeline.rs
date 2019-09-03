@@ -1,34 +1,34 @@
-use {CANCELLED_TWICE, ExitStatus, EXIT_SUCCESS, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, Spawn};
 use env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
 use future::{Async, EnvFuture, InvertStatus, Pinned, Poll};
 use futures::future::{Either, Flatten, Future};
 use io::Permissions;
 use spawn::ExitResult;
 use std::fmt;
-use std::iter;
 use std::io;
+use std::iter;
 use std::mem;
+use {ExitStatus, Spawn, CANCELLED_TWICE, EXIT_SUCCESS, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO};
 
 type PinnedFlattenedFuture<E, F> = Flatten<Pinned<E, F>>;
-type PipelineInnerFuture<E, EF, F> = InvertStatus<Either<
-    PipelineInner<PinnedFlattenedFuture<E, EF>>,
-    F
->>;
+type PipelineInnerFuture<E, EF, F> =
+    InvertStatus<Either<PipelineInner<PinnedFlattenedFuture<E, EF>>, F>>;
 
 /// A future representing the spawning of a pipeline of commands.
 #[must_use = "futures do nothing unless polled"]
 pub struct Pipeline<S, E>
-    where S: Spawn<E>
+where
+    S: Spawn<E>,
 {
     state: State<S, SpawnedPipeline<S, E>, S::EnvFuture>,
 }
 
 impl<S, E> fmt::Debug for Pipeline<S, E>
-    where S: Spawn<E> + fmt::Debug,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
-          E: fmt::Debug,
+where
+    S: Spawn<E> + fmt::Debug,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
+    S::Error: fmt::Debug,
+    E: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Pipeline")
@@ -47,17 +47,19 @@ enum State<S, SP, F> {
 /// A future representing a fully spawned of a pipeline of commands.
 #[must_use = "futures do nothing unless polled"]
 pub struct SpawnedPipeline<S, E>
-    where S: Spawn<E>,
+where
+    S: Spawn<E>,
 {
     inner: PipelineInnerFuture<E, S::EnvFuture, S::Future>,
 }
 
 impl<S, E> fmt::Debug for SpawnedPipeline<S, E>
-    where S: Spawn<E>,
-          S::EnvFuture: fmt::Debug,
-          S::Future: fmt::Debug,
-          S::Error: fmt::Debug,
-          E: fmt::Debug,
+where
+    S: Spawn<E>,
+    S::EnvFuture: fmt::Debug,
+    S::Future: fmt::Debug,
+    S::Error: fmt::Debug,
+    E: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("SpawnedPipeline")
@@ -69,9 +71,12 @@ impl<S, E> fmt::Debug for SpawnedPipeline<S, E>
 /// A future representing the execution of a pipeline of commands.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-struct PipelineInner<F> where F: Future {
+struct PipelineInner<F>
+where
+    F: Future,
+{
     pipeline: Vec<F>, // The futures that need to be processed
-    buffer: Vec<F>, // Buffer for temporarily moving futures to avoid reallocations
+    buffer: Vec<F>,   // Buffer for temporarily moving futures to avoid reallocations
     last: LastState<F, F::Error>,
 }
 
@@ -96,7 +101,11 @@ impl<F: Future> PipelineInner<F> {
     }
 
     fn poll_pipeline(&mut self) {
-        let Self { ref mut pipeline, ref mut buffer, .. } = *self;
+        let Self {
+            ref mut pipeline,
+            ref mut buffer,
+            ..
+        } = *self;
 
         if pipeline.is_empty() {
             return;
@@ -105,13 +114,17 @@ impl<F: Future> PipelineInner<F> {
         debug_assert!(buffer.is_empty());
         mem::swap(pipeline, buffer);
 
-        pipeline.extend(buffer.drain(..).filter_map(|mut future| match future.poll() {
+        pipeline.extend(
+            buffer
+                .drain(..)
+                .filter_map(|mut future| match future.poll() {
             Ok(Async::NotReady) => Some(future), // Future pending, keep it around
 
             // FIXME: emit the error here?
             Err(_) | // Swallow all errors, only the last command can return an error
             Ok(Async::Ready(_)) => None, // Future done, no need to keep polling it
-        }));
+        }),
+        );
     }
 }
 
@@ -134,22 +147,30 @@ enum LastState<F, E> {
 /// # Panics
 ///
 /// Panics if there aren't at least two or more commands in the pipeline.
-pub fn pipeline<I, E>(invert_last_status: bool, commands: I, env: &E)
-    -> io::Result<Pipeline<I::Item, E>>
-    where I: IntoIterator,
-          I::Item: Spawn<E>,
-          E: FileDescEnvironment + FileDescOpener + SubEnvironment,
-          E::FileHandle: From<E::OpenedFileHandle> + Clone,
+pub fn pipeline<I, E>(
+    invert_last_status: bool,
+    commands: I,
+    env: &E,
+) -> io::Result<Pipeline<I::Item, E>>
+where
+    I: IntoIterator,
+    I::Item: Spawn<E>,
+    E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+    E::FileHandle: From<E::OpenedFileHandle> + Clone,
 {
     spawn_pipeline(invert_last_status, commands.into_iter(), env)
 }
 
-fn spawn_pipeline<I, E>(invert_last_status: bool, cmds: I, env: &E)
-    -> io::Result<Pipeline<I::Item, E>>
-    where I: Iterator,
-          I::Item: Spawn<E>,
-          E: FileDescEnvironment + FileDescOpener + SubEnvironment,
-          E::FileHandle: From<E::OpenedFileHandle> + Clone,
+fn spawn_pipeline<I, E>(
+    invert_last_status: bool,
+    cmds: I,
+    env: &E,
+) -> io::Result<Pipeline<I::Item, E>>
+where
+    I: Iterator,
+    I::Item: Spawn<E>,
+    E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+    E::FileHandle: From<E::OpenedFileHandle> + Clone,
 {
     let mut cmds = cmds.fuse();
     let state = match (cmds.next(), cmds.next()) {
@@ -174,14 +195,13 @@ fn spawn_pipeline<I, E>(invert_last_status: bool, cmds: I, env: &E)
         }
     };
 
-    Ok(Pipeline {
-        state: state,
-    })
+    Ok(Pipeline { state: state })
 }
 
 impl<S, E> EnvFuture<E> for Pipeline<S, E>
-    where S: Spawn<E>,
-          S::Error: From<io::Error>,
+where
+    S: Spawn<E>,
+    S::Error: From<io::Error>,
 {
     type Item = ExitResult<SpawnedPipeline<S, E>>;
     type Error = S::Error;
@@ -192,11 +212,13 @@ impl<S, E> EnvFuture<E> for Pipeline<S, E>
                 State::InitSingle(invert_status, ref mut cmd) => {
                     let future = cmd.take().expect(POLLED_TWICE).spawn(env);
                     State::Single(invert_status, future)
-                },
+                }
 
                 State::InitMany(ref mut f) => {
-                    return Ok(Async::Ready(ExitResult::Pending(f.take().expect(POLLED_TWICE))));
-                },
+                    return Ok(Async::Ready(ExitResult::Pending(
+                        f.take().expect(POLLED_TWICE),
+                    )));
+                }
 
                 State::Single(invert_last_status, ref mut f) => {
                     let ret = match f.poll(env) {
@@ -208,13 +230,13 @@ impl<S, E> EnvFuture<E> for Pipeline<S, E>
                             if invert_last_status {
                                 ExitResult::Ready(EXIT_SUCCESS)
                             } else {
-                                return Err(e)
+                                return Err(e);
                             }
-                        },
+                        }
                     };
 
                     return Ok(Async::Ready(ret));
-                },
+                }
             };
 
             self.state = next_state;
@@ -226,15 +248,16 @@ impl<S, E> EnvFuture<E> for Pipeline<S, E>
             State::InitSingle(_, _) => {}
             State::InitMany(ref mut f) => {
                 drop(f.take().expect(CANCELLED_TWICE));
-            },
+            }
             State::Single(_, ref mut e) => e.cancel(env),
         }
     }
 }
 
 impl<S, E> Future for SpawnedPipeline<S, E>
-    where S: Spawn<E>,
-          S::Error: From<io::Error>,
+where
+    S: Spawn<E>,
+    S::Error: From<io::Error>,
 {
     type Item = ExitStatus;
     type Error = S::Error;
@@ -258,15 +281,17 @@ impl<F: Future<Item = ExitStatus>> Future for PipelineInner<F> {
                 Err(err) => Err(err),
             },
 
-            LastState::Exited(ref mut ret) => if self.pipeline.is_empty() {
-                return ret.take().expect(POLLED_TWICE).map(Async::Ready);
-            } else {
-                return Ok(Async::NotReady);
-            },
+            LastState::Exited(ref mut ret) => {
+                if self.pipeline.is_empty() {
+                    return ret.take().expect(POLLED_TWICE).map(Async::Ready);
+                } else {
+                    return Ok(Async::NotReady);
+                }
+            }
         };
 
         if self.pipeline.is_empty() {
-            Ok(Async::Ready(try!(last_status)))
+            Ok(Async::Ready(last_status?))
         } else {
             self.last = LastState::Exited(Some(last_status));
             Ok(Async::NotReady)
@@ -297,12 +322,16 @@ impl<F: Future<Item = ExitStatus>> Future for PipelineInner<F> {
 /// # Panics
 ///
 /// Panics if `pipeline` does not contain at least one additional command.
-fn init_pipeline<E: ?Sized, S, I>(env: &E, first: S, mut pipeline: I)
-    -> io::Result<Vec<PinnedFlattenedFuture<E, S::EnvFuture>>>
-    where E: FileDescEnvironment + FileDescOpener + SubEnvironment,
-          E::FileHandle: From<E::OpenedFileHandle> + Clone,
-          S: Spawn<E>,
-          I: Iterator<Item = S>,
+fn init_pipeline<E: ?Sized, S, I>(
+    env: &E,
+    first: S,
+    mut pipeline: I,
+) -> io::Result<Vec<PinnedFlattenedFuture<E, S::EnvFuture>>>
+where
+    E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+    E::FileHandle: From<E::OpenedFileHandle> + Clone,
+    S: Spawn<E>,
+    I: Iterator<Item = S>,
 {
     let (lo, hi) = pipeline.size_hint();
     let mut result = Vec::with_capacity(hi.unwrap_or(lo) + 1);
@@ -318,7 +347,9 @@ fn init_pipeline<E: ?Sized, S, I>(env: &E, first: S, mut pipeline: I)
         pipe.reader
     };
 
-    let mut last = pipeline.next().expect("pipelines must have at least two commands");
+    let mut last = pipeline
+        .next()
+        .expect("pipelines must have at least two commands");
     for next in pipeline {
         let cmd = last;
         last = next;

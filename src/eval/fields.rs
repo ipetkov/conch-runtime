@@ -1,7 +1,7 @@
-use IFS_DEFAULT;
 use env::{StringWrapper, VariableEnvironment};
 use std::borrow::Borrow;
 use std::vec;
+use IFS_DEFAULT;
 
 lazy_static! {
     static ref IFS: String = { String::from("IFS") };
@@ -36,9 +36,9 @@ impl<T: StringWrapper> Fields<T> {
 
             Fields::Single(ref s) => s.as_str().is_empty(),
 
-            Fields::At(ref v)   |
-            Fields::Star(ref v) |
-            Fields::Split(ref v) => v.iter().all(|s| s.as_str().is_empty()),
+            Fields::At(ref v) | Fields::Star(ref v) | Fields::Split(ref v) => {
+                v.iter().all(|s| s.as_str().is_empty())
+            }
         }
     }
 
@@ -49,9 +49,8 @@ impl<T: StringWrapper> Fields<T> {
         match self {
             Fields::Zero => String::new().into(),
             Fields::Single(s) => s,
-            Fields::At(v)   |
-            Fields::Star(v) |
-            Fields::Split(v) => v.iter()
+            Fields::At(v) | Fields::Star(v) | Fields::Split(v) => v
+                .iter()
                 .map(StringWrapper::as_str)
                 .filter_map(|s| if s.is_empty() { None } else { Some(s) })
                 .collect::<Vec<&str>>()
@@ -66,26 +65,29 @@ impl<T: StringWrapper> Fields<T> {
     ///
     /// Note: `Zero` is treated as a empty-but-present field for simplicity.
     pub fn join_with_ifs<E: ?Sized>(self, env: &E) -> T
-        where E: VariableEnvironment,
-              E::VarName: Borrow<String>,
-              E::Var: Borrow<String>,
+    where
+        E: VariableEnvironment,
+        E::VarName: Borrow<String>,
+        E::Var: Borrow<String>,
     {
         match self {
             Fields::Zero => String::new().into(),
             Fields::Single(s) => s,
-            Fields::At(v)   |
-            Fields::Star(v) |
-            Fields::Split(v) => {
-                let sep = env.var(&IFS)
-                    .map(|s| s.borrow().as_str())
-                    .map_or(" ", |s| if s.is_empty() { "" } else { &s[0..1] });
+            Fields::At(v) | Fields::Star(v) | Fields::Split(v) => {
+                let sep = env.var(&IFS).map(|s| s.borrow().as_str()).map_or(" ", |s| {
+                    if s.is_empty() {
+                        ""
+                    } else {
+                        &s[0..1]
+                    }
+                });
 
                 v.iter()
                     .map(StringWrapper::as_str)
                     .collect::<Vec<_>>()
                     .join(sep)
                     .into()
-            },
+            }
         }
     }
 
@@ -93,15 +95,16 @@ impl<T: StringWrapper> Fields<T> {
     /// variable (i.e. as long as it is non-empty). Any empty fields, original
     /// or otherwise created will be discarded.
     pub fn split<E: ?Sized>(self, env: &E) -> Fields<T>
-        where E: VariableEnvironment,
-              E::VarName: Borrow<String>,
-              E::Var: Borrow<String>,
+    where
+        E: VariableEnvironment,
+        E::VarName: Borrow<String>,
+        E::Var: Borrow<String>,
     {
         match self {
-            Fields::Zero      => Fields::Zero,
-            Fields::Single(f) => split_fields_internal(vec!(f), env).into(),
-            Fields::At(fs)    => Fields::At(split_fields_internal(fs, env)),
-            Fields::Star(fs)  => Fields::Star(split_fields_internal(fs, env)),
+            Fields::Zero => Fields::Zero,
+            Fields::Single(f) => split_fields_internal(vec![f], env).into(),
+            Fields::At(fs) => Fields::At(split_fields_internal(fs, env)),
+            Fields::Star(fs) => Fields::Star(split_fields_internal(fs, env)),
             Fields::Split(fs) => Fields::Split(split_fields_internal(fs, env)),
         }
     }
@@ -132,11 +135,9 @@ impl<T> IntoIterator for Fields<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         let vec = match self {
-            Fields::Zero => vec!(),
-            Fields::Single(s) => vec!(s),
-            Fields::At(v)   |
-            Fields::Star(v) |
-            Fields::Split(v) => v,
+            Fields::Zero => vec![],
+            Fields::Single(s) => vec![s],
+            Fields::At(v) | Fields::Star(v) | Fields::Split(v) => v,
         };
 
         vec.into_iter()
@@ -145,10 +146,11 @@ impl<T> IntoIterator for Fields<T> {
 
 /// Actual implementation of `split_fields`.
 fn split_fields_internal<T, E: ?Sized>(words: Vec<T>, env: &E) -> Vec<T>
-    where T: StringWrapper,
-          E: VariableEnvironment,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
+where
+    T: StringWrapper,
+    E: VariableEnvironment,
+    E::VarName: Borrow<String>,
+    E::Var: Borrow<String>,
 {
     // If IFS is set but null, there is nothing left to split
     let ifs = env.var(&IFS).map_or(IFS_DEFAULT, |s| s.borrow().as_str());
@@ -186,7 +188,7 @@ fn split_fields_internal<T, E: ?Sized>(words: Vec<T>, env: &E) -> Vec<T>
                             start = idx;
                             break;
                         }
-                    },
+                    }
                 }
             }
 
@@ -196,17 +198,19 @@ fn split_fields_internal<T, E: ?Sized>(words: Vec<T>, env: &E) -> Vec<T>
                     None => {
                         end = None;
                         break;
-                    },
-                    Some((idx, c)) => if ifs.contains(c) {
-                        end = Some(idx);
-                        break;
-                    },
+                    }
+                    Some((idx, c)) => {
+                        if ifs.contains(c) {
+                            end = Some(idx);
+                            break;
+                        }
+                    }
                 }
             }
 
             let field = match end {
                 Some(end) => &word[start..end],
-                None      => &word[start..],
+                None => &word[start..],
             };
 
             fields.push(String::from(field).into());
@@ -218,9 +222,8 @@ fn split_fields_internal<T, E: ?Sized>(words: Vec<T>, env: &E) -> Vec<T>
                 match iter.peek() {
                     Some(&(_, c)) if whitespace.contains(&c) => {
                         iter.next();
-                    },
-                    Some(_) |
-                    None => break,
+                    }
+                    Some(_) | None => break,
                 }
             }
         }

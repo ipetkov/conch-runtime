@@ -1,10 +1,10 @@
-use IntoInner;
 use io::FileDesc;
-use mio::{Evented, Poll, PollOpt, Ready, Token};
 use mio::unix::EventedFd;
+use mio::{Evented, Poll, PollOpt, Ready, Token};
 use std::io::{Read, Result, Write};
 use std::os::unix::io::AsRawFd;
 use tokio_core::reactor::{Handle, PollEvented};
+use IntoInner;
 
 /// Represents an attempt to register a file descriptor with a tokio event loop.
 #[derive(Debug)]
@@ -149,8 +149,7 @@ fn is_regular_file(fd: &FileDesc) -> Result<bool> {
     fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {
         unsafe {
             let mut stat: libc::stat = mem::zeroed();
-            cvt_r(|| libc::fstat(fd.as_raw_fd(), &mut stat))
-                .map(|_| stat.st_mode)
+            cvt_r(|| libc::fstat(fd.as_raw_fd(), &mut stat)).map(|_| stat.st_mode)
         }
     }
 
@@ -158,8 +157,7 @@ fn is_regular_file(fd: &FileDesc) -> Result<bool> {
     fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {
         unsafe {
             let mut stat: libc::stat64 = mem::zeroed();
-            cvt_r(|| libc::fstat64(fd.as_raw_fd(), &mut stat))
-                .map(|_| stat.st_mode)
+            cvt_r(|| libc::fstat64(fd.as_raw_fd(), &mut stat)).map(|_| stat.st_mode)
         }
     }
 
