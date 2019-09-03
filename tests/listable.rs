@@ -163,7 +163,7 @@ fn multiple_commands_smoke() {
     use std::thread;
 
     #[derive(Clone)]
-    struct MockCmdFn<'a>(Rc<RefCell<FnMut(&mut DefaultEnvRc) + 'a>>);
+    struct MockCmdFn<'a>(Rc<RefCell<dyn FnMut(&mut DefaultEnvRc) + 'a>>);
 
     impl<'a> Spawn<DefaultEnvRc> for MockCmdFn<'a> {
         type Error = RuntimeError;

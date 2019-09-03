@@ -21,7 +21,7 @@ macro_rules! impl_env {
     ($MockEnvRc:ident, $Rc:ident, $($extra_bounds:tt)*) => {
         #[derive(Clone)]
         struct $MockEnvRc {
-            inner: HashMap<&'static str, $Rc<'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>>,
+            inner: HashMap<&'static str, $Rc<dyn 'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>>,
         }
 
         impl $MockEnvRc {
@@ -34,7 +34,7 @@ macro_rules! impl_env {
 
         impl FunctionEnvironment for $MockEnvRc {
             type FnName = &'static str;
-            type Fn = $Rc<'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>;
+            type Fn = $Rc<dyn 'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>;
 
             fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
                 self.inner.get(name)

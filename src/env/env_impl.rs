@@ -360,7 +360,7 @@ macro_rules! impl_env {
             interactive: bool,
             args_env: A,
             file_desc_manager_env: FM,
-            fn_env: $FnEnv<N, $Rc<SpawnBoxed<$Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> $($extra)*>>,
+            fn_env: $FnEnv<N, $Rc<dyn SpawnBoxed<$Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> $($extra)*>>,
             fn_frame_env: FnFrameEnv,
             last_status_env: L,
             var_env: V,
@@ -644,7 +644,7 @@ macro_rules! impl_env {
                   FM::IoHandle: From<FM::FileHandle>,
                   N: Hash + Eq,
         {
-            fn report_failure(&mut self, fail: &Fail) {
+            fn report_failure(&mut self, fail: &dyn Fail) {
                 let fd = match self.file_desc(STDERR_FILENO) {
                     Some((fdes, _)) => fdes.clone(),
                     None => return,
@@ -660,7 +660,7 @@ macro_rules! impl_env {
             where N: Hash + Eq + Clone,
         {
             type FnName = N;
-            type Fn = $Rc<SpawnBoxed<Self, Error = ERR> $($extra)*>;
+            type Fn = $Rc<dyn SpawnBoxed<Self, Error = ERR> $($extra)*>;
 
             fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
                 self.fn_env.function(name)

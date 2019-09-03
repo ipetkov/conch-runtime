@@ -8,8 +8,8 @@ use std::sync::Arc;
 mod support;
 pub use self::support::*;
 
-type RcTraitObj = Rc<SpawnBoxed<DefaultEnvRc, Error = MockErr>>;
-type ArcTraitObj = Arc<SpawnBoxed<DefaultEnvRc, Error = MockErr>>;
+type RcTraitObj = Rc<dyn SpawnBoxed<DefaultEnvRc, Error = MockErr>>;
+type ArcTraitObj = Arc<dyn SpawnBoxed<DefaultEnvRc, Error = MockErr>>;
 
 #[test]
 fn smoke() {

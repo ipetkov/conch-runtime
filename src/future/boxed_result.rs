@@ -26,7 +26,7 @@ impl<'a, EF, F, E: ?Sized> EnvFuture<E> for BoxedResult<'a, EF>
           F: 'a + Future,
           F::Error: From<EF::Error>,
 {
-    type Item = Box<'a + Future<Item = F::Item, Error = F::Error>>;
+    type Item = Box<dyn 'a + Future<Item = F::Item, Error = F::Error>>;
     type Error = F::Error;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {

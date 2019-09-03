@@ -93,7 +93,7 @@ fn smoke() {
 
     let env_original = env.clone();
 
-    let restorer: &mut RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
+    let restorer: &mut dyn RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
 
     // Existing fd set to multiple other values
     restorer.apply_action(RedirectAction::Open(1, S("x"), Permissions::Read), &mut env).unwrap();

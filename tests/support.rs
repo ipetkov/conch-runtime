@@ -76,7 +76,7 @@ pub enum MockErr {
 }
 
 impl failure::Fail for MockErr {
-    fn cause(&self) -> Option<&failure::Fail> {
+    fn cause(&self) -> Option<&dyn failure::Fail> {
         match *self {
             MockErr::Fatal(_) => None,
             MockErr::ExpansionError(ref e) => Some(e),
@@ -387,7 +387,7 @@ impl<E: ?Sized> Spawn<E> for MockOutCmd
 {
     type Error = MockErr;
     type EnvFuture = Self;
-    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
+    type Future = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self
@@ -402,7 +402,7 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
 {
     type Error = MockErr;
     type EnvFuture = MockOutCmd;
-    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
+    type Future = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self.clone()
@@ -415,7 +415,7 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
           E::IoHandle: From<E::FileHandle>,
           E::WriteAll: 'static,
 {
-    type Item = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
+    type Item = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
     type Error = MockErr;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {

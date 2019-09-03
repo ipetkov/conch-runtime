@@ -187,14 +187,14 @@ impl<S, E: ?Sized> SpawnRef<E> for S
 }
 
 /// Type alias for boxed futures that represent spawning a command.
-pub type BoxSpawnEnvFuture<'a, E, ERR> = Box<'a + EnvFuture<
+pub type BoxSpawnEnvFuture<'a, E, ERR> = Box<dyn 'a + EnvFuture<
     E,
     Item = BoxStatusFuture<'a, ERR>,
     Error = ERR
 >>;
 
 /// Type alias for a boxed future which will resolve to an `ExitStatus`.
-pub type BoxStatusFuture<'a, ERR> = Box<'a + Future<Item = ExitStatus, Error = ERR>>;
+pub type BoxStatusFuture<'a, ERR> = Box<dyn 'a + Future<Item = ExitStatus, Error = ERR>>;
 
 /// A trait for spawning commands (without moving ownership) into boxed futures.
 /// Largely useful for having spawnable trait objects.
