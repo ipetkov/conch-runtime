@@ -1,9 +1,14 @@
 use conch_parser::ast;
 use env::{AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
-          FileDescEnvironment, FunctionEnvironment, SetArgumentsEnvironment,
+          FileDescEnvironment, FileDescOpener, FunctionEnvironment,
+          FunctionFrameEnvironment,
+          RedirectRestorer, SetArgumentsEnvironment, VarRestorer,
           UnsetVariableEnvironment, WorkingDirectoryEnvironment};
+use env::builtin::{BuiltinEnvironment, BuiltinUtility};
 use error::{CommandError, RedirectionError};
 use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
+use failure::Fail;
+use futures::Future;
 use io::FileDescWrapper;
 use spawn::{ExitResult, Spawn, SimpleCommand, simple_command, SpawnedSimpleCommand};
 use std::borrow::Borrow;
@@ -16,33 +21,47 @@ pub type SimpleCommandEnvFuture<R, V, W, E> = SimpleCommand<
     R, V, W,
     IntoIter<RedirectOrVarAssig<R, V, W>>,
     IntoIter<RedirectOrCmdWord<R, W>>,
-    E
+    E,
+    RedirectRestorer<E>,
+    VarRestorer<E>,
 >;
 
-impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
+impl<V, W, R, S, B, PB, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           V: Hash + Eq + Borrow<String>,
           W: WordEval<E>,
           S: Clone + Spawn<E>,
-          S::Error: From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
+          S::Error: From<CommandError>
+              + From<RedirectionError>
+              + From<R::Error>
+              + From<W::Error>
+              + From<<E::ExecFuture as Future>::Error>
+              + From<PB::Error>,
+          B: BuiltinUtility<IntoIter<W::EvalResult>, RedirectRestorer<E>, VarRestorer<E>, PreparedBuiltin = PB>,
+          PB: Spawn<E>,
           E: AsyncIoEnvironment
+              + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + FunctionEnvironment<Fn = S>
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<W::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<W::EvalResult>,
+          <E::ExecFuture as Future>::Error: Fail,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<W::EvalResult>,
 {
     type EnvFuture = SimpleCommandEnvFuture<R, V, W, E>;
-    type Future = ExitResult<SpawnedSimpleCommand<E::Future, S::Future>>;
+    type Future = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future, PB::Future>>;
     type Error = S::Error;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {
@@ -53,7 +72,7 @@ impl<V, W, R, S, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
     }
 }
 
-impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
+impl<'a, V, W, R, S, B, PB, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
     where &'a R: RedirectEval<E, Handle = E::FileHandle>,
           <&'a R as RedirectEval<E>>::Error: From<RedirectionError>,
           V: Hash + Eq + Borrow<String> + Clone,
@@ -62,24 +81,33 @@ impl<'a, V, W, R, S, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
           S::Error: From<CommandError>
               + From<RedirectionError>
               + From<<&'a R as RedirectEval<E>>::Error>
-              + From<<&'a W as WordEval<E>>::Error>,
+              + From<<&'a W as WordEval<E>>::Error>
+              + From<<E::ExecFuture as Future>::Error>
+              + From<PB::Error>,
+          B: BuiltinUtility<IntoIter<<&'a W as WordEval<E>>::EvalResult>, RedirectRestorer<E>, VarRestorer<E>, PreparedBuiltin = PB>,
+          PB: Spawn<E>,
           E: AsyncIoEnvironment
+              + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
               + ExecutableEnvironment
               + ExportedVariableEnvironment
               + FileDescEnvironment
+              + FileDescOpener
               + FunctionEnvironment<Fn = S>
+              + FunctionFrameEnvironment
               + SetArgumentsEnvironment
               + UnsetVariableEnvironment
               + WorkingDirectoryEnvironment,
           E::Arg: From<<&'a W as WordEval<E>>::EvalResult>,
           E::Args: From<Vec<E::Arg>>,
-          E::FileHandle: FileDescWrapper,
+          E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
           E::FnName: From<<&'a W as WordEval<E>>::EvalResult>,
+          <E::ExecFuture as Future>::Error: Fail,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + Clone + From<V>,
           E::Var: Borrow<String> + Clone + From<<&'a W as WordEval<E>>::EvalResult>,
 {
     type EnvFuture = SimpleCommandEnvFuture<&'a R, V, &'a W, E>;
-    type Future = ExitResult<SpawnedSimpleCommand<E::Future, S::Future>>;
+    type Future = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future, PB::Future>>;
     type Error = S::Error;
 
     fn spawn(self, env: &E) -> Self::EnvFuture {

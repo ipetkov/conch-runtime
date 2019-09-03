@@ -1,7 +1,7 @@
 use {EXIT_SUCCESS, ExitStatus, POLLED_TWICE};
 use future::{Async, EnvFuture, Poll};
 use futures::Future;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use error::IsFatalError;
 use spawn::{ExitResult, SpawnRef, SwallowNonFatal, swallow_non_fatal_errors};
 use std::fmt;
@@ -64,7 +64,7 @@ impl<S, E: ?Sized> VecSequence<S, E> where S: SpawnRef<E> {
 impl<S, E: ?Sized> EnvFuture<E> for VecSequence<S, E>
     where S: SpawnRef<E>,
           S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = (Vec<S>, ExitStatus);
     type Error = S::Error;
@@ -151,7 +151,7 @@ impl<S, E: ?Sized> VecSequenceWithLast<S, E> where S: SpawnRef<E> {
 impl<S, E: ?Sized> EnvFuture<E> for VecSequenceWithLast<S, E>
     where S: SpawnRef<E>,
           S::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = (Vec<S>, ExitResult<S::Future>);
     type Error = S::Error;

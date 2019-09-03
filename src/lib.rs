@@ -22,7 +22,6 @@
 //!
 //! # Supported Cargo Features
 //!
-//! * `clippy`: compile with clippy lints enabled
 //! * `conch-parser`: enable implementations on the default AST types provided
 //! by the `conch-parser` crate
 //! * `top-level`: enable compiling implementations on thte `TopLevel{Command,Word}`
@@ -33,11 +32,8 @@
 
 #![cfg_attr(all(feature = "conch-parser", feature = "top-level"), recursion_limit="128")]
 
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
-
-#![cfg_attr(all(not(test), feature = "clippy"), deny(print_stdout))]
-#![cfg_attr(feature = "clippy", deny(wrong_self_convention))]
+#![cfg_attr(all(not(test), feature = "cargo-clippy"), deny(print_stdout))]
+#![cfg_attr(feature = "cargo-clippy", deny(wrong_self_convention))]
 
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
@@ -50,12 +46,12 @@
 #[cfg(unix)] extern crate libc;
 
 // Windows only libs
-#[cfg(windows)] extern crate kernel32;
 #[cfg(windows)] extern crate winapi;
 
 extern crate clap;
 #[cfg(feature = "conch-parser")]
 extern crate conch_parser;
+#[macro_use] extern crate failure;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate glob;
@@ -120,6 +116,8 @@ trait IntoInner: Sized {
     type Inner;
     /// Borrow a reference to the inner type.
     fn inner(&self) -> &Self::Inner;
+    /// Borrow a mutable reference to the inner type.
+    fn inner_mut(&mut self) -> &mut Self::Inner;
     /// Take ownership of the inner type.
     fn into_inner(self) -> Self::Inner;
     /// Convert an inner value to its wrapper.

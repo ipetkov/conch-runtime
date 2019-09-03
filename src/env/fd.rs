@@ -51,15 +51,27 @@ macro_rules! impl_env {
                 }
             }
 
+            /// Constructs a new environment with no open file descriptors,
+            /// but with a specified capacity for storing open file descriptors.
+            pub fn with_capacity(capacity: usize) -> Self {
+                $Env {
+                    fds: HashMap::with_capacity(capacity).into(),
+                }
+            }
+
             /// Constructs a new environment and initializes it with duplicated
             /// stdio file descriptors or handles of the current process.
             pub fn with_process_stdio() -> Result<Self> where T: From<FileDesc> {
                 let (stdin, stdout, stderr) = try!(dup_stdio());
-                Ok(Self::with_fds(vec!(
-                    (STDIN_FILENO,  stdin.into(),  Permissions::Read),
-                    (STDOUT_FILENO, stdout.into(), Permissions::Write),
-                    (STDERR_FILENO, stderr.into(), Permissions::Write),
-                )))
+
+                let mut fds = HashMap::with_capacity(3);
+                fds.insert(STDIN_FILENO,  (stdin.into(),  Permissions::Read));
+                fds.insert(STDOUT_FILENO, (stdout.into(), Permissions::Write));
+                fds.insert(STDERR_FILENO, (stderr.into(), Permissions::Write));
+
+                Ok(Self {
+                    fds: fds.into(),
+                })
             }
 
             /// Constructs a new environment with a provided collection of provided

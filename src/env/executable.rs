@@ -11,7 +11,7 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::Path;
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
-use tokio_process::{CommandExt, StatusAsync2};
+use tokio_process::{CommandExt, StatusAsync};
 
 /// Any data required to execute a child process.
 #[derive(Debug, PartialEq, Eq)]
@@ -64,10 +64,18 @@ impl<'a> ExecutableData<'a> {
 /// An interface for asynchronously spawning executables.
 pub trait ExecutableEnvironment {
     /// A future which will resolve to the executable's exit status.
-    type Future: Future<Item = ExitStatus, Error = CommandError>;
+    type ExecFuture: Future<Item = ExitStatus>;
 
     /// Attempt to spawn the executable command.
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError>;
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError>;
+}
+
+impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a mut T {
+    type ExecFuture = T::ExecFuture;
+
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+        (**self).spawn_executable(data)
+    }
 }
 
 /// An `ExecutableEnvironment` implementation that uses a `tokio` event loop
@@ -107,7 +115,7 @@ impl ExecEnv {
 }
 
 fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
-    -> Result<StatusAsync2, CommandError>
+    -> Result<StatusAsync, CommandError>
 {
     let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
@@ -128,7 +136,8 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle)
         cmd.env(k, v);
     }
 
-    cmd.status_async2(handle).map_err(|err| map_io_err(err, convert_to_string(name)))
+    cmd.status_async_with_handle(handle.new_tokio_handle())
+        .map_err(|err| map_io_err(err, convert_to_string(name)))
 }
 
 fn convert_to_string(os_str: Cow<OsStr>) -> String {
@@ -161,9 +170,9 @@ fn map_io_err(err: IoError, name: String) -> CommandError {
 }
 
 impl ExecutableEnvironment for ExecEnv {
-    type Future = Child;
+    type ExecFuture = Child;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::Future, CommandError> {
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
         let inner = match self.remote.handle() {
             Some(handle) => Inner::Child(Box::new(try!(spawn_child(data, &handle)))),
             None => {
@@ -200,9 +209,9 @@ pub struct Child {
 
 enum Inner {
     // Box to lower the size of this struct and avoid a clippy warning:
-    // StatusAsync2 is ~300 bytes, the Receiver is ~8
+    // StatusAsync is ~300 bytes, the Receiver is ~8
     // Plus this will avoid potential bloat with any parent futures
-    Child(Box<StatusAsync2>),
+    Child(Box<StatusAsync>),
     Remote(oneshot::Receiver<Result<process::ExitStatus, CommandError>>),
 }
 

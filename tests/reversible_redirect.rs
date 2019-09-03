@@ -2,10 +2,14 @@ extern crate conch_runtime;
 
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::Fd;
-use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, PlatformSpecificRead,
+use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+                         Pipe, PlatformSpecificAsyncRead,
                          PlatformSpecificWriteAll, RedirectRestorer, RedirectEnvRestorer};
 use conch_runtime::eval::RedirectAction;
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io;
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MockFileDescEnv<T> {
@@ -37,19 +41,35 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
 }
 
 impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
-    type Read = PlatformSpecificRead;
+    type IoHandle = T;
+    type Read = PlatformSpecificAsyncRead;
     type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: FileDesc) -> Self::Read {
+    fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: FileDesc, _: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> io::Result<Self::WriteAll> {
         unimplemented!()
     }
 
-    fn write_all_best_effort(&mut self, _: FileDesc, _: Vec<u8>) {
+    fn write_all_best_effort(&mut self, _: Self::IoHandle, _: Vec<u8>) {
         // Nothing to do
+    }
+}
+
+impl FileDescOpener for MockFileDescEnv<S> {
+    type OpenedFileHandle = S;
+
+    fn open_path(&mut self, _: &Path, _: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+        unimplemented!()
+    }
+
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+        Ok(Pipe {
+            reader: S("reader"),
+            writer: S("writer"),
+        })
     }
 }
 

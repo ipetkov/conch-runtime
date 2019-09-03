@@ -1,6 +1,6 @@
 use Fd;
-use io::{FileDesc, Permissions};
-use env::{AsyncIoEnvironment, FileDescEnvironment};
+use io::Permissions;
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener};
 use eval::RedirectAction;
 use std::collections::HashMap;
 use std::fmt;
@@ -19,8 +19,9 @@ pub trait RedirectEnvRestorer<E: ?Sized> {
 
     /// Applies changes to a given environment after backing up as appropriate.
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment,
-              E::FileHandle: From<FileDesc>;
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>;
 
     /// Backs up the original handle of specified file descriptor.
     ///
@@ -42,8 +43,9 @@ impl<'a, T, E: ?Sized> RedirectEnvRestorer<E> for &'a mut T
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment,
-              E::FileHandle: From<FileDesc>
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>,
     {
         (**self).apply_action(action, env)
     }
@@ -122,50 +124,6 @@ impl<E: ?Sized> RedirectRestorer<E>
             overrides: HashMap::with_capacity(capacity),
         }
     }
-
-    /// Reserves capacity for at least `additional` more redirects to be backed up.
-    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
-    pub fn reserve(&mut self, additional: usize) {
-        self.overrides.reserve(additional);
-    }
-
-    /// Applies changes to a given environment after backing up as appropriate.
-    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
-    pub fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E)
-        -> IoResult<()>
-        where E: AsyncIoEnvironment,
-              E::FileHandle: Clone + From<FileDesc>,
-    {
-        RedirectEnvRestorer::apply_action(self, action, env)
-    }
-
-    /// Backs up the original handle of specified file descriptor.
-    ///
-    /// The original value of the file descriptor is the one the environment
-    /// held before it was passed into this wrapper. That is, if a file
-    /// descriptor is backed up multiple times, only the value before the first
-    /// call could be restored later.
-    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
-    pub fn backup(&mut self, fd: Fd, env: &mut E)
-        where E::FileHandle: Clone,
-    {
-        RedirectEnvRestorer::backup(self, fd, env);
-    }
-
-    /// Restore all file descriptors to their original state.
-    #[deprecated(note = "use the `RedirectEnvRestorer` trait instead")]
-    pub fn restore(mut self, env: &mut E) {
-        self._restore(env)
-    }
-
-    fn _restore(&mut self, env: &mut E) {
-        for (fd, backup) in self.overrides.drain() {
-            match backup {
-                Some((handle, perms)) => env.set_file_desc(fd, handle, perms),
-                None => env.close_file_desc(fd),
-            }
-        }
-    }
 }
 
 impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
@@ -177,8 +135,9 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
     }
 
     fn apply_action(&mut self, action: RedirectAction<E::FileHandle>, env: &mut E) -> IoResult<()>
-        where E: AsyncIoEnvironment + FileDescEnvironment,
-              E::FileHandle: From<FileDesc>
+        where E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+              E::FileHandle: From<E::OpenedFileHandle>,
+              E::IoHandle: From<E::FileHandle>,
     {
         #[allow(deprecated)]
         match action {
@@ -197,6 +156,11 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
     }
 
     fn restore(&mut self, env: &mut E) {
-        self._restore(env)
+        for (fd, backup) in self.overrides.drain() {
+            match backup {
+                Some((handle, perms)) => env.set_file_desc(fd, handle, perms),
+                None => env.close_file_desc(fd),
+            }
+        }
     }
 }

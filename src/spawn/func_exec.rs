@@ -1,5 +1,5 @@
 use {CANCELLED_TWICE, POLLED_TWICE, Spawn};
-use env::{SetArgumentsEnvironment, FunctionEnvironment};
+use env::{FunctionEnvironment, FunctionFrameEnvironment, SetArgumentsEnvironment};
 use future::{Async, EnvFuture, Poll};
 use std::fmt;
 
@@ -55,7 +55,7 @@ impl<S, E: ?Sized> fmt::Debug for Function<S, E>
 
 impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
     where S: Spawn<E>,
-          E: SetArgumentsEnvironment,
+          E: FunctionFrameEnvironment + SetArgumentsEnvironment,
 {
     type Item = S::Future;
     type Error = S::Error;
@@ -64,6 +64,8 @@ impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
         loop {
             let next_state = match self.state {
                 State::Init(ref mut func_args) => {
+                    env.push_fn_frame();
+
                     let (func, args) = func_args.take().expect(POLLED_TWICE);
                     let old_args = env.set_args(args);
 
@@ -74,6 +76,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     ret => {
                         env.set_args(old_args.take().expect(POLLED_TWICE));
+                        env.pop_fn_frame();
                         return ret;
                     },
                 },
@@ -92,6 +95,7 @@ impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
                 let old_args = old_args.take().expect(CANCELLED_TWICE);
                 f.cancel(env);
                 env.set_args(old_args);
+                env.pop_fn_frame();
             },
             State::Gone => panic!(CANCELLED_TWICE),
         }

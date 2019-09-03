@@ -1,5 +1,5 @@
 use {EXIT_ERROR, Spawn};
-use env::{LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment};
+use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
@@ -37,7 +37,7 @@ impl<I, E> fmt::Debug for Subshell<I, E>
 }
 
 impl<S, I, E> Future for Subshell<I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,
@@ -50,7 +50,7 @@ impl<S, I, E> Future for Subshell<I, E>
             Ok(Async::Ready(exit)) => Ok(Async::Ready(exit)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(err) => {
-                self.env.report_error(&err);
+                self.env.report_failure(&err);
                 Ok(Async::Ready(ExitResult::Ready(EXIT_ERROR)))
             },
         }
@@ -65,7 +65,7 @@ impl<S, I, E> Future for Subshell<I, E>
 pub fn subshell<I, E: ?Sized>(iter: I, env: &E) -> Subshell<I::IntoIter, E>
     where I: IntoIterator,
           I::Item: Spawn<E>,
-          E: LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment + SubEnvironment,
 {
     Subshell {
         env: env.sub_env(),

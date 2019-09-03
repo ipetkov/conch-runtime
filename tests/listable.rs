@@ -6,7 +6,7 @@ extern crate futures;
 
 use futures::{Async, Poll};
 use futures::future::{FutureResult, ok};
-use runtime::io::Permissions;
+use runtime::io::{FileDescWrapper, Permissions};
 use runtime::{STDIN_FILENO, STDOUT_FILENO};
 use std::rc::Rc;
 use syntax::ast::ListableCommand;
@@ -220,8 +220,8 @@ fn multiple_commands_smoke() {
 
     // Verify we are the only owners of the pipe ends,
     // there shouldn't be any other copies lying around
-    let mut writer = Rc::try_unwrap(writer.unwrap()).unwrap();
-    let mut reader = Rc::try_unwrap(reader.unwrap()).unwrap();
+    let mut writer = writer.unwrap().try_unwrap().expect("failed to unwrap writer");
+    let mut reader = reader.unwrap().try_unwrap().expect("failed to unwrap reader");
 
     let msg = "secret message";
     let join = thread::spawn(move || {

@@ -1,34 +1,47 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
-use std::error::Error;
+use failure::Fail;
 
 mod args;
 mod async_io;
+pub mod builtin;
 mod cur_dir;
 mod env_impl;
 mod executable;
 mod fd;
+mod fd_manager;
+mod fd_opener;
 mod func;
 mod last_status;
+mod platform_specific_fd_manager;
 mod reversible_redirect;
 mod reversible_var;
 mod string_wrapper;
 mod var;
 
 pub use self::args::{ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment};
-pub use self::async_io::{AsyncIoEnvironment, PlatformSpecificAsyncIoEnv,
-                         PlatformSpecificRead, PlatformSpecificWriteAll, ReadAsync,
-                         ThreadPoolAsyncIoEnv};
+pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment,
+                         ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll,
+                         RcUnwrappingAsyncIoEnv};
+pub use self::builtin::BuiltinEnvironment;
 pub use self::cur_dir::{ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv,
                         WorkingDirectoryEnvironment};
 pub use self::env_impl::{DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnv, DefaultEnvRc, EnvConfig,
                          Env};
 pub use self::executable::{Child, ExecutableData, ExecEnv, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
-pub use self::func::{FnEnv, FunctionEnvironment, UnsetFunctionEnvironment};
+pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
+pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe, RcFileDescOpenerEnv};
+pub use self::func::{FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
+                     UnsetFunctionEnvironment};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
+pub use self::platform_specific_fd_manager::{PlatformSpecificFileDescManagerEnv,
+                                             PlatformSpecificAsyncRead,
+                                             PlatformSpecificManagedHandle,
+                                             PlatformSpecificWriteAll};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
+#[allow(deprecated)]
 pub use self::reversible_var::{VarEnvRestorer, VarEnvRestorer2, VarRestorer};
 pub use self::string_wrapper::StringWrapper;
 pub use self::var::{ExportedVariableEnvironment, VarEnv, VariableEnvironment,
@@ -46,6 +59,12 @@ pub mod atomic {
     pub use super::env_impl::DefaultAtomicEnvConfigArc as DefaultEnvConfigArc;
     pub use super::fd::AtomicFileDescEnv as FileDescEnv;
     pub use super::func::AtomicFnEnv as FnEnv;
+    pub use super::platform_specific_fd_manager::{
+        AtomicPlatformSpecificFileDescManagerEnv as PlatformSpecificFileDescManagerEnv,
+        AtomicPlatformSpecificAsyncRead as PlatformSpecificAsyncRead,
+        AtomicPlatformSpecificManagedHandle as PlatformSpecificManagedHandle,
+        AtomicPlatformSpecificWriteAll as PlatformSpecificWriteAll,
+    };
     pub use super::var::AtomicVarEnv as VarEnv;
 }
 
@@ -61,15 +80,15 @@ impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a 
     }
 }
 
-/// An interface for reporting arbitrary errors.
-pub trait ReportErrorEnvironment {
-    /// Reports any `Error` as appropriate, e.g. print to stderr.
-    fn report_error(&self, err: &Error);
+/// An interface for reporting arbitrary failures.
+pub trait ReportFailureEnvironment {
+    /// Reports any `Fail`ure as appropriate, e.g. print to stderr.
+    fn report_failure(&mut self, fail: &Fail);
 }
 
-impl<'a, T: ?Sized + ReportErrorEnvironment> ReportErrorEnvironment for &'a T {
-    fn report_error(&self, err: &Error) {
-        (**self).report_error(err);
+impl<'a, T: ?Sized + ReportFailureEnvironment> ReportFailureEnvironment for &'a mut T {
+    fn report_failure(&mut self, fail: &Fail) {
+        (**self).report_failure(fail);
     }
 }
 

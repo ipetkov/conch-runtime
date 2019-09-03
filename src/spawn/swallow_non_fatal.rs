@@ -1,6 +1,6 @@
 use {ExitStatus, EXIT_ERROR};
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use future::{Async, EnvFuture, Poll};
 
 /// A future representing a word evaluation and conditionally splitting it afterwards.
@@ -24,7 +24,7 @@ impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
     where F: EnvFuture<E>,
           F::Item: From<ExitStatus>,
           F::Error: IsFatalError,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -37,7 +37,7 @@ impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>
                 if e.is_fatal() {
                     Err(e)
                 } else {
-                    env.report_error(&e);
+                    env.report_failure(&e);
                     Ok(Async::Ready(EXIT_ERROR.into()))
                 }
             },

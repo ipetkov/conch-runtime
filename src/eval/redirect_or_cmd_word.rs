@@ -1,10 +1,9 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer, RedirectRestorer};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+          RedirectEnvRestorer, RedirectRestorer};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
-use io::FileDesc;
-use std::error::Error;
 use std::fmt;
 use std::mem;
 
@@ -22,43 +21,14 @@ pub enum RedirectOrCmdWord<R, W> {
 }
 
 /// An error which may arise when evaluating a redirect or a shell word.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Fail)]
 pub enum EvalRedirectOrCmdWordError<R, V> {
     /// A redirect error occured.
-    Redirect(R),
+    #[fail(display = "{}", _0)]
+    Redirect(#[cause] R),
     /// A variable assignment evaluation error occured.
-    CmdWord(V),
-}
-
-impl<R, V> Error for EvalRedirectOrCmdWordError<R, V>
-    where R: Error,
-          V: Error,
-{
-    fn description(&self) -> &str {
-        match *self {
-            EvalRedirectOrCmdWordError::Redirect(ref e) => e.description(),
-            EvalRedirectOrCmdWordError::CmdWord(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            EvalRedirectOrCmdWordError::Redirect(ref e) => Some(e),
-            EvalRedirectOrCmdWordError::CmdWord(ref e) => Some(e),
-        }
-    }
-}
-
-impl<R, V> fmt::Display for EvalRedirectOrCmdWordError<R, V>
-    where R: fmt::Display,
-          V: fmt::Display,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            EvalRedirectOrCmdWordError::Redirect(ref e) => e.fmt(fmt),
-            EvalRedirectOrCmdWordError::CmdWord(ref e) => e.fmt(fmt),
-        }
-    }
+    #[fail(display = "{}", _0)]
+    CmdWord(#[cause] V),
 }
 
 impl<R, V> IsFatalError for EvalRedirectOrCmdWordError<R, V>
@@ -121,7 +91,7 @@ pub fn eval_redirects_or_cmd_words<R, W, I, E: ?Sized>(words: I, env: &E)
           R: RedirectEval<E>,
           W: WordEval<E>,
           E: FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E::FileHandle: Clone,
 {
     eval_redirects_or_cmd_words_with_restorer(RedirectRestorer::new(), words, env)
 }
@@ -142,7 +112,6 @@ pub fn eval_redirects_or_cmd_words_with_restorer<R, W, I, E: ?Sized, RR>(
           R: RedirectEval<E>,
           W: WordEval<E>,
           E: FileDescEnvironment,
-          E::FileHandle: From<FileDesc>,
           RR: RedirectEnvRestorer<E>,
 {
     let mut words = words.into_iter();
@@ -174,8 +143,9 @@ impl<R, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E, 
           R: RedirectEval<E, Handle = E::FileHandle>,
           R::Error: From<RedirectionError>,
           W: WordEval<E>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: From<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
           RR: RedirectEnvRestorer<E>,
 {
     type Item = (RR, Vec<W::EvalResult>);

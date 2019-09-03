@@ -1,17 +1,14 @@
-use {EXIT_ERROR, EXIT_SUCCESS, HOME, POLLED_TWICE};
+use {EXIT_SUCCESS, HOME, POLLED_TWICE};
 use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
 use env::{AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment,
-          StringWrapper, ReportErrorEnvironment, VariableEnvironment, WorkingDirectoryEnvironment};
-use io::FileDesc;
+          StringWrapper, VariableEnvironment, WorkingDirectoryEnvironment};
 use future::{Async, EnvFuture, Poll};
-use path::NormalizedPath;
+use path::{NormalizationError, NormalizedPath};
 use spawn::{ExitResult, Spawn};
 use std::borrow::{Borrow, Cow};
-use std::error::Error;
-use std::fmt;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use void::Void;
+use void::{self, Void};
 
 const CD: &str = "cd";
 const ARG_LOGICAL: &str = "L";
@@ -38,24 +35,31 @@ lazy_static! {
     static ref OLDPWD: String = { String::from("OLDPWD") };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 enum VarNotDefinedError {
+    #[fail(display = "HOME not set")]
     Home,
+    #[fail(display = "OLDPWD not set")]
     OldPwd,
 }
 
-impl Error for VarNotDefinedError {
-    fn description(&self) -> &str {
-        match *self {
-            VarNotDefinedError::Home => "HOME not set",
-            VarNotDefinedError::OldPwd => "OLDPWD not set",
-        }
+#[derive(Debug, Fail)]
+enum CdError {
+    #[fail(display = "{}", _0)]
+    VarNotDefinedError(#[cause] VarNotDefinedError),
+    #[fail(display = "{}", _0)]
+    NormalizationError(#[cause] NormalizationError),
+}
+
+impl From<VarNotDefinedError> for CdError {
+    fn from(err: VarNotDefinedError) -> Self {
+        CdError::VarNotDefinedError(err)
     }
 }
 
-impl fmt::Display for VarNotDefinedError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", self.description())
+impl From<NormalizationError> for CdError {
+    fn from(err: NormalizationError) -> Self {
+        CdError::NormalizationError(err)
     }
 }
 
@@ -81,10 +85,10 @@ impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
           E: AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
-              + ReportErrorEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + From<String>,
           E::Var: Borrow<String> + From<String>,
 {
@@ -153,10 +157,10 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
           E: AsyncIoEnvironment
               + ChangeWorkingDirectoryEnvironment
               + FileDescEnvironment
-              + ReportErrorEnvironment
               + VariableEnvironment
               + WorkingDirectoryEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
           E::VarName: Borrow<String> + From<String>,
           E::Var: Borrow<String> + From<String>,
 {
@@ -167,33 +171,16 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
         let matches = try_and_report!(CD, self.get_matches(), env);
         let flags = get_flags(&matches);
 
-        let should_print_pwd;
-        let new_working_dir = {
-            let (new_working_dir, spp) = try_and_report!(CD, get_dir_arg(flags.dir, env), env);
-            should_print_pwd = spp;
-
-            if flags.resolve_symlinks {
-                match new_working_dir {
-                    Cow::Borrowed(dir) => {
-                        let mut normalized_path = NormalizedPath::new();
-                        try_and_report!(CD, normalized_path.join_normalized_physical(dir), env);
-                        normalized_path
-                    },
-                    Cow::Owned(b) => try_and_report!(CD, NormalizedPath::new_normalized_physical(b), env),
-                }
-            } else {
-                match new_working_dir {
-                    Cow::Borrowed(dir) => {
-                        let mut normalized_path = NormalizedPath::new();
-                        normalized_path.join_normalized_logial(dir);
-                        normalized_path
-                    },
-                    Cow::Owned(buf) => NormalizedPath::new_normalized_logical(buf),
-                }
-            }
+        let (new_working_dir, should_print_pwd) = match get_new_working_dir(&flags, env) {
+            Ok(ret) => ret,
+            Err(e) => {
+                let err: Result<Void, _> = Err(e);
+                let void = try_and_report!(CD, err, env);
+                void::unreachable(void);
+            },
         };
 
-        let new_working_dir = Cow::Owned(new_working_dir.into_inner());
+        let new_working_dir = new_working_dir.into_inner();
         match try_and_report!(CD, perform_cd_change(should_print_pwd, new_working_dir, env), env) {
             Some(pwd) => generate_and_print_output!(CD, env, |_| -> Result<_, Void> {
                 Ok(pwd.into_bytes())
@@ -205,6 +192,36 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
     fn cancel(&mut self, _env: &mut E) {
         self.args.take();
     }
+}
+
+fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E)
+    -> Result<(NormalizedPath, bool), CdError>
+    where E: VariableEnvironment + WorkingDirectoryEnvironment,
+          E::VarName: Borrow<String>,
+          E::Var: Borrow<String>,
+{
+    let (new_working_dir, should_print_pwd) = get_dir_arg(flags.dir, env)?;
+    let new_working_dir = if flags.resolve_symlinks {
+        match new_working_dir {
+            Cow::Borrowed(dir) => {
+                let mut normalized_path = NormalizedPath::new();
+                normalized_path.join_normalized_physical(dir)?;
+                normalized_path
+            },
+            Cow::Owned(b) => NormalizedPath::new_normalized_physical(b)?,
+        }
+    } else {
+        match new_working_dir {
+            Cow::Borrowed(dir) => {
+                let mut normalized_path = NormalizedPath::new();
+                normalized_path.join_normalized_logial(dir);
+                normalized_path
+            },
+            Cow::Owned(buf) => NormalizedPath::new_normalized_logical(buf),
+        }
+    };
+
+    Ok((new_working_dir, should_print_pwd))
 }
 
 fn get_dir_arg<'a, E: ?Sized>(dir: Option<&'a str>, env: &'a E)
@@ -269,7 +286,7 @@ fn cdpath_candidate<'a, E: ?Sized>(dir: &'a Path, cdpaths: &'a str, env: &'a E)
         .find(|path| path.is_dir())
 }
 
-fn perform_cd_change<E: ?Sized>(should_print_pwd: bool, new_working_dir: Cow<Path>, env: &mut E)
+fn perform_cd_change<E: ?Sized>(should_print_pwd: bool, new_working_dir: PathBuf, env: &mut E)
     -> io::Result<Option<String>>
     where E: ChangeWorkingDirectoryEnvironment
               + VariableEnvironment
@@ -281,7 +298,7 @@ fn perform_cd_change<E: ?Sized>(should_print_pwd: bool, new_working_dir: Cow<Pat
         .to_string_lossy()
         .into_owned();
 
-    env.change_working_dir(new_working_dir)?;
+    env.change_working_dir(Cow::Owned(new_working_dir))?;
 
     let pwd = env.current_working_dir()
         .to_string_lossy()

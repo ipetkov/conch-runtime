@@ -3,7 +3,7 @@ extern crate futures;
 extern crate tokio_io;
 extern crate void;
 
-use conch_runtime::io::{FileDesc, Permissions, Pipe};
+use conch_runtime::io::Permissions;
 use std::borrow::Cow;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,7 @@ use std::rc::Rc;
 #[macro_use]
 mod support;
 pub use self::support::*;
+pub use self::support::spawn::builtin::pwd;
 
 #[derive(Debug, Clone)]
 struct DummyWorkingDirEnv(PathBuf);
@@ -58,20 +59,21 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     fs::create_dir(&path_foo_sym).expect("failed to create foo");
 
     let mut lp = Core::new().expect("failed to create core");
-    let mut env = Env::with_config(DefaultEnvConfigRc::new(lp.remote(), Some(2))
+    let mut env = Env::with_config(DefaultEnvConfigRc::new(lp.handle(), Some(2))
         .expect("failed to create test env")
-        .change_file_desc_env(FileDescEnv::<Rc<FileDesc>>::new())
+        .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(2)))
         .change_var_env(VarEnv::<String, String>::new())
         .change_working_dir_env(DummyWorkingDirEnv(cur_dir))
     );
 
-    let pwd = builtin::pwd(pwd_args.iter().map(|&s| s.to_owned()));
+    let pwd = pwd(pwd_args.iter().map(|&s| s.to_owned()));
 
-    let pipe = Pipe::new().expect("pipe failed");
-    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
+    let pipe = env.open_pipe().expect("pipe failed");
+    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe.writer, Permissions::Write);
 
+    let read_to_end = env.read_async(pipe.reader).expect("failed to get read_to_end");
     let ((_, output), exit) = lp.run(
-        tokio_io::io::read_to_end(env.read_async(pipe.reader), Vec::new())
+        tokio_io::io::read_to_end(read_to_end, Vec::new())
             .join(pwd.spawn(&env)
                   .pin_env(env)
                   .flatten()
@@ -130,7 +132,7 @@ fn last_specified_flag_wins() {
 #[test]
 fn successful_if_no_stdout() {
     let (mut lp, env) = new_env_with_no_fds();
-    let pwd = builtin::pwd(Vec::<Rc<String>>::new());
+    let pwd = pwd(Vec::<Rc<String>>::new());
     let exit = lp.run(pwd.spawn(&env).pin_env(env).flatten());
     assert_eq!(exit, Ok(EXIT_SUCCESS));
 }
@@ -139,7 +141,7 @@ fn successful_if_no_stdout() {
 #[should_panic]
 fn polling_canceled_pwd_panics() {
     let (_, mut env) = new_env_with_no_fds();
-    let mut pwd = builtin::pwd(Vec::<Rc<String>>::new())
+    let mut pwd = pwd(Vec::<Rc<String>>::new())
         .spawn(&env);
 
     pwd.cancel(&mut env);

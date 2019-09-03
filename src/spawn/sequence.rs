@@ -1,5 +1,5 @@
 use {EXIT_SUCCESS, Spawn};
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal, swallow_non_fatal_errors};
@@ -44,7 +44,8 @@ impl<S, I, E: ?Sized> fmt::Debug for Sequence<I, E>
 }
 
 impl<S, I, E: ?Sized> EnvFuture<E> for Sequence<I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+          E: IsInteractiveEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,
@@ -68,11 +69,16 @@ impl<S, I, E: ?Sized> EnvFuture<E> for Sequence<I, E>
 
             match self.iter.next().map(|s| s.spawn(env)) {
                 Some(e) => {
-                    let next_state = match self.iter.peek() {
-                        Some(_) => State::Current(swallow_non_fatal_errors(e.flatten_future())),
-                        None => State::Last(e),
+                    // NB: if in interactive mode, don't peek at the next command
+                    // because the input may not be ready (e.g. blocking iterator)
+                    // and we don't want to block this command on further, unrelated, input.
+                    let is_current = env.is_interactive() || self.iter.peek().is_some();
+
+                    self.state = if is_current {
+                        State::Current(swallow_non_fatal_errors(e.flatten_future()))
+                    } else {
+                        State::Last(e)
                     };
-                    self.state = next_state;
                 },
                 None => return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS))),
             }
@@ -94,7 +100,7 @@ impl<S, I, E: ?Sized> EnvFuture<E> for Sequence<I, E>
 /// previous commands. All non-fatal errors are reported and swallowed,
 /// however, "fatal" errors are bubbled up and the sequence terminated.
 pub fn sequence<I, E: ?Sized>(iter: I) -> Sequence<I::IntoIter, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           I: IntoIterator,
           I::Item: Spawn<E>,
 {

@@ -6,6 +6,7 @@ use future_ext::{EnvFutureExt, FlattenedEnvFuture};
 use futures::Future;
 
 mod and_or;
+mod builtin_exec;
 mod case;
 mod for_cmd;
 mod func_exec;
@@ -30,6 +31,7 @@ use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 
 // Pub reexports
 pub use self::and_or::{AndOr, AndOrList, and_or_list};
+pub use self::builtin_exec::builtin;
 pub use self::case::{Case, case, PatternBodyPair};
 pub use self::for_cmd::{For, ForArgs, for_args, for_loop, for_with_args};
 pub use self::func_exec::{Function, function, function_body};
@@ -38,7 +40,8 @@ pub use self::local_redirections::{LocalRedirections, spawn_with_local_redirecti
 pub use self::loop_cmd::{Loop, loop_cmd};
 pub use self::pipeline::{Pipeline, pipeline, SpawnedPipeline};
 pub use self::sequence::{Sequence, sequence};
-pub use self::simple::{SimpleCommand, simple_command, SpawnedSimpleCommand};
+pub use self::simple::{SimpleCommand, simple_command, simple_command_with_restorers,
+                       SpawnedSimpleCommand};
 pub use self::subshell::{Subshell, subshell};
 pub use self::substitution::{Substitution, SubstitutionEnvFuture, substitution};
 pub use self::swallow_non_fatal::{SwallowNonFatal, swallow_non_fatal_errors};
@@ -95,7 +98,7 @@ impl<'a, 'b: 'a, T, E: ?Sized> Spawn<E> for &'a &'b T
     }
 }
 
-#[cfg_attr(feature = "clippy", allow(boxed_local))]
+#[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
 impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     type EnvFuture = T::EnvFuture;
     type Future = T::Future;
@@ -106,7 +109,7 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     }
 }
 
-#[cfg_attr(feature = "clippy", allow(boxed_local))]
+#[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
 impl<'a, E: ?Sized, T: 'a> Spawn<E> for &'a Box<T>
     where &'a T: Spawn<E>,
 {
@@ -222,6 +225,19 @@ pub enum ExitResult<F> {
     Pending(F),
     /// A ready `ExitStatus` value.
     Ready(ExitStatus),
+}
+
+impl<F> ExitResult<F> {
+    /// Maps a `ExitResult<F>` to `ExitResult<G>` by applying a function to a
+    /// contained [`Pending`] value, leaving the [`Ready`] value untouched.
+    pub fn map<G, O>(self, op: O) -> ExitResult<G>
+        where O: FnOnce(F) -> G
+    {
+        match self {
+            ExitResult::Pending(f) => ExitResult::Pending(op(f)),
+            ExitResult::Ready(status) => ExitResult::Ready(status),
+        }
+    }
 }
 
 impl<F> From<ExitStatus> for ExitResult<F> {

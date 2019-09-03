@@ -1,4 +1,5 @@
 extern crate conch_runtime;
+extern crate failure;
 extern crate futures;
 extern crate tempdir;
 extern crate tokio_core;
@@ -6,24 +7,22 @@ extern crate void;
 
 use self::conch_runtime::STDOUT_FILENO;
 use self::conch_runtime::error::IsFatalError;
-use self::conch_runtime::io::{FileDesc, FileDescWrapper};
 use self::futures::future::FutureResult;
 use self::futures::future::result as future_result;
 use self::tempdir::TempDir;
 use self::void::{unreachable, Void};
-use std::borrow::Borrow;
 use std::fs::OpenOptions;
-use std::rc::Rc;
+use std::path::Path;
 use std::sync::Arc;
 
 // Convenience re-exports
 pub use self::conch_runtime::{ExitStatus, EXIT_SUCCESS, EXIT_ERROR, Spawn};
-pub use self::conch_runtime::env::*;
+pub use self::conch_runtime::env::{self, *};
 pub use self::conch_runtime::error::*;
 pub use self::conch_runtime::eval::*;
 pub use self::conch_runtime::future::*;
 pub use self::conch_runtime::path::*;
-pub use self::conch_runtime::spawn::*;
+pub use self::conch_runtime::spawn::{self, *};
 pub use self::futures::{Async, Future, Poll};
 pub use self::tokio_core::reactor::Core;
 
@@ -63,15 +62,9 @@ pub const DEV_NULL: &str = "/dev/null";
 #[cfg(windows)]
 pub const DEV_NULL: &str = "NUL";
 
-pub fn dev_null() -> Rc<FileDesc> {
-    let fdes = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(DEV_NULL)
-        .unwrap()
-        .into();
-
-    Rc::new(fdes)
+pub fn dev_null<E: ?Sized + FileDescOpener>(env: &mut E) -> E::OpenedFileHandle {
+    env.open_path(Path::new(DEV_NULL), OpenOptions::new().read(true).write(true))
+        .expect("failed to open DEV_NULL")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +75,17 @@ pub enum MockErr {
     CommandError(Arc<CommandError>),
 }
 
+impl failure::Fail for MockErr {
+    fn cause(&self) -> Option<&failure::Fail> {
+        match *self {
+            MockErr::Fatal(_) => None,
+            MockErr::ExpansionError(ref e) => Some(e),
+            MockErr::RedirectionError(ref e) => Some(&**e),
+            MockErr::CommandError(ref e) => Some(&**e),
+        }
+    }
+}
+
 impl self::conch_runtime::error::IsFatalError for MockErr {
     fn is_fatal(&self) -> bool {
         match *self {
@@ -90,12 +94,6 @@ impl self::conch_runtime::error::IsFatalError for MockErr {
             MockErr::RedirectionError(ref e) => e.is_fatal(),
             MockErr::CommandError(ref e) => e.is_fatal(),
         }
-    }
-}
-
-impl ::std::error::Error for MockErr {
-    fn description(&self) -> &str {
-        "mock error"
     }
 }
 
@@ -383,12 +381,13 @@ pub enum MockOutCmd {
 
 impl<E: ?Sized> Spawn<E> for MockOutCmd
     where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: 'static + Send + Sync,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
+          E::WriteAll: 'static,
 {
     type Error = MockErr;
     type EnvFuture = Self;
-    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error> + Send + Sync>;
+    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self
@@ -397,12 +396,13 @@ impl<E: ?Sized> Spawn<E> for MockOutCmd
 
 impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
     where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: 'static + Send + Sync,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
+          E::WriteAll: 'static,
 {
     type Error = MockErr;
     type EnvFuture = MockOutCmd;
-    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error> + Send + Sync>;
+    type Future = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
 
     fn spawn(self, _: &E) -> Self::EnvFuture {
         self.clone()
@@ -411,10 +411,11 @@ impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
 
 impl<E: ?Sized> EnvFuture<E> for MockOutCmd
     where E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone + FileDescWrapper,
-          E::WriteAll: 'static + Send + Sync,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
+          E::WriteAll: 'static,
 {
-    type Item = Box<'static + Future<Item = ExitStatus, Error = Self::Error> + Send + Sync>;
+    type Item = Box<'static + Future<Item = ExitStatus, Error = Self::Error>>;
     type Error = MockErr;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -430,11 +431,11 @@ impl<E: ?Sized> EnvFuture<E> for MockOutCmd
         let fd = env.file_desc(STDOUT_FILENO)
             .expect("failed to get stdout")
             .0
-            .borrow()
-            .duplicate()
-            .expect("failed to duplicate stdout handle");
+            .clone()
+            .into();
 
         let future = env.write_all(fd, msg.as_bytes().into())
+            .expect("failed to create write_all future")
             .then(|result| {
                 result.expect("unexpected failure");
                 Ok(EXIT_SUCCESS)
@@ -520,14 +521,15 @@ pub fn new_env() -> (Core, DefaultEnvRc) {
 
 pub fn new_env_with_threads(threads: usize) -> (Core, DefaultEnvRc) {
     let lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.remote(), Some(threads)).expect("failed to create env");
+    let env = DefaultEnvRc::new(lp.handle(), Some(threads)).expect("failed to create env");
+
     (lp, env)
 }
 
 pub fn new_env_with_no_fds() -> (Core, DefaultEnvRc) {
     let lp = Core::new().expect("failed to create Core loop");
-    let mut cfg = DefaultEnvConfigRc::new(lp.remote(), Some(1)).expect("failed to create env cfg");
-    cfg.file_desc_env = FileDescEnv::new();
+    let mut cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1)).expect("failed to create env cfg");
+    cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
     let env = DefaultEnvRc::with_config(cfg);
     (lp, env)
 }
@@ -614,7 +616,7 @@ pub fn eval_word<W: WordEval<DefaultEnv<String>>>(word: W, cfg: WordEvalConfig, 
     -> Result<Fields<W::EvalResult>, W::Error>
 {
     let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnv::<String>::new(lp.remote(), Some(threads)).expect("failed to create env");
+    let env = DefaultEnv::<String>::new(lp.handle(), Some(threads)).expect("failed to create env");
     let future = word.eval_with_config(&env, cfg)
         .pin_env(env);
 

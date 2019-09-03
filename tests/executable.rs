@@ -3,7 +3,7 @@ extern crate futures;
 extern crate tokio_core;
 extern crate tokio_io;
 
-use conch_runtime::io::Pipe;
+use conch_runtime::io::FileDescWrapper;
 use futures::future::{Future, lazy};
 use std::borrow::Cow;
 use std::env::current_dir;
@@ -20,11 +20,11 @@ const EXECUTABLE_WITH_IO_MSG: &str = "hello\nworld!\n";
 fn spawn_executable_with_io() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
-    let mut io_env = PlatformSpecificAsyncIoEnv::new(lp.remote(), Some(3));
+    let mut io_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(3));
 
-    let pipe_in = Pipe::new().unwrap();
-    let pipe_out = Pipe::new().unwrap();
-    let pipe_err = Pipe::new().unwrap();
+    let pipe_in = io_env.open_pipe().unwrap();
+    let pipe_out = io_env.open_pipe().unwrap();
+    let pipe_err = io_env.open_pipe().unwrap();
 
     let bin_path = bin_path("cat-dup");
 
@@ -33,9 +33,9 @@ fn spawn_executable_with_io() {
         args: vec!(),
         env_vars: vec!(),
         current_dir: Cow::Owned(current_dir().expect("failed to get current_dir")),
-        stdin: Some(pipe_in.reader),
-        stdout: Some(pipe_out.writer),
-        stderr: Some(pipe_err.writer),
+        stdin: Some(pipe_in.reader.try_unwrap().expect("unwrap failed")),
+        stdout: Some(pipe_out.writer.try_unwrap().expect("unwrap failed")),
+        stderr: Some(pipe_err.writer.try_unwrap().expect("unwrap failed")),
     };
 
     let pipe_in_writer = pipe_in.writer;
@@ -46,13 +46,16 @@ fn spawn_executable_with_io() {
         let child = env.spawn_executable(data).expect("spawn failed");
 
         let stdin = io_env.write_all(pipe_in_writer, Vec::from(EXECUTABLE_WITH_IO_MSG.as_bytes()))
+            .expect("failed to create stdin")
             .map_err(|e| panic!("stdin failed: {}", e));
 
-        let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out_reader), Vec::new())
+        let stdout = io_env.read_async(pipe_out_reader).expect("failed to get stdout");
+        let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
             .map(|(_, msg)| assert_eq!(msg, EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdout failed: {}", e));
 
-        let stderr = tokio_io::io::read_to_end(io_env.read_async(pipe_err_reader), Vec::new())
+        let stderr = io_env.read_async(pipe_err_reader).expect("failed to get stderr");
+        let stderr = tokio_io::io::read_to_end(stderr, Vec::new())
             .map(|(_, msg)| assert_eq!(msg, EXECUTABLE_WITH_IO_MSG.as_bytes()))
             .map_err(|e| panic!("stdout failed: {}", e));
 
@@ -65,10 +68,10 @@ fn spawn_executable_with_io() {
 fn env_vars_set_from_data_without_inheriting_from_process() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
-    let mut io_env = PlatformSpecificAsyncIoEnv::new(lp.remote(), Some(1));
+    let mut io_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
 
     let (status, ()) = lp.run(lazy(move || {
-        let pipe_out = Pipe::new().unwrap();
+        let pipe_out = io_env.open_pipe().unwrap();
 
         let bin_path = bin_path("env");
         let data = ExecutableData {
@@ -80,13 +83,14 @@ fn env_vars_set_from_data_without_inheriting_from_process() {
             ),
             current_dir: Cow::Owned(current_dir().expect("failed to get current_dir")),
             stdin: None,
-            stdout: Some(pipe_out.writer),
+            stdout: Some(pipe_out.writer.try_unwrap().expect("unwrap failed")),
             stderr: None,
         };
 
         let child = env.spawn_executable(data).expect("spawn failed");
 
-        let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out.reader), Vec::new())
+        let stdout = io_env.read_async(pipe_out.reader).expect("failed to get stdout");
+        let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
             .map(|(_, msg)| {
                 if cfg!(windows) {
                     assert_eq!(msg, b"FOO=bar\nPATH=qux\n")
@@ -130,10 +134,10 @@ fn remote_spawn_smoke() {
 fn defines_empty_path_env_var_if_not_provided_by_caller() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
-    let mut io_env = PlatformSpecificAsyncIoEnv::new(lp.remote(), Some(1));
+    let mut io_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
 
     let (status, ()) = lp.run(lazy(move || {
-        let pipe_out = Pipe::new().unwrap();
+        let pipe_out = io_env.open_pipe().unwrap();
 
         let bin_path = bin_path("env");
         let data = ExecutableData {
@@ -142,13 +146,14 @@ fn defines_empty_path_env_var_if_not_provided_by_caller() {
             env_vars: vec!(),
             current_dir: Cow::Owned(current_dir().expect("failed to get current_dir")),
             stdin: None,
-            stdout: Some(pipe_out.writer),
+            stdout: Some(pipe_out.writer.try_unwrap().expect("unwrap failed")),
             stderr: None,
         };
 
         let child = env.spawn_executable(data).expect("spawn failed");
 
-        let stdout = tokio_io::io::read_to_end(io_env.read_async(pipe_out.reader), Vec::new())
+        let stdout = io_env.read_async(pipe_out.reader).expect("failed to get stdout");
+        let stdout = tokio_io::io::read_to_end(stdout, Vec::new())
             .map(|(_, msg)| assert_eq!(msg, b"PATH=\n"))
             .map_err(|e| panic!("stdout failed: {}", e));
 

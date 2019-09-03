@@ -1,6 +1,6 @@
 use {ExitStatus, EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{LastStatusEnvironment, ReportFailureEnvironment};
 use future::{Async, EnvFuture, Poll};
 use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal,
             swallow_non_fatal_errors};
@@ -30,7 +30,7 @@ pub struct AndOrList<T, I, E: ?Sized>
 /// Spawns an `And`/`Or` list of commands from an initial command and an iterator.
 pub fn and_or_list<T, I, E: ?Sized>(first: T, rest: I, env: &E)
     -> AndOrList<T, I::IntoIter, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: LastStatusEnvironment + ReportFailureEnvironment,
           T: Spawn<E>,
           T::Error: IsFatalError,
           I: IntoIterator<Item = AndOr<T>>,
@@ -46,7 +46,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for AndOrList<T, I, E>
     where T: Spawn<E>,
           T::Error: IsFatalError,
           I: Iterator<Item = AndOr<T>>,
-          E: LastStatusEnvironment + ReportErrorEnvironment,
+          E: LastStatusEnvironment + ReportFailureEnvironment,
 {
     type Item = ExitResult<T::Future>;
     type Error = T::Error;

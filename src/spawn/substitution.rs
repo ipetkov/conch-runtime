@@ -1,10 +1,10 @@
 use {ExitStatus, POLLED_TWICE, Spawn, STDOUT_FILENO};
-use env::{AsyncIoEnvironment, FileDescEnvironment, LastStatusEnvironment, ReportErrorEnvironment,
-          SubEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
+          LastStatusEnvironment, Pipe, ReportFailureEnvironment, SubEnvironment};
 use error::IsFatalError;
 use future::{Async, EnvFuture, Poll};
 use futures::future::Future;
-use io::{FileDescWrapper, Permissions, Pipe};
+use io::Permissions;
 use spawn::{ExitResult, Subshell, subshell};
 use std::borrow::Cow;
 use std::fmt;
@@ -28,8 +28,15 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
     where I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
-          E: AsyncIoEnvironment + FileDescEnvironment + LastStatusEnvironment + ReportErrorEnvironment + SubEnvironment,
-          E::FileHandle: FileDescWrapper,
+          E: AsyncIoEnvironment
+            + FileDescEnvironment
+            + FileDescOpener
+            + IsInteractiveEnvironment
+            + LastStatusEnvironment
+            + ReportFailureEnvironment
+            + SubEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::OpenedFileHandle>,
           E::Read: AsyncRead,
 {
     type Item = Substitution<I, E::Read, E>;
@@ -37,14 +44,14 @@ impl<I, S, E> EnvFuture<E> for SubstitutionEnvFuture<I>
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let body = self.body.take().expect(POLLED_TWICE);
-        let Pipe { reader: cmd_output, writer: cmd_stdout_fd } = try!(Pipe::new());
+        let Pipe { reader: cmd_output, writer: cmd_stdout_fd } = env.open_pipe()?;
 
         let mut env = env.sub_env();
         let cmd_stdout_fd: E::FileHandle = cmd_stdout_fd.into();
         env.set_file_desc(STDOUT_FILENO, cmd_stdout_fd, Permissions::Write);
 
         let subshell = FlattenSubshell::Subshell(subshell(body, &env));
-        let read_to_end = read_to_end(env.read_async(cmd_output), Vec::new());
+        let read_to_end = read_to_end(env.read_async(cmd_output.into())?, Vec::new());
         drop(env);
 
         Ok(Async::Ready(Substitution {
@@ -88,7 +95,7 @@ impl<I, R, S, E> fmt::Debug for Substitution<I, R, E>
 }
 
 impl<I, R, S, E> Future for Substitution<I, R, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,
@@ -151,7 +158,7 @@ impl<I, S, E> fmt::Debug for FlattenSubshell<I, E>
 }
 
 impl<I, S, E> Future for FlattenSubshell<I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,
@@ -242,7 +249,7 @@ impl<I, R, E> JoinSubshellAndReadToEnd<I, R, E>
 }
 
 impl<I, S, R, E> Future for JoinSubshellAndReadToEnd<I, R, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError + From<IoError>,

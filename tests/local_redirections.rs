@@ -12,6 +12,9 @@ use futures::future::{FutureResult, ok};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::io;
+use std::fs::OpenOptions;
+use std::path::Path;
 use std::rc::Rc;
 
 #[macro_use]
@@ -33,19 +36,38 @@ impl MockEnv {
     }
 }
 
+impl FileDescOpener for MockEnv {
+    type OpenedFileHandle = Rc<FileDesc>;
+
+    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+        opts.open(&path)
+            .map(FileDesc::from)
+            .map(Rc::new)
+    }
+
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+        let pipe = ::conch_runtime::io::Pipe::new()?;
+        Ok(Pipe {
+            reader: Rc::new(pipe.reader),
+            writer: Rc::new(pipe.writer),
+        })
+    }
+}
+
 impl AsyncIoEnvironment for MockEnv {
-    type Read = PlatformSpecificRead;
+    type IoHandle = Rc<FileDesc>;
+    type Read = PlatformSpecificAsyncRead;
     type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: FileDesc) -> Self::Read {
+    fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: FileDesc, _: Vec<u8>) -> Self::WriteAll {
+    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> io::Result<Self::WriteAll> {
         unimplemented!()
     }
 
-    fn write_all_best_effort(&mut self, _: FileDesc, _: Vec<u8>) {
+    fn write_all_best_effort(&mut self, _: Self::IoHandle, _: Vec<u8>) {
         // Nothing to do
     }
 }
@@ -124,7 +146,7 @@ impl EnvFuture<MockEnv> for MockCmd2 {
     }
 }
 
-fn run_with_local_redirections(redirects: Vec<MockRedirect<Rc<FileDesc>>>, cmd: MockCmd)
+fn run_with_local_redirections(redirects: Vec<MockRedirect<PlatformSpecificManagedHandle>>, cmd: MockCmd)
     -> Result<ExitStatus, MockErr>
 {
     let (mut lp, env) = new_env();
@@ -166,26 +188,26 @@ fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain() {
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     env.set_file_desc(STDIN_FILENO, fdes.clone(), Permissions::Read);
     expected_fds.insert(STDIN_FILENO, Some((fdes, Permissions::Read)));
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     env.set_file_desc(STDOUT_FILENO, fdes.clone(), Permissions::Write);
     expected_fds.insert(STDOUT_FILENO, Some((fdes, Permissions::Write)));
 
     let env_original = env.clone();
     let mut redirects = vec!();
 
-    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::Read)));
-    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::Write)));
+    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(&mut env), Permissions::Read)));
+    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(&mut env), Permissions::Write)));
     redirects.push(mock_redirect(RedirectAction::Close(5)));
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     redirects.push(mock_redirect(RedirectAction::Open(5, fdes.clone(), Permissions::ReadWrite)));
     expected_fds.insert(5, Some((fdes, Permissions::ReadWrite))); // Last change wins
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     redirects.push(mock_redirect(RedirectAction::Open(6, fdes.clone(), Permissions::Write)));
     expected_fds.insert(6, Some((fdes, Permissions::Write)));
 
@@ -221,26 +243,26 @@ fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     env.set_file_desc(STDIN_FILENO, fdes.clone(), Permissions::Read);
     expected_fds.insert(STDIN_FILENO, Some((fdes, Permissions::Read)));
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     env.set_file_desc(STDOUT_FILENO, fdes.clone(), Permissions::Write);
     expected_fds.insert(STDOUT_FILENO, Some((fdes, Permissions::Write)));
 
     let env_original = env.clone();
     let mut redirects = vec!();
 
-    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::Read)));
-    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::Write)));
+    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(&mut env), Permissions::Read)));
+    redirects.push(mock_redirect(RedirectAction::Open(5, dev_null(&mut env), Permissions::Write)));
     redirects.push(mock_redirect(RedirectAction::Close(5)));
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     redirects.push(mock_redirect(RedirectAction::Open(5, fdes.clone(), Permissions::ReadWrite)));
     expected_fds.insert(5, Some((fdes, Permissions::ReadWrite))); // Last change wins
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     redirects.push(mock_redirect(RedirectAction::Open(6, fdes.clone(), Permissions::Write)));
     expected_fds.insert(6, Some((fdes, Permissions::Write)));
 
@@ -275,17 +297,18 @@ fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
 #[test]
 fn fds_restored_after_cmd_or_redirect_error() {
     let mut env = MockEnv::new();
-    env.set_file_desc(STDIN_FILENO, dev_null(), Permissions::Read);
-    env.set_file_desc(STDOUT_FILENO, dev_null(), Permissions::Write);
+    let dev_null = dev_null(&mut env);
+    env.set_file_desc(STDIN_FILENO, dev_null.clone(), Permissions::Read);
+    env.set_file_desc(STDOUT_FILENO, dev_null.clone(), Permissions::Write);
 
     let env_original = env.clone();
 
     let redirects = vec!(
-        mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::Read)),
-        mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::Write)),
+        mock_redirect(RedirectAction::Open(5, dev_null.clone(), Permissions::Read)),
+        mock_redirect(RedirectAction::Open(5, dev_null.clone(), Permissions::Write)),
         mock_redirect(RedirectAction::Close(5)),
-        mock_redirect(RedirectAction::Open(5, dev_null(), Permissions::ReadWrite)),
-        mock_redirect(RedirectAction::Open(6, dev_null(), Permissions::Write)),
+        mock_redirect(RedirectAction::Open(5, dev_null.clone(), Permissions::ReadWrite)),
+        mock_redirect(RedirectAction::Open(6, dev_null.clone(), Permissions::Write)),
         mock_redirect(RedirectAction::Close(STDIN_FILENO)),
     );
 
@@ -310,14 +333,14 @@ fn spawn_compound_command_smoke() {
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     env.set_file_desc(STDIN_FILENO, fdes.clone(), Permissions::Read);
     expected_fds.insert(STDIN_FILENO, Some((fdes, Permissions::Read)));
 
     let env_original = env.clone();
     let mut redirects = vec!();
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     redirects.push(mock_redirect(RedirectAction::Open(5, fdes.clone(), Permissions::ReadWrite)));
     expected_fds.insert(5, Some((fdes, Permissions::ReadWrite))); // Last change wins
 

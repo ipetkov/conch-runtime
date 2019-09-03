@@ -3,7 +3,7 @@ extern crate futures;
 
 use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
-use conch_runtime::io::{FileDesc, Permissions};
+use conch_runtime::io::Permissions;
 use futures::future::poll_fn;
 use std::rc::Rc;
 
@@ -12,14 +12,14 @@ mod support;
 pub use self::support::*;
 
 type MockRedirectOrVarAssig =
-    RedirectOrVarAssig<MockRedirect<Rc<FileDesc>>, Rc<String>, MockWord>;
+    RedirectOrVarAssig<MockRedirect<PlatformSpecificManagedHandle>, Rc<String>, MockWord>;
 
 fn eval(
     vars: Vec<MockRedirectOrVarAssig>,
     export_vars: Option<bool>,
     env: &DefaultEnvRc
-) -> EvalRedirectOrVarAssig2<
-    MockRedirect<Rc<FileDesc>>,
+) -> EvalRedirectOrVarAssig<
+    MockRedirect<PlatformSpecificManagedHandle>,
     Rc<String>,
     MockWord,
     ::std::vec::IntoIter<MockRedirectOrVarAssig>,
@@ -76,7 +76,7 @@ fn smoke() {
     assert_eq!(env.file_desc(1), None);
     assert_empty_vars(&env);
 
-    let fdes = dev_null();
+    let fdes = dev_null(&mut env);
     let mut future = eval(
         vec!(
             RedirectOrVarAssig::Redirect(mock_redirect(
@@ -94,7 +94,7 @@ fn smoke() {
         &env
     );
 
-    let (redirect_restorer, var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
+    let (mut redirect_restorer, mut var_restorer) = lp.run(poll_fn(|| future.poll(&mut env)))
         .unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
@@ -177,7 +177,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
         let mut future = eval(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
-                    RedirectAction::Open(1, dev_null(), Permissions::Write)
+                    RedirectAction::Open(1, dev_null(&mut env), Permissions::Write)
                 )),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(
                     Fields::Single("val".to_owned())
@@ -201,7 +201,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
         let mut future = eval(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
-                    RedirectAction::Open(1, dev_null(), Permissions::Write)
+                    RedirectAction::Open(1, dev_null(&mut env), Permissions::Write)
                 )),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(
                     Fields::Single("val".to_owned())
@@ -240,7 +240,7 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
         eval(
             vec!(
                 RedirectOrVarAssig::Redirect(mock_redirect(
-                    RedirectAction::Open(1, dev_null(), Permissions::Write)
+                    RedirectAction::Open(1, dev_null(&mut env), Permissions::Write)
                 )),
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_fields(
                     Fields::Single("val".to_owned())

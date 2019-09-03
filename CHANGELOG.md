@@ -1,7 +1,93 @@
+# Changelog
+All notable changes to this project will be documented in this file.
+
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- `Env` will now manage `$PWD` and `$OLDPWD` whenever the current working directory is changed
+- Added `Read`/`Write` impls for `&EventedFileDesc`
+- Added the `FileDescOpener` trait for abstracting over opening files/pipes through the environment
+- Added the `FileDescManager` trait to encompass opening file descriptors, managing their permissions,
+and performing async I/O over them
+- Added `PlatformSpecificFileDescManagerEnv` environment and an atomic
+counterpart as a successor to `PlatformSpecificAsyncIoEnv`
+- Added inherent methods on `ThreadPoolAsyncIoEnv` for any `AsyncIoEnvironment`
+related operations for more efficient operations which do not require owned
+`FileDesc` handles as long as the provided input can be borrowed as a `FileDesc`
+- Added the `ReportFailureEnvironment` trait for reporting arbitrary `Fail` types
+- Added the `BuiltinEnvironment` and `BuiltinUtility` traits for spawning
+builtin utilities
+- Added `BuiltinEnv` as which is a `BuiltinEnvironment` implementation which
+supports all provided builtin utilities definitions
+- Added `simple_command_with_restorers` function which allows spawning a simple
+command with the specified redirect and var restorers
+- Added `FunctionFrameEnvironment` trait for tracking the stack size of
+currently executing functions.
+
+### Changed
+- **Breaking:** Instantiating an `Env` now requires its `WD` parameter to implement `WorkingDirectoryEnvironment`
+for managing the `$PWD` and `$OLDPWD` environment variables
+- **Breaking:** The `WorkingDirectoryEnvironment` implementation of `Env` now requires that it also implements
+`VariableEnvironment` for managing the `$PWD` and `$OLDPWD` environment variables
+- **Breaking:** Corrected the signature of `VarRestorer::set_exported_var` to match that of `VarRestorer2::set_exported_var`
+- **Breaking:** Corrected `EvalRedirectOrVarAssig` to handle earlier assignment references by using the implementation
+of `EvalRedirectOrVarAssig2`
+- **Breaking:** Bumped dependency of `winapi` to `0.3.4`
+- **Breaking:** Improved debug printing of `spawn::Simple` after requiring a few additional
+generic parameters to implement `Debug`
+- **Breaking:** `AsyncIoEnvironment` must now specify an associated type `IoHandle` for what
+file handle it accepts, thus it is no longer forced to operate with a `FileDesc`
+- **Breaking:** `AsyncIoEnvironment` now returns an `io::Result` when creating an async read/write adapter
+over a file handle, instead of surfacing the error at the first interaction with the new handle
+- **Breaking:** `Env` now delegates file descriptor management to a single type instead of separate
+file descriptor mapper, async I/O environment, etc.
+- **Breaking:** `Env` can now delegate to a `BuiltinEnvironment` implementation
+- **Breaking:** The `FileDescWrapper` trait now represents anything that can be
+unwrapped into an owned `FileDesc` instead of anything that can be cloned and
+borrowed as a `FileDesc`
+- **Breaking:** EventedAsyncIoEnv has been rewritten to yield opaque file handles
+- **Breaking:** Changing the blocking/nonblocking state of a `FileDesc` now
+requires a mutable reference
+- **Breaking:** `IsFatalError` now requires the implementor to also implement
+`failure::Fail` instead of `std::error::Error`
+- **Breaking:** All previous consumers of `ReportErrorEnvironment` now require
+`ReportFailureEnvironment` implementations instead
+- **Breaking:** All error types now implement `Fail` instead of `Error`.
+Use `Fail::compat` to get back an `Error` implementation.
+- **Breaking:** `ExecutableEnvironment` no longer enforces that
+`Self::Future = CommandError` which gives implementors the flexibility to use
+their own error types.
+- **Breaking:** Spawning a simple command now requires that errors arising from
+executing commands implement `Fail`
+- **Breaking:** `ExecutorEnvironment::Future` has been renamed to `ExecFuture`
+- **Breaking:** `ExecutorEnvironment` is now implemented for all `&mut T`
+where `T: ExecutableEnvironment`
+- **Breaking:** `SimpleCommand` now supports spawning builtin utilities, (but
+requires that the environment support `Spawn`able builtins)
+- **Breaking:** `Sequence` now requires the environment to implement
+`IsInteractiveEnvironment` to avoid situations where it blocks waiting for
+input which is not yet available
+- **Breaking:** `Function` now keeps track of the current function stack size
+and now requires that the environment implement `FunctionFrameEnvironment`
+ - Subsequently, other combinators such as `Subshell`, `If`, `Case`,
+`Substitution` and `ParameterSubstitution` also require the additional bound
+for `IsInteractiveEnvironment`
+- **Breaking:** the `shift` builtin command's spawned `Future` has been changed
+to potentially write an error message, and is no longer just a simple `ExitStatus`.
+- `SimpleCommand` is now generic over the redirect and var restorers it is
+given. These generic parameters will default to `RedirectRestorer` and
+`VarRestorer` to remain backwards compatible (which was effectively the
+previous behavior as well).
+- `RuntimeError` now implements `From<void::Void>` to satisfy type conversions
+- Builtin commands now print out their error messages as part of their execution instead
+of requiring the environment to report it
+
+### Fixed
+* `EventedFileDesc` no longer attempts to reregister a file descriptor into the
+event loop if the original `register` call returns `ErrorKind::AlreadyExists`
+
 ## [0.1.6] - 2019-06-02
 ### Fixed
 * Fixed building on latest nightlies
@@ -15,14 +101,24 @@ future.
 ### Fixed
 * Tests now avoid the "ambiguous macro name" error, and can build on 1.30
 
-<!--
-### Added
 ### Deprecated
+- Deprecated `FileDescExt::into_evented2`, renamed to `FileDescExt::into_evented`
+- Deprecated `VarRestorer2` since `VarRestorer` has been corrected and the two traits now behave
+identically
+- Deprecated `EvalRedirectOrVarAssig2` since it is now an alias for `EvalRedirectOrVarAssig`
+
 ### Removed
-### Fixed
-### Security
-### Breaking
--->
+- **Breaking:** Removed the previous version of `FileDescExt::into_evented` and replaced it with
+the signature of `FileDescExt::into_evented2`
+- **Breaking:** Removed deprecated `RedirectEnvRestorer` methods
+- **Breaking:** Removed deprecated `VarRestorer` methods
+- **Breaking:** Removed deprecated `eval_redirects_or_var_assignments` and
+`eval_redirects_or_var_assignments_with_restorer` functions
+- **Breaking:** Removed `PlatformSpecificAsyncIoEnv`,
+`PlatformSpecificRead`, and `PlatformSpecificWriteAll` as they are superceded
+by the new `PlatformSpecificFileDescManagerEnv`
+- **Breaking:** Removed the `ReportErrorEnvironment` trait, as it is superceded
+by the `ReportFailureEnvironment` trait
 
 ## [0.1.4] - 2018-01-27
 ### Changed

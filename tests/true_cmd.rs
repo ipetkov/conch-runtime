@@ -1,11 +1,12 @@
 mod support;
 pub use self::support::*;
+pub use self::support::spawn::builtin::true_cmd;
 
 #[test]
 fn true_smoke() {
     let (mut lp, mut env) = new_env();
 
-    let exit = lp.run(builtin::true_cmd()
+    let exit = lp.run(true_cmd()
         .spawn(&env)
         .pin_env(&mut env)
         .flatten()

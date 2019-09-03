@@ -53,6 +53,71 @@ impl<'a, T: ?Sized + UnsetFunctionEnvironment> UnsetFunctionEnvironment for &'a 
     }
 }
 
+/// An interface for tracking the current stack of functions being executed.
+pub trait FunctionFrameEnvironment {
+    /// Denote that a new function has been invoked and is currently executing.
+    fn push_fn_frame(&mut self);
+    /// Denote that a function has completed and is no longer executing.
+    fn pop_fn_frame(&mut self);
+    /// Determines if there is at least one function being currently executed.
+    fn is_fn_running(&self) -> bool;
+}
+
+impl<'a, T: ?Sized + FunctionFrameEnvironment> FunctionFrameEnvironment for &'a mut T {
+    fn push_fn_frame(&mut self) {
+	(**self).push_fn_frame()
+    }
+
+    fn pop_fn_frame(&mut self) {
+	(**self).pop_fn_frame()
+    }
+
+    fn is_fn_running(&self) -> bool {
+	(**self).is_fn_running()
+    }
+}
+
+/// An implementation of `FunctionFrameEnvironment`
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct FnFrameEnv {
+    num_frames: usize,
+}
+
+impl FnFrameEnv {
+    /// Create a new environment instance.
+    pub fn new() -> Self {
+        Self {
+            num_frames: 0,
+        }
+    }
+}
+
+impl FunctionFrameEnvironment for FnFrameEnv {
+    /// Denote that a new function has been invoked and is currently executing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of pushed frames overflows a `usize`.
+    fn push_fn_frame(&mut self) {
+        self.num_frames = self.num_frames.checked_add(1)
+            .expect("function frame overflow");
+    }
+
+    fn pop_fn_frame(&mut self) {
+        self.num_frames = self.num_frames.saturating_sub(1);
+    }
+
+    fn is_fn_running(&self) -> bool {
+        self.num_frames > 0
+    }
+}
+
+impl SubEnvironment for FnFrameEnv {
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
+}
+
 macro_rules! impl_env {
     ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
         $(#[$attr])*
@@ -230,5 +295,38 @@ mod tests {
         assert_eq!(parent.has_function(&fn_name_child), false);
         assert_eq!(parent.function(&fn_name_parent), Some(&fn_parent));
         assert_eq!(parent.function(&fn_name_child), None);
+    }
+
+    #[test]
+    fn test_fn_frame_smoke() {
+        let mut env = FnFrameEnv::new();
+        assert_eq!(env.is_fn_running(), false);
+
+        // Extra pops don't do anything
+        env.pop_fn_frame();
+        assert_eq!(env.is_fn_running(), false);
+
+        env.push_fn_frame();
+        assert_eq!(env.is_fn_running(), true);
+
+        env.push_fn_frame();
+        assert_eq!(env.is_fn_running(), true);
+
+        env.pop_fn_frame();
+        assert_eq!(env.is_fn_running(), true);
+
+        println!("{:#?}", env);
+        env.pop_fn_frame();
+        println!("{:#?}", env);
+        assert_eq!(env.is_fn_running(), false);
+    }
+
+    #[test]
+    #[should_panic(expected = "function frame overflow")]
+    fn test_fn_frame_overflow() {
+        let mut env = FnFrameEnv::new();
+        env.num_frames = usize::max_value();
+
+        env.push_fn_frame();
     }
 }

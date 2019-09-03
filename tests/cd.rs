@@ -4,7 +4,7 @@ extern crate tempdir;
 extern crate tokio_io;
 extern crate void;
 
-use conch_runtime::io::{Permissions, Pipe};
+use conch_runtime::io::Permissions;
 use futures::future::{Future, poll_fn};
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -17,6 +17,7 @@ use std::rc::Rc;
 #[macro_use]
 mod support;
 pub use self::support::*;
+pub use self::support::spawn::builtin::cd;
 
 struct CdResult {
     initial_cwd: PathBuf,
@@ -31,19 +32,21 @@ fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
 {
     let (mut lp, mut env) = new_env_with_threads(4);
 
-    let pipe_out = Pipe::new().expect("err pipe failed");
-    let pipe_err = Pipe::new().expect("out pipe failed");
+    let pipe_out = env.open_pipe().expect("err pipe failed");
+    let pipe_err = env.open_pipe().expect("out pipe failed");
 
-    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe_out.writer.into(), Permissions::Write);
-    env.set_file_desc(conch_runtime::STDERR_FILENO, pipe_err.writer.into(), Permissions::Write);
+    env.set_file_desc(conch_runtime::STDOUT_FILENO, pipe_out.writer, Permissions::Write);
+    env.set_file_desc(conch_runtime::STDERR_FILENO, pipe_err.writer, Permissions::Write);
 
     env_setup(&mut env);
     let initial_cwd = env.current_working_dir().to_path_buf();
 
-    let read_to_end_out = tokio_io::io::read_to_end(env.read_async(pipe_out.reader), Vec::new());
-    let read_to_end_err = tokio_io::io::read_to_end(env.read_async(pipe_err.reader), Vec::new());
+    let read_to_end_out = env.read_async(pipe_out.reader).expect("failed to create read_to_end_out");
+    let read_to_end_err = env.read_async(pipe_err.reader).expect("failed to create read_to_end_err");
+    let read_to_end_out = tokio_io::io::read_to_end(read_to_end_out, Vec::new());
+    let read_to_end_err = tokio_io::io::read_to_end(read_to_end_err, Vec::new());
 
-    let mut cd = builtin::cd(cd_args.iter().map(|&s| s.to_owned()))
+    let mut cd = cd(cd_args.iter().map(|&s| s.to_owned()))
         .spawn(&env);
 
     let env = RefCell::new(env);
@@ -82,7 +85,7 @@ fn successful_if_no_stdout() {
     let (mut lp, mut env) = new_env_with_no_fds();
 
     let args: Vec<Rc<String>> = vec!(input.to_string_lossy().into_owned().into());
-    let mut cd = builtin::cd(args)
+    let mut cd = cd(args)
         .spawn(&env);
 
     let exit = lp.run(poll_fn(|| cd.poll(&mut env)).flatten());
@@ -287,7 +290,7 @@ fn dash_unset_old_pwd_is_error() {
 #[should_panic]
 fn polling_canceled_pwd_panics() {
     let (_, mut env) = new_env_with_no_fds();
-    let mut cd = builtin::cd(Vec::<Rc<String>>::new())
+    let mut cd = cd(Vec::<Rc<String>>::new())
         .spawn(&env);
 
     cd.cancel(&mut env);

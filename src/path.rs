@@ -1,6 +1,5 @@
 //! Defines helpers and utilities for working with file system paths
 
-use std::error::Error;
 use std::fmt;
 use std::io;
 use std::mem;
@@ -8,22 +7,13 @@ use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 
 /// An error that can arise during physical path normalization.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub struct NormalizationError {
     /// The error that occured.
+    #[cause]
     err: io::Error,
     /// The path that caused the error.
     path: PathBuf,
-}
-
-impl Error for NormalizationError {
-    fn description(&self) -> &str {
-        self.err.description()
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        Some(&self.err)
-    }
 }
 
 impl fmt::Display for NormalizationError {

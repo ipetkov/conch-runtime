@@ -1,13 +1,12 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
 use env::{ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment,
-          LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment,
-          VariableEnvironment};
+          FileDescOpener, IsInteractiveEnvironment, LastStatusEnvironment,
+          ReportFailureEnvironment, SubEnvironment, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
-use io::FileDesc;
 use spawn::{BoxStatusFuture, ExitResult, Case, case, For, for_loop, GuardBodyPair, If, if_cmd,
             LocalRedirections, Loop, loop_cmd, PatternBodyPair, Sequence, sequence,
             spawn_with_local_redirections, Spawn, SpawnBoxed, SpawnRef, Subshell, subshell};
@@ -48,7 +47,7 @@ pub struct CompoundCommandKindFuture<IS, IW, IG, IP, SR, E>
           SR: SpawnRef<E>,
           E: VariableEnvironment,
 {
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     state: State<
         Sequence<IS, E>,
         If<IG, IS, E>,
@@ -99,8 +98,9 @@ impl<S, R, E: ?Sized> Spawn<E> for CompoundCommand<S, R>
     where R: RedirectEval<E, Handle = E::FileHandle>,
           S: Spawn<E>,
           S::Error: From<RedirectionError> + From<R::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: Clone + From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
 {
     type EnvFuture = LocalRedirections<IntoIter<R>, S, E>;
     type Future = S::Future;
@@ -115,8 +115,9 @@ impl<'a, S, R, E: ?Sized> Spawn<E> for &'a CompoundCommand<S, R>
     where &'a R: RedirectEval<E, Handle = E::FileHandle>,
           &'a S: Spawn<E>,
           <&'a S as Spawn<E>>::Error: From<RedirectionError> + From<<&'a R as RedirectEval<E>>::Error>,
-          E: AsyncIoEnvironment + FileDescEnvironment,
-          E::FileHandle: Clone + From<FileDesc>,
+          E: AsyncIoEnvironment + IsInteractiveEnvironment + FileDescEnvironment + FileDescOpener,
+          E::FileHandle: Clone + From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
 {
     type EnvFuture = LocalRedirections<Iter<'a, R>, &'a S, E>;
     type Future = <&'a S as Spawn<E>>::Future;
@@ -134,8 +135,9 @@ impl<T, W, S, E> Spawn<E> for CompoundCommandKind<T, W, S>
           S: 'static + Spawn<E> + SpawnBoxed<E, Error = <S as Spawn<E>>::Error>,
           <S as Spawn<E>>::Error: From<W::Error> + IsFatalError,
           E: 'static + ArgumentsEnvironment
+            + IsInteractiveEnvironment
             + LastStatusEnvironment
-            + ReportErrorEnvironment
+            + ReportFailureEnvironment
             + VariableEnvironment
             + SubEnvironment,
         E::Var: From<E::Arg>,
@@ -213,15 +215,16 @@ impl<'a, T, W, S, E> Spawn<E> for &'a CompoundCommandKind<T, W, S>
           <&'a S as Spawn<E>>::Error: IsFatalError,
           <&'a S as Spawn<E>>::Error: From<<&'a W as WordEval<E>>::Error> + IsFatalError,
           E: ArgumentsEnvironment
+            + IsInteractiveEnvironment
             + LastStatusEnvironment
-            + ReportErrorEnvironment
+            + ReportFailureEnvironment
             + VariableEnvironment
             + SubEnvironment,
         E::Var: From<E::Arg>,
         E::VarName: Clone + From<T>,
 {
     type EnvFuture = CompoundCommandKindRefFuture<'a, S, W, E>;
-    #[cfg_attr(feature = "clippy", allow(type_complexity))]
+    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
     type Future = ExitResult<Either<<&'a S as Spawn<E>>::Future, <&'a S as Spawn<E>>::Future>>;
     type Error = <&'a S as Spawn<E>>::Error;
 
@@ -290,7 +293,7 @@ impl<S, W, IS, IW, IG, IP, SR, E> EnvFuture<E> for CompoundCommandKindFuture<IS,
           IG: Iterator<Item = GuardBodyPair<IS>>,
           IP: Iterator<Item = PatternBodyPair<IW, IS>>,
           SR: SpawnRef<E, Error = S::Error>,
-          E: LastStatusEnvironment + ReportErrorEnvironment + VariableEnvironment + SubEnvironment,
+          E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment + VariableEnvironment + SubEnvironment,
           E::VarName: Clone,
 {
     type Item = ExitResult<Either<S::Future, SR::Future>>;

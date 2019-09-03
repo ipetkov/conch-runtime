@@ -1,8 +1,8 @@
 use {CANCELLED_TWICE, ExitStatus, EXIT_SUCCESS, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO, Spawn};
-use env::{FileDescEnvironment, SubEnvironment};
+use env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
 use future::{Async, EnvFuture, InvertStatus, Pinned, Poll};
 use futures::future::{Either, Flatten, Future};
-use io::{FileDesc, Permissions, Pipe};
+use io::Permissions;
 use spawn::ExitResult;
 use std::fmt;
 use std::iter;
@@ -138,8 +138,8 @@ pub fn pipeline<I, E>(invert_last_status: bool, commands: I, env: &E)
     -> io::Result<Pipeline<I::Item, E>>
     where I: IntoIterator,
           I::Item: Spawn<E>,
-          E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
+          E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle> + Clone,
 {
     spawn_pipeline(invert_last_status, commands.into_iter(), env)
 }
@@ -148,8 +148,8 @@ fn spawn_pipeline<I, E>(invert_last_status: bool, cmds: I, env: &E)
     -> io::Result<Pipeline<I::Item, E>>
     where I: Iterator,
           I::Item: Spawn<E>,
-          E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
+          E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle> + Clone,
 {
     let mut cmds = cmds.fuse();
     let state = match (cmds.next(), cmds.next()) {
@@ -182,8 +182,6 @@ fn spawn_pipeline<I, E>(invert_last_status: bool, cmds: I, env: &E)
 impl<S, E> EnvFuture<E> for Pipeline<S, E>
     where S: Spawn<E>,
           S::Error: From<io::Error>,
-          E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
 {
     type Item = ExitResult<SpawnedPipeline<S, E>>;
     type Error = S::Error;
@@ -301,8 +299,8 @@ impl<F: Future<Item = ExitStatus>> Future for PipelineInner<F> {
 /// Panics if `pipeline` does not contain at least one additional command.
 fn init_pipeline<E: ?Sized, S, I>(env: &E, first: S, mut pipeline: I)
     -> io::Result<Vec<PinnedFlattenedFuture<E, S::EnvFuture>>>
-    where E: FileDescEnvironment + SubEnvironment,
-          E::FileHandle: From<FileDesc> + Clone,
+    where E: FileDescEnvironment + FileDescOpener + SubEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle> + Clone,
           S: Spawn<E>,
           I: Iterator<Item = S>,
 {
@@ -311,9 +309,9 @@ fn init_pipeline<E: ?Sized, S, I>(env: &E, first: S, mut pipeline: I)
     let mut next_in = {
         // First command will automatically inherit the stdin of the
         // parent environment, so no need to manually set it
-        let pipe = try!(Pipe::new());
-
         let mut env = env.sub_env();
+        let pipe = env.open_pipe()?;
+
         env.set_file_desc(STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
         result.push(first.spawn(&env).pin_env(env).flatten());
 
@@ -325,9 +323,9 @@ fn init_pipeline<E: ?Sized, S, I>(env: &E, first: S, mut pipeline: I)
         let cmd = last;
         last = next;
 
-        let pipe = try!(Pipe::new());
-
         let mut env = env.sub_env();
+        let pipe = env.open_pipe()?;
+
         env.set_file_desc(STDIN_FILENO, next_in.into(), Permissions::Read);
         env.set_file_desc(STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
         next_in = pipe.reader;

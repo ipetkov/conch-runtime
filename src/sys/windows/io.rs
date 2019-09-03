@@ -1,8 +1,5 @@
 //! Defines interfaces and methods for doing IO operations on Windows HANDLEs.
 
-use kernel32;
-use winapi;
-
 use IntoInner;
 use io::FileDesc;
 use std::fs::File;
@@ -12,6 +9,15 @@ use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle}
 use std::process::Stdio;
 use std::ptr;
 use sys::cvt;
+use winapi::shared::minwindef::{DWORD, FALSE, LPVOID};
+use winapi::um::fileapi::{ReadFile, SetFilePointerEx, WriteFile};
+use winapi::um::handleapi::{CloseHandle, DuplicateHandle, INVALID_HANDLE_VALUE};
+use winapi::um::namedpipeapi::CreatePipe;
+use winapi::um::processenv::GetStdHandle;
+use winapi::um::processthreadsapi::{GetCurrentProcess, GetCurrentProcessId};
+use winapi::um::winbase::{FILE_BEGIN, FILE_CURRENT, FILE_END, STD_ERROR_HANDLE,
+                          STD_INPUT_HANDLE, STD_OUTPUT_HANDLE};
+use winapi::um::winnt::{DUPLICATE_SAME_ACCESS, LARGE_INTEGER};
 
 /// A wrapper around an owned Windows HANDLE. The wrapper
 /// allows reading from or write to the HANDLE, and will
@@ -83,18 +89,20 @@ impl RawIo {
     // Adapted from rust: libstd/sys/windows/handle.rs
     pub fn duplicate(&self) -> Result<Self> {
         unsafe {
-            let mut ret = winapi::INVALID_HANDLE_VALUE;
-            try!(cvt({
-                let cur_proc = kernel32::GetCurrentProcess();
+            let mut ret = INVALID_HANDLE_VALUE;
+            cvt({
+                let cur_proc = GetCurrentProcess();
 
-                kernel32::DuplicateHandle(cur_proc,
-                                          self.inner(),
-                                          cur_proc,
-                                          &mut ret,
-                                          0 as winapi::DWORD,
-                                          winapi::FALSE,
-                                          winapi::DUPLICATE_SAME_ACCESS)
-            }));
+                DuplicateHandle(
+                    cur_proc,
+                    self.inner(),
+                    cur_proc,
+                    &mut ret,
+                    0 as DWORD,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS
+                )
+            })?;
             Ok(RawIo::new(ret))
         }
     }
@@ -104,11 +112,13 @@ impl RawIo {
     pub fn read_inner(&self, buf: &mut [u8]) -> Result<usize> {
         let mut read = 0;
         let res = cvt(unsafe {
-            kernel32::ReadFile(self.inner(),
-                               buf.as_ptr() as winapi::LPVOID,
-                               buf.len() as winapi::DWORD,
-                               &mut read,
-                               ptr::null_mut())
+            ReadFile(
+                self.inner(),
+                buf.as_ptr() as LPVOID,
+                buf.len() as DWORD,
+                &mut read,
+                ptr::null_mut()
+            )
         });
 
         match res {
@@ -128,13 +138,15 @@ impl RawIo {
     // Taken from rust: libstd/sys/windows/handle.rs
     pub fn write_inner(&self, buf: &[u8]) -> Result<usize> {
         let mut amt = 0;
-        try!(cvt(unsafe {
-            kernel32::WriteFile(self.inner(),
-                                buf.as_ptr() as winapi::LPVOID,
-                                buf.len() as winapi::DWORD,
-                                &mut amt,
-                                ptr::null_mut())
-        }));
+        cvt(unsafe {
+            WriteFile(
+                self.inner(),
+                buf.as_ptr() as LPVOID,
+                buf.len() as DWORD,
+                &mut amt,
+                ptr::null_mut()
+            )
+        })?;
         Ok(amt as usize)
     }
 
@@ -145,17 +157,19 @@ impl RawIo {
     /// Seeks the underlying HANDLE.
     // Taken from rust: libstd/sys/windows/fs.rs
     pub fn seek(&self, pos: SeekFrom) -> Result<u64> {
-        let (whence, pos) = match pos {
-            SeekFrom::Start(n) => (winapi::FILE_BEGIN, n as i64),
-            SeekFrom::End(n) => (winapi::FILE_END, n),
-            SeekFrom::Current(n) => (winapi::FILE_CURRENT, n),
+        let (whence, startpos) = match pos {
+            SeekFrom::Start(n) => (FILE_BEGIN, n as i64),
+            SeekFrom::End(n) => (FILE_END, n),
+            SeekFrom::Current(n) => (FILE_CURRENT, n),
         };
-        let pos = pos as winapi::LARGE_INTEGER;
-        let mut newpos = 0;
-        try!(cvt(unsafe {
-            kernel32::SetFilePointerEx(self.inner(), pos, &mut newpos, whence)
-        }));
-        Ok(newpos as u64)
+
+        unsafe {
+            let mut pos: LARGE_INTEGER = mem::zeroed();
+            *pos.QuadPart_mut() = startpos;
+            let mut newpos: LARGE_INTEGER = mem::zeroed();
+            cvt(SetFilePointerEx(self.inner(), pos, &mut newpos, whence))?;
+            Ok(*newpos.QuadPart() as u64)
+        }
     }
 }
 
@@ -163,7 +177,7 @@ impl Drop for RawIo {
     // Adapted from rust: src/libstd/sys/windows/handle.rs
     fn drop(&mut self) {
         unsafe {
-            let _ = kernel32::CloseHandle(self.inner());
+            let _ = CloseHandle(self.inner());
         }
     }
 }
@@ -172,43 +186,44 @@ impl Drop for RawIo {
 pub fn pipe() -> Result<(RawIo, RawIo)> {
     use std::ptr;
     unsafe {
-        let mut reader = winapi::INVALID_HANDLE_VALUE;
-        let mut writer = winapi::INVALID_HANDLE_VALUE;
-        try!(cvt(kernel32::CreatePipe(&mut reader, &mut writer, ptr::null_mut(), 0)));
-
+        let mut reader = INVALID_HANDLE_VALUE;
+        let mut writer = INVALID_HANDLE_VALUE;
+        cvt(CreatePipe(&mut reader, &mut writer, ptr::null_mut(), 0))?;
         Ok((RawIo::new(reader), RawIo::new(writer)))
     }
 }
 
 /// Duplicates file HANDLES for (stdin, stdout, stderr) and returns them in that order.
 pub fn dup_stdio() -> Result<(RawIo, RawIo, RawIo)> {
-    fn dup_handle(handle: winapi::DWORD) -> Result<RawIo> {
+    fn dup_handle(handle: DWORD) -> Result<RawIo> {
         unsafe {
-            let current_process = kernel32::GetCurrentProcess();
-            let mut new_handle = winapi::INVALID_HANDLE_VALUE;
+            let current_process = GetCurrentProcess();
+            let mut new_handle = INVALID_HANDLE_VALUE;
 
-            try!(cvt(kernel32::DuplicateHandle(current_process,
-                                               kernel32::GetStdHandle(handle),
-                                               current_process,
-                                               &mut new_handle,
-                                               0 as winapi::DWORD,
-                                               winapi::FALSE,
-                                               winapi::DUPLICATE_SAME_ACCESS)));
+            cvt(DuplicateHandle(
+                current_process,
+                GetStdHandle(handle),
+                current_process,
+                &mut new_handle,
+                0 as DWORD,
+                FALSE,
+                DUPLICATE_SAME_ACCESS
+            ))?;
 
             Ok(RawIo::new(new_handle))
         }
     }
 
     Ok((
-        try!(dup_handle(winapi::STD_INPUT_HANDLE)),
-        try!(dup_handle(winapi::STD_OUTPUT_HANDLE)),
-        try!(dup_handle(winapi::STD_ERROR_HANDLE))
+        dup_handle(STD_INPUT_HANDLE)?,
+        dup_handle(STD_OUTPUT_HANDLE)?,
+        dup_handle(STD_ERROR_HANDLE)?
     ))
 }
 
 /// Retrieves the process identifier of the calling process.
-pub fn getpid() -> winapi::DWORD {
+pub fn getpid() -> DWORD {
     unsafe {
-        kernel32::GetCurrentProcessId()
+        GetCurrentProcessId()
     }
 }

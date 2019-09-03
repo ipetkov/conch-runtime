@@ -114,6 +114,12 @@ impl RawIo {
         Ok(n as u64)
     }
 
+    // NB: Linux platforms which support opening a file with O_CLOEXEC won't
+    // use this function, so we can suppress the dead_code lint
+    #[cfg_attr(
+        any(target_os = "linux", target_os = "android", target_os = "emscripten"),
+        allow(dead_code)
+    )]
     /// Sets the `CLOEXEC` flag on the descriptor to the desired state
     pub fn set_cloexec(&self, set: bool) -> Result<()> {
         unsafe {
@@ -128,8 +134,10 @@ impl RawIo {
     }
 
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
-    // FIXME(breaking): require a mut ref here, avoids having someone else change the flag under us
-    pub fn set_nonblock(&self, set: bool) -> Result<()> {
+    ///
+    /// Requires a mutable handle so that blocking state is not unexpectedly
+    /// changed by someone else while sharing immutably.
+    pub fn set_nonblock(&mut self, set: bool) -> Result<()> {
         unsafe {
             let flags = try!(cvt_r(|| libc::fcntl(self.fd, libc::F_GETFL)));
             let new_flags = if set {

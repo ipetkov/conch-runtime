@@ -1,6 +1,6 @@
 use {EXIT_SUCCESS, Spawn};
 use error::IsFatalError;
-use env::{LastStatusEnvironment, ReportErrorEnvironment};
+use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment};
 use future::{Async, EnvFuture, Poll};
 use spawn::{EnvFutureExt, ExitResult, FlattenedEnvFuture, GuardBodyPair, Sequence, sequence,
             SwallowNonFatal, swallow_non_fatal_errors};
@@ -88,7 +88,7 @@ impl<S, C, I, E: ?Sized> fmt::Debug for State<C, I, E>
 }
 
 impl<S, C, I, E: ?Sized> EnvFuture<E> for If<C, I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
           C: Iterator<Item = GuardBodyPair<I>>,
           I: IntoIterator<Item = S>,
           S: Spawn<E>,
@@ -188,7 +188,7 @@ impl<I, S, E: ?Sized> fmt::Debug for Branch<I, E>
 }
 
 impl<S, I, E: ?Sized> EnvFuture<E> for Branch<I, E>
-    where E: LastStatusEnvironment + ReportErrorEnvironment,
+    where E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
           I: Iterator<Item = S>,
           S: Spawn<E>,
           S::Error: IsFatalError,

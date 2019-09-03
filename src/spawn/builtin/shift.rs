@@ -1,78 +1,50 @@
-use {EXIT_ERROR, EXIT_SUCCESS, ExitStatus, POLLED_TWICE, Spawn};
+use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 use clap::{App, AppSettings, Arg};
-use env::{ArgumentsEnvironment, ReportErrorEnvironment, ShiftArgumentsEnvironment, StringWrapper};
+use env::{AsyncIoEnvironment, ArgumentsEnvironment, FileDescEnvironment,
+          ShiftArgumentsEnvironment, StringWrapper};
 use future::{Async, EnvFuture, Poll};
+use spawn::ExitResult;
 use std::borrow::Cow;
-use std::error::Error;
-use std::fmt;
 use void::Void;
 
-const NUMERIC_ARGUMENT_REQUIRED: &str = "numeric argument required";
-
-#[derive(Debug)]
+#[derive(Debug, Fail)]
+#[fail(display = "numeric argument required")]
 struct NumericArgumentRequiredError;
 
-impl Error for NumericArgumentRequiredError {
-    fn description(&self) -> &str {
-        NUMERIC_ARGUMENT_REQUIRED
-    }
-}
+impl_generic_builtin_cmd! {
+    /// Represents a `shift` builtin command.
+    ///
+    /// The `shift` builtin command will shift all shell or function positional
+    /// arguments up by the specified amount. For example, shifting by 2 will
+    /// result in `$1` holding the previous value of `$3`, `$2` holding the
+    /// previous value of `$4`, and so on.
+    pub struct Shift;
 
-impl fmt::Display for NumericArgumentRequiredError {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", self.description())
-    }
-}
+    /// Creates a new `shift` builtin command with the provided arguments.
+    pub fn shift();
 
-/// Represents a `shift` builtin command.
-///
-/// The `shift` builtin command will shift all shell or function positional
-/// arguments up by the specified amount. For example, shifting by 2 will
-/// result in `$1` holding the previous value of `$3`, `$2` holding the
-/// previous value of `$4`, and so on.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Shift<I> {
-    args: I,
-}
+    /// A future representing a fully spawned `shift` builtin command.
+    pub struct SpawnedShift;
 
-/// Creates a new `shift` builtin command with the provided arguments.
-pub fn shift<I>(args: I) -> Shift<I::IntoIter>
-    where I: IntoIterator,
-{
-    Shift {
-        args: args.into_iter(),
-    }
-}
+    /// A future representing a fully spawned `shift` builtin command
+    /// which no longer requires an environment to run.
+    pub struct ShiftFuture;
 
-/// A future representing a fully spawned `shift` builtin command.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct SpawnedShift<I> {
-    args: Option<I>,
-}
-
-impl<T, I, E: ?Sized> Spawn<E> for Shift<I>
     where T: StringWrapper,
-          I: Iterator<Item = T>,
-          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
-{
-    type EnvFuture = SpawnedShift<I>;
-    type Future = ExitStatus;
-    type Error = Void;
-
-    fn spawn(self, _env: &E) -> Self::EnvFuture {
-        SpawnedShift {
-            args: Some(self.args),
-        }
-    }
+          E: ArgumentsEnvironment, ShiftArgumentsEnvironment,
 }
 
 impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
     where T: StringWrapper,
           I: Iterator<Item = T>,
-          E: ArgumentsEnvironment + ShiftArgumentsEnvironment + ReportErrorEnvironment,
+          E: AsyncIoEnvironment
+            + ArgumentsEnvironment
+            + FileDescEnvironment
+            + ShiftArgumentsEnvironment,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
 {
-    type Item = ExitStatus;
+    type Item = ExitResult<ShiftFuture<E::WriteAll>>;
     type Error = Void;
 
     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
@@ -90,7 +62,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
                 .validator(|amt| {
                     amt.parse::<usize>()
                         .map(|_| ())
-                        .map_err(|_| NUMERIC_ARGUMENT_REQUIRED.into())
+                        .map_err(|_| NumericArgumentRequiredError.to_string())
                 })
                 .default_value(DEFAULT_SHIFT_AMOUNT)
             );
@@ -116,7 +88,7 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedShift<I>
             EXIT_SUCCESS
         };
 
-        Ok(Async::Ready(ret))
+        Ok(Async::Ready(ret.into()))
     }
 
     fn cancel(&mut self, _env: &mut E) {

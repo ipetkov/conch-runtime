@@ -1,12 +1,10 @@
-use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
+use POLLED_TWICE;
 use clap::{App, AppSettings, Arg};
 use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper,
-          ReportErrorEnvironment, WorkingDirectoryEnvironment};
-use io::FileDesc;
+          WorkingDirectoryEnvironment};
 use future::{EnvFuture, Poll};
 use path::{has_dot_components, NormalizationError, NormalizedPath};
 use spawn::ExitResult;
-use std::borrow::Borrow;
 use std::path::Path;
 use void::Void;
 
@@ -34,9 +32,9 @@ impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
           I: Iterator<Item = T>,
           E: AsyncIoEnvironment
               + FileDescEnvironment
-              + ReportErrorEnvironment
               + WorkingDirectoryEnvironment,
-          E::FileHandle: Borrow<FileDesc>,
+          E::FileHandle: Clone,
+          E::IoHandle: From<E::FileHandle>,
 {
     type Item = ExitResult<PwdFuture<E::WriteAll>>;
     type Error = Void;

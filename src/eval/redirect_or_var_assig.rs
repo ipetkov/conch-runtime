@@ -1,16 +1,12 @@
 use {CANCELLED_TWICE, POLLED_TWICE};
-use env::{AsyncIoEnvironment, FileDescEnvironment, RedirectEnvRestorer,
-          RedirectRestorer, VarEnvRestorer2, VariableEnvironment};
+use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
+          RedirectEnvRestorer, VarEnvRestorer, VariableEnvironment};
 use error::{IsFatalError, RedirectionError};
 use eval::{Assignment, RedirectEval, WordEval};
 use future::{Async, EnvFuture, Poll};
-use io::{FileDesc, FileDescWrapper};
 use std::borrow::Borrow;
-use std::collections::HashMap;
-use std::error::Error;
 use std::fmt;
 use std::hash::Hash;
-use std::mem;
 
 /// Represents a redirect or a defined environment variable at the start of a
 /// command.
@@ -27,43 +23,14 @@ pub enum RedirectOrVarAssig<R, V, W> {
 }
 
 /// An error which may arise when evaluating a redirect or a variable assignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Fail)]
 pub enum EvalRedirectOrVarAssigError<R, V> {
     /// A redirect error occured.
-    Redirect(R),
+    #[fail(display = "{}", _0)]
+    Redirect(#[cause] R),
     /// A variable assignment evaluation error occured.
-    VarAssig(V),
-}
-
-impl<R, V> Error for EvalRedirectOrVarAssigError<R, V>
-    where R: Error,
-          V: Error,
-{
-    fn description(&self) -> &str {
-        match *self {
-            EvalRedirectOrVarAssigError::Redirect(ref e) => e.description(),
-            EvalRedirectOrVarAssigError::VarAssig(ref e) => e.description(),
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            EvalRedirectOrVarAssigError::Redirect(ref e) => Some(e),
-            EvalRedirectOrVarAssigError::VarAssig(ref e) => Some(e),
-        }
-    }
-}
-
-impl<R, V> fmt::Display for EvalRedirectOrVarAssigError<R, V>
-    where R: fmt::Display,
-          V: fmt::Display,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            EvalRedirectOrVarAssigError::Redirect(ref e) => e.fmt(fmt),
-            EvalRedirectOrVarAssigError::VarAssig(ref e) => e.fmt(fmt),
-        }
-    }
+    #[fail(display = "{}", _0)]
+    VarAssig(#[cause] V),
 }
 
 impl<R, V> IsFatalError for EvalRedirectOrVarAssigError<R, V>
@@ -88,42 +55,12 @@ type RedirectOrVarAssigFuture<RF, V, WF> = RedirectOrVarAssig<RF, Option<V>, Ass
 /// be automatically restored.
 ///
 /// In addition, all evaluated variable names and values to be assigned will be
-/// returned on successful evaluation. These will **not** be applied to the
-/// environment at any point as that is left up to the caller.
-#[must_use = "futures do nothing unless polled"]
-#[deprecated(note = "does not properly handle references to earlier assignments, \
-use `EvalRedirectOrVarAssig2` instead")]
-pub struct EvalRedirectOrVarAssig<R, V, W, I, E: ?Sized, RR = RedirectRestorer<E>>
-    where R: RedirectEval<E>,
-          V: Hash + Eq,
-          W: WordEval<E>,
-{
-    redirect_restorer: Option<RR>,
-    vars: HashMap<V, W::EvalResult>,
-    current: Option<RedirectOrVarAssigFuture<R::EvalFuture, V, W::EvalFuture>>,
-    rest: I,
-}
-
-#[allow(deprecated)]
-impl<R, V, W, I, E: ?Sized, RR> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, I, E, RR>
-    where I: fmt::Debug,
-          R: RedirectEval<E>,
-          R::EvalFuture: fmt::Debug,
-          V: Hash + Eq + fmt::Debug,
-          W: WordEval<E>,
-          W::EvalFuture: fmt::Debug,
-          W::EvalResult: fmt::Debug,
-          RR: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("EvalRedirectOrVarAssig")
-            .field("redirect_restorer", &self.redirect_restorer)
-            .field("vars", &self.vars)
-            .field("current", &self.current)
-            .field("rest", &self.rest)
-            .finish()
-    }
-}
+/// evaluated and added to the environment. On successful completeion, a
+/// `VarRestorer` will be returned which allows the caller to reverse the
+/// changes from applying those assignments. On error, the assignments will be
+/// automatically restored.
+#[deprecated(since = "0.2.0", note = "Renamed to EvalRedirectOrVarAssig`")]
+pub type EvalRedirectOrVarAssig2<R, V, W, I, E, RR, VR> = EvalRedirectOrVarAssig<R, V, W, I, E, RR, VR>;
 
 /// A future which will evaluate a series of redirections and variable assignments.
 ///
@@ -138,7 +75,7 @@ impl<R, V, W, I, E: ?Sized, RR> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, I
 /// changes from applying those assignments. On error, the assignments will be
 /// automatically restored.
 #[must_use = "futures do nothing unless polled"]
-pub struct EvalRedirectOrVarAssig2<R, V, W, I, E: ?Sized, RR, VR>
+pub struct EvalRedirectOrVarAssig<R, V, W, I, E: ?Sized, RR, VR>
     where R: RedirectEval<E>,
           V: Hash + Eq,
           W: WordEval<E>,
@@ -150,7 +87,7 @@ pub struct EvalRedirectOrVarAssig2<R, V, W, I, E: ?Sized, RR, VR>
     rest: I,
 }
 
-impl<R, V, W, I, E: ?Sized, RR, VR> fmt::Debug for EvalRedirectOrVarAssig2<R, V, W, I, E, RR, VR>
+impl<R, V, W, I, E: ?Sized, RR, VR> fmt::Debug for EvalRedirectOrVarAssig<R, V, W, I, E, RR, VR>
     where I: fmt::Debug,
           R: RedirectEval<E>,
           R::EvalFuture: fmt::Debug,
@@ -162,83 +99,13 @@ impl<R, V, W, I, E: ?Sized, RR, VR> fmt::Debug for EvalRedirectOrVarAssig2<R, V,
           VR: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("EvalRedirectOrVarAssig2")
+        fmt.debug_struct("EvalRedirectOrVarAssig")
             .field("redirect_restorer", &self.redirect_restorer)
             .field("var_restorer", &self.var_restorer)
             .field("export_vars", &self.export_vars)
             .field("current", &self.current)
             .field("rest", &self.rest)
             .finish()
-    }
-}
-
-/// Create a a future which will evaluate a series of redirections and variable assignments.
-///
-/// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
-/// changes from applying these redirections. On error, the redirections will
-/// be automatically restored.
-///
-/// In addition, all evaluated variable names and values to be assigned will be
-/// returned on successful evaluation. These will **not** be applied
-/// environment at any point as that is left up to the caller.
-#[allow(deprecated)]
-#[deprecated(note = "does not properly handle references to earlier assignments, \
-use `eval_redirects_or_var_assignments_with_restorers` instead")]
-pub fn eval_redirects_or_var_assignments<R, V, W, I, E: ?Sized>(vars: I, env: &E)
-    -> EvalRedirectOrVarAssig<R, V, W, I::IntoIter, E, RedirectRestorer<E>>
-    where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
-          R: RedirectEval<E>,
-          V: Hash + Eq,
-          W: WordEval<E>,
-          E: FileDescEnvironment + VariableEnvironment,
-          E::FileHandle: FileDescWrapper,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
-{
-    eval_redirects_or_var_assignments_with_restorer(RedirectRestorer::new(), vars, env)
-}
-
-/// Create a a future which will evaluate a series of redirections and variable assignments.
-///
-/// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectEnvRestorer` will be returned which allows the caller to reverse the
-/// changes from applying these redirections. On error, the redirections will
-/// be automatically restored.
-///
-/// In addition, all evaluated variable names and values to be assigned will be
-/// returned on successful evaluation. These will **not** be applied
-/// environment at any point as that is left up to the caller.
-#[allow(deprecated)]
-#[deprecated(note = "does not properly handle references to earlier assignments, \
-use `eval_redirects_or_var_assignments_with_restorers` instead")]
-pub fn eval_redirects_or_var_assignments_with_restorer<R, V, W, I, E: ?Sized, RR>(
-    mut restorer: RR,
-    vars: I,
-    env: &E
-) -> EvalRedirectOrVarAssig<R, V, W, I::IntoIter, E, RR>
-    where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
-          R: RedirectEval<E>,
-          V: Hash + Eq,
-          W: WordEval<E>,
-          E: FileDescEnvironment + VariableEnvironment,
-          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
-          RR: RedirectEnvRestorer<E>,
-{
-    let mut vars = vars.into_iter();
-
-    let (lo, hi) = vars.size_hint();
-    let size_hint = hi.unwrap_or(lo);
-
-    restorer.reserve(size_hint);
-
-    EvalRedirectOrVarAssig {
-        redirect_restorer: Some(restorer),
-        vars: HashMap::with_capacity(size_hint),
-        current: vars.next().map(|n| spawn(n, env)),
-        rest: vars,
     }
 }
 
@@ -262,7 +129,7 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
     export_vars: Option<bool>,
     vars: I,
     env: &E
-) -> EvalRedirectOrVarAssig2<R, V, W, I::IntoIter, E, RR, VR>
+) -> EvalRedirectOrVarAssig<R, V, W, I::IntoIter, E, RR, VR>
     where I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
           R: RedirectEval<E>,
           V: Hash + Eq,
@@ -271,7 +138,7 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
           E::VarName: Borrow<String>,
           E::Var: Borrow<String>,
           RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer2<E>,
+          VR: VarEnvRestorer<E>,
 {
     let mut vars = vars.into_iter();
 
@@ -280,7 +147,7 @@ pub fn eval_redirects_or_var_assignments_with_restorers<R, V, W, I, E: ?Sized, R
 
     var_restorer.reserve(size_hint);
 
-    EvalRedirectOrVarAssig2 {
+    EvalRedirectOrVarAssig {
         redirect_restorer: Some(redirect_restorer),
         var_restorer: Some(var_restorer),
         export_vars: export_vars,
@@ -305,20 +172,37 @@ fn spawn<R, V, W, E: ?Sized>(var: RedirectOrVarAssig<R, V, W>, env: &E)
     }
 }
 
-// Allow resharing most of the state machine transitions between both implementations.
-// FIXME: This should go away once EvalRedirectOrVarAssig is fully deprecated.
-macro_rules! poll_impl {
-    ($self:ident, $env:expr, $var_insert:expr, $var_restore:expr, $get_vars:expr) => {{
+impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig<R, V, W, I, E, RR, VR>
+    where I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
+          R: RedirectEval<E, Handle = E::FileHandle>,
+          R::Error: From<RedirectionError>,
+          V: Hash + Eq,
+          W: WordEval<E>,
+          E: AsyncIoEnvironment
+              + FileDescEnvironment
+              + FileDescOpener
+              + VariableEnvironment,
+          E::FileHandle: From<E::OpenedFileHandle>,
+          E::IoHandle: From<E::FileHandle>,
+          E::VarName: Borrow<String> + From<V>,
+          E::Var: Borrow<String> + From<W::EvalResult>,
+          RR: RedirectEnvRestorer<E>,
+          VR: VarEnvRestorer<E>,
+{
+    type Item = (RR, VR);
+    type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
+
+    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
         let err;
         loop {
-            if $self.current.is_none() {
-                $self.current = $self.rest.next().map(|next| spawn(next, $env));
+            if self.current.is_none() {
+                self.current = self.rest.next().map(|next| spawn(next, env));
             }
 
-            let key_val = match $self.current {
+            let key_val = match self.current {
                 Some(ref mut cur) => match *cur {
                     RedirectOrVarAssig::Redirect(ref mut r) => {
-                        let action = match r.poll($env) {
+                        let action = match r.poll(env) {
                             Ok(Async::Ready(action)) => action,
                             Ok(Async::NotReady) => return Ok(Async::NotReady),
                             Err(e) => {
@@ -327,10 +211,10 @@ macro_rules! poll_impl {
                             },
                         };
 
-                        let redirect_restorer = $self.redirect_restorer.as_mut()
+                        let redirect_restorer = self.redirect_restorer.as_mut()
                             .take()
                             .expect(POLLED_TWICE);
-                        match redirect_restorer.apply_action(action, $env) {
+                        match redirect_restorer.apply_action(action, env) {
                             Ok(()) => {},
                             Err(e) => {
                                 err = Some(EvalRedirectOrVarAssigError::Redirect(
@@ -346,7 +230,7 @@ macro_rules! poll_impl {
                     RedirectOrVarAssig::VarAssig(ref mut key, ref mut val) => {
                         let val = match val.as_mut() {
                             None => String::new().into(),
-                            Some(f) => match f.poll($env) {
+                            Some(f) => match f.poll(env) {
                                 Ok(Async::Ready(val)) => val,
                                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                                 Err(e) => {
@@ -368,101 +252,30 @@ macro_rules! poll_impl {
             };
 
             // Ensure we don't poll again
-            $self.current = None;
+            self.current = None;
 
             if let Some((key, val)) = key_val {
-                ($var_insert)($self, $env, key, val);
+                self.var_restorer.as_mut()
+                    .expect(POLLED_TWICE)
+                    .set_exported_var(key, val.into(), self.export_vars, env);
             }
         }
 
-        let mut restorer = $self.redirect_restorer.take().expect(POLLED_TWICE);
+        let mut restorer = self.redirect_restorer.take().expect(POLLED_TWICE);
 
         match err {
             Some(e) => {
-                restorer.restore($env);
-                ($var_restore)($self, $env);
+                restorer.restore(env);
+                self.var_restorer.as_mut()
+                    .expect(POLLED_TWICE)
+                    .restore(env);
                 Err(e)
             },
             None => {
-                let vars = ($get_vars)($self);
+                let vars = self.var_restorer.take().expect(POLLED_TWICE);
                 Ok(Async::Ready((restorer, vars)))
             },
         }
-    }}
-}
-
-#[allow(deprecated)]
-impl<R, V, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrVarAssig<R, V, W, I, E, RR>
-    where I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
-          R: RedirectEval<E, Handle = E::FileHandle>,
-          R::Error: From<RedirectionError>,
-          V: Hash + Eq,
-          W: WordEval<E>,
-          E: AsyncIoEnvironment + FileDescEnvironment + VariableEnvironment,
-          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
-          E::VarName: Borrow<String>,
-          E::Var: Borrow<String>,
-          RR: RedirectEnvRestorer<E>,
-{
-    type Item = (RR, HashMap<V, W::EvalResult>);
-    type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
-
-    #[cfg_attr(feature = "clippy", allow(redundant_closure_call))]
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        poll_impl!(
-            self,
-            env,
-            |slf: &mut Self, _: &mut E, key, val| slf.vars.insert(key, val),
-            |_, _: &mut E| {},
-            |slf: &mut Self| mem::replace(&mut slf.vars, HashMap::new())
-        )
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        self.current.as_mut().map(|cur| match *cur {
-            RedirectOrVarAssig::Redirect(ref mut f) => f.cancel(env),
-            RedirectOrVarAssig::VarAssig(_, ref mut f) => {
-                f.as_mut().map(|f| f.cancel(env));
-            },
-        });
-
-        self.redirect_restorer.take().expect(CANCELLED_TWICE).restore(env);
-    }
-}
-
-impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig2<R, V, W, I, E, RR, VR>
-    where I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
-          R: RedirectEval<E, Handle = E::FileHandle>,
-          R::Error: From<RedirectionError>,
-          V: Hash + Eq,
-          W: WordEval<E>,
-          E: AsyncIoEnvironment + FileDescEnvironment + VariableEnvironment,
-          E::FileHandle: From<FileDesc> + Borrow<FileDesc>,
-          E::VarName: Borrow<String> + From<V>,
-          E::Var: Borrow<String> + From<W::EvalResult>,
-          RR: RedirectEnvRestorer<E>,
-          VR: VarEnvRestorer2<E>,
-{
-    type Item = (RR, VR);
-    type Error = EvalRedirectOrVarAssigError<R::Error, W::Error>;
-
-    #[cfg_attr(feature = "clippy", allow(redundant_closure_call))]
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        poll_impl!(
-            self,
-            env,
-            |slf: &mut Self, env: &mut E, key, val: W::EvalResult| {
-                slf.var_restorer.as_mut()
-                    .expect(POLLED_TWICE)
-                    .set_exported_var2(key, val.into(), slf.export_vars, env);
-            },
-            |slf: &mut Self, env: &mut E| {
-                slf.var_restorer.as_mut()
-                    .expect(POLLED_TWICE)
-                    .restore(env);
-            },
-            |slf: &mut Self| slf.var_restorer.take().expect(POLLED_TWICE)
-        )
     }
 
     fn cancel(&mut self, env: &mut E) {
