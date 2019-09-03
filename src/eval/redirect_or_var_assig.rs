@@ -59,21 +59,6 @@ type RedirectOrVarAssigFuture<RF, V, WF> = RedirectOrVarAssig<RF, Option<V>, Ass
 /// `VarRestorer` will be returned which allows the caller to reverse the
 /// changes from applying those assignments. On error, the assignments will be
 /// automatically restored.
-#[deprecated(since = "0.2.0", note = "Renamed to EvalRedirectOrVarAssig`")]
-pub type EvalRedirectOrVarAssig2<R, V, W, I, E, RR, VR> = EvalRedirectOrVarAssig<R, V, W, I, E, RR, VR>;
-
-/// A future which will evaluate a series of redirections and variable assignments.
-///
-/// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
-/// changes from applying these redirections. On error, the redirections will
-/// be automatically restored.
-///
-/// In addition, all evaluated variable names and values to be assigned will be
-/// evaluated and added to the environment. On successful completeion, a
-/// `VarRestorer` will be returned which allows the caller to reverse the
-/// changes from applying those assignments. On error, the assignments will be
-/// automatically restored.
 #[must_use = "futures do nothing unless polled"]
 pub struct EvalRedirectOrVarAssig<R, V, W, I, E: ?Sized, RR, VR>
     where R: RedirectEval<E>,

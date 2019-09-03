@@ -42,7 +42,6 @@ fn smoke() {
     let (mut restorer, words) = lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
-    #[allow(deprecated)]
     restorer.restore(&mut env);
     assert_eq!(env.file_desc(1), None);
 

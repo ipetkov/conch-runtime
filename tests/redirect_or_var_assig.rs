@@ -98,7 +98,6 @@ fn smoke() {
         .unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
-    #[allow(deprecated)]
     redirect_restorer.restore(&mut env);
     assert_eq!(env.file_desc(1), None);
 

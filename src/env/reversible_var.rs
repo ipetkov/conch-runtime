@@ -70,39 +70,6 @@ impl<'a, T, E: ?Sized> VarEnvRestorer<E> for &'a mut T
     }
 }
 
-/// A corrected extension of the `VarEnvRestorer` trait, provided in a backwards
-/// compatible manner to avoid changes on the original trait.
-///
-/// An interface for maintaining a state of all variable definitions that have
-/// been modified so that they can be restored later.
-///
-/// > *Note*: the caller should take care that a restorer instance is always
-/// > called with the same environment for its entire lifetime. Using different
-/// > environments with the same restorer instance will undoubtedly do the wrong
-/// > thing eventually, and no guarantees can be made.
-#[deprecated(since = "0.2.0", note = "Now identical to `VarEnvRestorer`, please use it instead")]
-pub trait VarEnvRestorer2<E: ?Sized + VariableEnvironment>: VarEnvRestorer<E> {
-    /// Backup and set the value of some variable, either explicitly setting its
-    /// exported status as specified, or maintaining its status as an environment
-    /// variable if previously set as such.
-    #[deprecated(since = "0.2.0", note = "Now identical to `VarEnvRestorer::set_exported_var`")]
-    fn set_exported_var2(
-        &mut self,
-        name: E::VarName,
-        val: E::Var,
-        exported: Option<bool>,
-        env: &mut E
-    ) {
-        self.set_exported_var(name, val, exported, env)
-    }
-}
-
-#[allow(deprecated)]
-impl<'a, T, E: ?Sized> VarEnvRestorer2<E> for &'a mut T
-    where T: VarEnvRestorer2<E>,
-          E: VariableEnvironment,
-{}
-
 /// Maintains a state of all variable definitions that have been modified so that
 /// they can be restored later.
 ///
@@ -218,10 +185,3 @@ impl<E: ?Sized> VarEnvRestorer<E> for VarRestorer<E>
         }
     }
 }
-
-#[allow(deprecated)]
-impl<E: ?Sized> VarEnvRestorer2<E> for VarRestorer<E>
-    where E: ExportedVariableEnvironment + UnsetVariableEnvironment,
-          E::VarName: Clone,
-          E::Var: Clone,
-{}

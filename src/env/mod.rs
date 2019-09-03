@@ -41,8 +41,7 @@ pub use self::platform_specific_fd_manager::{PlatformSpecificFileDescManagerEnv,
                                              PlatformSpecificManagedHandle,
                                              PlatformSpecificWriteAll};
 pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
-#[allow(deprecated)]
-pub use self::reversible_var::{VarEnvRestorer, VarEnvRestorer2, VarRestorer};
+pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
 pub use self::string_wrapper::StringWrapper;
 pub use self::var::{ExportedVariableEnvironment, VarEnv, VariableEnvironment,
                     UnsetVariableEnvironment};

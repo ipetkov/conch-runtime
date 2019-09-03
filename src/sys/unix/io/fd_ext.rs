@@ -56,27 +56,6 @@ pub trait FileDescExt {
     /// we can handle this usecase by not registering those file descriptors within tokio.
     fn into_evented(self, handle: &Handle) -> Result<MaybeEventedFd>;
 
-    /// Attempts to register the underlying primitive OS handle with a `tokio` event loop.
-    ///
-    /// The resulting type is "futures" aware meaning that it is (a) nonblocking,
-    /// (b) will notify the appropriate task when data is ready to be read or written
-    /// and (c) will panic if use off of a future's task.
-    ///
-    /// Note: two identical file descriptors (which have identical file descriptions)
-    /// must *NOT* be registered on the same event loop at the same time (e.g.
-    /// `unsafe`ly coping raw file descriptors and registering both copies with
-    /// the same `Handle`). Doing so may end up starving one of the copies from
-    /// receiving notifications from the event loop.
-    ///
-    /// Note: regular files are not supported by the OS primitives which power tokio
-    /// event loops, and will result in an error on registration. However, since
-    /// regular files can be assumed to always be ready for read/write operations,
-    /// we can handle this usecase by not registering those file descriptors within tokio.
-    #[deprecated(since = "0.2.0", note = "renamed to `into_evented`")]
-    fn into_evented2(self, handle: &Handle) -> Result<MaybeEventedFd> where Self: Sized {
-        self.into_evented(handle)
-    }
-
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
     ///
     /// Specifiying `true` will set the file descriptor in non-blocking mode,

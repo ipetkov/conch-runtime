@@ -139,7 +139,6 @@ impl<E: ?Sized> RedirectEnvRestorer<E> for RedirectRestorer<E>
               E::FileHandle: From<E::OpenedFileHandle>,
               E::IoHandle: From<E::FileHandle>,
     {
-        #[allow(deprecated)]
         match action {
             RedirectAction::Close(fd) |
             RedirectAction::Open(fd, _, _) |

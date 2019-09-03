@@ -408,7 +408,6 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
                                 // Any redirect side effects have already been applied, but ensure
                                 // we keep the actual variable values.
                                 drop(var_restorer_inner);
-                                #[allow(deprecated)]
                                 red_restorer_inner.restore(env);
                                 return Ok(Async::Ready(ExitResult::Ready(EXIT_SUCCESS)));
                             },
@@ -445,9 +444,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
                             let (mut redirect_restorer, mut var_restorer) = restorers.take()
                                 .expect(POLLED_TWICE);
 
-                            #[allow(deprecated)]
                             redirect_restorer.restore(env);
-                            #[allow(deprecated)]
                             var_restorer.restore(env);
                             return ret.map(|async| async.map(|f| {
                                 ExitResult::Pending(SpawnedSimpleCommand {
@@ -484,7 +481,6 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
         // Now that we've got all the redirections we care about having the
         // child inherit, we can do the environment cleanup right now.
         let mut redirect_restorer = redirect_restorer;
-        #[allow(deprecated)]
         redirect_restorer.restore(env);
 
         let env_vars = env.env_vars().iter()
@@ -495,7 +491,6 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
 
         // Once the child is fully bootstrapped (and we are no longer borrowing
         // env vars) we can do the var cleanup.
-        #[allow(deprecated)]
         let mut var_restorer = var_restorer;
         var_restorer.restore(env);
 
@@ -523,9 +518,7 @@ impl<R, V, W, IV, IW, E: ?Sized, S, B, PB, RR, VR> EnvFuture<E> for SimpleComman
             State::Func(ref mut restorers, ref mut f) => {
                 f.cancel(env);
                 let (mut redirect_restorer, mut var_restorer) = restorers.take().expect(CANCELLED_TWICE);
-                #[allow(deprecated)]
                 redirect_restorer.restore(env);
-                #[allow(deprecated)]
                 var_restorer.restore(env);
             },
             State::Builtin(ref mut f) => return f.cancel(env),
