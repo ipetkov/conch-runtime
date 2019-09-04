@@ -1,6 +1,6 @@
-use env::StringWrapper;
-use eval::{Fields, ParamEval, Pattern, WordEval};
-use future::{Async, EnvFuture, Poll};
+use crate::env::StringWrapper;
+use crate::eval::{Fields, ParamEval, Pattern, WordEval};
+use crate::future::{Async, EnvFuture, Poll};
 use glob;
 
 const PAT_REMOVE_MATCH_OPTS: glob::MatchOptions = glob::MatchOptions {

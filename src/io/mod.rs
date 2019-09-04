@@ -4,15 +4,15 @@ mod file_desc_wrapper;
 mod permissions;
 mod pipe;
 
+use crate::sys;
+use crate::IntoInner;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 use std::process::Stdio;
-use sys;
-use IntoInner;
 
 pub use self::file_desc_wrapper::FileDescWrapper;
 pub use self::permissions::Permissions;
 pub use self::pipe::Pipe;
-pub use sys::io::getpid;
+pub use crate::sys::io::getpid;
 
 /// A wrapper around an owned OS file primitive. The wrapper
 /// allows reading from or writing to the OS file primitive, and

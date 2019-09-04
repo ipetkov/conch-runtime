@@ -2,8 +2,8 @@
 //! while executing commands.
 
 use super::Fd;
+use crate::io::Permissions;
 use failure::Fail;
-use io::Permissions;
 use std::convert::From;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;

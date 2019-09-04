@@ -2,8 +2,8 @@
 
 extern crate conch_parser as syntax;
 
+use crate::syntax::ast::{CompoundCommandKind, GuardBodyPair, PatternBodyPair};
 use std::rc::Rc;
-use syntax::ast::{CompoundCommandKind, GuardBodyPair, PatternBodyPair};
 
 #[macro_use]
 mod support;

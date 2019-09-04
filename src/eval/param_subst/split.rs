@@ -1,6 +1,6 @@
-use env::{StringWrapper, VariableEnvironment};
-use eval::Fields;
-use future::{Async, EnvFuture, Poll};
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::eval::Fields;
+use crate::future::{Async, EnvFuture, Poll};
 use std::borrow::Borrow;
 
 /// A future representing a word evaluation and conditionally splitting it afterwards.

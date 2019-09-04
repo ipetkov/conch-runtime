@@ -1,11 +1,11 @@
-use env::{LastStatusEnvironment, ReportFailureEnvironment};
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
-use spawn::{
+use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{
     swallow_non_fatal_errors, EnvFutureExt, ExitResult, FlattenedEnvFuture, SwallowNonFatal,
 };
+use crate::{ExitStatus, Spawn, EXIT_SUCCESS};
 use std::iter::Peekable;
-use {ExitStatus, Spawn, EXIT_SUCCESS};
 
 /// A command which conditionally runs based on the exit status of the previous command.
 #[derive(Debug, PartialEq, Eq, Clone)]

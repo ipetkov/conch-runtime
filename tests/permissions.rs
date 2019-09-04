@@ -1,6 +1,6 @@
 extern crate conch_runtime as runtime;
 
-use runtime::io::Permissions;
+use crate::runtime::io::Permissions;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;

@@ -1,7 +1,8 @@
-use error::{CommandError, RuntimeError};
+use crate::error::{CommandError, RuntimeError};
+use crate::io::Permissions;
+use crate::spawn::SpawnBoxed;
+use crate::{ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use failure::Fail;
-use io::Permissions;
-use spawn::SpawnBoxed;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
 use std::fmt;
@@ -13,13 +14,12 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use tokio_core::reactor::{Handle, Remote};
-use {ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 
-use env::atomic;
-use env::atomic::FnEnv as AtomicFnEnv;
-use env::builtin::{BuiltinEnv, BuiltinEnvironment};
-use env::PlatformSpecificFileDescManagerEnv;
-use env::{
+use crate::env::atomic;
+use crate::env::atomic::FnEnv as AtomicFnEnv;
+use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
+use crate::env::PlatformSpecificFileDescManagerEnv;
+use crate::env::{
     ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, ExecEnv,
     ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
     FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,

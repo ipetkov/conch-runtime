@@ -1,5 +1,5 @@
-use env::SubEnvironment;
-use io::{FileDesc, Pipe as OsPipe};
+use crate::env::SubEnvironment;
+use crate::io::{FileDesc, Pipe as OsPipe};
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;

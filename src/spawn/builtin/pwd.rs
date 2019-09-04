@@ -1,11 +1,13 @@
+use crate::env::{
+    AsyncIoEnvironment, FileDescEnvironment, StringWrapper, WorkingDirectoryEnvironment,
+};
+use crate::future::{EnvFuture, Poll};
+use crate::path::{has_dot_components, NormalizationError, NormalizedPath};
+use crate::spawn::ExitResult;
+use crate::POLLED_TWICE;
 use clap::{App, AppSettings, Arg};
-use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper, WorkingDirectoryEnvironment};
-use future::{EnvFuture, Poll};
-use path::{has_dot_components, NormalizationError, NormalizedPath};
-use spawn::ExitResult;
 use std::path::Path;
 use void::Void;
-use POLLED_TWICE;
 
 impl_generic_builtin_cmd! {
     /// Represents a `pwd` builtin command which will

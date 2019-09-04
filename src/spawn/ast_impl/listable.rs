@@ -1,11 +1,11 @@
+use crate::env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
+use crate::future::{EnvFuture, Poll};
+use crate::spawn::{pipeline, ExitResult, Pipeline, SpawnedPipeline};
+use crate::{Spawn, CANCELLED_TWICE, POLLED_TWICE};
 use conch_parser::ast;
-use env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
-use future::{EnvFuture, Poll};
-use spawn::{pipeline, ExitResult, Pipeline, SpawnedPipeline};
 use std::fmt;
 use std::io;
 use std::iter;
-use {Spawn, CANCELLED_TWICE, POLLED_TWICE};
 
 /// A future representing the spawning of a `ListableCommand`.
 #[must_use = "futures do nothing unless polled"]

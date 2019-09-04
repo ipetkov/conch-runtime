@@ -1,13 +1,13 @@
-use conch_parser::ast;
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
     WorkingDirectoryEnvironment,
 };
-use error::RedirectionError;
-use eval::{
+use crate::error::RedirectionError;
+use crate::eval::{
     redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
     redirect_read, redirect_readwrite, redirect_write, Redirect, RedirectEval, WordEval,
 };
+use conch_parser::ast;
 
 impl<W, E: ?Sized> RedirectEval<E> for ast::Redirect<W>
 where

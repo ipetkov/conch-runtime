@@ -1,4 +1,4 @@
-use EXIT_ERROR;
+use crate::EXIT_ERROR;
 
 impl_trivial_builtin_cmd! {
     /// Represents a `false` builtin command.

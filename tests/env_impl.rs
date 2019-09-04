@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 #[macro_use]
 pub mod support;
-use support::*;
+use crate::support::*;
 
 #[test]
 fn is_interactive() {

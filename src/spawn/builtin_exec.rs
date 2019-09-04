@@ -1,5 +1,5 @@
-use env::builtin::BuiltinUtility;
-use Spawn;
+use crate::env::builtin::BuiltinUtility;
+use crate::Spawn;
 
 /// Prepare and spawn a builtin utility with the provided arguments and restorers.
 pub fn builtin<B, A, RR, VR, S, E: ?Sized>(

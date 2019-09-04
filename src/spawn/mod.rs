@@ -1,9 +1,9 @@
 //! Defines methods for spawning commands into futures.
 
-use future::{Async, EnvFuture, Poll};
-use future_ext::{EnvFutureExt, FlattenedEnvFuture};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::future_ext::{EnvFutureExt, FlattenedEnvFuture};
+use crate::ExitStatus;
 use futures::Future;
-use ExitStatus;
 
 mod and_or;
 mod builtin_exec;

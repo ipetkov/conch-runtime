@@ -1,12 +1,12 @@
 use self::rental_arc::OwnedSpawnRefArc;
 use self::rental_rc::OwnedSpawnRefRc;
-use future::{Async, EnvFuture, Poll};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{BoxSpawnEnvFuture, BoxStatusFuture, SpawnBoxed, SpawnRef};
+use crate::{ExitStatus, Spawn, POLLED_TWICE};
 use futures::Future;
-use spawn::{BoxSpawnEnvFuture, BoxStatusFuture, SpawnBoxed, SpawnRef};
 use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
-use {ExitStatus, Spawn, POLLED_TWICE};
 
 pub enum State<'a, ERR, E: ?Sized> {
     EnvFuture(BoxSpawnEnvFuture<'a, E, ERR>),

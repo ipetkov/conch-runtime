@@ -1,6 +1,6 @@
-use env::{StringWrapper, VariableEnvironment};
-use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
 use std::borrow::Borrow;
 use std::iter::Fuse;
 use std::mem;

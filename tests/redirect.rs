@@ -427,7 +427,7 @@ fn should_eval_dup_close_approprately() {
 #[test]
 #[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
-    use RedirectionError::{BadFdPerms, BadFdSrc};
+    use crate::RedirectionError::{BadFdPerms, BadFdSrc};
 
     let fd = 42;
     let src_fd = 5;
@@ -475,7 +475,7 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
 #[test]
 #[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn eval_ambiguous_path() {
-    use RedirectionError::Ambiguous;
+    use crate::RedirectionError::Ambiguous;
 
     let fields = vec!["first".to_owned(), "second".to_owned()];
     let cases = vec![

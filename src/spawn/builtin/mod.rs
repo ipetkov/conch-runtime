@@ -1,12 +1,12 @@
 //! Defines methods for spawning shell builtin commands
 
-use env::{AsyncIoEnvironment, FileDescEnvironment};
+use crate::env::{AsyncIoEnvironment, FileDescEnvironment};
+use crate::spawn::ExitResult;
+use crate::{ExitStatus, Fd, EXIT_ERROR, STDERR_FILENO};
 use futures::{Async, Future, Poll};
-use spawn::ExitResult;
 use std::fmt;
 use std::io;
 use void::Void;
-use {ExitStatus, Fd, EXIT_ERROR, STDERR_FILENO};
 
 macro_rules! format_err {
     ($builtin_name:expr, $e:expr) => {

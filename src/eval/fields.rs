@@ -1,7 +1,7 @@
-use env::{StringWrapper, VariableEnvironment};
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::IFS_DEFAULT;
 use std::borrow::Borrow;
 use std::vec;
-use IFS_DEFAULT;
 
 lazy_static! {
     static ref IFS: String = { String::from("IFS") };

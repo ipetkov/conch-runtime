@@ -1,10 +1,10 @@
-use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener};
-use eval::RedirectAction;
-use io::Permissions;
+use crate::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener};
+use crate::eval::RedirectAction;
+use crate::io::Permissions;
+use crate::Fd;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result as IoResult;
-use Fd;
 
 /// An interface for maintaining a state of all file descriptors that have been
 /// modified so that they can be restored later.

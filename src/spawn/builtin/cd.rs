@@ -1,16 +1,16 @@
-use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
-use env::{
+use crate::env::{
     AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment, StringWrapper,
     VariableEnvironment, WorkingDirectoryEnvironment,
 };
-use future::{Async, EnvFuture, Poll};
-use path::{NormalizationError, NormalizedPath};
-use spawn::{ExitResult, Spawn};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::path::{NormalizationError, NormalizedPath};
+use crate::spawn::{ExitResult, Spawn};
+use crate::{EXIT_SUCCESS, HOME, POLLED_TWICE};
+use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
 use std::borrow::{Borrow, Cow};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use void::{self, Void};
-use {EXIT_SUCCESS, HOME, POLLED_TWICE};
 
 const CD: &str = "cd";
 const ARG_LOGICAL: &str = "L";

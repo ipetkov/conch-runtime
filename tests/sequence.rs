@@ -1,9 +1,9 @@
 extern crate conch_runtime as runtime;
 extern crate futures;
 
+use crate::runtime::error::IsFatalError;
+use crate::runtime::spawn::sequence;
 use futures::Future;
-use runtime::error::IsFatalError;
-use runtime::spawn::sequence;
 
 #[macro_use]
 mod support;

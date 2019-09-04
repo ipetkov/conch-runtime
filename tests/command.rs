@@ -2,7 +2,7 @@
 
 extern crate conch_parser as syntax;
 
-use syntax::ast::Command::*;
+use crate::syntax::ast::Command::*;
 
 #[macro_use]
 mod support;

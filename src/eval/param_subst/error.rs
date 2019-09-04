@@ -1,8 +1,8 @@
 use super::is_present;
-use env::{StringWrapper, VariableEnvironment};
-use error::ExpansionError;
-use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::error::ExpansionError;
+use crate::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
 use std::fmt::Display;
 
 /// A future representing a `Error` parameter substitution evaluation.

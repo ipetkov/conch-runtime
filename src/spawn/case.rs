@@ -1,14 +1,14 @@
-use env::{
+use crate::env::{
     IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, StringWrapper,
 };
-use error::IsFatalError;
-use eval::{Pattern, TildeExpansion, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
+use crate::error::IsFatalError;
+use crate::eval::{Pattern, TildeExpansion, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{sequence, ExitResult, Sequence};
+use crate::{Spawn, EXIT_ERROR, EXIT_SUCCESS};
 use glob::MatchOptions;
-use spawn::{sequence, ExitResult, Sequence};
 use std::fmt;
 use std::mem;
-use {Spawn, EXIT_ERROR, EXIT_SUCCESS};
 
 /// A grouping of patterns and body commands.
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -1,11 +1,11 @@
-use env::{LastStatusEnvironment, ReportFailureEnvironment};
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
+use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{GuardBodyPair, SpawnRef, VecSequence};
+use crate::{ExitStatus, EXIT_SUCCESS};
 use futures::task;
-use spawn::{GuardBodyPair, SpawnRef, VecSequence};
 use std::fmt;
 use std::mem;
-use {ExitStatus, EXIT_SUCCESS};
 
 /// Spawns a loop command such as `While` or `Until` using a guard and a body.
 ///

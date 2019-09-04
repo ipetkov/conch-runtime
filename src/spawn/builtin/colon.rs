@@ -1,4 +1,4 @@
-use EXIT_SUCCESS;
+use crate::EXIT_SUCCESS;
 
 impl_trivial_builtin_cmd! {
     /// Represents a `:` builtin command.

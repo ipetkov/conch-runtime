@@ -1,4 +1,4 @@
-use future::{Async, EnvFuture, Poll};
+use crate::future::{Async, EnvFuture, Poll};
 
 /// A future which "fuses" a future once it's been resolved.
 ///

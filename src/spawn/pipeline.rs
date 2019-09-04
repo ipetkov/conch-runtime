@@ -1,13 +1,15 @@
-use env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
-use future::{Async, EnvFuture, InvertStatus, Pinned, Poll};
+use crate::env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
+use crate::future::{Async, EnvFuture, InvertStatus, Pinned, Poll};
+use crate::io::Permissions;
+use crate::spawn::ExitResult;
+use crate::{
+    ExitStatus, Spawn, CANCELLED_TWICE, EXIT_SUCCESS, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO,
+};
 use futures::future::{Either, Flatten, Future};
-use io::Permissions;
-use spawn::ExitResult;
 use std::fmt;
 use std::io;
 use std::iter;
 use std::mem;
-use {ExitStatus, Spawn, CANCELLED_TWICE, EXIT_SUCCESS, POLLED_TWICE, STDIN_FILENO, STDOUT_FILENO};
 
 type PinnedFlattenedFuture<E, F> = Flatten<Pinned<E, F>>;
 type PipelineInnerFuture<E, EF, F> =
@@ -188,7 +190,7 @@ where
 
         (Some(first), Some(second)) => {
             let iter = iter::once(second).chain(cmds);
-            let pipeline = PipelineInner::new(try!(init_pipeline(env, first, iter)));
+            let pipeline = PipelineInner::new(init_pipeline(env, first, iter)?);
             State::InitMany(Some(SpawnedPipeline {
                 inner: InvertStatus::new(invert_last_status, Either::A(pipeline)),
             }))

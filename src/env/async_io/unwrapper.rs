@@ -1,5 +1,5 @@
-use env::{AsyncIoEnvironment, SubEnvironment};
-use io::{FileDesc, FileDescWrapper};
+use crate::env::{AsyncIoEnvironment, SubEnvironment};
+use crate::io::{FileDesc, FileDescWrapper};
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;

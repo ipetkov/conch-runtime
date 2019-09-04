@@ -1,26 +1,26 @@
-use conch_parser::ast;
-use conch_parser::ast::ParameterSubstitution::*;
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
     LastStatusEnvironment, ReportFailureEnvironment, StringWrapper, SubEnvironment,
     VariableEnvironment,
 };
-use error::{ExpansionError, IsFatalError};
-use eval::{
+use crate::error::{ExpansionError, IsFatalError};
+use crate::eval::{
     alternative, assign, default, error, len, remove_largest_prefix, remove_largest_suffix,
     remove_smallest_prefix, remove_smallest_suffix, split, Alternative, ArithEval, Assign, Error,
     EvalDefault, Fields, ParamEval, RemoveLargestPrefix, RemoveLargestSuffix, RemoveSmallestPrefix,
     RemoveSmallestSuffix, Split, WordEval, WordEvalConfig,
 };
-use future::{Async, EnvFuture, Poll};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{substitution, Spawn, Substitution, SubstitutionEnvFuture};
+use crate::{CANCELLED_TWICE, POLLED_TWICE};
+use conch_parser::ast;
+use conch_parser::ast::ParameterSubstitution::*;
 use futures::Future;
-use spawn::{substitution, Spawn, Substitution, SubstitutionEnvFuture};
 use std::fmt;
 use std::io::Error as IoError;
 use std::slice;
 use std::vec;
 use tokio_io::AsyncRead;
-use {CANCELLED_TWICE, POLLED_TWICE};
 
 impl<T, P, W, C, A, E> WordEval<E> for ast::ParameterSubstitution<P, W, C, A>
 where
@@ -259,7 +259,7 @@ impl<T, F, I, A, E> EnvFuture<E> for ParameterSubstitution<T, F, I, A, E, E::Rea
 where
     T: StringWrapper,
     F: EnvFuture<E, Item = Fields<T>>,
-    F::Error: From<::error::ExpansionError> + From<<I::Item as Spawn<E>>::Error>,
+    F::Error: From<ExpansionError> + From<<I::Item as Spawn<E>>::Error>,
     I: Iterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,
@@ -291,7 +291,7 @@ impl<T, F, I, A, E> EnvFuture<E> for Inner<T, F, I, A, E, E::Read>
 where
     T: StringWrapper,
     F: EnvFuture<E, Item = Fields<T>>,
-    F::Error: From<::error::ExpansionError> + From<<I::Item as Spawn<E>>::Error>,
+    F::Error: From<ExpansionError> + From<<I::Item as Spawn<E>>::Error>,
     I: Iterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError + From<IoError>,

@@ -1,10 +1,10 @@
-use env::SubEnvironment;
+use crate::env::SubEnvironment;
+use crate::RefCounted;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
-use RefCounted;
 
 /// An interface for setting and getting shell functions.
 pub trait FunctionEnvironment {
@@ -224,8 +224,8 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use env::SubEnvironment;
-    use RefCounted;
+    use crate::env::SubEnvironment;
+    use crate::RefCounted;
 
     #[test]
     fn test_set_get_unset_function() {

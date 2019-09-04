@@ -1,11 +1,11 @@
-use env::SubEnvironment;
-use io::{dup_stdio, FileDesc, Permissions};
+use crate::env::SubEnvironment;
+use crate::io::{dup_stdio, FileDesc, Permissions};
+use crate::{Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result;
 use std::rc::Rc;
 use std::sync::Arc;
-use {Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
 /// An interface for setting and getting shell file descriptors.
 pub trait FileDescEnvironment {
@@ -62,7 +62,7 @@ macro_rules! impl_env {
             /// Constructs a new environment and initializes it with duplicated
             /// stdio file descriptors or handles of the current process.
             pub fn with_process_stdio() -> Result<Self> where T: From<FileDesc> {
-                let (stdin, stdout, stderr) = try!(dup_stdio());
+                let (stdin, stdout, stderr) = dup_stdio()?;
 
                 let mut fds = HashMap::with_capacity(3);
                 fds.insert(STDIN_FILENO,  (stdin.into(),  Permissions::Read));
@@ -178,9 +178,9 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use env::SubEnvironment;
-    use io::Permissions;
-    use {RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+    use crate::env::SubEnvironment;
+    use crate::io::Permissions;
+    use crate::{RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
     #[test]
     fn test_set_get_and_close_file_desc() {

@@ -1,15 +1,15 @@
-use env::{
+use crate::env::{
     ArgumentsEnvironment, LastStatusEnvironment, ReportFailureEnvironment, VariableEnvironment,
 };
-use error::IsFatalError;
-use eval::WordEval;
-use future::{Async, EnvFuture, Poll};
-use spawn::{ExitResult, SpawnRef, VecSequence, VecSequenceWithLast};
+use crate::error::IsFatalError;
+use crate::eval::WordEval;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{ExitResult, SpawnRef, VecSequence, VecSequenceWithLast};
+use crate::{EXIT_ERROR, EXIT_SUCCESS};
 use std::fmt;
 use std::iter::Peekable;
 use std::mem;
 use std::vec;
-use {EXIT_ERROR, EXIT_SUCCESS};
 
 /// Spawns a `for` loop with all the fields when `words` are evaluated, or with
 /// the environment's currently set arguments if no `words` are specified.

@@ -1,11 +1,11 @@
-use env::{LastStatusEnvironment, ReportFailureEnvironment};
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
+use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{swallow_non_fatal_errors, ExitResult, SpawnRef, SwallowNonFatal};
+use crate::{ExitStatus, EXIT_SUCCESS, POLLED_TWICE};
 use futures::Future;
-use spawn::{swallow_non_fatal_errors, ExitResult, SpawnRef, SwallowNonFatal};
 use std::fmt;
 use std::mem;
-use {ExitStatus, EXIT_SUCCESS, POLLED_TWICE};
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]

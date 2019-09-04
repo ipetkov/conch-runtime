@@ -1,11 +1,11 @@
+use crate::env::FunctionEnvironment;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{ExitResult, Spawn, SpawnBoxed};
+use crate::{EXIT_SUCCESS, POLLED_TWICE};
 use conch_parser::ast;
-use env::FunctionEnvironment;
-use future::{Async, EnvFuture, Poll};
 use futures::future::Either;
-use spawn::{ExitResult, Spawn, SpawnBoxed};
 use std::rc::Rc;
 use std::sync::Arc;
-use {EXIT_SUCCESS, POLLED_TWICE};
 
 /// A future representing the spawning of a `PipeableCommand`.
 #[must_use = "futures do nothing unless polled"]

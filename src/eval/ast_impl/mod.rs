@@ -1,8 +1,8 @@
 //! This module defines various `WordEval` implementations on AST types defined by
 //! the `conch-parser` crate.
 
+use crate::eval::{RedirectOrCmdWord, RedirectOrVarAssig};
 use conch_parser::ast;
-use eval::{RedirectOrCmdWord, RedirectOrVarAssig};
 
 mod arith;
 mod complex_word;

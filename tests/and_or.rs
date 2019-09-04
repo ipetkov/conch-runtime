@@ -2,7 +2,7 @@
 
 extern crate conch_parser as syntax;
 
-use syntax::ast::{AndOr, AndOrList};
+use crate::syntax::ast::{AndOr, AndOrList};
 
 #[macro_use]
 mod support;

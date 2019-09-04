@@ -1,12 +1,12 @@
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, RedirectEnvRestorer, RedirectRestorer,
 };
-use error::{IsFatalError, RedirectionError};
-use eval::{RedirectEval, WordEval};
-use future::{Async, EnvFuture, Poll};
+use crate::error::{IsFatalError, RedirectionError};
+use crate::eval::{RedirectEval, WordEval};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{CANCELLED_TWICE, POLLED_TWICE};
 use std::fmt;
 use std::mem;
-use {CANCELLED_TWICE, POLLED_TWICE};
 
 /// Represents a redirect or a command word.
 ///

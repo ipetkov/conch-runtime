@@ -1,6 +1,6 @@
+use crate::eval::{concat, Concat, Fields, WordEval, WordEvalConfig};
+use crate::future::{EnvFuture, Poll};
 use conch_parser::ast;
-use eval::{concat, Concat, Fields, WordEval, WordEvalConfig};
-use future::{EnvFuture, Poll};
 use std::fmt;
 use std::slice;
 use std::vec;

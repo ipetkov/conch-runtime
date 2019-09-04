@@ -1,11 +1,11 @@
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, RedirectEnvRestorer, RedirectRestorer,
 };
-use error::RedirectionError;
-use eval::RedirectEval;
-use future::{Async, EnvFuture, Poll};
+use crate::error::RedirectionError;
+use crate::eval::RedirectEval;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{Spawn, CANCELLED_TWICE, POLLED_TWICE};
 use std::fmt;
-use {Spawn, CANCELLED_TWICE, POLLED_TWICE};
 
 /// A future representing the spawning of a command with some local redirections.
 #[must_use = "futures do nothing unless polled"]

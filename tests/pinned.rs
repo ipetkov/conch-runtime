@@ -1,8 +1,8 @@
 extern crate conch_runtime as runtime;
 extern crate futures;
 
+use crate::runtime::future::EnvFuture;
 use futures::Future;
-use runtime::future::EnvFuture;
 
 mod support;
 pub use self::support::*;

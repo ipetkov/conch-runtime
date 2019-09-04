@@ -1,9 +1,9 @@
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{HOME, POLLED_TWICE};
 use conch_parser::ast;
-use env::{StringWrapper, VariableEnvironment};
-use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
 use std::borrow::Borrow;
-use {HOME, POLLED_TWICE};
 
 impl<T, P, S, E: ?Sized> WordEval<E> for ast::SimpleWord<T, P, S>
 where

@@ -1,8 +1,8 @@
+use crate::env::LastStatusEnvironment;
+use crate::error::RuntimeError;
+use crate::future::{EnvFuture, Poll};
+use crate::{Spawn, EXIT_ERROR};
 use conch_parser::ast;
-use env::LastStatusEnvironment;
-use error::RuntimeError;
-use future::{EnvFuture, Poll};
-use {Spawn, EXIT_ERROR};
 
 /// A future representing the execution of a `Command`.
 #[must_use = "futures do nothing unless polled"]

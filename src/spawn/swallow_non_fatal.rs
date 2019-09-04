@@ -1,7 +1,7 @@
-use env::{LastStatusEnvironment, ReportFailureEnvironment};
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
-use {ExitStatus, EXIT_ERROR};
+use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{ExitStatus, EXIT_ERROR};
 
 /// A future representing a word evaluation and conditionally splitting it afterwards.
 #[must_use = "futures do nothing unless polled"]

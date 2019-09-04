@@ -1,12 +1,13 @@
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
     LastStatusEnvironment, Pipe, ReportFailureEnvironment, SubEnvironment,
 };
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::io::Permissions;
+use crate::spawn::{subshell, ExitResult, Subshell};
+use crate::{ExitStatus, Spawn, POLLED_TWICE, STDOUT_FILENO};
 use futures::future::Future;
-use io::Permissions;
-use spawn::{subshell, ExitResult, Subshell};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Error as IoError;
@@ -14,7 +15,6 @@ use std::mem;
 use tokio_io::io::{read_to_end, ReadToEnd};
 use tokio_io::AsyncRead;
 use void::unreachable;
-use {ExitStatus, Spawn, POLLED_TWICE, STDOUT_FILENO};
 
 /// A future that represents the spawning of a command substitution.
 ///

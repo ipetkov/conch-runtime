@@ -1,21 +1,25 @@
-use env::builtin::{BuiltinEnvironment, BuiltinUtility};
-use env::{
+use crate::env::builtin::{BuiltinEnvironment, BuiltinUtility};
+use crate::env::{
     AsyncIoEnvironment, ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment,
     FileDescEnvironment, FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment,
     RedirectEnvRestorer, RedirectRestorer, SetArgumentsEnvironment, UnsetVariableEnvironment,
     VarEnvRestorer, VarRestorer, VariableEnvironment, WorkingDirectoryEnvironment,
 };
-use error::{CommandError, RedirectionError};
-use eval::{
+use crate::error::{CommandError, RedirectionError};
+use crate::eval::{
     eval_redirects_or_cmd_words_with_restorer, eval_redirects_or_var_assignments_with_restorers,
     EvalRedirectOrCmdWord, EvalRedirectOrCmdWordError, EvalRedirectOrVarAssig,
     EvalRedirectOrVarAssigError, RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval,
 };
+use crate::future::{Async, EnvFuture, Poll};
+use crate::io::{FileDesc, FileDescWrapper};
+use crate::spawn::{self, function_body, ExitResult, Function, Spawn};
+use crate::{
+    ExitStatus, Fd, CANCELLED_TWICE, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR,
+    EXIT_SUCCESS, POLLED_TWICE, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
+};
 use failure::Fail;
-use future::{Async, EnvFuture, Poll};
 use futures::future::{Either, Future};
-use io::{FileDesc, FileDescWrapper};
-use spawn::{self, function_body, ExitResult, Function, Spawn};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -24,10 +28,6 @@ use std::hash::Hash;
 use std::iter;
 use std::option;
 use std::vec::IntoIter;
-use {
-    ExitStatus, Fd, CANCELLED_TWICE, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR,
-    EXIT_SUCCESS, POLLED_TWICE, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
-};
 
 #[derive(Debug)]
 enum RedirectOrWordError<R, V> {
@@ -449,8 +449,8 @@ where
 
                         redirect_restorer.restore(env);
                         var_restorer.restore(env);
-                        return ret.map(|async| {
-                            async.map(|f| {
+                        return ret.map(|poll| {
+                            poll.map(|f| {
                                 ExitResult::Pending(SpawnedSimpleCommand {
                                     state: SpawnedState::Func(f),
                                 })

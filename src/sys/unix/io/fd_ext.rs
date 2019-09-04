@@ -1,10 +1,10 @@
-use io::FileDesc;
+use crate::io::FileDesc;
+use crate::IntoInner;
 use mio::unix::EventedFd;
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use std::io::{Read, Result, Write};
 use std::os::unix::io::AsRawFd;
 use tokio_core::reactor::{Handle, PollEvented};
-use IntoInner;
 
 /// Represents an attempt to register a file descriptor with a tokio event loop.
 #[derive(Debug)]
@@ -141,8 +141,8 @@ impl<'a> Write for &'a EventedFileDesc {
 }
 
 fn is_regular_file(fd: &FileDesc) -> Result<bool> {
+    use crate::sys::cvt_r;
     use std::mem;
-    use sys::cvt_r;
 
     #[cfg(not(linux))]
     fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {

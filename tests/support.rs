@@ -55,7 +55,7 @@ macro_rules! test_cancel {
         test_cancel!($future, ())
     };
     ($future:expr, $env:expr) => {{
-        ::support::test_cancel_impl($future, &mut $env);
+        crate::support::test_cancel_impl($future, &mut $env);
     }};
 }
 
@@ -549,7 +549,7 @@ pub fn new_env_with_no_fds() -> (Core, DefaultEnvRc) {
 #[macro_export]
 macro_rules! run {
     ($cmd:expr) => {{
-        let (lp, env) = ::support::new_env();
+        let (lp, env) = crate::support::new_env();
         run!($cmd, lp, env)
     }};
 

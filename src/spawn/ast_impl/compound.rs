@@ -1,24 +1,24 @@
-use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
-use env::{
+use crate::env::{
     ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
     IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment,
     VariableEnvironment,
 };
-use error::{IsFatalError, RedirectionError};
-use eval::{RedirectEval, WordEval};
-use future::{Async, EnvFuture, Poll};
-use futures::future::{Either, Future};
-use spawn::{
+use crate::error::{IsFatalError, RedirectionError};
+use crate::eval::{RedirectEval, WordEval};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{
     case, for_loop, if_cmd, loop_cmd, sequence, spawn_with_local_redirections, subshell,
     BoxStatusFuture, Case, ExitResult, For, GuardBodyPair, If, LocalRedirections, Loop,
     PatternBodyPair, Sequence, Spawn, SpawnBoxed, SpawnRef, Subshell,
 };
+use crate::{CANCELLED_TWICE, POLLED_TWICE};
+use conch_parser::ast::{self, CompoundCommand, CompoundCommandKind};
+use futures::future::{Either, Future};
 use std::fmt;
 use std::slice::Iter;
 use std::sync::Arc;
 use std::vec::IntoIter;
 use void;
-use {CANCELLED_TWICE, POLLED_TWICE};
 
 /// A type alias for the `CompoundCommandKindFuture` created by spawning a `CompoundCommand`.
 pub type CompoundCommandKindOwnedFuture<S, W, E> = CompoundCommandKindFuture<

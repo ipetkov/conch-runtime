@@ -1,9 +1,9 @@
 //! A module for evaluating arbitrary shell components such as words,
 //! parameter subsitutions, redirections, and others.
 
-use env::{StringWrapper, VariableEnvironment};
-use error::ExpansionError;
-use future::{Async, EnvFuture, Poll};
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::error::ExpansionError;
+use crate::future::{Async, EnvFuture, Poll};
 use glob;
 use std::borrow::Borrow;
 

@@ -1,4 +1,4 @@
-use io::FileDesc;
+use crate::io::FileDesc;
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;

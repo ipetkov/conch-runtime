@@ -1,5 +1,5 @@
-use env::SubEnvironment;
-use {ExitStatus, EXIT_SUCCESS};
+use crate::env::SubEnvironment;
+use crate::{ExitStatus, EXIT_SUCCESS};
 
 /// An interface for setting and getting the
 /// exit status of the last command to run.
@@ -67,8 +67,8 @@ impl SubEnvironment for LastStatusEnv {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use env::SubEnvironment;
-    use ExitStatus;
+    use crate::env::SubEnvironment;
+    use crate::ExitStatus;
 
     #[test]
     fn test_env_set_and_get_last_status() {

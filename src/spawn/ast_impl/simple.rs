@@ -1,16 +1,16 @@
-use conch_parser::ast;
-use env::builtin::{BuiltinEnvironment, BuiltinUtility};
-use env::{
+use crate::env::builtin::{BuiltinEnvironment, BuiltinUtility};
+use crate::env::{
     AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
     FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment, RedirectRestorer,
     SetArgumentsEnvironment, UnsetVariableEnvironment, VarRestorer, WorkingDirectoryEnvironment,
 };
-use error::{CommandError, RedirectionError};
-use eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
+use crate::error::{CommandError, RedirectionError};
+use crate::eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
+use crate::io::FileDescWrapper;
+use crate::spawn::{simple_command, ExitResult, SimpleCommand, Spawn, SpawnedSimpleCommand};
+use conch_parser::ast;
 use failure::Fail;
 use futures::Future;
-use io::FileDescWrapper;
-use spawn::{simple_command, ExitResult, SimpleCommand, Spawn, SpawnedSimpleCommand};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::vec::IntoIter;

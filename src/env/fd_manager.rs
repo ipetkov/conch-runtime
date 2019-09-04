@@ -1,9 +1,9 @@
-use env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
-use io::Permissions;
+use crate::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
+use crate::io::Permissions;
+use crate::Fd;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
-use Fd;
 
 /// A marker trait for implementations which can open, store, and perform
 /// async I/O operations on file handles.

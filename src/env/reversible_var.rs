@@ -1,4 +1,4 @@
-use env::{ExportedVariableEnvironment, UnsetVariableEnvironment, VariableEnvironment};
+use crate::env::{ExportedVariableEnvironment, UnsetVariableEnvironment, VariableEnvironment};
 use std::collections::HashMap;
 use std::fmt;
 

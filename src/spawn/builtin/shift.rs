@@ -1,13 +1,13 @@
-use clap::{App, AppSettings, Arg};
-use env::{
+use crate::env::{
     ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment, ShiftArgumentsEnvironment,
     StringWrapper,
 };
-use future::{Async, EnvFuture, Poll};
-use spawn::ExitResult;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::ExitResult;
+use crate::{EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
+use clap::{App, AppSettings, Arg};
 use std::borrow::Cow;
 use void::Void;
-use {EXIT_ERROR, EXIT_SUCCESS, POLLED_TWICE};
 
 #[derive(Debug, Fail)]
 #[fail(display = "numeric argument required")]

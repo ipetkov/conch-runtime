@@ -1,8 +1,9 @@
-use env::SubEnvironment;
-use error::CommandError;
+use crate::env::SubEnvironment;
+use crate::error::CommandError;
+use crate::io::FileDesc;
+use crate::ExitStatus;
 use futures::sync::oneshot;
 use futures::{Async, Future, IntoFuture, Poll};
-use io::FileDesc;
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt;
@@ -11,7 +12,6 @@ use std::path::Path;
 use std::process::{self, Command, Stdio};
 use tokio_core::reactor::{Handle, Remote};
 use tokio_process::{CommandExt, StatusAsync};
-use ExitStatus;
 
 /// Any data required to execute a child process.
 #[derive(Debug, PartialEq, Eq)]

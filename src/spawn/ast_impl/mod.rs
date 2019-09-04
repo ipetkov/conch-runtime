@@ -1,8 +1,8 @@
 //! This module defines various `Spawn` implementations on AST types defined by
 //! the `conch-parser` crate.
 
+use crate::spawn::{GuardBodyPair, PatternBodyPair};
 use conch_parser::ast;
-use spawn::{GuardBodyPair, PatternBodyPair};
 
 mod and_or;
 mod command;

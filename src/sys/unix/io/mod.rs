@@ -1,14 +1,14 @@
 //! Defines interfaces and methods for doing IO operations on UNIX file descriptors.
 
-use io::FileDesc;
+use crate::io::FileDesc;
+use crate::sys::cvt_r;
+use crate::IntoInner;
 use libc::{self, c_void, size_t};
 use std::fs::File;
 use std::io::{Result, SeekFrom};
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::process::Stdio;
-use sys::cvt_r;
-use IntoInner;
 
 mod fd_ext;
 

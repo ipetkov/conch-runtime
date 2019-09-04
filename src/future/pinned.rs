@@ -1,4 +1,4 @@
-use future::{EnvFuture, Poll};
+use crate::future::{EnvFuture, Poll};
 use futures::Future;
 
 /// A future which bridges the gap between `Future` and `EnvFuture`.

@@ -1,7 +1,7 @@
+use crate::env::{StringWrapper, VariableEnvironment};
+use crate::eval::{double_quoted, DoubleQuoted, Fields, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
 use conch_parser::ast;
-use env::{StringWrapper, VariableEnvironment};
-use eval::{double_quoted, DoubleQuoted, Fields, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
 use std::borrow::Borrow;
 use std::slice;
 use std::vec;

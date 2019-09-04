@@ -1,4 +1,4 @@
-use env::SubEnvironment;
+use crate::env::SubEnvironment;
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -283,8 +283,8 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use env::SubEnvironment;
-    use RefCounted;
+    use crate::env::SubEnvironment;
+    use crate::RefCounted;
 
     #[test]
     fn test_name() {

@@ -1,7 +1,7 @@
-use env::{AsyncIoEnvironment, SubEnvironment};
+use crate::env::{AsyncIoEnvironment, SubEnvironment};
+use crate::io::{FileDesc, FileDescWrapper};
+use crate::os::unix::io::{FileDescExt, MaybeEventedFd};
 use futures::{Async, Future, Poll};
-use io::{FileDesc, FileDescWrapper};
-use os::unix::io::{FileDescExt, MaybeEventedFd};
 use std::cell::RefCell;
 use std::io::{self, Read, Write};
 use std::rc::Rc;
@@ -262,7 +262,7 @@ macro_rules! impl_env {
             type Error = io::Error;
 
             fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-                self.0.poll().map(|async| async.map(|_| ()))
+                self.0.poll().map(|poll| poll.map(|_| ()))
             }
         }
 

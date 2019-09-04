@@ -1,12 +1,12 @@
-use env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment};
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
-use spawn::{
+use crate::env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{
     sequence, swallow_non_fatal_errors, EnvFutureExt, ExitResult, FlattenedEnvFuture,
     GuardBodyPair, Sequence, SwallowNonFatal,
 };
+use crate::{Spawn, EXIT_SUCCESS};
 use std::fmt;
-use {Spawn, EXIT_SUCCESS};
 
 /// Spawns an `If` commands from number of conditional branches.
 ///

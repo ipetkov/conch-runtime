@@ -1,18 +1,18 @@
 //! A module which defines evaluating any kind of redirection.
 
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
     StringWrapper, WorkingDirectoryEnvironment,
 };
-use error::RedirectionError;
-use eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
-use io::Permissions;
+use crate::error::RedirectionError;
+use crate::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::io::Permissions;
+use crate::{Fd, STDIN_FILENO, STDOUT_FILENO};
 use std::borrow::Cow;
 use std::fs::OpenOptions;
 use std::io::Result as IoResult;
 use std::path::Path;
-use {Fd, STDIN_FILENO, STDOUT_FILENO};
 
 /// Indicates what changes should be made to the environment as a result
 /// of a successful `Redirect` evaluation.

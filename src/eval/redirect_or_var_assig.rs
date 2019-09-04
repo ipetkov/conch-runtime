@@ -1,14 +1,14 @@
-use env::{
+use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, RedirectEnvRestorer, VarEnvRestorer,
     VariableEnvironment,
 };
-use error::{IsFatalError, RedirectionError};
-use eval::{Assignment, RedirectEval, WordEval};
-use future::{Async, EnvFuture, Poll};
+use crate::error::{IsFatalError, RedirectionError};
+use crate::eval::{Assignment, RedirectEval, WordEval};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{CANCELLED_TWICE, POLLED_TWICE};
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
-use {CANCELLED_TWICE, POLLED_TWICE};
 
 /// Represents a redirect or a defined environment variable at the start of a
 /// command.

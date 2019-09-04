@@ -1,19 +1,19 @@
-use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord, TopLevelCommand, TopLevelWord};
-use env::builtin::{BuiltinEnvironment, BuiltinUtility};
-use env::{
+use crate::env::builtin::{BuiltinEnvironment, BuiltinUtility};
+use crate::env::{
     ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
     FileDescEnvironment, FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment,
     IsInteractiveEnvironment, LastStatusEnvironment, RedirectRestorer, ReportFailureEnvironment,
     SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment, VarRestorer,
     WorkingDirectoryEnvironment,
 };
-use error::RuntimeError;
-use eval::{Fields, WordEval, WordEvalConfig};
+use crate::error::RuntimeError;
+use crate::eval::{Fields, WordEval, WordEvalConfig};
+use crate::future::EnvFuture;
+use crate::io::FileDescWrapper;
+use crate::spawn::{BoxSpawnEnvFuture, BoxStatusFuture, Spawn, SpawnBoxed};
+use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord, TopLevelCommand, TopLevelWord};
 use failure::Fail;
-use future::EnvFuture;
 use futures::Future;
-use io::FileDescWrapper;
-use spawn::{BoxSpawnEnvFuture, BoxStatusFuture, Spawn, SpawnBoxed};
 use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ macro_rules! impl_top_level_cmd {
                   E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
-                    + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
+                    + From<$Rc<dyn 'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
                   <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>
                       + From<PB::Error>,
@@ -85,7 +85,7 @@ macro_rules! impl_top_level_cmd {
                   E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
-                    + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
+                    + From<$Rc<dyn 'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
                   <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>
                       + From<PB::Error>,
@@ -129,7 +129,7 @@ macro_rules! impl_top_level_word {
                   E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
-                    + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
+                    + From<$Rc<dyn 'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
                   <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>
                       + From<PB::Error>,
@@ -137,7 +137,7 @@ macro_rules! impl_top_level_word {
                   E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EvalResult = T;
-            type EvalFuture = Box<'static + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
+            type EvalFuture = Box<dyn 'static + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
             type Error = RuntimeError;
 
             fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
@@ -169,7 +169,7 @@ macro_rules! impl_top_level_word {
                   E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
                   E::FnName: From<T>,
                   E::Fn: Clone
-                    + From<$Rc<'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
+                    + From<$Rc<dyn 'static + SpawnBoxed<E, Error = RuntimeError> $($extra_bounds)*>>
                     + Spawn<E, Error = RuntimeError>,
                   <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error>
                       + From<PB::Error>,
@@ -177,7 +177,7 @@ macro_rules! impl_top_level_word {
                   E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
         {
             type EvalResult = T;
-            type EvalFuture = Box<'a + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
+            type EvalFuture = Box<dyn 'a + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
             type Error = RuntimeError;
 
             fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {

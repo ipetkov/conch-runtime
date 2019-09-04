@@ -1,6 +1,6 @@
 use super::is_present;
-use eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use future::{Async, EnvFuture, Poll};
+use crate::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
+use crate::future::{Async, EnvFuture, Poll};
 
 /// A future representing a `Default` parameter substitution evaluation.
 #[must_use = "futures do nothing unless polled"]

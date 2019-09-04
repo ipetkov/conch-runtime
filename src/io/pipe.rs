@@ -1,7 +1,7 @@
-use io::FileDesc;
+use crate::io::FileDesc;
+use crate::sys;
+use crate::IntoInner;
 use std::io::Result as IoResult;
-use sys;
-use IntoInner;
 
 /// A wrapper for a reader and writer OS pipe pair.
 #[derive(Debug)]

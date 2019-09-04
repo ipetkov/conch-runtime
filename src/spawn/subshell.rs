@@ -1,13 +1,13 @@
-use env::{
+use crate::env::{
     IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment,
 };
-use error::IsFatalError;
-use future::{Async, EnvFuture, Poll};
+use crate::error::IsFatalError;
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{sequence, ExitResult, Sequence};
+use crate::{Spawn, EXIT_ERROR};
 use futures::future::Future;
-use spawn::{sequence, ExitResult, Sequence};
 use std::fmt;
 use void::Void;
-use {Spawn, EXIT_ERROR};
 
 /// A future that represents the sequential execution of commands in a subshell
 /// environment.

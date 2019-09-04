@@ -1,6 +1,6 @@
-use future::{Async, EnvFuture, Poll};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{CANCELLED_TWICE, POLLED_TWICE};
 use futures::Future;
-use {CANCELLED_TWICE, POLLED_TWICE};
 
 /// Private extension of the `EnvFuture` trait.
 pub trait EnvFutureExt<E: ?Sized>: EnvFuture<E> {

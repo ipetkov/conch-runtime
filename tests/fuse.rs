@@ -1,6 +1,6 @@
 extern crate conch_runtime as runtime;
 
-use runtime::future::{Async, EnvFuture, Poll};
+use crate::runtime::future::{Async, EnvFuture, Poll};
 
 #[derive(Debug, Copy, Clone)]
 struct MockFuture(Option<Result<(), ()>>);

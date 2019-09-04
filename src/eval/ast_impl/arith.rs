@@ -1,8 +1,8 @@
+use crate::env::VariableEnvironment;
+use crate::error::ExpansionError;
+use crate::eval::ArithEval;
 use conch_parser::ast::Arithmetic;
 use conch_parser::ast::Arithmetic::*;
-use env::VariableEnvironment;
-use error::ExpansionError;
-use eval::ArithEval;
 use std::borrow::Borrow;
 
 impl<T, E: ?Sized> ArithEval<E> for Arithmetic<T>

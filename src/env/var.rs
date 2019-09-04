@@ -1,11 +1,11 @@
-use env::SubEnvironment;
+use crate::env::SubEnvironment;
+use crate::RefCounted;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
-use RefCounted;
 
 /// An interface for setting and getting shell and environment variables.
 pub trait VariableEnvironment {
@@ -252,8 +252,8 @@ impl_env!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use env::SubEnvironment;
-    use RefCounted;
+    use crate::env::SubEnvironment;
+    use crate::RefCounted;
 
     #[test]
     fn test_set_get_unset_var() {

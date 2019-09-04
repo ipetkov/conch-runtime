@@ -1,7 +1,7 @@
-use env::{FunctionEnvironment, FunctionFrameEnvironment, SetArgumentsEnvironment};
-use future::{Async, EnvFuture, Poll};
+use crate::env::{FunctionEnvironment, FunctionFrameEnvironment, SetArgumentsEnvironment};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::{Spawn, CANCELLED_TWICE, POLLED_TWICE};
 use std::fmt;
-use {Spawn, CANCELLED_TWICE, POLLED_TWICE};
 
 /// Creates a future adapter that will attempt to execute a function (if it has
 /// been defined) with a given set of arguments.

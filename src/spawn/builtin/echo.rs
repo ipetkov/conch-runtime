@@ -1,10 +1,10 @@
-use env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper};
-use future::{EnvFuture, Poll};
-use spawn::ExitResult;
+use crate::env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper};
+use crate::future::{EnvFuture, Poll};
+use crate::spawn::ExitResult;
+use crate::POLLED_TWICE;
 use std::cmp;
 use std::iter::Peekable;
 use void::Void;
-use POLLED_TWICE;
 
 impl_generic_builtin_cmd! {
     /// Represents a `echo` builtin command which will

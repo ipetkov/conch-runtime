@@ -1,10 +1,10 @@
-use env::AsyncIoEnvironment;
-use env::SubEnvironment;
+use crate::env::AsyncIoEnvironment;
+use crate::env::SubEnvironment;
+use crate::io::FileDesc;
 use futures::stream::Fuse;
 use futures::sync::mpsc::{channel, Receiver};
 use futures::{Async, Future, Poll, Sink, Stream};
 use futures_cpupool::{CpuFuture, CpuPool};
-use io::FileDesc;
 use mio::would_block;
 use std::borrow::Borrow;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -245,7 +245,7 @@ impl Future for ThreadPoolWriteAll {
 
 #[cfg(unix)]
 fn try_set_blocking(fd: &mut FileDesc) -> io::Result<()> {
-    use os::unix::io::FileDescExt;
+    use crate::os::unix::io::FileDescExt;
 
     fd.set_nonblock(false)
 }

@@ -1,16 +1,16 @@
-use env::atomic::FileDescEnv as AtomicFileDescEnv;
-use env::{
+use crate::env::atomic::FileDescEnv as AtomicFileDescEnv;
+use crate::env::{
     AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv, FileDescOpener,
     FileDescOpenerEnv, Pipe, SubEnvironment,
 };
+use crate::io::{dup_stdio, FileDesc, FileDescWrapper, Permissions};
+use crate::{Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use futures::{Future, Poll};
-use io::{dup_stdio, FileDesc, FileDescWrapper, Permissions};
 use std::fs::OpenOptions;
 use std::io::{Error as IoError, Read, Result as IoResult};
 use std::path::Path;
 use tokio_core::reactor::{Handle, Remote};
 use tokio_io::AsyncRead;
-use {Fd, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
 macro_rules! impl_env {
     (
@@ -74,7 +74,7 @@ macro_rules! impl_env {
                 $handle: $Handle,
                 fallback_num_threads: Option<usize>,
             ) -> IoResult<Self> {
-                use io::Permissions::{Read, Write};
+                use crate::io::Permissions::{Read, Write};
 
                 let (stdin, stdout, stderr) = dup_stdio()?;
 
@@ -234,11 +234,11 @@ impl_env! {
 }
 
 #[cfg(unix)]
-type InnerFileHandle = ::os::unix::env::ManagedFileDesc;
+type InnerFileHandle = crate::os::unix::env::ManagedFileDesc;
 #[cfg(unix)]
-type InnerAsyncRead = ::os::unix::env::ManagedAsyncRead;
+type InnerAsyncRead = crate::os::unix::env::ManagedAsyncRead;
 #[cfg(unix)]
-type InnerWriteAll = ::os::unix::env::ManagedWriteAll;
+type InnerWriteAll = crate::os::unix::env::ManagedWriteAll;
 
 #[cfg(not(unix))]
 type InnerFileHandle = ::std::rc::Rc<::io::FileDesc>;
@@ -251,7 +251,7 @@ type InnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 type Inner = FileDescManagerEnv<
     FileDescOpenerEnv,
     FileDescEnv<PlatformSpecificManagedHandle>,
-    ::os::unix::env::EventedAsyncIoEnv,
+    crate::os::unix::env::EventedAsyncIoEnv,
 >;
 
 #[cfg(not(unix))]
@@ -272,7 +272,7 @@ impl PlatformSpecificFileDescManagerEnv {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
                 fd_env,
-                ::os::unix::env::EventedAsyncIoEnv::new(handle),
+                crate::os::unix::env::EventedAsyncIoEnv::new(handle),
             )
         };
 
@@ -297,11 +297,11 @@ impl PlatformSpecificFileDescManagerEnv {
 }
 
 #[cfg(unix)]
-type AtomicInnerFileHandle = ::os::unix::env::atomic::ManagedFileDesc;
+type AtomicInnerFileHandle = crate::os::unix::env::atomic::ManagedFileDesc;
 #[cfg(unix)]
-type AtomicInnerAsyncRead = ::os::unix::env::atomic::ManagedAsyncRead;
+type AtomicInnerAsyncRead = crate::os::unix::env::atomic::ManagedAsyncRead;
 #[cfg(unix)]
-type AtomicInnerWriteAll = ::os::unix::env::atomic::ManagedWriteAll;
+type AtomicInnerWriteAll = crate::os::unix::env::atomic::ManagedWriteAll;
 
 #[cfg(not(unix))]
 type AtomicInnerFileHandle = ::std::sync::Arc<::io::FileDesc>;
@@ -314,7 +314,7 @@ type AtomicInnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 type AtomicInner = FileDescManagerEnv<
     FileDescOpenerEnv,
     AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
-    ::os::unix::env::atomic::EventedAsyncIoEnv,
+    crate::os::unix::env::atomic::EventedAsyncIoEnv,
 >;
 
 #[cfg(not(unix))]
@@ -335,7 +335,7 @@ impl AtomicPlatformSpecificFileDescManagerEnv {
             FileDescManagerEnv::new(
                 FileDescOpenerEnv::new(),
                 fd_env,
-                ::os::unix::env::atomic::EventedAsyncIoEnv::new(remote),
+                crate::os::unix::env::atomic::EventedAsyncIoEnv::new(remote),
             )
         };
 

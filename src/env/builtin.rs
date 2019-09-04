@@ -1,19 +1,19 @@
 //! A module which defines interfaces for expressing shell builtin utilities,
 //! and provides a default implementations.
 
-use env::{
+use crate::env::{
     ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
     FileDescEnvironment, RedirectEnvRestorer, ShiftArgumentsEnvironment, StringWrapper,
     SubEnvironment, VarEnvRestorer, VariableEnvironment, WorkingDirectoryEnvironment,
 };
-use future::{Async, EnvFuture, Poll};
+use crate::future::{Async, EnvFuture, Poll};
+use crate::spawn::{builtin, ExitResult, Spawn};
+use crate::ExitStatus;
 use futures::Future;
-use spawn::{builtin, ExitResult, Spawn};
 use std::borrow::Borrow;
 use std::fmt;
 use std::marker::PhantomData;
 use void::Void;
-use ExitStatus;
 
 /// An interface for builtin utilities which can be spawned with some arguments.
 ///
@@ -265,7 +265,7 @@ where
             ($future:expr, $env:ident, $mapper:expr) => {{
                 match $future.poll($env) {
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    result => result.map(|async| async.map($mapper)),
+                    result => result.map(|poll| poll.map($mapper)),
                 }
             }};
         }

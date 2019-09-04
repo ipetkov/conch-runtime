@@ -1,4 +1,4 @@
-use future::{Async, EnvFuture, Poll};
+use crate::future::{Async, EnvFuture, Poll};
 use futures::Future;
 use std::fmt;
 use std::process;
