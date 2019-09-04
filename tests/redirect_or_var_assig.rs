@@ -128,10 +128,10 @@ fn should_honor_export_vars_config() {
     let val_new = Rc::new("val_new".to_owned());
     let val_new_alt = Rc::new("val_new_alt".to_owned());
 
-    env.set_exported_var(key_existing.clone(), val_existing.clone().into(), false);
+    env.set_exported_var(key_existing.clone(), val_existing.clone(), false);
     env.set_exported_var(
         key_existing_exported.clone(),
-        val_existing_exported.clone().into(),
+        val_existing_exported.clone(),
         true,
     );
 

@@ -19,7 +19,7 @@ where
             ast::ComplexWord::Concat(v) => State::Concat(concat(v, env, cfg)),
         };
 
-        ComplexWord { state: state }
+        ComplexWord { state }
     }
 }
 
@@ -37,7 +37,7 @@ where
             ast::ComplexWord::Concat(ref v) => State::Concat(concat(v, env, cfg)),
         };
 
-        ComplexWord { state: state }
+        ComplexWord { state }
     }
 }
 

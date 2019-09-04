@@ -24,7 +24,7 @@ where
         state: State::Conditionals {
             current: None,
             conditionals: conditionals.into_iter(),
-            else_branch: else_branch,
+            else_branch,
         },
     }
 }

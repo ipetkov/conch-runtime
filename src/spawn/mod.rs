@@ -100,7 +100,7 @@ where
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+#[allow(clippy::boxed_local)]
 impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     type EnvFuture = T::EnvFuture;
     type Future = T::Future;
@@ -111,7 +111,7 @@ impl<E: ?Sized, T: Spawn<E>> Spawn<E> for Box<T> {
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+#[allow(clippy::boxed_local)]
 impl<'a, E: ?Sized, T: 'a> Spawn<E> for &'a Box<T>
 where
     &'a T: Spawn<E>,

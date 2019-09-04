@@ -65,7 +65,7 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
 
     {
         let word = MockWordCfg {
-            cfg: cfg,
+            cfg,
             fields: Fields::Zero,
         };
         let mut env = env.clone();
@@ -78,7 +78,7 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
     {
         let msg = "foo".to_owned();
         let word = MockWordCfg {
-            cfg: cfg,
+            cfg,
             fields: Fields::Single(msg.clone()),
         };
         let mut env = env.clone();
@@ -90,7 +90,7 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
 
     {
         let word = MockWordCfg {
-            cfg: cfg,
+            cfg,
             fields: Fields::At(vec!["foo".to_owned(), "bar".to_owned()]),
         };
 
@@ -103,7 +103,7 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
 
     {
         let word = MockWordCfg {
-            cfg: cfg,
+            cfg,
             fields: Fields::Split(vec!["foo".to_owned(), "bar".to_owned()]),
         };
 
@@ -116,7 +116,7 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
 
     {
         let word = MockWordCfg {
-            cfg: cfg,
+            cfg,
             fields: Fields::Star(vec!["foo".to_owned(), "bar".to_owned()]),
         };
 

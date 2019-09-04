@@ -74,7 +74,6 @@ where
             .args
             .take()
             .expect(POLLED_TWICE)
-            .into_iter()
             .map(StringWrapper::into_owned);
 
         let matches = try_and_report!(SHIFT, app.get_matches_from_safe(app_args), env);

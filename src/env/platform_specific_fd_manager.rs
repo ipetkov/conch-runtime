@@ -371,7 +371,7 @@ struct ArcShimAsyncIoEnv {
 #[cfg(not(unix))]
 impl ArcShimAsyncIoEnv {
     fn new(inner: ::env::async_io::ThreadPoolAsyncIoEnv) -> Self {
-        Self { inner: inner }
+        Self { inner }
     }
 }
 

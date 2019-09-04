@@ -52,7 +52,7 @@ where
     SR: SpawnRef<E>,
     E: VariableEnvironment,
 {
-    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+    #[allow(clippy::type_complexity)]
     state: State<
         Sequence<IS, E>,
         If<IG, IS, E>,
@@ -198,30 +198,18 @@ where
             CompoundCommandKind::While(ast::GuardBodyPair { guard, body }) => {
                 let guard = guard.into_iter().map(Arc::from).collect();
                 let body = body.into_iter().map(Arc::from).collect();
-                State::Loop(loop_cmd(
-                    false,
-                    GuardBodyPair {
-                        guard: guard,
-                        body: body,
-                    },
-                ))
+                State::Loop(loop_cmd(false, GuardBodyPair { guard, body }))
             }
             CompoundCommandKind::Until(ast::GuardBodyPair { guard, body }) => {
                 let guard = guard.into_iter().map(Arc::from).collect();
                 let body = body.into_iter().map(Arc::from).collect();
-                State::Loop(loop_cmd(
-                    true,
-                    GuardBodyPair {
-                        guard: guard,
-                        body: body,
-                    },
-                ))
+                State::Loop(loop_cmd(true, GuardBodyPair { guard, body }))
             }
 
             CompoundCommandKind::Subshell(cmds) => State::Subshell(subshell(cmds, env)),
         };
 
-        CompoundCommandKindFuture { state: state }
+        CompoundCommandKindFuture { state }
     }
 }
 
@@ -244,7 +232,7 @@ where
     E::VarName: Clone + From<T>,
 {
     type EnvFuture = CompoundCommandKindRefFuture<'a, S, W, E>;
-    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+    #[allow(clippy::type_complexity)]
     type Future = ExitResult<Either<<&'a S as Spawn<E>>::Future, <&'a S as Spawn<E>>::Future>>;
     type Error = <&'a S as Spawn<E>>::Error;
 
@@ -316,7 +304,7 @@ where
             CompoundCommandKind::Subshell(ref cmds) => State::Subshell(subshell(cmds, env)),
         };
 
-        CompoundCommandKindFuture { state: state }
+        CompoundCommandKindFuture { state }
     }
 }
 

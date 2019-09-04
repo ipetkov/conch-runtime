@@ -114,7 +114,7 @@ impl FunctionFrameEnvironment for FnFrameEnv {
 
 impl SubEnvironment for FnFrameEnv {
     fn sub_env(&self) -> Self {
-        self.clone()
+        *self
     }
 }
 
@@ -315,9 +315,7 @@ mod tests {
         env.pop_fn_frame();
         assert_eq!(env.is_fn_running(), true);
 
-        println!("{:#?}", env);
         env.pop_fn_frame();
-        println!("{:#?}", env);
         assert_eq!(env.is_fn_running(), false);
     }
 

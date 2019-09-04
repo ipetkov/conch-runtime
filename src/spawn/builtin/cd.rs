@@ -139,7 +139,6 @@ impl<I> SpawnedCd<I> {
             .args
             .take()
             .expect(POLLED_TWICE)
-            .into_iter()
             .map(StringWrapper::into_owned);
 
         app.get_matches_from_safe(app_args)

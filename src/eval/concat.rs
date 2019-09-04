@@ -23,7 +23,7 @@ where
     Concat {
         split_fields_further: cfg.split_fields_further,
         fields: Vec::new(),
-        future: future,
+        future,
         rest: iter,
     }
 }
@@ -116,6 +116,8 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.future.as_mut().map(|f| f.cancel(env));
+        if let Some(f) = self.future.as_mut() {
+            f.cancel(env);
+        }
     }
 }

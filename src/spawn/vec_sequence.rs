@@ -158,7 +158,7 @@ where
 {
     pub fn new(commands: Vec<S>) -> Self {
         VecSequenceWithLast {
-            commands: commands,
+            commands,
             current: None,
             next_idx: 0,
         }
@@ -200,6 +200,8 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.current.as_mut().map(|f| f.cancel(env));
+        if let Some(f) = self.current.as_mut() {
+            f.cancel(env);
+        }
     }
 }

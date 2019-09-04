@@ -28,8 +28,8 @@ pub enum ExitStatus {
 impl ExitStatus {
     /// Was termination successful? Signal termination not considered a success,
     /// and success is defined as a zero exit status.
-    pub fn success(&self) -> bool {
-        *self == EXIT_SUCCESS
+    pub fn success(self) -> bool {
+        self == EXIT_SUCCESS
     }
 }
 

@@ -105,7 +105,7 @@ where
     E::Read: AsyncRead,
 {
     type EvalResult = T;
-    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+    #[allow(clippy::type_complexity)]
     type EvalFuture = ParameterSubstitution<
         T,
         <&'a W as WordEval<E>>::EvalFuture,

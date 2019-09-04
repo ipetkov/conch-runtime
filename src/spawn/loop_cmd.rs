@@ -26,7 +26,7 @@ where
     S: SpawnRef<E>,
 {
     Loop {
-        invert_guard_status: invert_guard_status,
+        invert_guard_status,
         guard: guard_body_pair.guard,
         body: guard_body_pair.body,
         has_run_body: false,

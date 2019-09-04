@@ -247,8 +247,8 @@ fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain() {
 
     let cmd = MockCmd2 {
         expected_fds: expected_fds.clone(),
-        var: var,
-        value: value,
+        var,
+        value,
     };
 
     let mut future = spawn_with_local_redirections(redirects.clone(), cmd);
@@ -318,8 +318,8 @@ fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
 
     let cmd = MockCmd2 {
         expected_fds: expected_fds.clone(),
-        var: var,
-        value: value,
+        var,
+        value,
     };
 
     let mut future = spawn_with_local_redirections(redirects.clone(), cmd);
@@ -408,8 +408,8 @@ fn spawn_compound_command_smoke() {
 
     let cmd = MockCmd2 {
         expected_fds: expected_fds.clone(),
-        var: var,
-        value: value,
+        var,
+        value,
     };
 
     let compound = CompoundCommand {

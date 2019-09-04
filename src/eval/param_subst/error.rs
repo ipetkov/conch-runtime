@@ -60,7 +60,7 @@ where
         }
     };
 
-    Error { state: state }
+    Error { state }
 }
 
 impl<T, FT, F, E: ?Sized> EnvFuture<E> for Error<T, F>

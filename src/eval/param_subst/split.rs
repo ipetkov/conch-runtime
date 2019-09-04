@@ -15,8 +15,8 @@ pub struct Split<F> {
 /// of the inner future.
 pub fn split<F>(split_fields_further: bool, future: F) -> Split<F> {
     Split {
-        split_fields_further: split_fields_further,
-        future: future,
+        split_fields_further,
+        future,
     }
 }
 

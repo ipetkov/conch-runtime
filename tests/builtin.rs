@@ -145,7 +145,7 @@ where
 
     let builtin = env
         .builtin(&rc(name))
-        .expect(&format!("did not find builtin for `{}`", name))
+        .unwrap_or_else(|| panic!("did not find builtin for `{}`", name))
         .prepare(args, MockRedirectRestorer::new(), MockVarRestorer::new());
 
     let env = RefCell::new(env);
@@ -165,7 +165,7 @@ where
     };
 
     Output {
-        exit: exit,
+        exit,
         env: env.into_inner(),
         out: String::from_utf8(out).expect("out invalid utf8"),
     }
@@ -177,7 +177,7 @@ fn test_cancel_impl(name: &str) {
     let args: Vec<Rc<String>> = vec![];
     let builtin = env
         .builtin(&rc(name))
-        .expect(&format!("did not find builtin for `{}`", name))
+        .unwrap_or_else(|| panic!("did not find builtin for `{}`", name))
         .prepare(args, MockRedirectRestorer::new(), MockVarRestorer::new());
 
     builtin.spawn(&env).cancel(&mut env);

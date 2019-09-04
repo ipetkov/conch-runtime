@@ -141,7 +141,6 @@ impl<'a> Write for &'a EventedFileDesc {
 }
 
 fn is_regular_file(fd: &FileDesc) -> Result<bool> {
-    use libc;
     use std::mem;
     use sys::cvt_r;
 

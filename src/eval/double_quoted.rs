@@ -79,7 +79,10 @@ where
 
             let next = match self.future {
                 None => {
-                    self.cur_field.take().map(|s| self.fields.push(s.into()));
+                    if let Some(s) = self.cur_field.take() {
+                        self.fields.push(s.into());
+                    }
+
                     let fields = mem::replace(&mut self.fields, Vec::new());
                     return Ok(Async::Ready(fields.into()));
                 }
@@ -109,9 +112,13 @@ where
                     // even when within double quotes.
                     if !v.is_empty() {
                         let mut iter = v.into_iter().fuse();
-                        iter.next().map(|s| self.append_to_cur_field(s));
+                        if let Some(s) = iter.next() {
+                            self.append_to_cur_field(s);
+                        }
 
-                        self.cur_field.take().map(|s| self.fields.push(s.into()));
+                        if let Some(s) = self.cur_field.take() {
+                            self.fields.push(s.into());
+                        }
 
                         let mut last = None;
                         for next in iter {
@@ -119,7 +126,9 @@ where
                             last = Some(next);
                         }
 
-                        last.map(|s| self.append_to_cur_field(s));
+                        if let Some(s) = last {
+                            self.append_to_cur_field(s);
+                        }
                     }
                 }
             }
@@ -127,6 +136,8 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.future.as_mut().map(|f| f.cancel(env));
+        if let Some(f) = self.future.as_mut() {
+            f.cancel(env);
+        }
     }
 }

@@ -187,7 +187,7 @@ impl<E: ?Sized, W: WordEval<E>> WordEval<E> for Box<W> {
     type Error = W::Error;
     type EvalFuture = W::EvalFuture;
 
-    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+    #[allow(clippy::boxed_local)]
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         (*self).eval_with_config(env, cfg)
     }
@@ -201,7 +201,7 @@ where
     type Error = <&'a W as WordEval<E>>::Error;
     type EvalFuture = <&'a W as WordEval<E>>::EvalFuture;
 
-    #[cfg_attr(feature = "cargo-clippy", allow(boxed_local))]
+    #[allow(clippy::boxed_local)]
     fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
         (&**self).eval_with_config(env, cfg)
     }

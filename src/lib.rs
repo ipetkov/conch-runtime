@@ -33,8 +33,8 @@
     all(feature = "conch-parser", feature = "top-level"),
     recursion_limit = "128"
 )]
-#![cfg_attr(all(not(test), feature = "cargo-clippy"), deny(print_stdout))]
-#![cfg_attr(feature = "cargo-clippy", deny(wrong_self_convention))]
+#![cfg_attr(not(test), deny(clippy::print_stdout))]
+#![deny(clippy::wrong_self_convention)]
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]

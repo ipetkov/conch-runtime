@@ -382,7 +382,7 @@ where
 {
     env.write_all(fdes, bytes).map(|write_all| {
         ExitResult::Pending(WriteOutputFuture {
-            write_all: write_all,
+            write_all,
             exit_status_when_complete: exit_status_on_success,
         })
     })

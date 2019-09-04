@@ -78,9 +78,7 @@ impl NormalizedPath {
                 .canonicalize()
                 .map_err(|e| NormalizationError { err: e, path: buf })?;
 
-            Ok(Self {
-                normalized_path: normalized_path,
-            })
+            Ok(Self { normalized_path })
         }
     }
 

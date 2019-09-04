@@ -15,10 +15,7 @@ pub struct Pinned<E, F> {
 }
 
 pub fn new<E, F: EnvFuture<E>>(future: F, env: E) -> Pinned<E, F> {
-    Pinned {
-        env: env,
-        future: future,
-    }
+    Pinned { env, future }
 }
 
 impl<E, F> Pinned<E, F> {

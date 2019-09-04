@@ -55,8 +55,8 @@ impl<'a> ExecutableData<'a> {
 
         ExecutableData {
             name: Cow::Owned(self.name.into_owned()),
-            args: args,
-            env_vars: env_vars,
+            args,
+            env_vars,
             current_dir: Cow::Owned(self.current_dir.into_owned()),
             stdin: self.stdin,
             stdout: self.stdout,
@@ -112,7 +112,7 @@ impl fmt::Debug for ExecEnv {
 impl ExecEnv {
     /// Construct a new environment with a `Remote` to a `tokio` event loop.
     pub fn new(remote: Remote) -> Self {
-        ExecEnv { remote: remote }
+        ExecEnv { remote }
     }
 }
 
@@ -193,7 +193,7 @@ impl ExecutableEnvironment for ExecEnv {
             }
         };
 
-        Ok(Child { inner: inner })
+        Ok(Child { inner })
     }
 }
 

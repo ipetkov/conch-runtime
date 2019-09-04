@@ -32,7 +32,7 @@ impl<R> TimesRead<R> {
         TimesRead {
             times_read: 0,
             times_would_block: 0,
-            reader: reader,
+            reader,
         }
     }
 }

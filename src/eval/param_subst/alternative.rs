@@ -53,7 +53,7 @@ where
         (true, None) | (false, _) => State::Zero,
     };
 
-    Alternative { state: state }
+    Alternative { state }
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for Alternative<F>

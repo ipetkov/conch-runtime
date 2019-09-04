@@ -51,7 +51,7 @@ where
         },
     };
 
-    EvalDefault { state: state }
+    EvalDefault { state }
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for EvalDefault<T, F>

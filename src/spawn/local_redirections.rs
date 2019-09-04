@@ -209,15 +209,17 @@ where
                 ref mut cur_redirect,
                 ..
             } => {
-                cur_redirect.as_mut().map(|r| r.cancel(env));
+                if let Some(r) = cur_redirect.as_mut() {
+                    r.cancel(env)
+                };
             }
             State::Spawned(ref mut f) => f.cancel(env),
             State::Gone => panic!(CANCELLED_TWICE),
         }
 
         self.state = State::Gone;
-        self.restorer
-            .take()
-            .map(|mut restorer| restorer.restore(env));
+        if let Some(mut restorer) = self.restorer.take() {
+            restorer.restore(env);
+        }
     }
 }

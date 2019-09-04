@@ -299,6 +299,8 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.current.as_mut().map(|f| f.cancel(env));
+        if let Some(f) = self.current.as_mut() {
+            f.cancel(env);
+        }
     }
 }

@@ -111,8 +111,14 @@ fn parse_arg(flags: &mut Flags, arg: &str) -> bool {
         }
     }
 
-    interpret_escapes.map(|ie| flags.interpret_escapes = ie);
-    suppress_newline.map(|sn| flags.suppress_newline = sn);
+    if let Some(ie) = interpret_escapes {
+        flags.interpret_escapes = ie;
+    }
+
+    if let Some(sn) = suppress_newline {
+        flags.suppress_newline = sn;
+    }
+
     false
 }
 
@@ -134,7 +140,10 @@ where
         }};
     }
 
-    args.next().map(|first| push!(first));
+    if let Some(first) = args.next() {
+        push!(first)
+    };
+
     for arg in args {
         out.push_str(" ");
         push!(arg);
@@ -171,10 +180,11 @@ fn push_escaped_arg(out: &mut String, mut arg: &str) -> bool {
             ($max_len:expr, $radix:expr) => {{
                 let s = chars.as_str();
 
-                for i in (0..cmp::min(s.len(), $max_len) + 1).rev() {
-                    if let Ok(val) = u8::from_str_radix(&s[..i], $radix) {
+                for i in (0..cmp::min(s.len(), $max_len)).rev() {
+                    if let Ok(val) = u8::from_str_radix(&s[..=i], $radix) {
                         out.push(val as char);
-                        arg = &s[i..];
+                        let next_idx = i + 1;
+                        arg = &s[next_idx..];
                         continue 'outer;
                     }
                 }

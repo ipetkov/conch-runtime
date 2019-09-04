@@ -130,7 +130,7 @@ impl<T> BuiltinEnv<T> {
 
 impl<T> SubEnvironment for BuiltinEnv<T> {
     fn sub_env(&self) -> Self {
-        self.clone()
+        *self
     }
 }
 
@@ -156,7 +156,7 @@ where
     type Builtin = Builtin;
 
     fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
-        lookup_builtin(name.as_str()).map(|kind| Builtin { kind: kind })
+        lookup_builtin(name.as_str()).map(|kind| Builtin { kind })
     }
 }
 
@@ -171,8 +171,8 @@ where
         PreparedBuiltin {
             kind: self.kind,
             args: args.into_iter(),
-            redirect_restorer: redirect_restorer,
-            var_restorer: var_restorer,
+            redirect_restorer,
+            var_restorer,
         }
     }
 }
@@ -214,7 +214,7 @@ where
         SpawnedBuiltin {
             redirect_restorer: Some(self.redirect_restorer),
             var_restorer: Some(self.var_restorer),
-            kind: kind,
+            kind,
         }
     }
 }
@@ -294,8 +294,13 @@ where
             }
         };
 
-        self.redirect_restorer.take().map(|mut r| r.restore(env));
-        self.var_restorer.take().map(|mut r| r.restore(env));
+        if let Some(mut r) = self.redirect_restorer.take() {
+            r.restore(env);
+        }
+        if let Some(mut r) = self.var_restorer.take() {
+            r.restore(env);
+        }
+
         ret
     }
 
@@ -310,8 +315,12 @@ where
             SpawnedBuiltinKind::True(ref mut f) => f.cancel(env),
         }
 
-        self.redirect_restorer.take().map(|mut r| r.restore(env));
-        self.var_restorer.take().map(|mut r| r.restore(env));
+        if let Some(mut r) = self.redirect_restorer.take() {
+            r.restore(env);
+        }
+        if let Some(mut r) = self.var_restorer.take() {
+            r.restore(env);
+        }
     }
 }
 

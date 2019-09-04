@@ -15,7 +15,7 @@ pub struct SwallowNonFatal<F> {
 ///
 /// All other responses are propagated through as is.
 pub fn swallow_non_fatal_errors<F>(inner: F) -> SwallowNonFatal<F> {
-    SwallowNonFatal { inner: inner }
+    SwallowNonFatal { inner }
 }
 
 impl<F, E: ?Sized> EnvFuture<E> for SwallowNonFatal<F>

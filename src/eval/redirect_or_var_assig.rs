@@ -141,7 +141,7 @@ where
     EvalRedirectOrVarAssig {
         redirect_restorer: Some(redirect_restorer),
         var_restorer: Some(var_restorer),
-        export_vars: export_vars,
+        export_vars,
         current: vars.next().map(|n| spawn(n, env)),
         rest: vars,
     }
@@ -198,7 +198,7 @@ where
                             Ok(Async::Ready(action)) => action,
                             Ok(Async::NotReady) => return Ok(Async::NotReady),
                             Err(e) => {
-                                err = Some(EvalRedirectOrVarAssigError::Redirect(e.into()));
+                                err = Some(EvalRedirectOrVarAssigError::Redirect(e));
                                 break;
                             }
                         };
@@ -269,12 +269,16 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.current.as_mut().map(|cur| match *cur {
-            RedirectOrVarAssig::Redirect(ref mut f) => f.cancel(env),
-            RedirectOrVarAssig::VarAssig(_, ref mut f) => {
-                f.as_mut().map(|f| f.cancel(env));
+        if let Some(cur) = self.current.as_mut() {
+            match cur {
+                RedirectOrVarAssig::Redirect(ref mut f) => f.cancel(env),
+                RedirectOrVarAssig::VarAssig(_, ref mut f) => {
+                    if let Some(f) = f.as_mut() {
+                        f.cancel(env);
+                    }
+                }
             }
-        });
+        };
 
         self.redirect_restorer
             .take()

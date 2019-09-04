@@ -229,10 +229,12 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.current.as_mut().map(|cur| match *cur {
-            RedirectOrCmdWord::Redirect(ref mut f) => f.cancel(env),
-            RedirectOrCmdWord::CmdWord(ref mut f) => f.cancel(env),
-        });
+        if let Some(cur) = self.current.as_mut() {
+            match cur {
+                RedirectOrCmdWord::Redirect(ref mut f) => f.cancel(env),
+                RedirectOrCmdWord::CmdWord(ref mut f) => f.cancel(env),
+            }
+        }
 
         self.redirect_restorer
             .take()

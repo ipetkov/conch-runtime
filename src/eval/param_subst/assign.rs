@@ -60,7 +60,7 @@ where
         },
     };
 
-    Assign { state: state }
+    Assign { state }
 }
 
 impl<T, F, E: ?Sized> EnvFuture<E> for Assign<T, F>

@@ -39,6 +39,8 @@ impl<E: ?Sized, F: EnvFuture<E>> EnvFuture<E> for Fuse<F> {
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.future.take().map(|mut f| f.cancel(env));
+        if let Some(mut f) = self.future.take() {
+            f.cancel(env);
+        }
     }
 }

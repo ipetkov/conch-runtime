@@ -24,7 +24,7 @@ where
             ast::Word::DoubleQuoted(v) => State::DoubleQuoted(double_quoted(v)),
         };
 
-        Word { state: state }
+        Word { state }
     }
 }
 
@@ -47,7 +47,7 @@ where
             ast::Word::DoubleQuoted(ref v) => State::DoubleQuoted(double_quoted(v)),
         };
 
-        Word { state: state }
+        Word { state }
     }
 }
 

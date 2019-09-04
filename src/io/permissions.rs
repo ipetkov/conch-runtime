@@ -28,16 +28,16 @@ impl Into<OpenOptions> for Permissions {
 
 impl Permissions {
     /// Checks if read permissions are granted.
-    pub fn readable(&self) -> bool {
-        match *self {
+    pub fn readable(self) -> bool {
+        match self {
             Permissions::Read | Permissions::ReadWrite => true,
             Permissions::Write => false,
         }
     }
 
     /// Checks if write permissions are granted.
-    pub fn writable(&self) -> bool {
-        match *self {
+    pub fn writable(self) -> bool {
+        match self {
             Permissions::Read => false,
             Permissions::Write | Permissions::ReadWrite => true,
         }

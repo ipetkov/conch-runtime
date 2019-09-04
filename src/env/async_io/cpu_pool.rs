@@ -76,36 +76,28 @@ impl ThreadPoolAsyncIoEnv {
         let cpu = self.pool.spawn_fn(move || {
             let mut buf_reader = BufReader::new(fd.borrow());
 
-            loop {
-                let num_consumed = match buf_reader.fill_buf() {
-                    Ok(filled_buf) => {
-                        if filled_buf.is_empty() {
-                            break;
-                        }
+            // We explicitly do not handle WouldBlock errors here,
+            // and propagate them to the caller. We expect blocking
+            // descriptors to be provided to us (NB we can't enforce
+            // this after the fact on Windows), so if we constantly
+            // loop on WouldBlock errors we would burn a lot of CPU
+            // so it's best to return an explicit error.
+            while let Ok(filled_buf) = buf_reader.fill_buf() {
+                if filled_buf.is_empty() {
+                    break;
+                }
 
-                        // FIXME: might be more efficient to pass around the same vec
-                        // via two channels than allocating new copies each time?
-                        let buf = Vec::from(filled_buf);
-                        let len = buf.len();
+                // FIXME: might be more efficient to pass around the same vec
+                // via two channels than allocating new copies each time?
+                let buf = Vec::from(filled_buf);
+                let len = buf.len();
 
-                        match tx.send(buf).wait() {
-                            Ok(t) => tx = t,
-                            Err(_) => break,
-                        }
-
-                        len
-                    }
-
-                    // We explicitly do not handle WouldBlock errors here,
-                    // and propagate them to the caller. We expect blocking
-                    // descriptors to be provided to us (NB we can't enforce
-                    // this after the fact on Windows), so if we constantly
-                    // loop on WouldBlock errors we would burn a lot of CPU
-                    // so it's best to return an explicit error.
+                match tx.send(buf).wait() {
+                    Ok(t) => tx = t,
                     Err(_) => break,
-                };
+                }
 
-                buf_reader.consume(num_consumed);
+                buf_reader.consume(len);
             }
 
             Ok(())

@@ -86,8 +86,8 @@ where
     assert_eq!(final_cwd.to_string_lossy(), &***pwd);
 
     CdResult {
-        initial_cwd: initial_cwd,
-        final_cwd: final_cwd,
+        initial_cwd,
+        final_cwd,
         out: String::from_utf8(out).expect("out invalid utf8"),
         err: String::from_utf8(err).expect("err invalid utf8"),
         status: exit,

@@ -56,7 +56,7 @@ impl From<File> for FileDesc {
 impl RawIo {
     /// Takes ownership of and wraps an OS file descriptor.
     pub unsafe fn new(fd: RawFd) -> Self {
-        RawIo { fd: fd }
+        RawIo { fd }
     }
 
     /// Unwraps the underlying file descriptor and transfers ownership to the caller.

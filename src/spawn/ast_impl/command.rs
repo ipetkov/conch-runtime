@@ -34,7 +34,7 @@ where
             ast::Command::List(cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
-        Command { inner: inner }
+        Command { inner }
     }
 }
 
@@ -54,7 +54,7 @@ where
             ast::Command::List(ref cmd) => Inner::Pending(cmd.spawn(env)),
         };
 
-        Command { inner: inner }
+        Command { inner }
     }
 }
 

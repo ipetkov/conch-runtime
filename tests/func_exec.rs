@@ -50,7 +50,7 @@ struct MockCmdWrapper {
 fn mock_wrapper(cmd: MockCmd) -> Rc<MockCmdWrapper> {
     Rc::new(MockCmdWrapper {
         has_checked: false,
-        cmd: cmd,
+        cmd,
     })
 }
 

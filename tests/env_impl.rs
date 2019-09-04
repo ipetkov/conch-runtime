@@ -15,7 +15,7 @@ fn is_interactive() {
     lp.run(lazy(|| {
         for &interactive in &[true, false] {
             let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
-                interactive: interactive,
+                interactive,
                 ..DefaultEnvConfigRc::new(handle.clone(), Some(1)).unwrap()
             });
             assert_eq!(env.is_interactive(), interactive);

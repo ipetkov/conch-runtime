@@ -35,9 +35,9 @@ impl<O, S, A> FileDescManagerEnv<O, S, A> {
     /// Create a new environment using specific opener/storer/async implementations.
     pub fn new(opener: O, storer: S, async_env: A) -> Self {
         Self {
-            opener: opener,
-            storer: storer,
-            async_env: async_env,
+            opener,
+            storer,
+            async_env,
         }
     }
 }

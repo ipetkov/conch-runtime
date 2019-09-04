@@ -21,7 +21,7 @@ impl<F> InvertStatus<F> {
     /// Creates a new inversion wrapper as specified.
     pub fn new(invert_status: bool, future: F) -> Self {
         InvertStatus {
-            invert_status: invert_status,
+            invert_status,
             inner: future,
         }
     }

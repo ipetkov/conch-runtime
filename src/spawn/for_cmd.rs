@@ -38,15 +38,15 @@ where
             Kind::Word {
                 values: Vec::with_capacity(hi.unwrap_or(lo)),
                 current: None,
-                words: words,
+                words,
                 name: Some(name.into()),
-                body: body,
+                body,
             }
         }
         None => Kind::Loop(for_args(name, body, env)),
     };
 
-    For { kind: kind }
+    For { kind }
 }
 
 /// Spawns a `for` loop with the environment's currently set arguments.
@@ -66,7 +66,7 @@ where
 {
     let args = env
         .args()
-        .into_iter()
+        .iter()
         .cloned()
         .map(E::Var::from)
         .collect::<Vec<_>>();
@@ -92,7 +92,7 @@ where
     ForArgs {
         name: Some(name.into()),
         args: args.into_iter().peekable(),
-        body: body,
+        body,
         state: None,
     }
 }
@@ -120,7 +120,7 @@ where
     S: SpawnRef<E>,
     E: VariableEnvironment,
 {
-    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+    #[allow(clippy::type_complexity)]
     kind: ForKind<E::Var, I, <I::Item as WordEval<E>>::EvalFuture, E::VarName, S, E>,
 }
 
@@ -201,7 +201,9 @@ where
             Kind::Word {
                 ref mut current, ..
             } => {
-                current.as_mut().map(|f| f.cancel(env));
+                if let Some(f) = current.as_mut() {
+                    f.cancel(env)
+                };
             }
             Kind::Loop(ref mut l) => l.cancel(env),
         }
@@ -322,9 +324,11 @@ where
     }
 
     fn cancel(&mut self, env: &mut E) {
-        self.state.as_mut().map(|state| match *state {
-            State::Init(ref mut f) => f.cancel(env),
-            State::Last(ref mut f) => f.cancel(env),
-        });
+        if let Some(state) = self.state.as_mut() {
+            match state {
+                State::Init(ref mut f) => f.cancel(env),
+                State::Last(ref mut f) => f.cancel(env),
+            }
+        };
     }
 }

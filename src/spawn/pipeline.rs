@@ -86,7 +86,7 @@ impl<F: Future> PipelineInner<F> {
         PipelineInner {
             last: LastState::Pending(pipeline.pop().expect("cannot create an empty pipeline")),
             buffer: Vec::with_capacity(pipeline.len()),
-            pipeline: pipeline,
+            pipeline,
         }
     }
 
@@ -195,7 +195,7 @@ where
         }
     };
 
-    Ok(Pipeline { state: state })
+    Ok(Pipeline { state })
 }
 
 impl<S, E> EnvFuture<E> for Pipeline<S, E>

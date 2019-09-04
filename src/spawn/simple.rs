@@ -118,9 +118,10 @@ where
     E::Fn: Spawn<E>,
 {
     Init(Option<(IV, IW, RR, VR)>),
-    #[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+    #[allow(clippy::type_complexity)]
     Eval(EvalState<R, V, W, VarsIter<R, V, W, IV>, PeekedWords<R, W, IW>, E, RR, VR>),
     Func(Option<(RR, VR)>, Function<E::Fn, E>),
+    #[allow(clippy::type_complexity)]
     Builtin(<<E::Builtin as BuiltinUtility<IntoIter<W::EvalResult>, RR, VR>>::PreparedBuiltin as Spawn<E>>::EnvFuture),
     Gone,
 }
@@ -233,6 +234,7 @@ enum SpawnedState<C, F, B> {
 
 /// Spawns a shell command (or function) after applying any redirects and
 /// environment variable assignments.
+#[allow(clippy::type_complexity)]
 pub fn simple_command<R, V, W, IV, IW, E: ?Sized>(vars: IV, words: IW, env: &E)
     -> SimpleCommand<R, V, W, IV::IntoIter, IW::IntoIter, E, RedirectRestorer<E>, VarRestorer<E>>
     where IV: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
@@ -575,16 +577,16 @@ where
                 Ok(fdes) => Ok(Some(fdes)),
                 Err(err) => {
                     let msg = format!("file descriptor {}", fd);
-                    return Err(Either::B(RedirectionError::Io(err, Some(msg))));
+                    Err(Either::B(RedirectionError::Io(err, Some(msg))))
                 }
             },
         }
     };
 
     let data = ExecutableData {
-        name: name,
-        args: args,
-        env_vars: env_vars,
+        name,
+        args,
+        env_vars,
         current_dir: Cow::Owned(env.current_working_dir().to_owned()),
         stdin: get_io(STDIN_FILENO)?,
         stdout: get_io(STDOUT_FILENO)?,
@@ -632,7 +634,9 @@ where
                         Ok(Async::Ready(ret)) => ret,
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
                         Err(e) => {
-                            var_restorer.take().as_mut().map(|vr| vr.restore(env));
+                            if let Some(vr) = var_restorer.take().as_mut() {
+                                vr.restore(env)
+                            };
                             return Err(e.into());
                         }
                     };

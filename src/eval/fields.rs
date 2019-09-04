@@ -52,7 +52,7 @@ impl<T: StringWrapper> Fields<T> {
             Fields::At(v) | Fields::Star(v) | Fields::Split(v) => v
                 .iter()
                 .map(StringWrapper::as_str)
-                .filter_map(|s| if s.is_empty() { None } else { Some(s) })
+                .filter(|s| !s.is_empty())
                 .collect::<Vec<&str>>()
                 .join(" ")
                 .into(),
