@@ -1,6 +1,7 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_runtime;
+use conch_runtime;
 
 use conch_runtime::env::{VarEnv, VariableEnvironment};
 use conch_runtime::eval::{assign, Fields, ParamEval, TildeExpansion, WordEvalConfig};

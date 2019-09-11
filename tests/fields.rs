@@ -1,4 +1,4 @@
-extern crate conch_runtime;
+#![deny(rust_2018_idioms)]
 
 use conch_runtime::env::{UnsetVariableEnvironment, VarEnv, VariableEnvironment};
 use conch_runtime::eval::Fields::*;

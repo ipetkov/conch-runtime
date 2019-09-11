@@ -1,7 +1,4 @@
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
+#![deny(rust_2018_idioms)]
 
 use conch_runtime::env::{AsyncIoEnvironment, ThreadPoolAsyncIoEnv};
 use conch_runtime::io::Pipe;

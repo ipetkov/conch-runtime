@@ -1,3 +1,4 @@
+#![deny(rust_2018_idioms)]
 extern crate conch_runtime as runtime;
 
 use crate::runtime::future::{Async, EnvFuture, Poll};

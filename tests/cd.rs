@@ -1,8 +1,9 @@
-extern crate conch_runtime;
-extern crate futures;
-extern crate tempdir;
-extern crate tokio_io;
-extern crate void;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
+use tempdir;
+use tokio_io;
+use void;
 
 use conch_runtime::io::Permissions;
 use futures::future::{poll_fn, Future};

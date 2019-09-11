@@ -1,3 +1,4 @@
+#![deny(rust_2018_idioms)]
 mod support;
 pub use self::support::spawn::builtin::colon;
 pub use self::support::*;

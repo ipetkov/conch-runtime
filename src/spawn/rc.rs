@@ -29,7 +29,7 @@ macro_rules! impl_spawn {
             #[allow(unused_qualifications)]
             pub mod $rental_mod_name {
                 use super::{State, $Rc};
-                use spawn::SpawnBoxed;
+                use crate::spawn::SpawnBoxed;
 
                 // It's pretty unfortunate that the environment type has to be
                 // 'static which is a current limitation in the `rental` crate. I toyed with

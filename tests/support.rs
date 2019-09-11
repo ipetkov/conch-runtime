@@ -1,9 +1,10 @@
-extern crate conch_runtime;
-extern crate failure;
-extern crate futures;
-extern crate tempdir;
-extern crate tokio_core;
-extern crate void;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use failure;
+use futures;
+use tempdir;
+use tokio_core;
+use void;
 
 use self::conch_runtime::error::IsFatalError;
 use self::conch_runtime::STDOUT_FILENO;
@@ -110,7 +111,7 @@ impl self::conch_runtime::error::IsFatalError for MockErr {
 }
 
 impl ::std::fmt::Display for MockErr {
-    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         write!(
             fmt,
             "mock {}fatal error",
@@ -354,7 +355,7 @@ pub enum MockParam {
 }
 
 impl ::std::fmt::Display for MockParam {
-    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         write!(fmt, "MockParam")
     }
 }

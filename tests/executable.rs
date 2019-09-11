@@ -1,7 +1,8 @@
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
+use tokio_core;
+use tokio_io;
 
 use conch_runtime::io::FileDescWrapper;
 use futures::future::{lazy, Future};

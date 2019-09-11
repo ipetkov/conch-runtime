@@ -1,5 +1,6 @@
-extern crate conch_runtime;
-extern crate futures;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
 
 use conch_runtime::spawn::swallow_non_fatal_errors;
 use futures::future::result;

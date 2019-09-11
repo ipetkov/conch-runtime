@@ -1,4 +1,5 @@
-extern crate futures;
+#![deny(rust_2018_idioms)]
+use futures;
 
 use futures::future::poll_fn;
 use std::rc::Rc;

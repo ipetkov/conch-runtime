@@ -1,4 +1,5 @@
-extern crate conch_runtime;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
 
 use conch_runtime::error::IsFatalError;
 use conch_runtime::spawn::substitution;

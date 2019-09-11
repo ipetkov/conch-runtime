@@ -1,8 +1,8 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_parser;
-extern crate conch_runtime;
-extern crate futures;
+use conch_runtime;
+use futures;
 
 use conch_parser::ast::CompoundCommand;
 use conch_runtime::io::{FileDesc, Permissions};
@@ -102,7 +102,7 @@ impl VariableEnvironment for MockEnv {
         self.var_env.set_var(name, val);
     }
 
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
         self.var_env.env_vars()
     }
 }

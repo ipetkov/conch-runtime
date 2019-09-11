@@ -1,5 +1,6 @@
-extern crate conch_runtime;
-extern crate futures;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
 
 use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;

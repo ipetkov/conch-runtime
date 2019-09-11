@@ -1,5 +1,6 @@
-extern crate conch_runtime;
-extern crate futures;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
 
 mod support;
 pub use self::support::*;

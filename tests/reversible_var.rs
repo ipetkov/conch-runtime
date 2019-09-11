@@ -1,4 +1,4 @@
-extern crate conch_runtime;
+#![deny(rust_2018_idioms)]
 
 use conch_runtime::env::{
     ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VarEnvRestorer, VarRestorer,

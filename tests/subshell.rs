@@ -1,6 +1,7 @@
-extern crate conch_runtime;
-extern crate futures;
-extern crate void;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
+use void;
 
 use void::Void;
 

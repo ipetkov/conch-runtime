@@ -1,7 +1,7 @@
+#![deny(rust_2018_idioms)]
 #![cfg(all(feature = "conch-parser", feature = "top-level"))]
 
-extern crate conch_parser;
-extern crate conch_runtime;
+use conch_runtime;
 
 use conch_parser::ast;
 use std::rc::Rc;

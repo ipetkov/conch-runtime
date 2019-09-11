@@ -1,7 +1,7 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_parser;
-extern crate tokio_core;
+use tokio_core;
 
 use conch_parser::ast::ParameterSubstitution::*;
 use conch_parser::ast::{Arithmetic, ParameterSubstitution};

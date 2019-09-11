@@ -1,8 +1,5 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
-
-extern crate conch_parser;
-extern crate conch_runtime;
-extern crate tokio_core;
 
 use conch_parser::ast::Parameter::*;
 use conch_runtime::env::{

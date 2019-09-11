@@ -1,9 +1,9 @@
+#![deny(rust_2018_idioms)]
 #![cfg(unix)]
 
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
+use conch_runtime;
+use futures;
+use tokio_core;
 
 #[macro_use]
 mod support;

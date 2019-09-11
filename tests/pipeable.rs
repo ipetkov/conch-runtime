@@ -1,7 +1,7 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_parser;
-extern crate conch_runtime;
+use conch_runtime;
 
 use conch_parser::ast::PipeableCommand;
 use conch_parser::ast::PipeableCommand::*;

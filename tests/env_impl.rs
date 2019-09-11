@@ -1,4 +1,5 @@
-extern crate futures;
+#![deny(rust_2018_idioms)]
+use futures;
 
 use futures::future::lazy;
 use std::borrow::Cow;

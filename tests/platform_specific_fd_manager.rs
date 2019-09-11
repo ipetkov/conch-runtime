@@ -1,7 +1,6 @@
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
+#![deny(rust_2018_idioms)]
+
+use futures;
 
 use conch_runtime::env::atomic;
 use conch_runtime::env::{FileDescManagerEnvironment, PlatformSpecificFileDescManagerEnv};

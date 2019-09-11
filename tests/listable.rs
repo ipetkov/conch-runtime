@@ -1,8 +1,9 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
 extern crate conch_parser as syntax;
 extern crate conch_runtime as runtime;
-extern crate futures;
+use futures;
 
 use crate::runtime::io::{FileDescWrapper, Permissions};
 use crate::runtime::{STDIN_FILENO, STDOUT_FILENO};

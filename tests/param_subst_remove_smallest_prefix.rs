@@ -1,6 +1,7 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_runtime;
+use conch_runtime;
 
 use conch_runtime::eval::{remove_smallest_prefix, Fields};
 

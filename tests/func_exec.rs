@@ -1,6 +1,7 @@
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
+#![deny(rust_2018_idioms)]
+use conch_runtime;
+use futures;
+use tokio_core;
 
 use conch_runtime::spawn::{function, BoxSpawnEnvFuture, BoxStatusFuture};
 use futures::future::{poll_fn, FutureResult};

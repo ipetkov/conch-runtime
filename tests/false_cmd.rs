@@ -1,3 +1,4 @@
+#![deny(rust_2018_idioms)]
 mod support;
 pub use self::support::spawn::builtin::false_cmd;
 pub use self::support::*;

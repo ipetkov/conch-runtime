@@ -1,10 +1,10 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_parser;
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
+use conch_runtime;
+use futures;
+use tokio_core;
+use tokio_io;
 
 use conch_parser::ast::Redirect;
 use conch_parser::ast::Redirect::*;

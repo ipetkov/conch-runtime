@@ -1,10 +1,10 @@
-#[cfg(feature = "conch-parser")]
-extern crate conch_parser;
-extern crate conch_runtime;
-extern crate futures;
-extern crate tokio_core;
-extern crate tokio_io;
-extern crate void;
+#![deny(rust_2018_idioms)]
+
+use conch_runtime;
+use futures;
+use tokio_core;
+use tokio_io;
+use void;
 
 use conch_runtime::env::builtin::{Builtin as RealBuiltin, BuiltinEnvironment, BuiltinUtility};
 use conch_runtime::env::FileDescEnvironment;

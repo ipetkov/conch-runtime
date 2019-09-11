@@ -1,5 +1,6 @@
+#![deny(rust_2018_idioms)]
 extern crate conch_runtime as runtime;
-extern crate futures;
+use futures;
 
 use crate::runtime::future::EnvFuture;
 use futures::Future;

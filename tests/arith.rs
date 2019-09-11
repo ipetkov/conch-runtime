@@ -1,7 +1,5 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
-
-extern crate conch_parser;
-extern crate conch_runtime;
 
 use conch_parser::ast::Arithmetic;
 use conch_runtime::env::{VarEnv, VariableEnvironment};

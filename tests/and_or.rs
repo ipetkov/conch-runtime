@@ -1,3 +1,4 @@
+#![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
 extern crate conch_parser as syntax;
