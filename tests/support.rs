@@ -1,31 +1,25 @@
 #![deny(rust_2018_idioms)]
-use conch_runtime;
-use failure;
-use futures;
-use tempdir;
-use tokio_core;
-use void;
 
-use self::conch_runtime::error::IsFatalError;
-use self::conch_runtime::STDOUT_FILENO;
-use self::futures::future::result as future_result;
-use self::futures::future::FutureResult;
-use self::tempdir::TempDir;
-use self::void::{unreachable, Void};
+use conch_runtime::error::IsFatalError;
+use conch_runtime::STDOUT_FILENO;
+use futures::future::result as future_result;
+use futures::future::FutureResult;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::Arc;
+use tempfile::TempDir;
+use void::{unreachable, Void};
 
 // Convenience re-exports
-pub use self::conch_runtime::env::{self, *};
-pub use self::conch_runtime::error::*;
-pub use self::conch_runtime::eval::*;
-pub use self::conch_runtime::future::*;
-pub use self::conch_runtime::path::*;
-pub use self::conch_runtime::spawn::{self, *};
-pub use self::conch_runtime::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS};
-pub use self::futures::{Async, Future, Poll};
-pub use self::tokio_core::reactor::Core;
+pub use conch_runtime::env::{self, *};
+pub use conch_runtime::error::*;
+pub use conch_runtime::eval::*;
+pub use conch_runtime::future::*;
+pub use conch_runtime::path::*;
+pub use conch_runtime::spawn::{self, *};
+pub use conch_runtime::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS};
+pub use futures::{Async, Future, Poll};
+pub use tokio_core::reactor::Core;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[macro_export]
@@ -43,11 +37,17 @@ macro_rules! mktmp {
 }
 
 pub fn mktmp_impl(path: &str) -> TempDir {
-    if cfg!(windows) {
-        TempDir::new(&path.replace(":", "_")).unwrap()
-    } else {
-        TempDir::new(path).unwrap()
-    }
+    let mut builder = tempfile::Builder::new();
+
+    #[cfg(windows)]
+    builder.prefix(&path.replace(":", "_"));
+    #[cfg(not(windows))]
+    builder.prefix(path);
+
+    builder
+        .prefix(path)
+        .tempdir()
+        .expect("tempdir creation failed")
 }
 
 #[macro_export]
@@ -99,7 +99,7 @@ impl failure::Fail for MockErr {
     }
 }
 
-impl self::conch_runtime::error::IsFatalError for MockErr {
+impl conch_runtime::error::IsFatalError for MockErr {
     fn is_fatal(&self) -> bool {
         match *self {
             MockErr::Fatal(fatal) => fatal,

@@ -1,10 +1,4 @@
 #![deny(rust_2018_idioms)]
-use conch_runtime;
-use futures;
-use tempdir;
-use tokio_io;
-use void;
-
 use conch_runtime::io::Permissions;
 use futures::future::{poll_fn, Future};
 use std::borrow::Cow;
@@ -141,7 +135,7 @@ fn logical_relative() {
     assert_eq!(result.final_cwd, input);
 }
 
-fn make_symlink_and_get_sym_input(tempdir: &tempdir::TempDir) -> PathBuf {
+fn make_symlink_and_get_sym_input(tempdir: &tempfile::TempDir) -> PathBuf {
     let tempdir_path = tempdir
         .path()
         .canonicalize()

@@ -51,8 +51,8 @@ features = [
 ]
 
 [dev-dependencies]
-owned_chars = ">=0.2.1, <=0.3"
-tempdir = "0.3"
+owned_chars = "0.3"
+tempfile = "3.1"
 
 [badges]
 travis-ci = { repository = "ipetkov/conch-runtime" }
