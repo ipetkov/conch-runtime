@@ -42,32 +42,12 @@
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]
 
-// Unix only libs
-#[cfg(unix)]
-extern crate libc;
-
-// Windows only libs
-#[cfg(windows)]
-extern crate winapi;
-
-extern crate clap;
-#[cfg(feature = "conch-parser")]
-extern crate conch_parser;
 #[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate futures;
-extern crate futures_cpupool;
-extern crate glob;
-#[macro_use]
-extern crate lazy_static;
-extern crate mio;
 #[macro_use]
 extern crate rental;
-extern crate tokio_core;
-extern crate tokio_io;
-extern crate tokio_process;
-extern crate void;
 
 #[macro_use]
 pub mod error;
@@ -111,7 +91,7 @@ pub const STDOUT_FILENO: Fd = 1;
 /// File descriptor for standard error.
 pub const STDERR_FILENO: Fd = 2;
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref HOME: String = { String::from("HOME") };
 }
 

@@ -3,7 +3,7 @@ use crate::IFS_DEFAULT;
 use std::borrow::Borrow;
 use std::vec;
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref IFS: String = { String::from("IFS") };
 }
 

@@ -79,7 +79,7 @@ macro_rules! impl_trivial_builtin_cmd {
         impl<E: ?Sized> $crate::Spawn<E> for $Cmd {
             type EnvFuture = $Future;
             type Future = $crate::ExitStatus;
-            type Error = $crate::void::Void;
+            type Error = void::Void;
 
             fn spawn(self, _env: &E) -> Self::EnvFuture {
                 $Future
@@ -88,7 +88,7 @@ macro_rules! impl_trivial_builtin_cmd {
 
         impl<E: ?Sized> $crate::future::EnvFuture<E> for $Future {
             type Item = $crate::ExitStatus;
-            type Error = $crate::void::Void;
+            type Error = void::Void;
 
             fn poll(&mut self, _env: &mut E) -> $crate::future::Poll<Self::Item, Self::Error> {
                 Ok($crate::future::Async::Ready($exit))
@@ -156,7 +156,8 @@ macro_rules! impl_generic_builtin_cmd_no_spawn {
             where W: $crate::futures::Future
         {
             type Item = $crate::ExitStatus;
-            type Error = $crate::void::Void;
+            #[allow(unused_qualifications)]
+            type Error = void::Void;
 
             fn poll(&mut self) -> $crate::future::Poll<Self::Item, Self::Error> {
                 self.inner.poll()
@@ -240,7 +241,8 @@ macro_rules! impl_generic_builtin_cmd {
         {
             type EnvFuture = $SpawnedFuture<I>;
             type Future = $crate::spawn::ExitResult<$Future<E::WriteAll>>;
-            type Error = $crate::void::Void;
+            #[allow(unused_qualifications)]
+            type Error = void::Void;
 
             fn spawn(self, _env: &E) -> Self::EnvFuture {
                 $SpawnedFuture {

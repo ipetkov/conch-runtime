@@ -32,7 +32,7 @@ If the specified argument is neither an absolute path, nor begins with ./ or
 discovered using an alternative directory name from $CDPATH, the new working
 directory will be printed to standard output.";
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref CDPATH: String = { String::from("CDPATH") };
     static ref OLDPWD: String = { String::from("OLDPWD") };
 }
