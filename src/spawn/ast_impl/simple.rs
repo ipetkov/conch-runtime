@@ -31,9 +31,10 @@ pub type SimpleCommandEnvFuture<R, V, W, E> = SimpleCommand<
 impl<V, W, R, S, B, PB, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
 where
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: From<RedirectionError>,
+    R::Error: Fail + From<RedirectionError>,
     V: Hash + Eq + Borrow<String>,
     W: WordEval<E>,
+    W::Error: Fail,
     S: Clone + Spawn<E>,
     S::Error: From<CommandError>
         + From<RedirectionError>
@@ -91,9 +92,10 @@ where
 impl<'a, V, W, R, S, B, PB, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
 where
     &'a R: RedirectEval<E, Handle = E::FileHandle>,
-    <&'a R as RedirectEval<E>>::Error: From<RedirectionError>,
+    <&'a R as RedirectEval<E>>::Error: Fail + From<RedirectionError>,
     V: Hash + Eq + Borrow<String> + Clone,
     &'a W: WordEval<E>,
+    <&'a W as WordEval<E>>::Error: Fail,
     S: Clone + Spawn<E>,
     S::Error: From<CommandError>
         + From<RedirectionError>

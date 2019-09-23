@@ -6,6 +6,7 @@ use crate::error::{IsFatalError, RedirectionError};
 use crate::eval::{Assignment, RedirectEval, WordEval};
 use crate::future::{Async, EnvFuture, Poll};
 use crate::{CANCELLED_TWICE, POLLED_TWICE};
+use failure::Fail;
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
@@ -26,7 +27,7 @@ pub enum RedirectOrVarAssig<R, V, W> {
 
 /// An error which may arise when evaluating a redirect or a variable assignment.
 #[derive(Debug, Clone, PartialEq, Eq, Fail)]
-pub enum EvalRedirectOrVarAssigError<R, V> {
+pub enum EvalRedirectOrVarAssigError<R: Fail, V: Fail> {
     /// A redirect error occured.
     #[fail(display = "{}", _0)]
     Redirect(#[cause] R),
@@ -170,9 +171,10 @@ impl<R, V, W, I, E: ?Sized, RR, VR> EnvFuture<E> for EvalRedirectOrVarAssig<R, V
 where
     I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: From<RedirectionError>,
+    R::Error: Fail + From<RedirectionError>,
     V: Hash + Eq,
     W: WordEval<E>,
+    W::Error: Fail,
     E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener + VariableEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
     E::IoHandle: From<E::FileHandle>,

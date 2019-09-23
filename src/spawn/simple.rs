@@ -18,7 +18,7 @@ use crate::{
     ExitStatus, Fd, CANCELLED_TWICE, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR,
     EXIT_SUCCESS, POLLED_TWICE, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
 };
-use failure::Fail;
+use failure::{AsFail, Fail};
 use futures::future::{Either, Future};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
@@ -35,7 +35,7 @@ enum RedirectOrWordError<R, V> {
     Word(V),
 }
 
-impl<R, V> From<EvalRedirectOrVarAssigError<R, V>> for RedirectOrWordError<R, V> {
+impl<R: Fail, V: Fail> From<EvalRedirectOrVarAssigError<R, V>> for RedirectOrWordError<R, V> {
     fn from(err: EvalRedirectOrVarAssigError<R, V>) -> Self {
         match err {
             EvalRedirectOrVarAssigError::Redirect(e) => RedirectOrWordError::Redirect(e),
@@ -44,7 +44,7 @@ impl<R, V> From<EvalRedirectOrVarAssigError<R, V>> for RedirectOrWordError<R, V>
     }
 }
 
-impl<R, V> From<EvalRedirectOrCmdWordError<R, V>> for RedirectOrWordError<R, V> {
+impl<R: Fail, V: Fail> From<EvalRedirectOrCmdWordError<R, V>> for RedirectOrWordError<R, V> {
     fn from(err: EvalRedirectOrCmdWordError<R, V>) -> Self {
         match err {
             EvalRedirectOrCmdWordError::Redirect(e) => RedirectOrWordError::Redirect(e),
@@ -311,9 +311,10 @@ where
     IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: From<RedirectionError>,
+    R::Error: Fail + From<RedirectionError>,
     V: Hash + Eq + Borrow<String>,
     W: WordEval<E>,
+    W::Error: Fail,
     S: Clone + Spawn<E>,
     S::Error: From<CommandError>
         + From<RedirectionError>
@@ -601,9 +602,10 @@ where
     IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: From<RedirectionError>,
+    R::Error: Fail + From<RedirectionError>,
     V: Hash + Eq,
     W: WordEval<E>,
+    W::Error: Fail,
     E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener + VariableEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
     E::IoHandle: From<E::FileHandle>,
@@ -683,7 +685,7 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.state {
             SpawnedState::Child(ref mut f) => f.poll().or_else(|e| {
-                if let Some(e) = e.root_cause().downcast_ref::<CommandError>() {
+                if let Some(e) = e.as_fail().find_root_cause().downcast_ref::<CommandError>() {
                     let status = match e {
                         CommandError::NotExecutable(_) => EXIT_CMD_NOT_EXECUTABLE,
                         CommandError::NotFound(_) => EXIT_CMD_NOT_FOUND,

@@ -5,6 +5,7 @@ use crate::error::{IsFatalError, RedirectionError};
 use crate::eval::{RedirectEval, WordEval};
 use crate::future::{Async, EnvFuture, Poll};
 use crate::{CANCELLED_TWICE, POLLED_TWICE};
+use failure::Fail;
 use std::fmt;
 use std::mem;
 
@@ -23,7 +24,7 @@ pub enum RedirectOrCmdWord<R, W> {
 
 /// An error which may arise when evaluating a redirect or a shell word.
 #[derive(Debug, Clone, PartialEq, Eq, Fail)]
-pub enum EvalRedirectOrCmdWordError<R, V> {
+pub enum EvalRedirectOrCmdWordError<R: Fail, V: Fail> {
     /// A redirect error occured.
     #[fail(display = "{}", _0)]
     Redirect(#[cause] R),
@@ -153,8 +154,9 @@ impl<R, W, I, E: ?Sized, RR> EnvFuture<E> for EvalRedirectOrCmdWord<R, W, I, E, 
 where
     I: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: From<RedirectionError>,
+    R::Error: Fail + From<RedirectionError>,
     W: WordEval<E>,
+    W::Error: Fail,
     E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
     E::FileHandle: From<E::OpenedFileHandle>,
     E::IoHandle: From<E::FileHandle>,
