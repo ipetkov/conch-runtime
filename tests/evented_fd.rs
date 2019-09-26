@@ -64,7 +64,7 @@ fn evented_is_async() {
 
     let mut lp = Core::new().expect("failed to create event loop");
     let reader = reader
-        .into_evented(&lp.handle())
+        .into_evented()
         .expect("failed to register reader with event loop");
 
     let reader = if let MaybeEventedFd::Registered(fd) = reader {
@@ -109,7 +109,7 @@ fn evented_supports_regular_files() {
     let msg = "hello\nworld\n";
 
     let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = EventedAsyncIoEnv::new(lp.handle());
+    let mut env = EventedAsyncIoEnv::new();
 
     // Test spawning directly within the event loop
     lp.run(futures::lazy(|| {

@@ -21,7 +21,7 @@ const EXECUTABLE_WITH_IO_MSG: &str = "hello\nworld!\n";
 fn spawn_executable_with_io() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
-    let mut io_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(3));
+    let mut io_env = PlatformSpecificFileDescManagerEnv::new(Some(3));
 
     let pipe_in = io_env.open_pipe().unwrap();
     let pipe_out = io_env.open_pipe().unwrap();
@@ -76,7 +76,7 @@ fn spawn_executable_with_io() {
 fn env_vars_set_from_data_without_inheriting_from_process() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
-    let mut io_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
+    let mut io_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
 
     let (status, ()) = lp
         .run(lazy(move || {
@@ -152,7 +152,7 @@ fn remote_spawn_smoke() {
 fn defines_empty_path_env_var_if_not_provided_by_caller() {
     let mut lp = Core::new().unwrap();
     let mut env = ExecEnv::new(lp.remote());
-    let mut io_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
+    let mut io_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
 
     let (status, ()) = lp
         .run(lazy(move || {

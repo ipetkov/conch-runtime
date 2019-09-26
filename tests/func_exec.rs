@@ -29,10 +29,7 @@ fn new_test_env() -> (Core, TestEnv) {
     let env = Env::with_config(
         DefaultEnvConfig::new(lp.handle(), Some(1))
             .expect("failed to create test env")
-            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(
-                lp.handle(),
-                Some(1),
-            ))
+            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(1)))
             .change_var_env(VarEnv::new())
             .change_fn_error::<MockErr>(),
     );

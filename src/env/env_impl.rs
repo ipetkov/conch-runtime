@@ -315,10 +315,8 @@ where
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
     pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        let file_desc_manager_env = PlatformSpecificFileDescManagerEnv::with_process_stdio(
-            handle.clone(),
-            fallback_num_threads,
-        )?;
+        let file_desc_manager_env =
+            PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
 
         Ok(DefaultEnvConfig {
             interactive: false,
@@ -346,10 +344,8 @@ where
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
     pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        let file_desc_manager_env = atomic::PlatformSpecificFileDescManagerEnv::with_process_stdio(
-            remote.clone(),
-            fallback_num_threads,
-        )?;
+        let file_desc_manager_env =
+            atomic::PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
 
         Ok(DefaultAtomicEnvConfig {
             interactive: false,

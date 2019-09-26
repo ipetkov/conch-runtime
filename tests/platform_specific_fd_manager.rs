@@ -11,7 +11,7 @@ use tokio_io::io::read_to_end;
 #[test]
 fn platform_specific_fd_manager_smoke() {
     let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(4));
+    let mut env = PlatformSpecificFileDescManagerEnv::new(Some(4));
 
     run_test(&mut env, &mut lp);
 }
@@ -19,7 +19,7 @@ fn platform_specific_fd_manager_smoke() {
 #[test]
 fn atomic_platform_specific_fd_manager_smoke() {
     let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = atomic::PlatformSpecificFileDescManagerEnv::new(lp.remote(), Some(4));
+    let mut env = atomic::PlatformSpecificFileDescManagerEnv::new(Some(4));
 
     run_test(&mut env, &mut lp);
 }

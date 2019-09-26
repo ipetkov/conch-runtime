@@ -30,8 +30,10 @@ lazy_static = ">=0.2, <=2"
 mio  = "0.6.2"
 rental = "0.5"
 tokio-core  = "0.1.4"
+tokio-executor  = "0.1"
 tokio-io = "0.1"
 tokio-process = "0.2"
+tokio-reactor  = "0.1"
 void = "1"
 
 [target.'cfg(unix)'.dependencies]

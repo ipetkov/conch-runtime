@@ -542,7 +542,7 @@ pub fn new_env_with_threads(threads: usize) -> (Core, DefaultEnvRc) {
 pub fn new_env_with_no_fds() -> (Core, DefaultEnvRc) {
     let lp = Core::new().expect("failed to create Core loop");
     let mut cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1)).expect("failed to create env cfg");
-    cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(lp.handle(), Some(1));
+    cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
     let env = DefaultEnvRc::with_config(cfg);
     (lp, env)
 }

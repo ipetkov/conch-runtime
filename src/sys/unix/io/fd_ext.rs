@@ -4,7 +4,7 @@ use mio::unix::EventedFd;
 use mio::{Evented, Poll, PollOpt, Ready, Token};
 use std::io::{Read, Result, Write};
 use std::os::unix::io::AsRawFd;
-use tokio_core::reactor::{Handle, PollEvented};
+use tokio_reactor::PollEvented;
 
 /// Represents an attempt to register a file descriptor with a tokio event loop.
 #[derive(Debug)]
@@ -19,26 +19,9 @@ pub enum MaybeEventedFd {
 ///
 /// To make use of this extension, make sure this trait is imported into
 /// the appropriate module.
-///
-/// ```rust,no_run
-/// extern crate conch_runtime;
-/// # extern crate tokio_core;
-///
-/// use conch_runtime::io::FileDesc;
-/// use conch_runtime::os::unix::io::FileDescExt;
-/// # use std::fs::File;
-/// # use tokio_core::reactor::Core;
-///
-/// # fn main() {
-/// let file = File::open("/dev/null").unwrap();
-/// let fd = FileDesc::from(file);
-///
-/// let core = Core::new().unwrap();
-/// fd.into_evented(&core.handle()).unwrap();
-/// # }
 /// ```
 pub trait FileDescExt {
-    /// Attempts to register the underlying primitive OS handle with a `tokio` event loop.
+    /// Attempts to register the underlying primitive OS handle the default `tokio` reactor.
     ///
     /// The resulting type is "futures" aware meaning that it is (a) nonblocking,
     /// (b) will notify the appropriate task when data is ready to be read or written
@@ -54,7 +37,7 @@ pub trait FileDescExt {
     /// event loops, and will result in an error on registration. However, since
     /// regular files can be assumed to always be ready for read/write operations,
     /// we can handle this usecase by not registering those file descriptors within tokio.
-    fn into_evented(self, handle: &Handle) -> Result<MaybeEventedFd>;
+    fn into_evented(self) -> Result<MaybeEventedFd>;
 
     /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
     ///
@@ -64,13 +47,12 @@ pub trait FileDescExt {
 }
 
 impl FileDescExt for FileDesc {
-    fn into_evented(mut self, handle: &Handle) -> Result<MaybeEventedFd> {
+    fn into_evented(mut self) -> Result<MaybeEventedFd> {
         let ret = if is_regular_file(&self)? {
             MaybeEventedFd::RegularFile(self)
         } else {
             self.set_nonblock(true)?;
-            let evented = PollEvented::new(EventedFileDesc(self), handle)?;
-            MaybeEventedFd::Registered(evented)
+            MaybeEventedFd::Registered(PollEvented::new(EventedFileDesc(self)))
         };
 
         Ok(ret)

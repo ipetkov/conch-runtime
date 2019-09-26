@@ -68,10 +68,7 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     let mut env = Env::with_config(
         DefaultEnvConfigRc::new(lp.handle(), Some(2))
             .expect("failed to create test env")
-            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(
-                lp.handle(),
-                Some(2),
-            ))
+            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(2)))
             .change_var_env(VarEnv::<String, String>::new())
             .change_working_dir_env(DummyWorkingDirEnv(cur_dir)),
     );

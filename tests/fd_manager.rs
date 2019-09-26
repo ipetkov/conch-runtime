@@ -4,37 +4,30 @@ use conch_runtime::env::{
     atomic, FileDescManagerEnvironment, FileDescOpener, PlatformSpecificFileDescManagerEnv,
 };
 use futures::future::{lazy, ok, Future};
-use tokio_core::reactor::{Core, Handle};
+use tokio_core::reactor::Core;
 use tokio_io::io::read_to_end;
 
 #[test]
 fn fd_manager() {
-    do_test(|handle| PlatformSpecificFileDescManagerEnv::new(handle, Some(4)))
+    do_test(PlatformSpecificFileDescManagerEnv::new(Some(4)));
 }
 
 #[test]
 fn fd_manager_atomic() {
-    do_test(|handle| {
-        let remote = handle.remote().clone();
-        atomic::PlatformSpecificFileDescManagerEnv::new(remote, Some(4))
-    })
+    do_test(atomic::PlatformSpecificFileDescManagerEnv::new(Some(4)));
 }
 
-fn do_test<F, E>(f: F)
+fn do_test<E>(mut env: E)
 where
-    F: FnOnce(Handle) -> E,
     E: FileDescManagerEnvironment,
     E: FileDescOpener,
 {
     let msg = "hello world";
 
     let mut lp = Core::new().expect("failed to create event loop");
-    let handle = lp.handle();
 
     let future = lp
         .run(lazy(move || {
-            let mut env = f(handle);
-
             let pipe = env.open_pipe().expect("failed to open pipe");
             let best_effort_pipe = env.open_pipe().expect("failed to open best effort pipe");
 

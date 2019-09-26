@@ -328,6 +328,7 @@ fn eval_heredoc() {
 }
 
 #[test]
+#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn apply_redirect_action() {
     let (mut lp, mut env) = new_env_with_no_fds();
 

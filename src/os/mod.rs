@@ -13,13 +13,5 @@ pub mod unix {
         pub use crate::sys::env::{
             EventedAsyncIoEnv, ManagedAsyncRead, ManagedFileDesc, ManagedWriteAll,
         };
-
-        /// A module which provides atomic implementations (which can be `Send` and
-        /// `Sync`) of the various environment interfaces.
-        pub mod atomic {
-            pub use crate::sys::env::atomic::{
-                EventedAsyncIoEnv, ManagedAsyncRead, ManagedFileDesc, ManagedWriteAll,
-            };
-        }
     }
 }
