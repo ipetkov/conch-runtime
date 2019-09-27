@@ -2,7 +2,6 @@
 
 use conch_runtime;
 use futures;
-use tokio_core;
 use tokio_io;
 use void;
 
@@ -15,7 +14,6 @@ use conch_runtime::Fd;
 use futures::future::{ok, poll_fn, FutureResult};
 use std::io;
 use std::rc::Rc;
-use tokio_core::reactor::Core;
 use void::Void;
 
 #[macro_use]
@@ -38,20 +36,17 @@ type TestEnv = TestEnvWithBuiltin<DummyBuiltinEnv>;
 
 macro_rules! new_test_env_config {
     () => {{
-        let lp = Core::new().expect("failed to create Core loop");
-        let cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1))
+        DefaultEnvConfigRc::new(Some(1))
             .expect("failed to create test env")
             .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(1)))
             .change_builtin_env(DummyBuiltinEnv)
             .change_var_env(VarEnv::new())
-            .change_fn_error::<MockErr>();
-        (lp, cfg)
+            .change_fn_error::<MockErr>()
     }};
 }
 
-fn new_test_env() -> (Core, TestEnv) {
-    let (lp, cfg) = new_test_env_config!();
-    (lp, Env::with_config(cfg))
+fn new_test_env() -> TestEnv {
+    Env::with_config(new_test_env_config!())
 }
 
 const BUILTIN_CMD: &str = "SPECIAL-BUIlTIN";
@@ -79,10 +74,10 @@ fn ast_node_smoke_test() {
     use conch_parser::ast;
 
     fn run<T: Spawn<TestEnv>>(cmd: T) -> Result<ExitStatus, T::Error> {
-        let (mut lp, env) = new_test_env();
+        let env = new_test_env();
         let future = cmd.spawn(&env).pin_env(env).flatten();
 
-        lp.run(future)
+        tokio::runtime::current_thread::block_on_all(future)
     }
 
     let key = Rc::new("key".to_owned());
@@ -147,7 +142,7 @@ fn function_smoke() {
         }
     }
 
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let key = Rc::new(KEY.to_owned());
     let fn_name = "fn_name".to_owned();
@@ -173,7 +168,7 @@ fn function_smoke() {
     );
 
     assert_eq!(
-        lp.run(poll_fn(|| future.poll(&mut env)).flatten()),
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
         Ok(EXIT)
     );
     assert_eq!(env.var(&key), None);
@@ -181,7 +176,7 @@ fn function_smoke() {
 
 #[test]
 fn should_set_executable_cwd_same_as_env() {
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let pipe = env.open_pipe().expect("failed to open pipe");
 
@@ -215,13 +210,15 @@ fn should_set_executable_cwd_same_as_env() {
         .map(move |(_, msg)| assert!(cwd.ends_with(&*String::from_utf8_lossy(&msg))))
         .map_err(|e| panic!("stdout failed: {}", e));
 
-    let status = lp.run(poll_fn(|| future.poll(&mut env)).flatten().join(stdout));
+    let status = tokio::runtime::current_thread::block_on_all(
+        poll_fn(|| future.poll(&mut env)).flatten().join(stdout),
+    );
     assert_eq!(status, Ok((EXIT_SUCCESS, ())));
 }
 
 #[test]
 fn command_redirect_and_env_var_overrides() {
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
     env.unset_var(&"SHLVL".to_owned());
     env.unset_var(&"OLDPWD".to_owned());
     env.unset_var(&"PWD".to_owned());
@@ -271,7 +268,9 @@ fn command_redirect_and_env_var_overrides() {
         })
         .map_err(|e| panic!("stdout failed: {}", e));
 
-    let status = lp.run(poll_fn(|| future.poll(&mut env)).flatten().join(stdout));
+    let status = tokio::runtime::current_thread::block_on_all(
+        poll_fn(|| future.poll(&mut env)).flatten().join(stdout),
+    );
     assert_eq!(status, Ok((EXIT_SUCCESS, ())));
 
     assert_eq!(env.file_desc(1), None);
@@ -280,7 +279,7 @@ fn command_redirect_and_env_var_overrides() {
 
 #[test]
 fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let key = Rc::new("key".to_owned());
     let key_exported = Rc::new("key_exported".to_owned());
@@ -324,7 +323,7 @@ fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
     );
 
     assert_eq!(
-        lp.run(poll_fn(|| future.poll(&mut env)).flatten()),
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
         Ok(EXIT_SUCCESS)
     );
 
@@ -339,7 +338,7 @@ fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
 
 #[test]
 fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let key = Rc::new("key".to_owned());
     let val = "val".to_owned();
@@ -365,7 +364,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match lp.run(poll_fn(|| future.poll(&mut env))) {
+        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -394,7 +393,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match lp.run(poll_fn(|| future.poll(&mut env))) {
+        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -422,7 +421,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match lp.run(poll_fn(|| future.poll(&mut env))) {
+        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -450,7 +449,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match lp.run(poll_fn(|| future.poll(&mut env))) {
+        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -461,7 +460,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
 
 #[test]
 fn should_propagate_cancel_and_restore_redirects_and_vars() {
-    let (_lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let key = Rc::new("key".to_owned());
     let val = Fields::Single("foo".to_owned());
@@ -572,7 +571,7 @@ fn builtins_should_have_lower_precedence_than_functions() {
         }
     }
 
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let fn_name = BUILTIN_CMD.to_owned();
     env.set_function(Rc::new(fn_name.clone()), Rc::new(MockFn));
@@ -586,7 +585,7 @@ fn builtins_should_have_lower_precedence_than_functions() {
     );
 
     assert_eq!(
-        lp.run(poll_fn(|| future.poll(&mut env)).flatten()),
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
         Ok(FN_EXIT)
     );
 }
@@ -726,7 +725,7 @@ fn should_pass_restorers_to_builtin_utility_if_spawned() {
         }
     }
 
-    let (mut lp, cfg) = new_test_env_config!();
+    let cfg = new_test_env_config!();
     let mut env: TestEnvWithBuiltin<MockBuiltinEnv> =
         Env::with_config(cfg.change_builtin_env(MockBuiltinEnv));
 
@@ -743,7 +742,7 @@ fn should_pass_restorers_to_builtin_utility_if_spawned() {
     );
 
     assert_eq!(
-        lp.run(poll_fn(|| future.poll(&mut env)).flatten()),
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
         Ok(BUILTIN_EXIT_STATUS)
     );
 }

@@ -3,7 +3,6 @@
 
 use conch_runtime;
 use futures;
-use tokio_core;
 use tokio_io;
 
 use conch_parser::ast::Redirect;
@@ -12,13 +11,12 @@ use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment};
 use conch_runtime::eval::{RedirectAction, RedirectEval};
 use conch_runtime::io::{FileDesc, FileDescWrapper, Permissions};
 use conch_runtime::{Fd, STDIN_FILENO, STDOUT_FILENO};
-use futures::future::poll_fn;
+use futures::future::{lazy, poll_fn};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -26,8 +24,8 @@ pub use self::support::*;
 
 macro_rules! redirect_eval {
     ($redirect:expr) => { redirect_eval!(eval, $redirect,) };
-    ($redirect:expr, $lp:expr, $env:expr) => {
-        redirect_eval!(eval_with_env, $redirect, &mut $lp, &mut $env)
+    ($redirect:expr, $env:expr) => {
+        redirect_eval!(eval_with_env, $redirect, &mut $env)
     };
     ($eval:ident, $redirect:expr, $($arg:expr),*) => {{
         let (ret_ref, ret) = eval_no_compare!($eval, $redirect, $($arg),*);
@@ -37,8 +35,8 @@ macro_rules! redirect_eval {
 }
 
 macro_rules! eval_no_compare {
-    ($redirect:expr, $lp:expr, $env:expr) => {
-        eval_no_compare!(eval_with_env, $redirect, &mut $lp, &mut $env)
+    ($redirect:expr, $env:expr) => {
+        eval_no_compare!(eval_with_env, $redirect, &mut $env)
     };
     ($eval:ident, $redirect:expr, $($arg:expr),*) => {{
         let redirect = $redirect;
@@ -49,17 +47,16 @@ macro_rules! eval_no_compare {
 }
 
 fn eval<T: RedirectEval<DefaultEnvRc>>(redirect: T) -> Result<RedirectAction<T::Handle>, T::Error> {
-    let (mut lp, mut env) = new_env();
-    eval_with_env(redirect, &mut lp, &mut env)
+    let mut env = new_env();
+    eval_with_env(redirect, &mut env)
 }
 
 fn eval_with_env<T: RedirectEval<DefaultEnvRc>>(
     redirect: T,
-    lp: &mut Core,
     env: &mut DefaultEnvRc,
 ) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut future = redirect.eval(&env);
-    lp.run(poll_fn(move || future.poll(env)))
+    tokio::runtime::current_thread::block_on_all(poll_fn(move || future.poll(env)))
 }
 
 fn test_open_redirect<F1, F2>(
@@ -73,7 +70,7 @@ fn test_open_redirect<F1, F2>(
 {
     type RA = RedirectAction<PlatformSpecificManagedHandle>;
 
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let get_file_desc = |action: RA, correct_fd, env: &mut DefaultEnvRc| {
         let action_fdes = match action {
@@ -99,19 +96,18 @@ fn test_open_redirect<F1, F2>(
 
     for &(correct_fd, ref redirect) in &cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut lp, &mut env).expect("redirect eval failed");
+        let action = eval_with_env(redirect, &mut env).expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 
     for (correct_fd, redirect) in cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut lp, &mut env).expect("redirect eval failed");
+        let action = eval_with_env(redirect, &mut env).expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn eval_read() {
     let msg = "hello world";
     let tempdir = mktmp!();
@@ -175,7 +171,6 @@ fn eval_path_is_relative_to_cwd() {
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn eval_write_and_clobber() {
     let msg = "hello world";
     let tempdir = mktmp!();
@@ -328,9 +323,8 @@ fn eval_heredoc() {
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn apply_redirect_action() {
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let fd = 0;
     assert_eq!(env.file_desc(fd), None);
@@ -346,33 +340,33 @@ fn apply_redirect_action() {
     assert_eq!(env.file_desc(fd), None);
 
     let msg = "heredoc body!";
-    RedirectAction::HereDoc(fd, msg.as_bytes().to_owned())
-        .apply(&mut env)
-        .unwrap();
+    let (_, data) = tokio::runtime::current_thread::block_on_all(lazy(|| {
+        RedirectAction::HereDoc(fd, msg.as_bytes().to_owned())
+            .apply(&mut env)
+            .unwrap();
 
-    let fdes = env
-        .file_desc(fd)
-        .map(|(fdes, perms)| {
-            assert_eq!(perms, Permissions::Read);
-            fdes.clone()
-        })
-        .expect("heredoc was not opened");
+        let fdes = env
+            .file_desc(fd)
+            .map(|(fdes, perms)| {
+                assert_eq!(perms, Permissions::Read);
+                fdes.clone()
+            })
+            .expect("heredoc was not opened");
 
-    env.close_file_desc(fd); // Drop any other copies of fdes
+        env.close_file_desc(fd); // Drop any other copies of fdes
 
-    let read = env.read_async(fdes).expect("failed to create read future");
-    let (_, data) = lp.run(tokio_io::io::read_to_end(read, vec![])).unwrap();
+        let read = env.read_async(fdes).expect("failed to create read future");
+        tokio_io::io::read_to_end(read, vec![])
+    }))
+    .unwrap();
 
     assert_eq!(data, msg.as_bytes());
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-
     for &interactive in &[true, false] {
-        let mut env_cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1)).unwrap();
+        let mut env_cfg = DefaultEnvConfigRc::new(Some(1)).unwrap();
         env_cfg.interactive = interactive;
 
         let mut env = DefaultEnvRc::with_config(env_cfg);
@@ -397,7 +391,7 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
         ];
 
         for redirect in cases {
-            let (ret_ref, ret) = eval_no_compare!(redirect.clone(), lp, env);
+            let (ret_ref, ret) = eval_no_compare!(redirect.clone(), env);
             assert!(
                 ret_ref.is_ok(),
                 "unexpected response: {:?} for {:#?}",
@@ -415,7 +409,6 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_eval_dup_close_approprately() {
     let fd = 5;
     let action = Ok(RedirectAction::Close(fd));
@@ -426,14 +419,13 @@ fn should_eval_dup_close_approprately() {
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     use crate::RedirectionError::{BadFdPerms, BadFdSrc};
 
     let fd = 42;
     let src_fd = 5;
 
-    let (mut lp, mut env) = new_env();
+    let mut env = new_env();
 
     let path = mock_word_fields(Fields::Single("foo".to_string()));
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc(
@@ -441,11 +433,11 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     ))));
     assert_eq!(env.file_desc(src_fd), None);
     assert_eq!(
-        redirect_eval!(DupRead(None, path.clone()), lp, env),
+        redirect_eval!(DupRead(None, path.clone()), env),
         err.clone()
     );
     assert_eq!(
-        redirect_eval!(DupWrite(None, path.clone()), lp, env),
+        redirect_eval!(DupWrite(None, path.clone()), env),
         err.clone()
     );
 
@@ -457,24 +449,17 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
         Permissions::Read,
     ))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Read);
-    assert_eq!(
-        redirect_eval!(DupWrite(Some(fd), path.clone()), lp, env),
-        err
-    );
+    assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone()), env), err);
 
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(
         src_fd,
         Permissions::Write,
     ))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Write);
-    assert_eq!(
-        redirect_eval!(DupRead(Some(fd), path.clone()), lp, env),
-        err
-    );
+    assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone()), env), err);
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn eval_ambiguous_path() {
     use crate::RedirectionError::Ambiguous;
 
@@ -509,7 +494,6 @@ fn eval_ambiguous_path() {
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_propagate_errors() {
     let mock_word = mock_word_error(false);
     let err = Err(MockErr::Fatal(false));
@@ -525,9 +509,8 @@ fn should_propagate_errors() {
 }
 
 #[test]
-#[cfg_attr(target_os = "macos", ignore)] // FIXME(breaking): remove this once we remove tokio-core
 fn should_propagate_cancel() {
-    let (_, mut env) = new_env();
+    let mut env = new_env();
 
     macro_rules! test_cancel_redirect {
         ($redirect:expr) => {

@@ -1,12 +1,10 @@
 #![deny(rust_2018_idioms)]
 use conch_runtime;
 use futures;
-use tokio_core;
 
 use conch_runtime::spawn::{function, BoxSpawnEnvFuture, BoxStatusFuture};
 use futures::future::{poll_fn, FutureResult};
 use std::rc::Rc;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -24,17 +22,14 @@ type TestEnv = Env<
     MockErr,
 >;
 
-fn new_test_env() -> (Core, TestEnv) {
-    let lp = Core::new().expect("failed to create Core loop");
-    let env = Env::with_config(
-        DefaultEnvConfig::new(lp.handle(), Some(1))
+fn new_test_env() -> TestEnv {
+    Env::with_config(
+        DefaultEnvConfig::new(Some(1))
             .expect("failed to create test env")
             .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(1)))
             .change_var_env(VarEnv::new())
             .change_fn_error::<MockErr>(),
-    );
-
-    (lp, env)
+    )
 }
 
 /// Wrapper around a `MockCmd` which also performs a check that
@@ -106,7 +101,7 @@ where
 
 #[test]
 fn should_restore_args_after_completion() {
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let exit = ExitStatus::Code(42);
     let fn_name = "fn_name".to_owned();
@@ -118,10 +113,9 @@ fn should_restore_args_after_completion() {
 
     let mut future =
         function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
-    let next = lp
-        .run(poll_fn(|| future.poll(&mut env)))
+    let next = tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)))
         .expect("env future failed");
-    assert_eq!(lp.run(next), Ok(exit));
+    assert_eq!(tokio::runtime::current_thread::block_on_all(next), Ok(exit));
 
     assert_eq!(env.args(), &**args);
     assert_eq!(env.is_fn_running(), false);
@@ -129,7 +123,7 @@ fn should_restore_args_after_completion() {
 
 #[test]
 fn should_propagate_errors_and_restore_args() {
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_error(false)));
@@ -139,7 +133,7 @@ fn should_propagate_errors_and_restore_args() {
 
     let mut future =
         function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
-    match lp.run(poll_fn(|| future.poll(&mut env))) {
+    match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
         Ok(_) => panic!("unexpected success"),
         Err(e) => assert_eq!(e, MockErr::Fatal(false)),
     }
@@ -150,7 +144,7 @@ fn should_propagate_errors_and_restore_args() {
 
 #[test]
 fn should_propagate_cancel_and_restore_args() {
-    let (_lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_must_cancel()));
@@ -195,7 +189,7 @@ where
 fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
     let exit = ExitStatus::Code(42);
     let fn_name = "fn name".to_owned();
-    let (mut lp, mut env) = new_test_env();
+    let mut env = new_test_env();
 
     let depth = {
         let num_calls = 3usize;
@@ -233,10 +227,9 @@ fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
 
     let mut future =
         function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
-    let next = lp
-        .run(poll_fn(|| future.poll(&mut env)))
+    let next = tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)))
         .expect("env future failed");
-    assert_eq!(lp.run(next), Ok(exit));
+    assert_eq!(tokio::runtime::current_thread::block_on_all(next), Ok(exit));
 
     assert_eq!(env.args(), &**args);
     assert_eq!(depth.get(), 0);

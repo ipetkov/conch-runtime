@@ -12,8 +12,8 @@ mod support;
 pub use self::support::*;
 
 macro_rules! run_env {
-    ($future:expr, $env:expr, $lp:expr) => {{
-        $lp.run($future.pin_env($env.sub_env()).flatten())
+    ($future:expr, $env:expr) => {{
+        tokio::runtime::current_thread::block_on_all($future.pin_env($env.sub_env()).flatten())
     }};
 }
 
@@ -60,7 +60,7 @@ impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
 
 #[test]
 fn should_run_with_appropriate_args() {
-    let (mut lp, mut env) = new_env();
+    let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("arg_foo".to_owned()),
         Rc::new("arg_bar".to_owned()),
@@ -88,7 +88,7 @@ fn should_run_with_appropriate_args() {
                 Async::NotReady => unreachable!(),
             };
 
-            let ret = lp.run(next_future);
+            let ret = tokio::runtime::current_thread::block_on_all(next_future);
             assert_eq!(ret, Ok(MOCK_EXIT));
             assert_eq!(&**env.var(&result_var).unwrap(), $value);
         }};
@@ -124,7 +124,7 @@ fn should_run_with_appropriate_args() {
 
 #[test]
 fn should_swallow_non_fatal_errors_in_body() {
-    let (mut lp, mut env) = new_env();
+    let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("arg_foo".to_owned()),
         Rc::new("arg_bar".to_owned()),
@@ -142,22 +142,22 @@ fn should_swallow_non_fatal_errors_in_body() {
         vec![&non_fatal, &cmd],
         &env,
     );
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(MOCK_EXIT));
+    assert_eq!(run_env!(for_cmd, env), Ok(MOCK_EXIT));
 
     let no_word: Option<Vec<MockWord>> = None;
     let for_cmd = for_loop(name.clone(), no_word, vec![&non_fatal, &cmd], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(MOCK_EXIT));
+    assert_eq!(run_env!(for_cmd, env), Ok(MOCK_EXIT));
 
     let for_cmd = for_args(name.clone(), vec![&non_fatal, &cmd], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(MOCK_EXIT));
+    assert_eq!(run_env!(for_cmd, env), Ok(MOCK_EXIT));
 
     let for_cmd = for_with_args(name.clone(), vec![name.clone()], vec![&non_fatal, &cmd]);
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(MOCK_EXIT));
+    assert_eq!(run_env!(for_cmd, env), Ok(MOCK_EXIT));
 }
 
 #[test]
 fn should_not_run_body_args_are_empty() {
-    let (mut lp, mut env) = new_env();
+    let mut env = new_env();
     env.set_args(Rc::new(vec![]));
 
     let should_not_run = mock_panic("must not run");
@@ -170,22 +170,22 @@ fn should_not_run_body_args_are_empty() {
         vec![&should_not_run],
         &env,
     );
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(EXIT_SUCCESS));
+    assert_eq!(run_env!(for_cmd, env), Ok(EXIT_SUCCESS));
 
     let no_word: Option<Vec<MockWord>> = None;
     let for_cmd = for_loop(name.clone(), no_word, vec![&should_not_run], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(EXIT_SUCCESS));
+    assert_eq!(run_env!(for_cmd, env), Ok(EXIT_SUCCESS));
 
     let for_cmd = for_args(name.clone(), vec![&should_not_run], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(EXIT_SUCCESS));
+    assert_eq!(run_env!(for_cmd, env), Ok(EXIT_SUCCESS));
 
     let for_cmd = for_with_args(name.clone(), vec![], vec![&should_not_run]);
-    assert_eq!(run_env!(for_cmd, env, lp), Ok(EXIT_SUCCESS));
+    assert_eq!(run_env!(for_cmd, env), Ok(EXIT_SUCCESS));
 }
 
 #[test]
 fn should_propagate_all_word_errors() {
-    let (mut lp, env) = new_env();
+    let env = new_env();
 
     let should_not_run = mock_panic("must not run");
     let name = Rc::new("name".to_owned());
@@ -196,7 +196,7 @@ fn should_propagate_all_word_errors() {
         vec![&should_not_run],
         &env,
     );
-    assert_eq!(run_env!(for_cmd, env, lp), Err(MockErr::Fatal(true)));
+    assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 
     let for_cmd = for_loop(
         name.clone(),
@@ -204,12 +204,12 @@ fn should_propagate_all_word_errors() {
         vec![&should_not_run],
         &env,
     );
-    assert_eq!(run_env!(for_cmd, env, lp), Err(MockErr::Fatal(false)));
+    assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(false)));
 }
 
 #[test]
 fn should_propagate_fatal_errors_in_body() {
-    let (mut lp, mut env) = new_env();
+    let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("foo".to_owned()),
         Rc::new("bar".to_owned()),
@@ -221,23 +221,23 @@ fn should_propagate_fatal_errors_in_body() {
     let fatal = mock_error(true);
 
     let for_cmd = for_loop(name.clone(), Some(vec![vars.clone()]), vec![&fatal], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Err(MockErr::Fatal(true)));
+    assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 
     let no_word: Option<Vec<MockWord>> = None;
     let for_cmd = for_loop(name.clone(), no_word, vec![&fatal], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Err(MockErr::Fatal(true)));
+    assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 
     let for_cmd = for_args(name.clone(), vec![&fatal], &env);
-    assert_eq!(run_env!(for_cmd, env, lp), Err(MockErr::Fatal(true)));
+    assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 
     let vars_raw = vars_raw.into_iter().map(Rc::new);
     let for_cmd = for_with_args(name.clone(), vars_raw, vec![&fatal]);
-    assert_eq!(run_env!(for_cmd, env, lp), Err(MockErr::Fatal(true)));
+    assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 }
 
 #[test]
 fn should_propagate_cancel() {
-    let (_lp, mut env) = new_env();
+    let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("foo".to_owned()),
         Rc::new("bar".to_owned()),

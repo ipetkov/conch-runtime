@@ -3,7 +3,6 @@
 
 use conch_runtime;
 use futures;
-use tokio_core;
 
 #[macro_use]
 mod support;
@@ -17,7 +16,6 @@ use std::fs::File;
 use std::io::{ErrorKind, Read, Result, Write};
 use std::thread;
 use std::time::Duration;
-use tokio_core::reactor::Core;
 use tokio_io::io::read_to_end;
 use tokio_io::AsyncRead;
 
@@ -62,7 +60,6 @@ fn evented_is_async() {
 
     let Pipe { reader, mut writer } = Pipe::new().expect("failed to create pipe");
 
-    let mut lp = Core::new().expect("failed to create event loop");
     let reader = reader
         .into_evented()
         .expect("failed to register reader with event loop");
@@ -83,10 +80,10 @@ fn evented_is_async() {
         }
     });
 
-    let (tr, data) = lp
-        .run(read_to_end(TimesRead::new(reader), vec![]))
-        .map(|(tr, data)| (tr, String::from_utf8(data).expect("invaild utf8")))
-        .expect("future did not exit successfully");
+    let (tr, data) =
+        tokio::runtime::current_thread::block_on_all(read_to_end(TimesRead::new(reader), vec![]))
+            .map(|(tr, data)| (tr, String::from_utf8(data).expect("invaild utf8")))
+            .expect("future did not exit successfully");
 
     join_handle
         .join()
@@ -108,11 +105,10 @@ fn evented_supports_regular_files() {
 
     let msg = "hello\nworld\n";
 
-    let mut lp = Core::new().expect("failed to create event loop");
     let mut env = EventedAsyncIoEnv::new();
 
     // Test spawning directly within the event loop
-    lp.run(futures::lazy(|| {
+    tokio::runtime::current_thread::block_on_all(futures::lazy(|| {
         let fd = File::create(&path)
             .map(FileDesc::from)
             .map(ManagedFileDesc::from)
@@ -130,8 +126,7 @@ fn evented_supports_regular_files() {
         .expect("failed to open file");
 
     let data = env.read_async(fd).expect("failed to get data");
-    let data = lp
-        .run(read_to_end(data, vec![]))
+    let data = tokio::runtime::current_thread::block_on_all(read_to_end(data, vec![]))
         .map(|(_, data)| String::from_utf8(data).expect("invaild utf8"))
         .expect("future did not exit successfully");
 

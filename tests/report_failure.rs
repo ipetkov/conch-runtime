@@ -3,12 +3,10 @@ use conch_runtime;
 #[macro_use]
 extern crate failure;
 use futures;
-use tokio_core;
 use tokio_io;
 
 use conch_runtime::io::Permissions;
 use conch_runtime::STDERR_FILENO;
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -20,12 +18,8 @@ struct MockErr;
 
 #[test]
 fn smoke() {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let remote = lp.remote();
-
     let future = futures::future::lazy(move || {
-        let handle = remote.handle().expect("could not get handle");
-        let mut env = DefaultEnv::<String>::new(handle, Some(2)).expect("failed to create env");
+        let mut env = DefaultEnv::<String>::new(Some(2)).expect("failed to create env");
 
         let pipe = env.open_pipe().expect("failed to open pipe");
         env.set_file_desc(STDERR_FILENO, pipe.writer, Permissions::Write);
@@ -45,5 +39,5 @@ fn smoke() {
             })
     });
 
-    lp.run(future).expect("failed to run future");
+    tokio::runtime::current_thread::block_on_all(future).expect("failed to run future");
 }

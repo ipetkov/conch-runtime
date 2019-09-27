@@ -15,7 +15,7 @@ fn run_shift(
     expected_status: ExitStatus,
 ) {
     // NB: Suppress usage dumping errors to console
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
     env.set_args(Rc::new(
         env_args_starting
             .iter()
@@ -27,9 +27,9 @@ fn run_shift(
     let shift = shift(shift_args.iter().map(|&s| s.to_owned()));
 
     let mut shift = shift.spawn(&env);
-    let exit = lp
-        .run(poll_fn(|| shift.poll(&mut env)).flatten())
-        .expect("command failed");
+    let exit =
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| shift.poll(&mut env)).flatten())
+            .expect("command failed");
 
     assert_eq!(exit, expected_status);
 
@@ -80,7 +80,7 @@ fn shift_multiple_arg_does_nothing_and_exit_with_error() {
 #[test]
 #[should_panic]
 fn polling_canceled_shift_panics() {
-    let (_, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
     let mut shift = shift(Vec::<Rc<String>>::new()).spawn(&env);
 
     shift.cancel(&mut env);

@@ -46,8 +46,10 @@ impl<E: ?Sized> EnvFuture<E> for MustCancelBridge {
 }
 
 fn eval(inner: Result<ExitStatus, MockErr>) -> Result<ExitStatus, MockErr> {
-    let (mut lp, env) = new_env();
-    lp.run(swallow_non_fatal_errors(Bridge(result(inner))).pin_env(env))
+    let env = new_env();
+    tokio::runtime::current_thread::block_on_all(
+        swallow_non_fatal_errors(Bridge(result(inner))).pin_env(env),
+    )
 }
 
 #[test]
@@ -69,7 +71,7 @@ fn should_propagate_fatal_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    let (ref _lp, ref mut env) = new_env();
+    let ref mut env = new_env();
 
     let mut future = swallow_non_fatal_errors(MustCancelBridge::new());
 

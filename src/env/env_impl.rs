@@ -13,7 +13,6 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
-use tokio_core::reactor::{Handle, Remote};
 
 use crate::env::atomic;
 use crate::env::atomic::FnEnv as AtomicFnEnv;
@@ -37,14 +36,12 @@ use crate::env::{
 ///
 /// ```
 /// # extern crate conch_runtime;
-/// # extern crate tokio_core;
 /// # use std::rc::Rc;
 /// # use conch_runtime::env::{ArgsEnv, ArgumentsEnvironment, DefaultEnvConfig, Env, EnvConfig};
 /// # fn main() {
-/// let lp = tokio_core::reactor::Core::new().unwrap();
 /// let env = Env::with_config(EnvConfig {
 ///     args_env: ArgsEnv::with_name(Rc::new(String::from("my_shell"))),
-///     .. DefaultEnvConfig::new(lp.handle(), None).expect("failed to create config")
+///     .. DefaultEnvConfig::new(None).expect("failed to create config")
 /// });
 ///
 /// assert_eq!(**env.name(), "my_shell");
@@ -240,17 +237,13 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
 ///
 /// ```no_run
 /// # extern crate conch_runtime;
-/// # extern crate tokio_core;
 /// # use std::rc::Rc;
 /// # use conch_runtime::env::DefaultEnvConfig;
 /// # fn main() {
-/// // Can be instantiated as follows
-/// let lp = tokio_core::reactor::Core::new().unwrap();
-///
 /// // Fallback to using one thread per CPU
-/// let cfg1 = DefaultEnvConfig::<Rc<String>>::new(lp.handle(), None);
+/// let cfg1 = DefaultEnvConfig::<Rc<String>>::new(None);
 /// // Fallback to specific number of threads
-/// let cfg2 = DefaultEnvConfig::<Rc<String>>::new(lp.handle(), Some(2));
+/// let cfg2 = DefaultEnvConfig::<Rc<String>>::new(Some(2));
 /// # }
 /// ```
 pub type DefaultEnvConfig<T> = EnvConfig<
@@ -275,17 +268,13 @@ pub type DefaultEnvConfigRc = DefaultEnvConfig<Rc<String>>;
 ///
 /// ```no_run
 /// # extern crate conch_runtime;
-/// # extern crate tokio_core;
 /// # use std::sync::Arc;
 /// # use conch_runtime::env::atomic::DefaultEnvConfig;
 /// # fn main() {
-/// // Can be instantiated as follows
-/// let lp = tokio_core::reactor::Core::new().unwrap();
-///
 /// // Fallback to using one thread per CPU
-/// let cfg1 = DefaultEnvConfig::<Arc<String>>::new_atomic(lp.remote(), None);
+/// let cfg1 = DefaultEnvConfig::<Arc<String>>::new_atomic(None);
 /// // Fallback to specific number of threads
-/// let cfg2 = DefaultEnvConfig::<Arc<String>>::new_atomic(lp.remote(), Some(2));
+/// let cfg2 = DefaultEnvConfig::<Arc<String>>::new_atomic(Some(2));
 /// # }
 /// ```
 pub type DefaultAtomicEnvConfig<T> = EnvConfig<
@@ -314,7 +303,7 @@ where
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> io::Result<Self> {
+    pub fn new(fallback_num_threads: Option<usize>) -> io::Result<Self> {
         let file_desc_manager_env =
             PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
 
@@ -324,7 +313,7 @@ where
             file_desc_manager_env,
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
-            exec_env: ExecEnv::new(handle.remote().clone()),
+            exec_env: ExecEnv::new(),
             working_dir_env: VirtualWorkingDirEnv::with_process_working_dir()?,
             builtin_env: BuiltinEnv::new(),
             fn_name: PhantomData,
@@ -343,7 +332,7 @@ where
     /// supported platforms. Otherwise, if the platform does not support
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
+    pub fn new_atomic(fallback_num_threads: Option<usize>) -> io::Result<Self> {
         let file_desc_manager_env =
             atomic::PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
 
@@ -353,7 +342,7 @@ where
             file_desc_manager_env,
             last_status_env: LastStatusEnv::new(),
             var_env: atomic::VarEnv::with_process_env_vars(),
-            exec_env: ExecEnv::new(remote),
+            exec_env: ExecEnv::new(),
             working_dir_env: atomic::VirtualWorkingDirEnv::with_process_working_dir()?,
             builtin_env: BuiltinEnv::new(),
             fn_name: PhantomData,
@@ -876,19 +865,15 @@ impl_env!(
 ///
 /// ```no_run
 /// # extern crate conch_runtime;
-/// # extern crate tokio_core;
 /// # use std::rc::Rc;
 /// # use conch_runtime::env::DefaultEnv;
 /// # use conch_runtime::env::DefaultEnvConfig;
 /// # fn main() {
-/// // Can be instantiated as follows
-/// let lp = tokio_core::reactor::Core::new().unwrap();
-///
 /// // Fallback to using one thread per CPU
-/// let env1 = DefaultEnv::<Rc<String>>::new(lp.handle(), None);
+/// let env1 = DefaultEnv::<Rc<String>>::new(None);
 ///
 /// // Fallback to specific number of threads
-/// let env2 = DefaultEnv::<Rc<String>>::new(lp.handle(), Some(2));
+/// let env2 = DefaultEnv::<Rc<String>>::new(Some(2));
 /// # }
 /// ```
 pub type DefaultEnv<T> = Env<
@@ -913,19 +898,15 @@ pub type DefaultEnvRc = DefaultEnv<Rc<String>>;
 ///
 /// ```no_run
 /// # extern crate conch_runtime;
-/// # extern crate tokio_core;
 /// # use std::sync::Arc;
 /// # use conch_runtime::env::atomic::DefaultEnv;
 /// # use conch_runtime::env::atomic::DefaultEnvConfig;
 /// # fn main() {
-/// // Can be instantiated as follows
-/// let lp = tokio_core::reactor::Core::new().unwrap();
-///
 /// // Fallback to using one thread per CPU
-/// let env1 = DefaultEnv::<Arc<String>>::new_atomic(lp.remote(), None);
+/// let env1 = DefaultEnv::<Arc<String>>::new_atomic(None);
 ///
 /// // Fallback to specific number of threads
-/// let env2 = DefaultEnv::<Arc<String>>::new_atomic(lp.remote(), Some(2));
+/// let env2 = DefaultEnv::<Arc<String>>::new_atomic(Some(2));
 /// # }
 /// ```
 pub type DefaultAtomicEnv<T> = AtomicEnv<
@@ -951,8 +932,8 @@ where
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
-    pub fn new(handle: Handle, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        DefaultEnvConfig::new(handle, fallback_num_threads).map(Self::with_config)
+    pub fn new(fallback_num_threads: Option<usize>) -> io::Result<Self> {
+        DefaultEnvConfig::new(fallback_num_threads).map(Self::with_config)
     }
 }
 
@@ -963,7 +944,7 @@ where
     /// Creates a new default environment.
     ///
     /// See the definition of `atomic::DefaultEnvConfig` for what configuration will be used.
-    pub fn new_atomic(remote: Remote, fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        DefaultAtomicEnvConfig::new_atomic(remote, fallback_num_threads).map(Self::with_config)
+    pub fn new_atomic(fallback_num_threads: Option<usize>) -> io::Result<Self> {
+        DefaultAtomicEnvConfig::new_atomic(fallback_num_threads).map(Self::with_config)
     }
 }

@@ -28,7 +28,7 @@ fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
 where
     for<'a> F: FnOnce(&'a mut DefaultEnvRc),
 {
-    let (mut lp, mut env) = new_env_with_threads(4);
+    let mut env = new_env_with_threads(4);
 
     let pipe_out = env.open_pipe().expect("err pipe failed");
     let pipe_err = env.open_pipe().expect("out pipe failed");
@@ -70,9 +70,9 @@ where
         })
         .map_err(|void| void::unreachable(void));
 
-    let ((_, err), (_, out), exit) = lp
-        .run(read_to_end_err.join3(read_to_end_out, cd))
-        .expect("future failed");
+    let ((_, err), (_, out), exit) =
+        tokio::runtime::current_thread::block_on_all(read_to_end_err.join3(read_to_end_out, cd))
+            .expect("future failed");
 
     let env = env.borrow();
     let final_cwd = env.current_working_dir().to_path_buf();
@@ -94,12 +94,13 @@ fn successful_if_no_stdout() {
     let tempdir = mktmp!();
     let input = tempdir.path();
 
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let args: Vec<Rc<String>> = vec![input.to_string_lossy().into_owned().into()];
     let mut cd = cd(args).spawn(&env);
 
-    let exit = lp.run(poll_fn(|| cd.poll(&mut env)).flatten());
+    let exit =
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| cd.poll(&mut env)).flatten());
     assert_eq!(exit, Ok(EXIT_SUCCESS));
     assert_eq!(env.current_working_dir(), input);
 }
@@ -325,7 +326,7 @@ fn dash_unset_old_pwd_is_error() {
 #[test]
 #[should_panic]
 fn polling_canceled_pwd_panics() {
-    let (_, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
     let mut cd = cd(Vec::<Rc<String>>::new()).spawn(&env);
 
     cd.cancel(&mut env);

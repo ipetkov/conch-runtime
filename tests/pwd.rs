@@ -64,9 +64,8 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     symlink_dir(&path_real, &path_sym).expect("failed to create symlink");
     fs::create_dir(&path_foo_sym).expect("failed to create foo");
 
-    let mut lp = Core::new().expect("failed to create core");
     let mut env = Env::with_config(
-        DefaultEnvConfigRc::new(lp.handle(), Some(2))
+        DefaultEnvConfigRc::new(Some(2))
             .expect("failed to create test env")
             .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(2)))
             .change_var_env(VarEnv::<String, String>::new())
@@ -85,16 +84,15 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     let read_to_end = env
         .read_async(pipe.reader)
         .expect("failed to get read_to_end");
-    let ((_, output), exit) = lp
-        .run(
-            tokio_io::io::read_to_end(read_to_end, Vec::new()).join(
-                pwd.spawn(&env)
-                    .pin_env(env)
-                    .flatten()
-                    .map_err(|void| void::unreachable(void)),
-            ),
-        )
-        .expect("future failed");
+    let ((_, output), exit) = tokio::runtime::current_thread::block_on_all(
+        tokio_io::io::read_to_end(read_to_end, Vec::new()).join(
+            pwd.spawn(&env)
+                .pin_env(env)
+                .flatten()
+                .map_err(|void| void::unreachable(void)),
+        ),
+    )
+    .expect("future failed");
 
     assert_eq!(exit, EXIT_SUCCESS);
 
@@ -146,16 +144,16 @@ fn last_specified_flag_wins() {
 
 #[test]
 fn successful_if_no_stdout() {
-    let (mut lp, env) = new_env_with_no_fds();
+    let env = new_env_with_no_fds();
     let pwd = pwd(Vec::<Rc<String>>::new());
-    let exit = lp.run(pwd.spawn(&env).pin_env(env).flatten());
+    let exit = tokio::runtime::current_thread::block_on_all(pwd.spawn(&env).pin_env(env).flatten());
     assert_eq!(exit, Ok(EXIT_SUCCESS));
 }
 
 #[test]
 #[should_panic]
 fn polling_canceled_pwd_panics() {
-    let (_, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
     let mut pwd = pwd(Vec::<Rc<String>>::new()).spawn(&env);
 
     pwd.cancel(&mut env);

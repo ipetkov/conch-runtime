@@ -2,15 +2,12 @@ use crate::env::SubEnvironment;
 use crate::error::CommandError;
 use crate::io::FileDesc;
 use crate::ExitStatus;
-use futures::sync::oneshot;
-use futures::{Async, Future, IntoFuture, Poll};
+use futures::{Async, Future, Poll};
 use std::borrow::Cow;
 use std::ffi::OsStr;
-use std::fmt;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::Path;
-use std::process::{self, Command, Stdio};
-use tokio_core::reactor::{Handle, Remote};
+use std::process::{Command, Stdio};
 use tokio_process::{CommandExt, StatusAsync};
 
 /// Any data required to execute a child process.
@@ -89,11 +86,9 @@ impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a mut T {
 /// > be run on the same event loop that was associated with this environment,
 /// > otherwise no progress may occur unless the associated event loop is
 /// > turned externally.
-#[derive(Clone)]
-pub struct ExecEnv {
-    /// Remote handle to a tokio event loop for spawning child processes.
-    remote: Remote,
-}
+#[derive(Clone, Debug, Default)]
+#[allow(missing_copy_implementations)]
+pub struct ExecEnv(());
 
 impl SubEnvironment for ExecEnv {
     fn sub_env(&self) -> Self {
@@ -101,22 +96,14 @@ impl SubEnvironment for ExecEnv {
     }
 }
 
-impl fmt::Debug for ExecEnv {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ExecEnv")
-            .field("remote", &self.remote.id())
-            .finish()
-    }
-}
-
 impl ExecEnv {
-    /// Construct a new environment with a `Remote` to a `tokio` event loop.
-    pub fn new(remote: Remote) -> Self {
-        ExecEnv { remote }
+    /// Construct a new environment.
+    pub fn new() -> Self {
+        Self(())
     }
 }
 
-fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> Result<StatusAsync, CommandError> {
+fn spawn_child(data: ExecutableData<'_>) -> Result<StatusAsync, CommandError> {
     let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
     let name = data.name;
@@ -136,7 +123,7 @@ fn spawn_child<'a>(data: ExecutableData<'a>, handle: &Handle) -> Result<StatusAs
         cmd.env(k, v);
     }
 
-    cmd.status_async_with_handle(handle.new_tokio_handle())
+    cmd.status_async()
         .map_err(|err| map_io_err(err, convert_to_string(name)))
 }
 
@@ -173,27 +160,9 @@ impl ExecutableEnvironment for ExecEnv {
     type ExecFuture = Child;
 
     fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
-        let inner = match self.remote.handle() {
-            Some(handle) => Inner::Child(Box::new(spawn_child(data, &handle)?)),
-            None => {
-                let (tx, rx) = oneshot::channel();
-
-                let data = data.into_owned();
-                self.remote.spawn(move |handle| {
-                    spawn_child(data, handle)
-                        .into_future()
-                        .and_then(|child| child.map_err(|err| CommandError::Io(err, None)))
-                        .then(|status| {
-                            // If receiver has hung up we'll just give up
-                            tx.send(status).map_err(|_| ())
-                        })
-                });
-
-                Inner::Remote(rx)
-            }
-        };
-
-        Ok(Child { inner })
+        Ok(Child {
+            inner: spawn_child(data)?,
+        })
     }
 }
 
@@ -203,24 +172,7 @@ impl ExecutableEnvironment for ExecEnv {
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 pub struct Child {
-    inner: Inner,
-}
-
-enum Inner {
-    // Box to lower the size of this struct and avoid a clippy warning:
-    // StatusAsync is ~300 bytes, the Receiver is ~8
-    // Plus this will avoid potential bloat with any parent futures
-    Child(Box<StatusAsync>),
-    Remote(oneshot::Receiver<Result<process::ExitStatus, CommandError>>),
-}
-
-impl fmt::Debug for Inner {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Inner::Child(ref inner) => fmt.debug_tuple("Inner::Child").field(&inner).finish(),
-            Inner::Remote(ref rx) => fmt.debug_tuple("Inner::Remote").field(rx).finish(),
-        }
-    }
+    inner: StatusAsync,
 }
 
 impl Future for Child {
@@ -228,18 +180,10 @@ impl Future for Child {
     type Error = CommandError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let result = match self.inner {
-            Inner::Child(ref mut inner) => match inner.poll() {
-                Ok(Async::Ready(status)) => Ok(status),
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(err) => Err(err),
-            },
-
-            Inner::Remote(ref mut rx) => match rx.poll() {
-                Ok(Async::Ready(status)) => Ok(status?),
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(cancelled) => Err(IoError::new(IoErrorKind::Other, cancelled)),
-            },
+        let result = match self.inner.poll() {
+            Ok(Async::Ready(status)) => Ok(status),
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Err(err) => Err(err),
         };
 
         result

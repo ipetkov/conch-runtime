@@ -85,7 +85,7 @@ fn single_command_env_changes_remain() {
     }
 
     let var = VAR.to_owned();
-    let (_lp, mut env) = new_env();
+    let mut env = new_env();
     assert_eq!(env.var(&var), None);
 
     MockCmdWithSideEffects.spawn(&env).poll(&mut env).unwrap();

@@ -16,10 +16,10 @@ where
     I::Item: Spawn<DefaultEnvRc>,
     <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
-    let (mut lp, env) = new_env();
+    let env = new_env();
     let future = sequence(cmds).pin_env(env).flatten();
 
-    lp.run(future)
+    tokio::runtime::current_thread::block_on_all(future)
 }
 
 fn run_cancel_sequence<I>(cmds: I)
@@ -28,7 +28,7 @@ where
     I::Item: Spawn<DefaultEnvRc>,
     <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
 {
-    let (_lp, mut env) = new_env();
+    let mut env = new_env();
     test_cancel!(sequence(cmds), env);
 }
 

@@ -1,11 +1,8 @@
 #![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-use tokio_core;
-
 use conch_parser::ast::ParameterSubstitution::*;
 use conch_parser::ast::{Arithmetic, ParameterSubstitution};
-use tokio_core::reactor::Core;
 
 #[macro_use]
 mod support;
@@ -95,8 +92,7 @@ fn should_propagate_errors_from_word_if_applicable() {
 
 #[test]
 fn should_propagate_cancel_if_required() {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnv::new(lp.handle(), Some(1)).expect("failed to create env");
+    let mut env = DefaultEnv::new(Some(1)).expect("failed to create env");
 
     let must_cancel = Some(mock_word_must_cancel());
 

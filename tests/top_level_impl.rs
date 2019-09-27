@@ -31,11 +31,10 @@ fn smoke() {
         rest: vec![],
     }));
 
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env = DefaultEnvRc::new(lp.handle(), Some(1)).unwrap();
+    let mut env = DefaultEnvRc::new(Some(1)).unwrap();
     env.close_file_desc(conch_runtime::STDOUT_FILENO); // NB: don't dump env vars here
 
-    assert_eq!(run!(cmd, lp, env), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(cmd, env), Ok(EXIT_SUCCESS));
 }
 
 #[test]
@@ -54,10 +53,8 @@ fn smoke_atomic() {
         rest: vec![],
     }));
 
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut env =
-        conch_runtime::env::atomic::DefaultEnvArc::new_atomic(lp.remote(), Some(1)).unwrap();
+    let mut env = conch_runtime::env::atomic::DefaultEnvArc::new_atomic(Some(1)).unwrap();
     env.close_file_desc(conch_runtime::STDOUT_FILENO); // NB: don't dump env vars here
 
-    assert_eq!(run!(cmd, lp, env), Ok(EXIT_SUCCESS));
+    assert_eq!(run!(cmd, env), Ok(EXIT_SUCCESS));
 }

@@ -5,9 +5,9 @@ pub use self::support::*;
 
 #[test]
 fn colon_smoke() {
-    let (mut lp, mut env) = new_env();
-
-    let exit = lp.run(colon().spawn(&env).pin_env(&mut env).flatten());
-
+    let mut env = new_env();
+    let exit = tokio::runtime::current_thread::block_on_all(
+        colon().spawn(&env).pin_env(&mut env).flatten(),
+    );
     assert_eq!(exit, Ok(EXIT_SUCCESS));
 }

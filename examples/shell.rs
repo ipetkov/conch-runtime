@@ -3,13 +3,6 @@
     allow(dead_code, unused_imports)
 )]
 
-#[cfg(all(feature = "conch-parser", feature = "top-level"))]
-extern crate conch_parser;
-extern crate conch_runtime;
-extern crate futures;
-extern crate owned_chars;
-extern crate tokio_core;
-
 use conch_runtime::env::{DefaultEnvConfigRc, DefaultEnvRc};
 use conch_runtime::future::EnvFuture;
 use conch_runtime::spawn::sequence;
@@ -18,7 +11,7 @@ use futures::future::{lazy, Future};
 use owned_chars::OwnedCharsExt;
 use std::io::{stderr, stdin, BufRead, BufReader, Write};
 use std::process::exit;
-use tokio_core::reactor::Core;
+use tokio::runtime::current_thread::block_on_all;
 
 #[cfg(not(all(feature = "conch-parser", feature = "top-level")))]
 fn main() {}
@@ -57,18 +50,13 @@ fn main() {
         })
     });
 
-    // Instantiate our environment and event loop for executing commands
-    let mut lp = Core::new().expect("failed to create event loop");
-    let env_config = DefaultEnvConfigRc {
+    // Instantiate our environment for executing commands
+    let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
         interactive: true,
-        ..DefaultEnvConfigRc::new(lp.handle(), None).expect("failed to create env config")
-    };
-    let env = DefaultEnvRc::with_config(env_config);
+        ..DefaultEnvConfigRc::new(None).expect("failed to create env config")
+    });
 
-    // Use a lazy future adapter here to ensure that all commands are
-    // spawned directly in the event loop, to avoid paying extra costs
-    // for sending the future into the loop's internal queue.
-    let status = lp.run(lazy(move || sequence(cmds).pin_env(env).flatten()));
+    let status = block_on_all(lazy(move || sequence(cmds).pin_env(env).flatten()));
 
     exit_with_status(status.unwrap_or(EXIT_ERROR));
 }

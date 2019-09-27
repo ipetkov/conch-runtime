@@ -39,7 +39,7 @@ fn eval(
 
 #[test]
 fn smoke() {
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
     let key_empty = Rc::new("key_empty".to_owned());
@@ -65,7 +65,8 @@ fn smoke() {
         let mut future = eval(vec![], None, &env);
 
         let (_redirect_restorer, _var_restorer) =
-            lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
+            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)))
+                .unwrap();
         assert_empty_vars(&env);
     }
 
@@ -99,7 +100,7 @@ fn smoke() {
     );
 
     let (mut redirect_restorer, mut var_restorer) =
-        lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))).unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
     redirect_restorer.restore(&mut env);
@@ -117,7 +118,7 @@ fn smoke() {
 
 #[test]
 fn should_honor_export_vars_config() {
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
     let key_existing = Rc::new("key_existing".to_owned());
@@ -164,7 +165,8 @@ fn should_honor_export_vars_config() {
         );
 
         let (_redirect_restorer, _var_restorer) =
-            lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
+            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)))
+                .unwrap();
 
         assert_eq!(env.exported_var(&key), Some((&val, new)));
         assert_eq!(env.exported_var(&key_existing), Some((&val_new, existing)));
@@ -177,7 +179,7 @@ fn should_honor_export_vars_config() {
 
 #[test]
 fn should_propagate_errors_and_restore_redirects_and_vars() {
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
 
@@ -203,7 +205,10 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
         );
 
         let err = EvalRedirectOrVarAssigError::VarAssig(MockErr::Fatal(false));
-        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
+        assert_eq!(
+            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))),
+            Err(err)
+        );
         assert_eq!(env.file_desc(1), None);
         assert_eq!(env.var(&key), None);
     }
@@ -230,7 +235,10 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
         );
 
         let err = EvalRedirectOrVarAssigError::Redirect(MockErr::Fatal(false));
-        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
+        assert_eq!(
+            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))),
+            Err(err)
+        );
         assert_eq!(env.file_desc(1), None);
         assert_eq!(env.var(&key), None);
     }
@@ -238,7 +246,7 @@ fn should_propagate_errors_and_restore_redirects_and_vars() {
 
 #[test]
 fn should_propagate_cancel_and_restore_redirects_and_vars() {
-    let (_lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     let key = Rc::new("key".to_owned());
 

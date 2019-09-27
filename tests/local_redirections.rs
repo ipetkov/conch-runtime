@@ -150,12 +150,12 @@ fn run_with_local_redirections(
     redirects: Vec<MockRedirect<PlatformSpecificManagedHandle>>,
     cmd: MockCmd,
 ) -> Result<ExitStatus, MockErr> {
-    let (mut lp, env) = new_env();
+    let env = new_env();
     let future = spawn_with_local_redirections(redirects, cmd)
         .pin_env(env)
         .flatten();
 
-    lp.run(future)
+    tokio::runtime::current_thread::block_on_all(future)
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn should_propagate_errors() {
 
 #[test]
 fn should_propagate_cancel() {
-    let (_lp, mut env) = new_env();
+    let mut env = new_env();
 
     let should_not_run = mock_panic("must not run");
 

@@ -18,9 +18,9 @@ where
     I::Item: Spawn<DefaultEnvRc>,
     <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError + From<Void>,
 {
-    let (mut lp, env) = new_env();
+    let env = new_env();
     let future = subshell(cmds, &env).flatten();
-    lp.run(future)
+    tokio::runtime::current_thread::block_on_all(future)
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn should_terminate_on_fatal_errors_but_swallow_them() {
 
 #[test]
 fn should_isolate_parent_env_from_any_changes() {
-    let (mut lp, mut env) = new_env();
+    let mut env = new_env();
 
     let original_status = ExitStatus::Code(5);
     env.set_last_status(original_status);
@@ -65,7 +65,7 @@ fn should_isolate_parent_env_from_any_changes() {
     let cmds = vec![mock_status(ExitStatus::Code(42))];
 
     let future = subshell(cmds, &env).flatten();
-    lp.run(future).expect("subshell failed");
+    tokio::runtime::current_thread::block_on_all(future).expect("subshell failed");
 
     assert_eq!(env.last_status(), original_status);
 }

@@ -13,13 +13,13 @@ pub use self::support::*;
 
 #[test]
 fn smoke() {
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     {
         let env = env.sub_env();
         let future = eval_redirects_or_cmd_words::<MockRedirect<_>, MockWord, _, _>(vec![], &env)
             .pin_env(env);
-        let (_restorer, words) = lp.run(future).unwrap();
+        let (_restorer, words) = tokio::runtime::current_thread::block_on_all(future).unwrap();
         assert!(words.is_empty());
     }
 
@@ -42,7 +42,8 @@ fn smoke() {
         &env,
     );
 
-    let (mut restorer, words) = lp.run(poll_fn(|| future.poll(&mut env))).unwrap();
+    let (mut restorer, words) =
+        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))).unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
     restorer.restore(&mut env);
@@ -56,7 +57,7 @@ fn smoke() {
 
 #[test]
 fn should_propagate_errors_and_restore_redirects() {
-    let (mut lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     {
         assert_eq!(env.file_desc(1), None);
@@ -75,7 +76,10 @@ fn should_propagate_errors_and_restore_redirects() {
         );
 
         let err = EvalRedirectOrCmdWordError::CmdWord(MockErr::Fatal(false));
-        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
+        assert_eq!(
+            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))),
+            Err(err)
+        );
         assert_eq!(env.file_desc(1), None);
     }
 
@@ -96,14 +100,17 @@ fn should_propagate_errors_and_restore_redirects() {
         );
 
         let err = EvalRedirectOrCmdWordError::Redirect(MockErr::Fatal(false));
-        assert_eq!(lp.run(poll_fn(|| future.poll(&mut env))), Err(err));
+        assert_eq!(
+            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))),
+            Err(err)
+        );
         assert_eq!(env.file_desc(1), None);
     }
 }
 
 #[test]
 fn should_propagate_cancel_and_restore_redirects() {
-    let (_lp, mut env) = new_env_with_no_fds();
+    let mut env = new_env_with_no_fds();
 
     test_cancel!(
         eval_redirects_or_cmd_words::<MockRedirect<_>, _, _, _>(

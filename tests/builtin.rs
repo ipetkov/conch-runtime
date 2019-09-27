@@ -130,7 +130,7 @@ fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
 where
     for<'a> F: FnOnce(&'a mut DefaultEnvRc),
 {
-    let (mut lp, mut env) = new_env_with_threads(2);
+    let mut env = new_env_with_threads(2);
 
     let pipe_out = env.open_pipe().expect("err pipe failed");
     env.set_file_desc(STDOUT_FILENO, pipe_out.writer, Permissions::Write);
@@ -160,7 +160,7 @@ where
             })
             .map_err(|void| void::unreachable(void));
 
-        lp.run(read_to_end_out.join(future))
+        tokio::runtime::current_thread::block_on_all(read_to_end_out.join(future))
             .map(|((_, out), exit)| (out, exit))
             .expect("future failed")
     };
@@ -173,7 +173,7 @@ where
 }
 
 fn test_cancel_impl(name: &str) {
-    let (_lp, mut env) = new_env();
+    let mut env = new_env();
 
     let args: Vec<Rc<String>> = vec![];
     let builtin = env

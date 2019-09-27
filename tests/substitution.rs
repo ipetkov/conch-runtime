@@ -14,10 +14,10 @@ where
     S: Spawn<DefaultEnvRc>,
     S::Error: IsFatalError + From<IoError>,
 {
-    let (mut lp, env) = new_env_with_threads(2);
+    let env = new_env_with_threads(2);
     let future = substitution(cmds).pin_env(env).flatten();
 
-    lp.run(future)
+    tokio::runtime::current_thread::block_on_all(future)
 }
 
 #[test]

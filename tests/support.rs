@@ -19,7 +19,6 @@ pub use conch_runtime::path::*;
 pub use conch_runtime::spawn::{self, *};
 pub use conch_runtime::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS};
 pub use futures::{Async, Future, Poll};
-pub use tokio_core::reactor::Core;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[macro_export]
@@ -528,41 +527,35 @@ impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
     }
 }
 
-pub fn new_env() -> (Core, DefaultEnvRc) {
+pub fn new_env() -> DefaultEnvRc {
     new_env_with_threads(1)
 }
 
-pub fn new_env_with_threads(threads: usize) -> (Core, DefaultEnvRc) {
-    let lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnvRc::new(lp.handle(), Some(threads)).expect("failed to create env");
-
-    (lp, env)
+pub fn new_env_with_threads(threads: usize) -> DefaultEnvRc {
+    DefaultEnvRc::new(Some(threads)).expect("failed to create env")
 }
 
-pub fn new_env_with_no_fds() -> (Core, DefaultEnvRc) {
-    let lp = Core::new().expect("failed to create Core loop");
-    let mut cfg = DefaultEnvConfigRc::new(lp.handle(), Some(1)).expect("failed to create env cfg");
+pub fn new_env_with_no_fds() -> DefaultEnvRc {
+    let mut cfg = DefaultEnvConfigRc::new(Some(1)).expect("failed to create env cfg");
     cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
-    let env = DefaultEnvRc::with_config(cfg);
-    (lp, env)
+    DefaultEnvRc::with_config(cfg)
 }
 
 #[macro_export]
 macro_rules! run {
     ($cmd:expr) => {{
-        let (lp, env) = crate::support::new_env();
-        run!($cmd, lp, env)
+        let env = crate::support::new_env();
+        run!($cmd, env)
     }};
 
-    ($cmd:expr, $lp:expr, $env:expr) => {{
-        let mut lp = $lp;
+    ($cmd:expr, $env:expr) => {{
         let env = $env;
         let cmd = $cmd;
 
         #[allow(deprecated)]
-        let ret_ref = run(&cmd, env.sub_env(), &mut lp);
+        let ret_ref = run(&cmd, env.sub_env());
         #[allow(deprecated)]
-        let ret = run(cmd, env, &mut lp);
+        let ret = run(cmd, env);
 
         assert_eq!(ret_ref, ret);
         ret
@@ -571,10 +564,10 @@ macro_rules! run {
 
 /// Spawns and syncronously runs the provided command to completion.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
-pub fn run<T: Spawn<E>, E>(cmd: T, env: E, lp: &mut Core) -> Result<ExitStatus, T::Error> {
+pub fn run<T: Spawn<E>, E>(cmd: T, env: E) -> Result<ExitStatus, T::Error> {
     let future = cmd.spawn(&env).pin_env(env).flatten();
 
-    lp.run(future)
+    tokio::runtime::current_thread::block_on_all(future)
 }
 
 #[macro_export]
@@ -597,7 +590,7 @@ macro_rules! run_cancel {
 /// propagate cancel messages results in a panic.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
 pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
-    let (_, mut env) = new_env();
+    let mut env = new_env();
     let env_future = cmd.spawn(&env);
     test_cancel_impl(env_future, &mut env);
 }
@@ -630,11 +623,10 @@ pub fn eval_word<W: WordEval<DefaultEnv<String>>>(
     cfg: WordEvalConfig,
     threads: usize,
 ) -> Result<Fields<W::EvalResult>, W::Error> {
-    let mut lp = Core::new().expect("failed to create Core loop");
-    let env = DefaultEnv::<String>::new(lp.handle(), Some(threads)).expect("failed to create env");
+    let env = DefaultEnv::<String>::new(Some(threads)).expect("failed to create env");
     let future = word.eval_with_config(&env, cfg).pin_env(env);
 
-    lp.run(future)
+    tokio::runtime::current_thread::block_on_all(future)
 }
 
 pub fn bin_path(s: &str) -> ::std::path::PathBuf {

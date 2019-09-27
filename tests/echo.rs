@@ -12,7 +12,7 @@ pub use self::support::spawn::builtin::echo;
 pub use self::support::*;
 
 fn run_echo(args: &[&str]) -> String {
-    let (mut lp, mut env) = new_env_with_threads(2);
+    let mut env = new_env_with_threads(2);
 
     let pipe = env.open_pipe().expect("pipe failed");
     env.set_file_desc(
@@ -32,7 +32,8 @@ fn run_echo(args: &[&str]) -> String {
         .flatten()
         .map_err(|void| void::unreachable(void));
 
-    let ((_, output), exit) = lp.run(read_to_end.join(echo)).expect("future failed");
+    let ((_, output), exit) = tokio::runtime::current_thread::block_on_all(read_to_end.join(echo))
+        .expect("future failed");
     assert_eq!(exit, EXIT_SUCCESS);
 
     String::from_utf8(output).expect("invalid utf8")

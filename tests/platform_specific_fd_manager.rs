@@ -5,30 +5,25 @@ use futures;
 use conch_runtime::env::atomic;
 use conch_runtime::env::{FileDescManagerEnvironment, PlatformSpecificFileDescManagerEnv};
 use futures::Future;
-use tokio_core::reactor::Core;
 use tokio_io::io::read_to_end;
 
 #[test]
 fn platform_specific_fd_manager_smoke() {
-    let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = PlatformSpecificFileDescManagerEnv::new(Some(4));
-
-    run_test(&mut env, &mut lp);
+    run_test(&mut PlatformSpecificFileDescManagerEnv::new(Some(4)));
 }
 
 #[test]
 fn atomic_platform_specific_fd_manager_smoke() {
-    let mut lp = Core::new().expect("failed to create event loop");
-    let mut env = atomic::PlatformSpecificFileDescManagerEnv::new(Some(4));
-
-    run_test(&mut env, &mut lp);
+    run_test(&mut atomic::PlatformSpecificFileDescManagerEnv::new(Some(
+        4,
+    )));
 }
 
-fn run_test<E: ?Sized + FileDescManagerEnvironment>(env: &mut E, lp: &mut Core) {
+fn run_test<E: ?Sized + FileDescManagerEnvironment>(env: &mut E) {
     let msg = "hello world";
 
-    let (_, read_msg, read_msg_best_effort) = lp
-        .run(futures::lazy(|| {
+    let (_, read_msg, read_msg_best_effort) =
+        tokio::runtime::current_thread::block_on_all(futures::lazy(|| {
             let pipe = env.open_pipe().expect("failed to create pipe");
             let best_effort_pipe = env.open_pipe().expect("failed to create pipe");
 
