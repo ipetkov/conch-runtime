@@ -36,24 +36,12 @@ matrix:
       #  - ./ci/install-kcov.sh && ./ci/coverage.sh
 
     - rust: beta
-      # FIXME: temporarily building without default features on beta as well due to rust-lang/rust#60846
-      script:
-        - cargo check --no-default-features
-          # NB: don't run with the top-level feature enabled see rust-lang/rust#60444
-        - cargo check --no-default-features --features 'conch-parser'
-          # Retry with fewer cores if the initial `cargo test` fails to work around possible OOM errors
-          # for more details see https://github.com/rust-lang/cargo/issues/4415
-        - cargo test --no-fail-fast --no-default-features --features 'conch-parser' ||
-          (
-            echo 'initial `cargo test` failed, retrying with fewer cores to work around OOM issues' &&
-            cargo test --no-fail-fast --verbose -j 1
-            cargo test --no-fail-fast --no-default-features --features 'conch-parser'
-          )
-
-    - rust: stable
-    - rust: 1.31.0
+    # FIXME: turn back on once async/await is stable
+    #- rust: stable
+    #- rust: 1.31.0
     - os: osx
-      rust: stable
+      #rust: stable
+      rust: beta
 
 branches:
   only:
