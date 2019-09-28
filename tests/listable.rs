@@ -16,21 +16,21 @@ use std::rc::Rc;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn empty_pipeline_is_noop() {
+#[tokio::test]
+async fn empty_pipeline_is_noop() {
     let list: ListableCommand<MockCmd> = ListableCommand::Pipe(false, vec![]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn single_command_propagates_status() {
+#[tokio::test]
+async fn single_command_propagates_status() {
     let exit = ExitStatus::Code(42);
     let list = ListableCommand::Single(mock_status(exit));
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn single_command_propagates_error() {
+#[tokio::test]
+async fn single_command_propagates_error() {
     let list = ListableCommand::Single(mock_error(false));
     run!(list).unwrap_err();
 
@@ -38,8 +38,8 @@ fn single_command_propagates_error() {
     run!(list).unwrap_err();
 }
 
-#[test]
-fn single_command_status_inversion() {
+#[tokio::test]
+async fn single_command_status_inversion() {
     let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_SUCCESS)]);
     assert_eq!(run!(list), Ok(EXIT_ERROR));
 
@@ -47,8 +47,8 @@ fn single_command_status_inversion() {
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn single_command_status_inversion_on_error() {
+#[tokio::test]
+async fn single_command_status_inversion_on_error() {
     let list = ListableCommand::Pipe(true, vec![mock_error(false)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 
@@ -56,8 +56,8 @@ fn single_command_status_inversion_on_error() {
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn single_command_env_changes_remain() {
+#[tokio::test]
+async fn single_command_env_changes_remain() {
     const VAR: &str = "var";
     const VALUE: &str = "value";
 
@@ -92,8 +92,8 @@ fn single_command_env_changes_remain() {
     assert_eq!(env.var(&var), Some(&VALUE.to_owned().into()));
 }
 
-#[test]
-fn multiple_commands_propagates_last_status() {
+#[tokio::test]
+async fn multiple_commands_propagates_last_status() {
     let exit = ExitStatus::Code(42);
     let list = ListableCommand::Pipe(
         false,
@@ -106,8 +106,8 @@ fn multiple_commands_propagates_last_status() {
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn multiple_commands_propagates_last_error() {
+#[tokio::test]
+async fn multiple_commands_propagates_last_error() {
     let list = ListableCommand::Pipe(
         false,
         vec![
@@ -129,8 +129,8 @@ fn multiple_commands_propagates_last_error() {
     run!(list).unwrap_err();
 }
 
-#[test]
-fn multiple_commands_swallows_inner_errors() {
+#[tokio::test]
+async fn multiple_commands_swallows_inner_errors() {
     let list = ListableCommand::Pipe(
         false,
         vec![
@@ -142,8 +142,8 @@ fn multiple_commands_swallows_inner_errors() {
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn multiple_commands_status_inversion() {
+#[tokio::test]
+async fn multiple_commands_status_inversion() {
     let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_SUCCESS)]);
     assert_eq!(run!(list), Ok(EXIT_ERROR));
 
@@ -151,8 +151,8 @@ fn multiple_commands_status_inversion() {
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn multiple_commands_status_inversion_on_error() {
+#[tokio::test]
+async fn multiple_commands_status_inversion_on_error() {
     let list = ListableCommand::Pipe(true, vec![mock_error(false)]);
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 
@@ -160,8 +160,8 @@ fn multiple_commands_status_inversion_on_error() {
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn multiple_commands_smoke() {
+#[tokio::test]
+async fn multiple_commands_smoke() {
     use std::cell::RefCell;
     use std::io::{Read, Write};
     use std::thread;
@@ -249,8 +249,8 @@ fn multiple_commands_smoke() {
     join.join().expect("failed to join thread");
 }
 
-#[test]
-fn single_command_should_propagate_cancel() {
+#[tokio::test]
+async fn single_command_should_propagate_cancel() {
     let list = ListableCommand::Pipe(false, vec![mock_must_cancel()]);
 
     run_cancel!(list);

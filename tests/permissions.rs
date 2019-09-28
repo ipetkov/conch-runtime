@@ -12,22 +12,22 @@ use std::time::Duration;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn test_permissions_readable() {
+#[tokio::test]
+async fn test_permissions_readable() {
     assert_eq!(Permissions::Read.readable(), true);
     assert_eq!(Permissions::ReadWrite.readable(), true);
     assert_eq!(Permissions::Write.readable(), false);
 }
 
-#[test]
-fn test_permissions_writable() {
+#[tokio::test]
+async fn test_permissions_writable() {
     assert_eq!(Permissions::Read.writable(), false);
     assert_eq!(Permissions::ReadWrite.writable(), true);
     assert_eq!(Permissions::Write.writable(), true);
 }
 
-#[test]
-fn test_permissions_open_read() {
+#[tokio::test]
+async fn test_permissions_open_read() {
     let msg = "hello world!\n";
     let tempdir = mktmp!();
 
@@ -52,8 +52,8 @@ fn test_permissions_open_read() {
     tempdir.close().unwrap();
 }
 
-#[test]
-fn test_permissions_open_write() {
+#[tokio::test]
+async fn test_permissions_open_write() {
     let msg = "hello world!\n";
     let tempdir = mktmp!();
 
@@ -78,8 +78,8 @@ fn test_permissions_open_write() {
     tempdir.close().unwrap();
 }
 
-#[test]
-fn test_permissions_open_readwrite() {
+#[tokio::test]
+async fn test_permissions_open_readwrite() {
     let msg1 = "hello world!\n";
     let msg2 = "goodbye world!\n";
 

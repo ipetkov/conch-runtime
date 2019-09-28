@@ -40,26 +40,28 @@ macro_rules! eval_no_compare {
     };
     ($eval:ident, $redirect:expr, $($arg:expr),*) => {{
         let redirect = $redirect;
-        let ret_ref = $eval(&redirect, $($arg),*);
-        let ret = $eval(redirect, $($arg),*);
+        let ret_ref = $eval(&redirect, $($arg),*).await;
+        let ret = $eval(redirect, $($arg),*).await;
         (ret_ref, ret)
     }}
 }
 
-fn eval<T: RedirectEval<DefaultEnvRc>>(redirect: T) -> Result<RedirectAction<T::Handle>, T::Error> {
+async fn eval<T: RedirectEval<DefaultEnvRc>>(
+    redirect: T,
+) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut env = new_env();
-    eval_with_env(redirect, &mut env)
+    eval_with_env(redirect, &mut env).await
 }
 
-fn eval_with_env<T: RedirectEval<DefaultEnvRc>>(
+async fn eval_with_env<T: RedirectEval<DefaultEnvRc>>(
     redirect: T,
     env: &mut DefaultEnvRc,
 ) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut future = redirect.eval(&env);
-    tokio::runtime::current_thread::block_on_all(poll_fn(move || future.poll(env)))
+    Compat01As03::new(poll_fn(move || future.poll(env))).await
 }
 
-fn test_open_redirect<F1, F2>(
+async fn test_open_redirect<F1, F2>(
     cases: Vec<(Fd, Redirect<MockWord>)>,
     correct_permissions: Permissions,
     mut before: F1,
@@ -96,19 +98,23 @@ fn test_open_redirect<F1, F2>(
 
     for &(correct_fd, ref redirect) in &cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut env).expect("redirect eval failed");
+        let action = eval_with_env(redirect, &mut env)
+            .await
+            .expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 
     for (correct_fd, redirect) in cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut env).expect("redirect eval failed");
+        let action = eval_with_env(redirect, &mut env)
+            .await
+            .expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 }
 
-#[test]
-fn eval_read() {
+#[tokio::test]
+async fn eval_read() {
     let msg = "hello world";
     let tempdir = mktmp!();
 
@@ -136,11 +142,12 @@ fn eval_read() {
             file_desc.read_to_string(&mut read).unwrap();
             assert_eq!(read, msg);
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn eval_path_is_relative_to_cwd() {
+#[tokio::test]
+async fn eval_path_is_relative_to_cwd() {
     let msg = "hello world";
     let tempdir = mktmp!();
 
@@ -167,11 +174,12 @@ fn eval_path_is_relative_to_cwd() {
             file_desc.read_to_string(&mut read).unwrap();
             assert_eq!(read, msg);
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn eval_write_and_clobber() {
+#[tokio::test]
+async fn eval_write_and_clobber() {
     let msg = "hello world";
     let tempdir = mktmp!();
 
@@ -207,11 +215,12 @@ fn eval_write_and_clobber() {
             file.read_to_string(&mut read).unwrap();
             assert_eq!(read, msg);
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn eval_read_write() {
+#[tokio::test]
+async fn eval_read_write() {
     let original = "original message";
     let msg = "hello world";
     let tempdir = mktmp!();
@@ -249,11 +258,12 @@ fn eval_read_write() {
             file.read_to_string(&mut read).unwrap();
             assert_eq!(read, format!("{}{}", original, msg));
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn eval_append() {
+#[tokio::test]
+async fn eval_append() {
     let msg1 = "hello world";
     let msg2 = "appended";
     let tempdir = mktmp!();
@@ -287,11 +297,12 @@ fn eval_append() {
             file.read_to_string(&mut read).unwrap();
             assert_eq!(read, format!("{}{}", msg1, msg2));
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn eval_heredoc() {
+#[tokio::test]
+async fn eval_heredoc() {
     let single = "single";
     let fields = vec!["first".to_owned(), "second".to_owned()];
     let joined = Vec::from("firstsecond".as_bytes());
@@ -322,8 +333,8 @@ fn eval_heredoc() {
     }
 }
 
-#[test]
-fn apply_redirect_action() {
+#[tokio::test]
+async fn apply_redirect_action() {
     let mut env = new_env_with_no_fds();
 
     let fd = 0;
@@ -340,7 +351,7 @@ fn apply_redirect_action() {
     assert_eq!(env.file_desc(fd), None);
 
     let msg = "heredoc body!";
-    let (_, data) = tokio::runtime::current_thread::block_on_all(lazy(|| {
+    let (_, data) = Compat01As03::new(lazy(|| {
         RedirectAction::HereDoc(fd, msg.as_bytes().to_owned())
             .apply(&mut env)
             .unwrap();
@@ -358,13 +369,14 @@ fn apply_redirect_action() {
         let read = env.read_async(fdes).expect("failed to create read future");
         tokio_io::io::read_to_end(read, vec![])
     }))
+    .await
     .unwrap();
 
     assert_eq!(data, msg.as_bytes());
 }
 
-#[test]
-fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
+#[tokio::test]
+async fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     for &interactive in &[true, false] {
         let mut env_cfg = DefaultEnvConfigRc::new(Some(1)).unwrap();
         env_cfg.interactive = interactive;
@@ -408,8 +420,8 @@ fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     }
 }
 
-#[test]
-fn should_eval_dup_close_approprately() {
+#[tokio::test]
+async fn should_eval_dup_close_approprately() {
     let fd = 5;
     let action = Ok(RedirectAction::Close(fd));
     let path = mock_word_fields(Fields::Single("-".to_owned()));
@@ -418,8 +430,8 @@ fn should_eval_dup_close_approprately() {
     assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone())), action);
 }
 
-#[test]
-fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
+#[tokio::test]
+async fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     use crate::RedirectionError::{BadFdPerms, BadFdSrc};
 
     let fd = 42;
@@ -459,8 +471,8 @@ fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone()), env), err);
 }
 
-#[test]
-fn eval_ambiguous_path() {
+#[tokio::test]
+async fn eval_ambiguous_path() {
     use crate::RedirectionError::Ambiguous;
 
     let fields = vec!["first".to_owned(), "second".to_owned()];
@@ -493,8 +505,8 @@ fn eval_ambiguous_path() {
     }
 }
 
-#[test]
-fn should_propagate_errors() {
+#[tokio::test]
+async fn should_propagate_errors() {
     let mock_word = mock_word_error(false);
     let err = Err(MockErr::Fatal(false));
 
@@ -508,22 +520,16 @@ fn should_propagate_errors() {
     assert_eq!(redirect_eval!(Heredoc(None, mock_word.clone())), err);
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let mut env = new_env();
 
-    macro_rules! test_cancel_redirect {
-        ($redirect:expr) => {
-            test_cancel!($redirect.eval(&env), env)
-        };
-    }
-
-    test_cancel_redirect!(Read(None, mock_word_must_cancel()));
-    test_cancel_redirect!(ReadWrite(None, mock_word_must_cancel()));
-    test_cancel_redirect!(Write(None, mock_word_must_cancel()));
-    test_cancel_redirect!(Clobber(None, mock_word_must_cancel()));
-    test_cancel_redirect!(Append(None, mock_word_must_cancel()));
-    test_cancel_redirect!(DupRead(None, mock_word_must_cancel()));
-    test_cancel_redirect!(DupWrite(None, mock_word_must_cancel()));
-    test_cancel_redirect!(Heredoc(None, mock_word_must_cancel()));
+    test_cancel!(Read(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(ReadWrite(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(Write(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(Clobber(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(Append(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(DupRead(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(DupWrite(None, mock_word_must_cancel()).eval(&env), env);
+    test_cancel!(Heredoc(None, mock_word_must_cancel()).eval(&env), env);
 }

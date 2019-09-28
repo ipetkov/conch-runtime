@@ -2,6 +2,7 @@ use crate::env::{AsyncIoEnvironment, SubEnvironment};
 use crate::io::{FileDesc, FileDescWrapper};
 use crate::os::unix::io::{FileDescExt, MaybeEventedFd};
 use futures::{Async, Future, Poll};
+use futures_preview::compat::Compat01As03;
 use std::io::{self, Read, Write};
 use std::sync::{Arc, RwLock};
 use tokio_io::io::{write_all, WriteAll};
@@ -168,7 +169,9 @@ impl AsyncIoEnvironment for EventedAsyncIoEnv {
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
         let _ = self.write_all(fd, data).map(|write_all| {
             // FIXME: may be worth logging these errors under debug?
-            tokio_executor::spawn(write_all.map_err(|_err| ()))
+            tokio_executor::spawn(async {
+                let _ = Compat01As03::new(write_all).await;
+            });
         });
     }
 }

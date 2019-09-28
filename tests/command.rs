@@ -9,23 +9,23 @@ use crate::syntax::ast::Command::*;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn test_list() {
+#[tokio::test]
+async fn test_list() {
     let exit = ExitStatus::Code(42);
     let cmd = List(mock_status(exit));
     assert_eq!(run!(cmd), Ok(exit));
 }
 
-#[test]
-fn test_job() {
+#[tokio::test]
+async fn test_job() {
     let exit = ExitStatus::Code(42);
     let cmd = Job(mock_status(exit));
     // FIXME: Currently unimplemented
     run!(cmd).unwrap_err();
 }
 
-#[test]
-fn test_propagates_all_errors() {
+#[tokio::test]
+async fn test_propagates_all_errors() {
     let cmd = List(mock_error(false));
     run!(cmd).unwrap_err();
 
@@ -33,8 +33,8 @@ fn test_propagates_all_errors() {
     run!(cmd).unwrap_err();
 }
 
-#[test]
-fn test_propagates_cancellations() {
+#[tokio::test]
+async fn test_propagates_cancellations() {
     let cmd = List(mock_must_cancel());
     run_cancel!(cmd);
 

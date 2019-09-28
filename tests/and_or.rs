@@ -9,8 +9,8 @@ use crate::syntax::ast::{AndOr, AndOrList};
 mod support;
 pub use self::support::*;
 
-#[test]
-fn test_and_or_single_command() {
+#[tokio::test]
+async fn test_and_or_single_command() {
     let exit = ExitStatus::Code(42);
     let list = AndOrList {
         first: mock_status(exit),
@@ -20,8 +20,8 @@ fn test_and_or_single_command() {
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn test_and_or_should_skip_or_if_last_status_was_successful() {
+#[tokio::test]
+async fn test_and_or_should_skip_or_if_last_status_was_successful() {
     let list = AndOrList {
         first: mock_status(EXIT_SUCCESS),
         rest: vec![
@@ -34,8 +34,8 @@ fn test_and_or_should_skip_or_if_last_status_was_successful() {
     assert_eq!(run!(list), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn test_and_or_should_skip_and_if_last_status_was_unsuccessful() {
+#[tokio::test]
+async fn test_and_or_should_skip_and_if_last_status_was_unsuccessful() {
     let exit = ExitStatus::Code(42);
     let list = AndOrList {
         first: mock_status(EXIT_ERROR),
@@ -49,8 +49,8 @@ fn test_and_or_should_skip_and_if_last_status_was_unsuccessful() {
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn test_and_or_should_run_and_if_last_status_was_successful() {
+#[tokio::test]
+async fn test_and_or_should_run_and_if_last_status_was_successful() {
     let exit = ExitStatus::Code(42);
     let list = AndOrList {
         first: mock_status(EXIT_SUCCESS),
@@ -62,8 +62,8 @@ fn test_and_or_should_run_and_if_last_status_was_successful() {
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn test_and_or_should_run_or_if_last_status_was_unsuccessful() {
+#[tokio::test]
+async fn test_and_or_should_run_or_if_last_status_was_unsuccessful() {
     let exit = ExitStatus::Code(42);
     let list = AndOrList {
         first: mock_status(EXIT_ERROR),
@@ -75,8 +75,8 @@ fn test_and_or_should_run_or_if_last_status_was_unsuccessful() {
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn test_and_or_should_swallow_non_fatal_errors() {
+#[tokio::test]
+async fn test_and_or_should_swallow_non_fatal_errors() {
     let list = AndOrList {
         first: mock_error(false),
         rest: vec![],
@@ -93,8 +93,8 @@ fn test_and_or_should_swallow_non_fatal_errors() {
     assert_eq!(run!(list), Ok(exit));
 }
 
-#[test]
-fn test_and_or_should_propagate_fatal_errors() {
+#[tokio::test]
+async fn test_and_or_should_propagate_fatal_errors() {
     let list = AndOrList {
         first: mock_error(true),
         rest: vec![
@@ -116,8 +116,8 @@ fn test_and_or_should_propagate_fatal_errors() {
     run!(list).unwrap_err();
 }
 
-#[test]
-fn test_and_or_should_propagate_cancel_to_current_command() {
+#[tokio::test]
+async fn test_and_or_should_propagate_cancel_to_current_command() {
     let list = AndOrList {
         first: mock_must_cancel(),
         rest: vec![

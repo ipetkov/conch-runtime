@@ -6,8 +6,8 @@ use conch_runtime::env::{VarEnv, VariableEnvironment};
 use conch_runtime::error::ExpansionError;
 use conch_runtime::eval::ArithEval;
 
-#[test]
-fn test_eval_arith() {
+#[tokio::test]
+async fn test_eval_arith() {
     use conch_parser::ast::Arithmetic::*;
     use std::isize::MAX;
 

@@ -3,13 +3,10 @@ mod support;
 pub use self::support::spawn::builtin::true_cmd;
 pub use self::support::*;
 
-#[test]
-fn true_smoke() {
+#[tokio::test]
+async fn true_smoke() {
     let mut env = new_env();
-
-    let exit = tokio::runtime::current_thread::block_on_all(
-        true_cmd().spawn(&env).pin_env(&mut env).flatten(),
-    );
+    let exit = Compat01As03::new(true_cmd().spawn(&env).pin_env(&mut env).flatten()).await;
 
     assert_eq!(exit, Ok(EXIT_SUCCESS));
 }

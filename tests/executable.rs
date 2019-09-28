@@ -15,8 +15,8 @@ pub use self::support::*;
 
 const EXECUTABLE_WITH_IO_MSG: &str = "hello\nworld!\n";
 
-#[test]
-fn spawn_executable_with_io() {
+#[tokio::test]
+async fn spawn_executable_with_io() {
     let mut env = ExecEnv::new();
     let mut io_env = PlatformSpecificFileDescManagerEnv::new(Some(3));
 
@@ -40,7 +40,7 @@ fn spawn_executable_with_io() {
     let pipe_out_reader = pipe_out.reader;
     let pipe_err_reader = pipe_err.reader;
 
-    let (status, (), (), ()) = tokio::runtime::current_thread::block_on_all(lazy(move || {
+    let (status, (), (), ()) = Compat01As03::new(lazy(move || {
         let child = env.spawn_executable(data).expect("spawn failed");
 
         let stdin = io_env
@@ -64,16 +64,17 @@ fn spawn_executable_with_io() {
 
         child.join4(stdin, stdout, stderr)
     }))
+    .await
     .expect("failed to run futures");
     assert!(status.success());
 }
 
-#[test]
-fn env_vars_set_from_data_without_inheriting_from_process() {
+#[tokio::test]
+async fn env_vars_set_from_data_without_inheriting_from_process() {
     let mut env = ExecEnv::new();
     let mut io_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
 
-    let (status, ()) = tokio::runtime::current_thread::block_on_all(lazy(move || {
+    let (status, ()) = Compat01As03::new(lazy(move || {
         let pipe_out = io_env.open_pipe().unwrap();
 
         let bin_path = bin_path("env");
@@ -113,12 +114,13 @@ fn env_vars_set_from_data_without_inheriting_from_process() {
 
         child.join(stdout)
     }))
+    .await
     .expect("failed to run futures");
     assert!(status.success());
 }
 
-#[test]
-fn remote_spawn_smoke() {
+#[tokio::test]
+async fn remote_spawn_smoke() {
     let mut env = ExecEnv::new();
 
     let bin_path = bin_path("env");
@@ -136,17 +138,17 @@ fn remote_spawn_smoke() {
     // Spawning when not running in a task is the same as spawning
     // a future in a separate thread than the loop that's running.
     let child = env.spawn_executable(data).expect("spawn failed");
-    let status = tokio::runtime::current_thread::block_on_all(child).expect("failed to run child");
+    let status = Compat01As03::new(child).await.expect("failed to run child");
 
     assert!(status.success());
 }
 
-#[test]
-fn defines_empty_path_env_var_if_not_provided_by_caller() {
+#[tokio::test]
+async fn defines_empty_path_env_var_if_not_provided_by_caller() {
     let mut env = ExecEnv::new();
     let mut io_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
 
-    let (status, ()) = tokio::runtime::current_thread::block_on_all(lazy(move || {
+    let (status, ()) = Compat01As03::new(lazy(move || {
         let pipe_out = io_env.open_pipe().unwrap();
 
         let bin_path = bin_path("env");
@@ -171,6 +173,7 @@ fn defines_empty_path_env_var_if_not_provided_by_caller() {
 
         child.join(stdout)
     }))
+    .await
     .expect("failed to run futures");
     assert!(status.success());
 }

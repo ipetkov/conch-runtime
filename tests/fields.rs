@@ -3,8 +3,8 @@
 use conch_runtime::env::{UnsetVariableEnvironment, VarEnv, VariableEnvironment};
 use conch_runtime::eval::Fields::*;
 
-#[test]
-fn test_fields_is_null() {
+#[tokio::test]
+async fn test_fields_is_null() {
     let empty_strs = vec!["".to_owned(), "".to_owned(), "".to_owned()];
 
     let mostly_non_empty_strs = vec!["foo".to_owned(), "".to_owned(), "bar".to_owned()];
@@ -21,8 +21,8 @@ fn test_fields_is_null() {
     assert_eq!(Split(mostly_non_empty_strs.clone()).is_null(), false);
 }
 
-#[test]
-fn test_fields_join() {
+#[tokio::test]
+async fn test_fields_join() {
     let strs = vec!["foo".to_owned(), "".to_owned(), "bar".to_owned()];
 
     assert_eq!(Zero::<String>.join(), "");
@@ -32,8 +32,8 @@ fn test_fields_join() {
     assert_eq!(Split(strs.clone()).join(), "foo bar");
 }
 
-#[test]
-fn test_fields_join_with_ifs() {
+#[tokio::test]
+async fn test_fields_join_with_ifs() {
     let ifs = "IFS".to_owned();
     let strs = vec![
         "foo".to_owned(),
@@ -66,8 +66,8 @@ fn test_fields_join_with_ifs() {
     assert_eq!(Split(strs.clone()).join_with_ifs(&env), "foo  bar");
 }
 
-#[test]
-fn test_fields_from_vec() {
+#[tokio::test]
+async fn test_fields_from_vec() {
     let s = "foo".to_owned();
     let strs = vec![s.clone(), "".to_owned(), "bar".to_owned()];
 
@@ -76,8 +76,8 @@ fn test_fields_from_vec() {
     assert_eq!(Split(strs.clone()), strs.clone().into());
 }
 
-#[test]
-fn test_fields_from_t() {
+#[tokio::test]
+async fn test_fields_from_t() {
     let string = "foo".to_owned();
     assert_eq!(Single(string.clone()), string.into());
     // Empty string is NOT an empty field
@@ -85,8 +85,8 @@ fn test_fields_from_t() {
     assert_eq!(Single(string.clone()), string.into());
 }
 
-#[test]
-fn test_fields_into_iter() {
+#[tokio::test]
+async fn test_fields_into_iter() {
     let s = "foo".to_owned();
     let strs = vec![s.clone(), "".to_owned(), "bar".to_owned()];
 
@@ -110,8 +110,8 @@ fn test_fields_into_iter() {
     );
 }
 
-#[test]
-fn test_eval_parameter_substitution_splitting_default_ifs() {
+#[tokio::test]
+async fn test_eval_parameter_substitution_splitting_default_ifs() {
     let mut env = VarEnv::<String, String>::new();
     env.unset_var("IFS");
 
@@ -124,8 +124,8 @@ fn test_eval_parameter_substitution_splitting_default_ifs() {
     assert_eq!(Single("".to_owned()).split(&env), Zero);
 }
 
-#[test]
-fn test_splitting_with_custom_ifs() {
+#[tokio::test]
+async fn test_splitting_with_custom_ifs() {
     let mut env = VarEnv::new();
     env.set_var("IFS".to_owned(), "0 ".to_owned());
 
@@ -155,8 +155,8 @@ fn test_splitting_with_custom_ifs() {
     assert_eq!(Single("".to_owned()).split(&env), Zero);
 }
 
-#[test]
-fn test_no_splitting_if_ifs_blank() {
+#[tokio::test]
+async fn test_no_splitting_if_ifs_blank() {
     let mut env = VarEnv::new();
     env.set_var("IFS".to_owned(), "".to_owned());
 

@@ -12,32 +12,32 @@ fn assert_len(expected_len: usize, param: MockParam) {
     assert_eq!(len(&param, &()).to_string(), expected_len.to_string());
 }
 
-#[test]
-fn none() {
+#[tokio::test]
+async fn none() {
     assert_len(0, MockParam::Fields(None));
 }
 
-#[test]
-fn zero() {
+#[tokio::test]
+async fn zero() {
     assert_len(0, MockParam::Fields(Some(Fields::Zero)));
 }
 
-#[test]
-fn at() {
+#[tokio::test]
+async fn at() {
     let fields = vec!["foo".into(), "bar".into()];
     assert_len(fields.len(), MockParam::Fields(Some(Fields::At(fields))));
     assert_len(0, MockParam::Fields(Some(Fields::At(vec![]))));
 }
 
-#[test]
-fn star() {
+#[tokio::test]
+async fn star() {
     let fields = vec!["foo".into(), "bar".into()];
     assert_len(fields.len(), MockParam::Fields(Some(Fields::Star(fields))));
     assert_len(0, MockParam::Fields(Some(Fields::Star(vec![]))));
 }
 
-#[test]
-fn split() {
+#[tokio::test]
+async fn split() {
     let first = "foo";
     let second = "bar";
     let fields = vec![first.into(), second.into()];

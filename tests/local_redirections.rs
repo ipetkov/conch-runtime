@@ -146,7 +146,7 @@ impl EnvFuture<MockEnv> for MockCmd2 {
     }
 }
 
-fn run_with_local_redirections(
+async fn run_with_local_redirections(
     redirects: Vec<MockRedirect<PlatformSpecificManagedHandle>>,
     cmd: MockCmd,
 ) -> Result<ExitStatus, MockErr> {
@@ -155,26 +155,29 @@ fn run_with_local_redirections(
         .pin_env(env)
         .flatten();
 
-    tokio::runtime::current_thread::block_on_all(future)
+    Compat01As03::new(future).await
 }
 
-#[test]
-fn should_propagate_errors() {
+#[tokio::test]
+async fn should_propagate_errors() {
     let should_not_run = mock_panic("must not run");
 
     for &fatal in &[true, false] {
         let redirects = vec![mock_redirect_error(fatal)];
         let err = Err(MockErr::Fatal(fatal));
         assert_eq!(
-            run_with_local_redirections(redirects, should_not_run.clone()),
+            run_with_local_redirections(redirects, should_not_run.clone()).await,
             err
         );
-        assert_eq!(run_with_local_redirections(vec!(), mock_error(fatal)), err);
+        assert_eq!(
+            run_with_local_redirections(vec!(), mock_error(fatal)).await,
+            err
+        );
     }
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let mut env = new_env();
 
     let should_not_run = mock_panic("must not run");
@@ -192,8 +195,8 @@ fn should_propagate_cancel() {
     );
 }
 
-#[test]
-fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain() {
+#[tokio::test]
+async fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain() {
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 
@@ -263,8 +266,8 @@ fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain() {
     assert_eq!(env, env_original);
 }
 
-#[test]
-fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
+#[tokio::test]
+async fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 
@@ -334,8 +337,8 @@ fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
     assert_eq!(env, env_original);
 }
 
-#[test]
-fn fds_restored_after_cmd_or_redirect_error() {
+#[tokio::test]
+async fn fds_restored_after_cmd_or_redirect_error() {
     let mut env = MockEnv::new();
     let dev_null = dev_null(&mut env);
     env.set_file_desc(STDIN_FILENO, dev_null.clone(), Permissions::Read);
@@ -380,8 +383,8 @@ fn fds_restored_after_cmd_or_redirect_error() {
     assert_eq!(env, env_original);
 }
 
-#[test]
-fn spawn_compound_command_smoke() {
+#[tokio::test]
+async fn spawn_compound_command_smoke() {
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 

@@ -11,8 +11,8 @@ use std::thread;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn test_file_desc_duplicate() {
+#[tokio::test]
+async fn test_file_desc_duplicate() {
     let msg1 = "pipe message one\n";
     let msg2 = "pipe message two\n";
     let Pipe {
@@ -38,8 +38,8 @@ fn test_file_desc_duplicate() {
     assert_eq!(format!("{}{}", msg1, msg2), read);
 }
 
-#[test]
-fn test_file_desc_seeking() {
+#[tokio::test]
+async fn test_file_desc_seeking() {
     use std::io::{Seek, SeekFrom};
 
     let tempdir = mktmp!();

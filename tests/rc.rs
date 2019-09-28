@@ -12,8 +12,8 @@ pub use self::support::*;
 type RcTraitObj = Rc<dyn SpawnBoxed<DefaultEnvRc, Error = MockErr>>;
 type ArcTraitObj = Arc<dyn SpawnBoxed<DefaultEnvRc, Error = MockErr>>;
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let exit = ExitStatus::Code(42);
     assert_eq!(run!(Rc::new(mock_status(exit))), Ok(exit));
     assert_eq!(run!(Arc::new(mock_status(exit))), Ok(exit));
@@ -25,8 +25,8 @@ fn smoke() {
     assert_eq!(run!(cmd), Ok(exit));
 }
 
-#[test]
-fn cancel_smoke() {
+#[tokio::test]
+async fn cancel_smoke() {
     run_cancel!(Rc::new(mock_must_cancel()));
     run_cancel!(Arc::new(mock_must_cancel()));
 

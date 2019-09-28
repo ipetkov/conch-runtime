@@ -8,16 +8,17 @@ use conch_runtime::future::EnvFuture;
 use conch_runtime::spawn::sequence;
 use conch_runtime::{ExitStatus, EXIT_ERROR};
 use futures::future::{lazy, Future};
+use futures_preview::compat::Compat01As03;
 use owned_chars::OwnedCharsExt;
 use std::io::{stderr, stdin, BufRead, BufReader, Write};
 use std::process::exit;
-use tokio::runtime::current_thread::block_on_all;
 
 #[cfg(not(all(feature = "conch-parser", feature = "top-level")))]
 fn main() {}
 
 #[cfg(all(feature = "conch-parser", feature = "top-level"))]
-fn main() {
+#[tokio::main]
+async fn main() {
     use conch_parser::ast::builder::RcBuilder;
     use conch_parser::lexer::Lexer;
     use conch_parser::parse::Parser;
@@ -56,7 +57,7 @@ fn main() {
         ..DefaultEnvConfigRc::new(None).expect("failed to create env config")
     });
 
-    let status = block_on_all(lazy(move || sequence(cmds).pin_env(env).flatten()));
+    let status = Compat01As03::new(sequence(cmds).pin_env(env).flatten()).await;
 
     exit_with_status(status.unwrap_or(EXIT_ERROR));
 }

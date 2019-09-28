@@ -12,7 +12,7 @@ pub use self::support::*;
 macro_rules! run_env {
     ($future:expr) => {{
         let env = new_env();
-        tokio::runtime::current_thread::block_on_all($future.pin_env(env))
+        Compat01As03::new($future.pin_env(env)).await
     }};
 }
 
@@ -67,8 +67,8 @@ impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
     }
 }
 
-#[test]
-fn should_bail_on_empty_commands() {
+#[tokio::test]
+async fn should_bail_on_empty_commands() {
     let cmd = loop_cmd::<&MockCmd, _>(
         false,
         GuardBodyPair {
@@ -79,8 +79,8 @@ fn should_bail_on_empty_commands() {
     assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_not_run_body_if_guard_unsuccessful() {
+#[tokio::test]
+async fn should_not_run_body_if_guard_unsuccessful() {
     let should_not_run = mock_panic("must not run");
 
     let guard = vec![mock_status(EXIT_ERROR)];
@@ -104,8 +104,8 @@ fn should_not_run_body_if_guard_unsuccessful() {
     assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_run_body_of_successful_guard() {
+#[tokio::test]
+async fn should_run_body_of_successful_guard() {
     // `while` smoke
     let guard = vec![MockCmd2::Status(Ok(EXIT_SUCCESS), EXIT_ERROR)];
     let body = vec![MockCmd2::SetVar];
@@ -167,8 +167,8 @@ fn should_run_body_of_successful_guard() {
     assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_propagate_fatal_errors() {
+#[tokio::test]
+async fn should_propagate_fatal_errors() {
     let should_not_run = mock_panic("must not run");
 
     let guard = vec![mock_error(true), should_not_run.clone()];
@@ -193,8 +193,8 @@ fn should_propagate_fatal_errors() {
     assert_eq!(run_env!(cmd), Err(MockErr::Fatal(true)));
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let mut env = new_env();
 
     let should_not_run = mock_panic("must not run");

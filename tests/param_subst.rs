@@ -15,8 +15,8 @@ const CFG: WordEvalConfig = WordEvalConfig {
     split_fields_further: true,
 };
 
-#[test]
-fn should_evaluate_appropriately() {
+#[tokio::test]
+async fn should_evaluate_appropriately() {
     let empty_param = MockParam::Fields(None);
     let empty_param_with_name = MockParam::FieldsWithName(None, "name".to_owned());
     let param_val = "barfoobar".to_owned();
@@ -62,8 +62,8 @@ fn should_evaluate_appropriately() {
     assert_eq!(eval!(subst, CFG), Ok(Fields::Zero));
 }
 
-#[test]
-fn should_propagate_errors_from_word_if_applicable() {
+#[tokio::test]
+async fn should_propagate_errors_from_word_if_applicable() {
     let error = Some(mock_word_error(false));
     let empty_param = MockParam::Fields(None);
     let empty_param_with_name = MockParam::FieldsWithName(None, "name".to_owned());
@@ -90,8 +90,8 @@ fn should_propagate_errors_from_word_if_applicable() {
     assert_eq!(eval!(subst, CFG), Err(MockErr::Fatal(false)));
 }
 
-#[test]
-fn should_propagate_cancel_if_required() {
+#[tokio::test]
+async fn should_propagate_cancel_if_required() {
     let mut env = DefaultEnv::new(Some(1)).expect("failed to create env");
 
     let must_cancel = Some(mock_word_must_cancel());

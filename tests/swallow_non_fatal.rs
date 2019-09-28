@@ -45,32 +45,30 @@ impl<E: ?Sized> EnvFuture<E> for MustCancelBridge {
     }
 }
 
-fn eval(inner: Result<ExitStatus, MockErr>) -> Result<ExitStatus, MockErr> {
+async fn eval(inner: Result<ExitStatus, MockErr>) -> Result<ExitStatus, MockErr> {
     let env = new_env();
-    tokio::runtime::current_thread::block_on_all(
-        swallow_non_fatal_errors(Bridge(result(inner))).pin_env(env),
-    )
+    Compat01As03::new(swallow_non_fatal_errors(Bridge(result(inner))).pin_env(env)).await
 }
 
-#[test]
-fn should_propagate_result() {
+#[tokio::test]
+async fn should_propagate_result() {
     let exit = ExitStatus::Code(42);
-    assert_eq!(eval(Ok(exit)), Ok(exit));
+    assert_eq!(eval(Ok(exit)).await, Ok(exit));
 }
 
-#[test]
-fn should_swallow_non_fatal_errors() {
-    assert_eq!(eval(Err(MockErr::Fatal(false))), Ok(EXIT_ERROR));
+#[tokio::test]
+async fn should_swallow_non_fatal_errors() {
+    assert_eq!(eval(Err(MockErr::Fatal(false))).await, Ok(EXIT_ERROR));
 }
 
-#[test]
-fn should_propagate_fatal_errors() {
+#[tokio::test]
+async fn should_propagate_fatal_errors() {
     let err = MockErr::Fatal(true);
-    assert_eq!(eval(Err(err.clone())), Err(err));
+    assert_eq!(eval(Err(err.clone())).await, Err(err));
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let ref mut env = new_env();
 
     let mut future = swallow_non_fatal_errors(MustCancelBridge::new());

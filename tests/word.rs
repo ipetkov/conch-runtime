@@ -14,11 +14,11 @@ pub use self::support::*;
 
 type Word = ast::Word<String, MockWord>;
 
-fn assert_eval_equals_single<T: Into<String>>(word: Word, expected: T) {
-    assert_eval_equals_fields(word, Fields::Single(expected.into()));
+async fn assert_eval_equals_single<T: Into<String>>(word: Word, expected: T) {
+    assert_eval_equals_fields(word, Fields::Single(expected.into())).await;
 }
 
-fn assert_eval_equals_fields(word: Word, fields: Fields<String>) {
+async fn assert_eval_equals_fields(word: Word, fields: Fields<String>) {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::All,
         split_fields_further: true,
@@ -27,10 +27,10 @@ fn assert_eval_equals_fields(word: Word, fields: Fields<String>) {
     assert_eq!(eval!(word, cfg), Ok(fields));
 }
 
-#[test]
-fn test_simple() {
+#[tokio::test]
+async fn test_simple() {
     let value = "foo".to_owned();
-    assert_eval_equals_single(Simple(mock_word_fields(value.clone().into())), value);
+    assert_eval_equals_single(Simple(mock_word_fields(value.clone().into())), value).await;
 
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::All,
@@ -40,24 +40,24 @@ fn test_simple() {
     eval!(Simple(mock_word_error(false)), cfg).unwrap_err();
 }
 
-#[test]
-fn test_single_quoted_should_not_split_fields_or_expand_anything() {
+#[tokio::test]
+async fn test_single_quoted_should_not_split_fields_or_expand_anything() {
     let value = "~/hello world\nfoo\tbar *".to_owned();
-    assert_eval_equals_single(SingleQuoted(value.clone()), value);
+    assert_eval_equals_single(SingleQuoted(value.clone()), value).await;
 }
 
-#[test]
-fn test_double_quoted_joins_multiple_single_expansions_as_single_field() {
+#[tokio::test]
+async fn test_double_quoted_joins_multiple_single_expansions_as_single_field() {
     let double_quoted = DoubleQuoted(vec![
         mock_word_fields(Fields::Single("foo".to_owned())),
         mock_word_fields(Fields::Single("hello world".to_owned())),
         mock_word_fields(Fields::Single("bar".to_owned())),
     ]);
-    assert_eval_equals_single(double_quoted, "foohello worldbar");
+    assert_eval_equals_single(double_quoted, "foohello worldbar").await;
 }
 
-#[test]
-fn test_double_quoted_does_not_expand_tilde() {
+#[tokio::test]
+async fn test_double_quoted_does_not_expand_tilde() {
     let double_quoted = DoubleQuoted(vec![
         mock_word_fields(Fields::Single("~".to_owned())),
         mock_word_fields(Fields::Single(":".to_owned())),
@@ -65,19 +65,20 @@ fn test_double_quoted_does_not_expand_tilde() {
         mock_word_fields(Fields::Single(":".to_owned())),
         mock_word_fields(Fields::Single("~/root".to_owned())),
     ]);
-    assert_eval_equals_single(double_quoted, "~:~root:~/root");
+    assert_eval_equals_single(double_quoted, "~:~root:~/root").await;
 }
 
-#[test]
-fn test_double_quoted_param_star_unset_results_in_no_fields() {
+#[tokio::test]
+async fn test_double_quoted_param_star_unset_results_in_no_fields() {
     assert_eval_equals_fields(
         DoubleQuoted(vec![mock_word_fields(Fields::Zero)]),
         Fields::Zero,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn test_double_quoted_param_at_expands_when_args_set_and_concats_with_rest() {
+#[tokio::test]
+async fn test_double_quoted_param_at_expands_when_args_set_and_concats_with_rest() {
     let double_quoted = DoubleQuoted(vec![
         mock_word_fields(Fields::Single("foo".to_owned())),
         mock_word_fields(Fields::At(vec![
@@ -93,23 +94,23 @@ fn test_double_quoted_param_at_expands_when_args_set_and_concats_with_rest() {
         "two".to_owned(),
         "threebar".to_owned(),
     ]);
-    assert_eval_equals_fields(double_quoted, expected);
+    assert_eval_equals_fields(double_quoted, expected).await;
 }
 
-#[test]
-fn test_double_quoted_param_at_expands_to_nothing_when_args_not_set_and_concats_with_rest() {
+#[tokio::test]
+async fn test_double_quoted_param_at_expands_to_nothing_when_args_not_set_and_concats_with_rest() {
     let double_quoted = DoubleQuoted(vec![
         mock_word_fields(Fields::Single("foo".to_owned())),
         mock_word_fields(Fields::Zero),
         mock_word_fields(Fields::Single("bar".to_owned())),
     ]);
 
-    assert_eval_equals_single(double_quoted, "foobar");
+    assert_eval_equals_single(double_quoted, "foobar").await;
 }
 
-#[test]
-fn test_double_quoted_param_star_expands_but_joined_by_ifs() {
-    fn assert_eval_equals_single(word: Word, ifs: Option<&str>, expected: &str) {
+#[tokio::test]
+async fn test_double_quoted_param_star_expands_but_joined_by_ifs() {
+    async fn assert_eval_equals_single(word: Word, ifs: Option<&str>, expected: &str) {
         // Should have no effect
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -137,36 +138,36 @@ fn test_double_quoted_param_star_expands_but_joined_by_ifs() {
         mock_word_fields(Fields::Single("bar".to_owned())),
     ]);
 
-    assert_eval_equals_single(double_quoted.clone(), None, "fooone two threebar");
-    assert_eval_equals_single(double_quoted.clone(), Some(" \n\t"), "fooone two threebar");
-    assert_eval_equals_single(double_quoted.clone(), Some("!"), "fooone!two!threebar");
-    assert_eval_equals_single(double_quoted.clone(), Some(""), "fooonetwothreebar");
+    assert_eval_equals_single(double_quoted.clone(), None, "fooone two threebar").await;
+    assert_eval_equals_single(double_quoted.clone(), Some(" \n\t"), "fooone two threebar").await;
+    assert_eval_equals_single(double_quoted.clone(), Some("!"), "fooone!two!threebar").await;
+    assert_eval_equals_single(double_quoted.clone(), Some(""), "fooonetwothreebar").await;
 }
 
-#[test]
-fn test_double_quoted_param_at_zero_fields_if_no_args() {
+#[tokio::test]
+async fn test_double_quoted_param_at_zero_fields_if_no_args() {
     let double_quoted = DoubleQuoted(vec![mock_word_fields(Fields::At(vec![]))]);
-    assert_eval_equals_fields(double_quoted, Fields::Zero);
+    assert_eval_equals_fields(double_quoted, Fields::Zero).await;
 }
 
-#[test]
-fn test_double_quoted_no_field_splitting() {
+#[tokio::test]
+async fn test_double_quoted_no_field_splitting() {
     let double_quoted = DoubleQuoted(vec![mock_word_assert_cfg(WordEvalConfig {
         tilde_expansion: TildeExpansion::None,
         split_fields_further: false,
     })]);
-    assert_eval_equals_fields(double_quoted, Fields::Zero);
+    assert_eval_equals_fields(double_quoted, Fields::Zero).await;
 }
 
-#[test]
-fn test_simple_cancel() {
+#[tokio::test]
+async fn test_simple_cancel() {
     let mut env = VarEnv::<String, String>::new();
     let future = Simple(mock_word_must_cancel()).eval(&mut env);
     test_cancel!(future, env);
 }
 
-#[test]
-fn test_double_quoted_cancel() {
+#[tokio::test]
+async fn test_double_quoted_cancel() {
     let mut env = VarEnv::<String, String>::new();
     let future = DoubleQuoted(vec![
         mock_word_must_cancel(),

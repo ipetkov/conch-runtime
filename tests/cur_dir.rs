@@ -6,16 +6,16 @@ use std::path::{Path, PathBuf};
 mod support;
 pub use self::support::*;
 
-#[test]
-fn get_cur_dir() {
+#[tokio::test]
+async fn get_cur_dir() {
     let tempdir = mktmp!();
     let path = tempdir.path();
     let env = VirtualWorkingDirEnv::new(path).unwrap();
     assert_eq!(env.current_working_dir(), path);
 }
 
-#[test]
-fn cur_dir_should_not_change_absolute_paths() {
+#[tokio::test]
+async fn cur_dir_should_not_change_absolute_paths() {
     let tempdir_first = mktmp!();
     let tempdir_second = mktmp!();
 
@@ -25,8 +25,8 @@ fn cur_dir_should_not_change_absolute_paths() {
     assert_eq!(env.path_relative_to_working_dir(Cow::Borrowed(path)), path);
 }
 
-#[test]
-fn cur_dir_should_prefix_relative_paths_with_cwd() {
+#[tokio::test]
+async fn cur_dir_should_prefix_relative_paths_with_cwd() {
     let tempdir = mktmp!();
 
     let env = VirtualWorkingDirEnv::new(tempdir.path()).unwrap();
@@ -39,8 +39,8 @@ fn cur_dir_should_prefix_relative_paths_with_cwd() {
     assert_eq!(env.path_relative_to_working_dir(path), expected);
 }
 
-#[test]
-fn change_cur_dir_should_accept_absolute_paths() {
+#[tokio::test]
+async fn change_cur_dir_should_accept_absolute_paths() {
     let tempdir = mktmp!();
 
     let mut env = VirtualWorkingDirEnv::with_process_working_dir().unwrap();
@@ -50,8 +50,8 @@ fn change_cur_dir_should_accept_absolute_paths() {
     assert_eq!(env.current_working_dir(), tempdir.path());
 }
 
-#[test]
-fn change_cur_dir_should_accept_relative_paths() {
+#[tokio::test]
+async fn change_cur_dir_should_accept_relative_paths() {
     let tempdir = mktmp!();
 
     let mut env = VirtualWorkingDirEnv::new(PathBuf::from(tempdir.path())).unwrap();

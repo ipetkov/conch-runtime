@@ -12,7 +12,7 @@ use futures::Future;
 mod support;
 pub use self::support::*;
 
-fn run_subshell<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc>>::Error>
+async fn run_subshell<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc>>::Error>
 where
     I: IntoIterator,
     I::Item: Spawn<DefaultEnvRc>,
@@ -20,43 +20,43 @@ where
 {
     let env = new_env();
     let future = subshell(cmds, &env).flatten();
-    tokio::runtime::current_thread::block_on_all(future)
+    Compat01As03::new(future).await
 }
 
-#[test]
-fn should_resolve_to_last_status() {
+#[tokio::test]
+async fn should_resolve_to_last_status() {
     let exit = ExitStatus::Code(42);
     let cmds = vec![mock_status(EXIT_SUCCESS), mock_status(exit)];
 
-    assert_eq!(run_subshell(cmds), Ok(exit));
+    assert_eq!(run_subshell(cmds).await, Ok(exit));
 }
 
-#[test]
-fn should_resolve_successfully_for_no_commands() {
+#[tokio::test]
+async fn should_resolve_successfully_for_no_commands() {
     let cmds = Vec::<MockCmd>::new();
-    assert_eq!(run_subshell(cmds), Ok(EXIT_SUCCESS));
+    assert_eq!(run_subshell(cmds).await, Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_swallow_errors() {
+#[tokio::test]
+async fn should_swallow_errors() {
     let cmds = vec![mock_error(false), mock_status(EXIT_SUCCESS)];
 
-    assert_eq!(run_subshell(cmds), Ok(EXIT_SUCCESS));
+    assert_eq!(run_subshell(cmds).await, Ok(EXIT_SUCCESS));
 
     let cmds = vec![mock_error(true), mock_status(EXIT_SUCCESS)];
 
-    assert_eq!(run_subshell(cmds), Ok(EXIT_ERROR));
+    assert_eq!(run_subshell(cmds).await, Ok(EXIT_ERROR));
 }
 
-#[test]
-fn should_terminate_on_fatal_errors_but_swallow_them() {
+#[tokio::test]
+async fn should_terminate_on_fatal_errors_but_swallow_them() {
     let cmds = vec![mock_error(true), mock_panic("should not run")];
 
-    assert_eq!(run_subshell(cmds), Ok(EXIT_ERROR));
+    assert_eq!(run_subshell(cmds).await, Ok(EXIT_ERROR));
 }
 
-#[test]
-fn should_isolate_parent_env_from_any_changes() {
+#[tokio::test]
+async fn should_isolate_parent_env_from_any_changes() {
     let mut env = new_env();
 
     let original_status = ExitStatus::Code(5);
@@ -65,7 +65,7 @@ fn should_isolate_parent_env_from_any_changes() {
     let cmds = vec![mock_status(ExitStatus::Code(42))];
 
     let future = subshell(cmds, &env).flatten();
-    tokio::runtime::current_thread::block_on_all(future).expect("subshell failed");
+    Compat01As03::new(future).await.expect("subshell failed");
 
     assert_eq!(env.last_status(), original_status);
 }

@@ -38,8 +38,8 @@ impl<E: ?Sized> EnvFuture<E> for MockWordCfg {
     }
 }
 
-#[test]
-fn test_eval_expands_first_tilde_and_splits_words() {
+#[tokio::test]
+async fn test_eval_expands_first_tilde_and_splits_words() {
     let word = MockWordCfg {
         cfg: WordEvalConfig {
             tilde_expansion: TildeExpansion::First,
@@ -52,8 +52,8 @@ fn test_eval_expands_first_tilde_and_splits_words() {
     assert_eq!(word.eval(&mut env).pin_env(env).wait(), Ok(Fields::Zero));
 }
 
-#[test]
-fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
+#[tokio::test]
+async fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
     use conch_runtime::env::{VarEnv, VariableEnvironment};
 
     let cfg = WordEvalConfig {
@@ -129,8 +129,8 @@ fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
     }
 }
 
-#[test]
-fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_fields() {
+#[tokio::test]
+async fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_fields() {
     let word = MockWordCfg {
         cfg: WordEvalConfig {
             tilde_expansion: TildeExpansion::First,
@@ -144,8 +144,8 @@ fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_f
     assert_eq!(pat.as_str(), "foo *? bar");
 }
 
-#[test]
-fn test_assignment_cancel() {
+#[tokio::test]
+async fn test_assignment_cancel() {
     use conch_runtime::env::VarEnv;
 
     let mut env = VarEnv::<String, String>::new();
@@ -153,8 +153,8 @@ fn test_assignment_cancel() {
     test_cancel!(future, env);
 }
 
-#[test]
-fn test_pattern_cancel() {
+#[tokio::test]
+async fn test_pattern_cancel() {
     let mut env = ();
     let future = mock_word_must_cancel().eval_as_pattern(&mut env);
     test_cancel!(future, env);

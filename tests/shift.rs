@@ -8,7 +8,7 @@ mod support;
 pub use self::support::spawn::builtin::shift;
 pub use self::support::*;
 
-fn run_shift(
+async fn run_shift(
     env_args_starting: &[&str],
     shift_args: &[&str],
     env_args_expected: &[&str],
@@ -27,9 +27,9 @@ fn run_shift(
     let shift = shift(shift_args.iter().map(|&s| s.to_owned()));
 
     let mut shift = shift.spawn(&env);
-    let exit =
-        tokio::runtime::current_thread::block_on_all(poll_fn(|| shift.poll(&mut env)).flatten())
-            .expect("command failed");
+    let exit = Compat01As03::new(poll_fn(|| shift.poll(&mut env)).flatten())
+        .await
+        .expect("command failed");
 
     assert_eq!(exit, expected_status);
 
@@ -41,40 +41,40 @@ fn run_shift(
     assert_eq!(env.args(), env_args_expected);
 }
 
-#[test]
-fn shift_with_args() {
+#[tokio::test]
+async fn shift_with_args() {
     let args = &["a", "b", "d", "e", "f"];
-    run_shift(args, &["3"], &args[3..], EXIT_SUCCESS);
+    run_shift(args, &["3"], &args[3..], EXIT_SUCCESS).await;
 }
 
-#[test]
-fn shift_no_args_shifts_by_one() {
+#[tokio::test]
+async fn shift_no_args_shifts_by_one() {
     let args = &["a", "b"];
-    run_shift(args, &[], &args[1..], EXIT_SUCCESS);
+    run_shift(args, &[], &args[1..], EXIT_SUCCESS).await;
 }
 
-#[test]
-fn shift_negative_arg_does_nothing_and_exit_with_error() {
+#[tokio::test]
+async fn shift_negative_arg_does_nothing_and_exit_with_error() {
     let args = &["a", "b"];
-    run_shift(args, &["-5"], args, EXIT_ERROR);
+    run_shift(args, &["-5"], args, EXIT_ERROR).await;
 }
 
-#[test]
-fn shift_large_arg_does_nothing_and_exit_with_error() {
+#[tokio::test]
+async fn shift_large_arg_does_nothing_and_exit_with_error() {
     let args = &["a", "b"];
-    run_shift(args, &["3"], args, EXIT_ERROR);
+    run_shift(args, &["3"], args, EXIT_ERROR).await;
 }
 
-#[test]
-fn shift_non_numeric_arg_does_nothing_and_exit_with_error() {
+#[tokio::test]
+async fn shift_non_numeric_arg_does_nothing_and_exit_with_error() {
     let args = &["a", "b"];
-    run_shift(args, &["foobar"], args, EXIT_ERROR);
+    run_shift(args, &["foobar"], args, EXIT_ERROR).await;
 }
 
-#[test]
-fn shift_multiple_arg_does_nothing_and_exit_with_error() {
+#[tokio::test]
+async fn shift_multiple_arg_does_nothing_and_exit_with_error() {
     let args = &["a", "b"];
-    run_shift(args, &["1", "2"], args, EXIT_ERROR);
+    run_shift(args, &["1", "2"], args, EXIT_ERROR).await;
 }
 
 #[test]

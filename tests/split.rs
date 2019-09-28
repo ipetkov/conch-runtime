@@ -15,8 +15,8 @@ fn eval(do_split: bool, inner: MockWord) -> Result<Fields<String>, MockErr> {
     split(do_split, inner).pin_env(env).wait()
 }
 
-#[test]
-fn should_split_fields_as_requested() {
+#[tokio::test]
+async fn should_split_fields_as_requested() {
     let env = VarEnv::<String, String>::new();
     let fields = Fields::Split(vec!["foo".to_owned(), "bar".to_owned()]);
     let split_fields = fields.clone().split(&env);
@@ -31,13 +31,13 @@ fn should_split_fields_as_requested() {
     );
 }
 
-#[test]
-fn should_propagate_errors() {
+#[tokio::test]
+async fn should_propagate_errors() {
     eval(true, mock_word_error(false)).unwrap_err();
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     test_cancel!(
         split(true, mock_word_must_cancel()),
         VarEnv::<String, String>::new()

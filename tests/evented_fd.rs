@@ -54,8 +54,8 @@ impl<R: Read> Read for TimesRead<R> {
     }
 }
 
-#[test]
-fn evented_is_async() {
+#[tokio::test]
+async fn evented_is_async() {
     let msg = "hello world";
 
     let Pipe { reader, mut writer } = Pipe::new().expect("failed to create pipe");
@@ -80,10 +80,12 @@ fn evented_is_async() {
         }
     });
 
-    let (tr, data) =
-        tokio::runtime::current_thread::block_on_all(read_to_end(TimesRead::new(reader), vec![]))
-            .map(|(tr, data)| (tr, String::from_utf8(data).expect("invaild utf8")))
-            .expect("future did not exit successfully");
+    let (tr, data) = Compat01As03::new(
+        read_to_end(TimesRead::new(reader), vec![])
+            .map(|(tr, data)| (tr, String::from_utf8(data).expect("invaild utf8"))),
+    )
+    .await
+    .expect("future did not exit successfully");
 
     join_handle
         .join()
@@ -98,8 +100,8 @@ fn evented_is_async() {
     assert!(tr.times_would_block > 1);
 }
 
-#[test]
-fn evented_supports_regular_files() {
+#[tokio::test]
+async fn evented_supports_regular_files() {
     let tempdir = mktmp!();
     let path = tempdir.path().join("sample_file");
 
@@ -108,7 +110,7 @@ fn evented_supports_regular_files() {
     let mut env = EventedAsyncIoEnv::new();
 
     // Test spawning directly within the event loop
-    tokio::runtime::current_thread::block_on_all(futures::lazy(|| {
+    Compat01As03::new(futures::lazy(|| {
         let fd = File::create(&path)
             .map(FileDesc::from)
             .map(ManagedFileDesc::from)
@@ -117,6 +119,7 @@ fn evented_supports_regular_files() {
         env.write_all(fd, msg.to_owned().into_bytes())
             .expect("failed to create write_all")
     }))
+    .await
     .expect("failed to write data");
 
     // Test spawning outside of the event loop
@@ -126,9 +129,11 @@ fn evented_supports_regular_files() {
         .expect("failed to open file");
 
     let data = env.read_async(fd).expect("failed to get data");
-    let data = tokio::runtime::current_thread::block_on_all(read_to_end(data, vec![]))
-        .map(|(_, data)| String::from_utf8(data).expect("invaild utf8"))
-        .expect("future did not exit successfully");
+    let data = Compat01As03::new(
+        read_to_end(data, vec![]).map(|(_, data)| String::from_utf8(data).expect("invaild utf8")),
+    )
+    .await
+    .expect("future did not exit successfully");
 
     assert_eq!(data, msg);
 }

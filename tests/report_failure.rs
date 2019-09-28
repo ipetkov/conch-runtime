@@ -16,8 +16,8 @@ pub use self::support::*;
 #[fail(display = "some error message")]
 struct MockErr;
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let future = futures::future::lazy(move || {
         let mut env = DefaultEnv::<String>::new(Some(2)).expect("failed to create env");
 
@@ -39,5 +39,7 @@ fn smoke() {
             })
     });
 
-    tokio::runtime::current_thread::block_on_all(future).expect("failed to run future");
+    Compat01As03::new(future)
+        .await
+        .expect("failed to run future");
 }

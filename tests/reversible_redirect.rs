@@ -85,8 +85,8 @@ impl From<FileDesc> for S {
     }
 }
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let mut env = MockFileDescEnv::new();
     env.set_file_desc(1, S("a"), Permissions::Read);
     env.set_file_desc(2, S("b"), Permissions::Write);

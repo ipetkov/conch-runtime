@@ -8,8 +8,8 @@ use conch_runtime::env::{
 use conch_runtime::eval::{Fields, ParamEval};
 use conch_runtime::ExitStatus;
 
-#[test]
-fn test_eval_parameter_with_set_vars() {
+#[tokio::test]
+async fn test_eval_parameter_with_set_vars() {
     use conch_runtime::io::getpid;
 
     let var1 = "var1_value".to_owned();
@@ -87,8 +87,8 @@ fn test_eval_parameter_with_set_vars() {
     );
 }
 
-#[test]
-fn test_eval_parameter_with_unset_vars() {
+#[tokio::test]
+async fn test_eval_parameter_with_unset_vars() {
     let env = Env::new(Some(1)).expect("failed to create env");
 
     assert_eq!(At.eval(false, &env), Some(Fields::Zero));
@@ -114,8 +114,8 @@ fn test_eval_parameter_with_unset_vars() {
     assert_eq!(Var("var2".to_owned()).eval(false, &env), None);
 }
 
-#[test]
-fn test_eval_parameter_splitting_with_default_ifs() {
+#[tokio::test]
+async fn test_eval_parameter_splitting_with_default_ifs() {
     let val1 = " \t\nfoo\n\n\nbar \t\n".to_owned();
     let val2 = "".to_owned();
 
@@ -173,8 +173,8 @@ fn test_eval_parameter_splitting_with_default_ifs() {
     );
 }
 
-#[test]
-fn test_eval_parameter_splitting_with_custom_ifs() {
+#[tokio::test]
+async fn test_eval_parameter_splitting_with_custom_ifs() {
     let val1 = "   foo000bar   ".to_owned();
     let val2 = "  00 0 00  0 ".to_owned();
     let val3 = "".to_owned();
@@ -296,8 +296,8 @@ fn test_eval_parameter_splitting_with_custom_ifs() {
     );
 }
 
-#[test]
-fn test_eval_parameter_splitting_with_empty_ifs() {
+#[tokio::test]
+async fn test_eval_parameter_splitting_with_empty_ifs() {
     let val1 = " \t\nfoo\n\n\nbar \t\n".to_owned();
     let val2 = "".to_owned();
 

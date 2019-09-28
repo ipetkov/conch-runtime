@@ -32,7 +32,7 @@ impl WorkingDirectoryEnvironment for DummyWorkingDirEnv {
     }
 }
 
-fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
+async fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     let tempdir = mktmp!();
 
     let tempdir_path = tempdir
@@ -84,7 +84,7 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     let read_to_end = env
         .read_async(pipe.reader)
         .expect("failed to get read_to_end");
-    let ((_, output), exit) = tokio::runtime::current_thread::block_on_all(
+    let ((_, output), exit) = Compat01As03::new(
         tokio_io::io::read_to_end(read_to_end, Vec::new()).join(
             pwd.spawn(&env)
                 .pin_env(env)
@@ -92,6 +92,7 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
                 .map_err(|void| void::unreachable(void)),
         ),
     )
+    .await
     .expect("future failed");
 
     assert_eq!(exit, EXIT_SUCCESS);
@@ -106,47 +107,47 @@ fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     assert_eq!(String::from_utf8_lossy(&output), path_expected);
 }
 
-#[test]
-fn physical() {
-    run_pwd(false, &["-P"], true);
+#[tokio::test]
+async fn physical() {
+    run_pwd(false, &["-P"], true).await;
 }
 
-#[test]
-fn physical_removes_dot_components() {
-    run_pwd(true, &["-P"], true);
+#[tokio::test]
+async fn physical_removes_dot_components() {
+    run_pwd(true, &["-P"], true).await;
 }
 
-#[test]
-fn logical() {
-    run_pwd(false, &["-L"], false);
+#[tokio::test]
+async fn logical() {
+    run_pwd(false, &["-L"], false).await;
 }
 
-#[test]
-fn logical_behaves_as_physical_if_dot_components_present() {
-    run_pwd(true, &["-L"], true);
+#[tokio::test]
+async fn logical_behaves_as_physical_if_dot_components_present() {
+    run_pwd(true, &["-L"], true).await;
 }
 
-#[test]
-fn no_arg_behaves_as_logical() {
-    run_pwd(false, &[], false);
+#[tokio::test]
+async fn no_arg_behaves_as_logical() {
+    run_pwd(false, &[], false).await;
 }
 
-#[test]
-fn no_arg_behaves_as_physical_if_dot_components_present() {
-    run_pwd(true, &[], true);
+#[tokio::test]
+async fn no_arg_behaves_as_physical_if_dot_components_present() {
+    run_pwd(true, &[], true).await;
 }
 
-#[test]
-fn last_specified_flag_wins() {
-    run_pwd(false, &["-L", "-P", "-L"], false);
-    run_pwd(false, &["-P", "-L", "-P"], true);
+#[tokio::test]
+async fn last_specified_flag_wins() {
+    run_pwd(false, &["-L", "-P", "-L"], false).await;
+    run_pwd(false, &["-P", "-L", "-P"], true).await;
 }
 
-#[test]
-fn successful_if_no_stdout() {
+#[tokio::test]
+async fn successful_if_no_stdout() {
     let env = new_env_with_no_fds();
     let pwd = pwd(Vec::<Rc<String>>::new());
-    let exit = tokio::runtime::current_thread::block_on_all(pwd.spawn(&env).pin_env(env).flatten());
+    let exit = Compat01As03::new(pwd.spawn(&env).pin_env(env).flatten()).await;
     assert_eq!(exit, Ok(EXIT_SUCCESS));
 }
 

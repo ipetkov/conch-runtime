@@ -99,8 +99,8 @@ where
     }
 }
 
-#[test]
-fn should_restore_args_after_completion() {
+#[tokio::test]
+async fn should_restore_args_after_completion() {
     let mut env = new_test_env();
 
     let exit = ExitStatus::Code(42);
@@ -113,16 +113,17 @@ fn should_restore_args_after_completion() {
 
     let mut future =
         function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
-    let next = tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)))
+    let next = Compat01As03::new(poll_fn(|| future.poll(&mut env)))
+        .await
         .expect("env future failed");
-    assert_eq!(tokio::runtime::current_thread::block_on_all(next), Ok(exit));
+    assert_eq!(Compat01As03::new(next).await, Ok(exit));
 
     assert_eq!(env.args(), &**args);
     assert_eq!(env.is_fn_running(), false);
 }
 
-#[test]
-fn should_propagate_errors_and_restore_args() {
+#[tokio::test]
+async fn should_propagate_errors_and_restore_args() {
     let mut env = new_test_env();
 
     let fn_name = "fn_name".to_owned();
@@ -133,7 +134,7 @@ fn should_propagate_errors_and_restore_args() {
 
     let mut future =
         function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
-    match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
+    match Compat01As03::new(poll_fn(|| future.poll(&mut env))).await {
         Ok(_) => panic!("unexpected success"),
         Err(e) => assert_eq!(e, MockErr::Fatal(false)),
     }
@@ -142,8 +143,8 @@ fn should_propagate_errors_and_restore_args() {
     assert_eq!(env.is_fn_running(), false);
 }
 
-#[test]
-fn should_propagate_cancel_and_restore_args() {
+#[tokio::test]
+async fn should_propagate_cancel_and_restore_args() {
     let mut env = new_test_env();
 
     let fn_name = "fn_name".to_owned();
@@ -185,8 +186,8 @@ where
     }
 }
 
-#[test]
-fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
+#[tokio::test]
+async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
     let exit = ExitStatus::Code(42);
     let fn_name = "fn name".to_owned();
     let mut env = new_test_env();
@@ -227,9 +228,10 @@ fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
 
     let mut future =
         function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
-    let next = tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)))
+    let next = Compat01As03::new(poll_fn(|| future.poll(&mut env)))
+        .await
         .expect("env future failed");
-    assert_eq!(tokio::runtime::current_thread::block_on_all(next), Ok(exit));
+    assert_eq!(Compat01As03::new(next).await, Ok(exit));
 
     assert_eq!(env.args(), &**args);
     assert_eq!(depth.get(), 0);

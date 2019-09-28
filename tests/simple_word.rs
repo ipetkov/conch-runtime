@@ -13,11 +13,11 @@ pub use self::support::*;
 
 type SimpleWord = ast::SimpleWord<String, MockParam, MockWord>;
 
-fn assert_eval_equals_single(word: SimpleWord, expected: String) {
-    assert_eval_equals_fields(word, Fields::Single(expected));
+async fn assert_eval_equals_single(word: SimpleWord, expected: String) {
+    assert_eval_equals_fields(word, Fields::Single(expected)).await;
 }
 
-fn assert_eval_equals_fields(word: SimpleWord, fields: Fields<String>) {
+async fn assert_eval_equals_fields(word: SimpleWord, fields: Fields<String>) {
     // Should have no effect
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::All,
@@ -27,29 +27,29 @@ fn assert_eval_equals_fields(word: SimpleWord, fields: Fields<String>) {
     assert_eq!(eval!(word, cfg), Ok(fields));
 }
 
-#[test]
-fn test_literal_eval() {
+#[tokio::test]
+async fn test_literal_eval() {
     let value = "~/foobar".to_owned();
-    assert_eval_equals_single(Literal(value.clone()), value);
+    assert_eval_equals_single(Literal(value.clone()), value).await;
 }
 
-#[test]
-fn test_escaped_eval() {
+#[tokio::test]
+async fn test_escaped_eval() {
     let value = "~ && $@".to_owned();
-    assert_eval_equals_single(Escaped(value.clone()), value);
+    assert_eval_equals_single(Escaped(value.clone()), value).await;
 }
 
-#[test]
-fn test_special_literals_eval_properly() {
-    assert_eval_equals_single(Star, "*".to_owned());
-    assert_eval_equals_single(Question, "?".to_owned());
-    assert_eval_equals_single(SquareOpen, "[".to_owned());
-    assert_eval_equals_single(SquareClose, "]".to_owned());
-    assert_eval_equals_single(Colon, ":".to_owned());
+#[tokio::test]
+async fn test_special_literals_eval_properly() {
+    assert_eval_equals_single(Star, "*".to_owned()).await;
+    assert_eval_equals_single(Question, "?".to_owned()).await;
+    assert_eval_equals_single(SquareOpen, "[".to_owned()).await;
+    assert_eval_equals_single(SquareClose, "]".to_owned()).await;
+    assert_eval_equals_single(Colon, ":".to_owned()).await;
 }
 
-#[test]
-fn test_lone_tilde_expansion() {
+#[tokio::test]
+async fn test_lone_tilde_expansion() {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::First,
         split_fields_further: true,
@@ -65,14 +65,14 @@ fn test_lone_tilde_expansion() {
     assert_eq!(result, Ok(Fields::Single(home_value)));
 }
 
-#[test]
-fn test_subst() {
+#[tokio::test]
+async fn test_subst() {
     let fields = Fields::Single("foo".to_owned());
-    assert_eval_equals_fields(Subst(mock_word_fields(fields.clone())), fields);
+    assert_eval_equals_fields(Subst(mock_word_fields(fields.clone())), fields).await;
 }
 
-#[test]
-fn test_subst_error() {
+#[tokio::test]
+async fn test_subst_error() {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::None,
         split_fields_further: false,
@@ -86,8 +86,8 @@ fn test_subst_error() {
         .unwrap_err();
 }
 
-#[test]
-fn test_subst_cancel() {
+#[tokio::test]
+async fn test_subst_cancel() {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::None,
         split_fields_further: false,
@@ -99,19 +99,19 @@ fn test_subst_cancel() {
     test_cancel!(future, env);
 }
 
-#[test]
-fn test_param() {
+#[tokio::test]
+async fn test_param() {
     let fields = Fields::Single("~/foo".to_owned());
-    assert_eval_equals_fields(Param(MockParam::Fields(Some(fields.clone()))), fields);
+    assert_eval_equals_fields(Param(MockParam::Fields(Some(fields.clone()))), fields).await;
 }
 
-#[test]
-fn test_param_unset() {
-    assert_eval_equals_fields(Param(MockParam::Fields(None)), Fields::Zero);
+#[tokio::test]
+async fn test_param_unset() {
+    assert_eval_equals_fields(Param(MockParam::Fields(None)), Fields::Zero).await;
 }
 
-#[test]
-fn test_param_splitting() {
+#[tokio::test]
+async fn test_param_splitting() {
     for &split in &[true, false] {
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::All, // Should have no effect

@@ -13,11 +13,11 @@ pub use self::support::*;
 
 type ComplexWord = ast::ComplexWord<MockWord>;
 
-fn assert_eval_equals_single<T: Into<String>>(complex: ComplexWord, expected: T) {
-    assert_eval_equals_fields(complex, Fields::Single(expected.into()));
+async fn assert_eval_equals_single<T: Into<String>>(complex: ComplexWord, expected: T) {
+    assert_eval_equals_fields(complex, Fields::Single(expected.into())).await;
 }
 
-fn assert_eval_equals_fields(complex: ComplexWord, fields: Fields<String>) {
+async fn assert_eval_equals_fields(complex: ComplexWord, fields: Fields<String>) {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::All,
         split_fields_further: true,
@@ -26,10 +26,10 @@ fn assert_eval_equals_fields(complex: ComplexWord, fields: Fields<String>) {
     assert_eq!(eval!(complex, cfg), Ok(fields));
 }
 
-#[test]
-fn test_single() {
+#[tokio::test]
+async fn test_single() {
     let fields = Fields::Single("foo bar".to_owned());
-    assert_eval_equals_fields(Single(mock_word_fields(fields.clone())), fields);
+    assert_eval_equals_fields(Single(mock_word_fields(fields.clone())), fields).await;
 
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::All,
@@ -38,8 +38,8 @@ fn test_single() {
     eval!(Single(mock_word_error(false)), cfg).unwrap_err();
 }
 
-#[test]
-fn test_concat_error() {
+#[tokio::test]
+async fn test_concat_error() {
     let concat = Concat(vec![
         mock_word_error(false),
         mock_word_fields(Fields::Single("foo".to_owned())),
@@ -52,10 +52,10 @@ fn test_concat_error() {
     eval!(concat, cfg).unwrap_err();
 }
 
-#[test]
-fn test_concat_joins_all_inner_words() {
+#[tokio::test]
+async fn test_concat_joins_all_inner_words() {
     let concat = Concat(vec![mock_word_fields(Fields::Single("hello".to_owned()))]);
-    assert_eval_equals_single(concat, "hello");
+    assert_eval_equals_single(concat, "hello").await;
 
     let concat = Concat(vec![
         mock_word_fields(Fields::Single("hello".to_owned())),
@@ -63,11 +63,11 @@ fn test_concat_joins_all_inner_words() {
         mock_word_fields(Fields::Single("world".to_owned())),
     ]);
 
-    assert_eval_equals_single(concat, "hellofoobarworld");
+    assert_eval_equals_single(concat, "hellofoobarworld").await;
 }
 
-#[test]
-fn test_concat_expands_to_many_fields_and_joins_with_those_before_and_after() {
+#[tokio::test]
+async fn test_concat_expands_to_many_fields_and_joins_with_those_before_and_after() {
     let concat = Concat(vec![
         mock_word_fields(Fields::Single("hello".to_owned())),
         mock_word_fields(Fields::Split(vec![
@@ -87,11 +87,12 @@ fn test_concat_expands_to_many_fields_and_joins_with_those_before_and_after() {
             "bazqux".to_owned(),
             "quuxworld".to_owned(),
         ]),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn test_concat_should_not_expand_tilde_which_is_not_at_start() {
+#[tokio::test]
+async fn test_concat_should_not_expand_tilde_which_is_not_at_start() {
     let concat = Concat(vec![
         mock_word_assert_cfg(WordEvalConfig {
             tilde_expansion: TildeExpansion::All,
@@ -104,25 +105,25 @@ fn test_concat_should_not_expand_tilde_which_is_not_at_start() {
         }),
         mock_word_fields(Fields::Single("bar".to_owned())),
     ]);
-    assert_eval_equals_single(concat, "foobar");
+    assert_eval_equals_single(concat, "foobar").await;
 }
 
 // FIXME: test_concat_should_expand_tilde_after_colon
 
-#[test]
-fn test_concat_empty_words_results_in_zero_field() {
-    assert_eval_equals_fields(Concat(vec![]), Fields::Zero);
+#[tokio::test]
+async fn test_concat_empty_words_results_in_zero_field() {
+    assert_eval_equals_fields(Concat(vec![]), Fields::Zero).await;
 
     let concat = Concat(vec![
         mock_word_fields(Fields::Zero),
         mock_word_fields(Fields::Zero),
         mock_word_fields(Fields::Zero),
     ]);
-    assert_eval_equals_fields(concat, Fields::Zero);
+    assert_eval_equals_fields(concat, Fields::Zero).await;
 }
 
-#[test]
-fn test_concat_param_at_expands_when_args_set_and_concats_with_rest() {
+#[tokio::test]
+async fn test_concat_param_at_expands_when_args_set_and_concats_with_rest() {
     let concat = Concat(vec![
         mock_word_fields(Fields::Single("foo".to_owned())),
         mock_word_fields(Fields::At(vec![
@@ -140,26 +141,27 @@ fn test_concat_param_at_expands_when_args_set_and_concats_with_rest() {
             "two".to_owned(),
             "three fourbar".to_owned(),
         ]),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn test_concat_param_at_expands_to_nothing_when_args_not_set_and_concats_with_rest() {
+#[tokio::test]
+async fn test_concat_param_at_expands_to_nothing_when_args_not_set_and_concats_with_rest() {
     let concat = Concat(vec![
         mock_word_fields(Fields::Single("foo".to_owned())),
         mock_word_fields(Fields::At(vec![])),
         mock_word_fields(Fields::Single("bar".to_owned())),
     ]);
-    assert_eval_equals_single(concat, "foobar");
+    assert_eval_equals_single(concat, "foobar").await;
 }
 
-#[test]
-fn test_single_cancel() {
+#[tokio::test]
+async fn test_single_cancel() {
     test_cancel!(Single(mock_word_must_cancel()).eval(&mut ()));
 }
 
-#[test]
-fn test_concat_cancel() {
+#[tokio::test]
+async fn test_concat_cancel() {
     let concat = Concat(vec![
         mock_word_must_cancel(),
         mock_word_must_cancel(),

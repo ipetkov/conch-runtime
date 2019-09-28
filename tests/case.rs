@@ -10,12 +10,12 @@ pub use self::support::*;
 macro_rules! run_env {
     ($future:expr) => {{
         let env = new_env();
-        tokio::runtime::current_thread::block_on_all($future.pin_env(env).flatten())
+        Compat01As03::new($future.pin_env(env).flatten()).await
     }};
 }
 
-#[test]
-fn should_expand_only_first_word_tilde_without_further_field_splitting() {
+#[tokio::test]
+async fn should_expand_only_first_word_tilde_without_further_field_splitting() {
     let word = mock_word_assert_cfg(WordEvalConfig {
         tilde_expansion: TildeExpansion::First,
         split_fields_further: false,
@@ -24,8 +24,8 @@ fn should_expand_only_first_word_tilde_without_further_field_splitting() {
     assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_match_patterns_case_sensitively() {
+#[tokio::test]
+async fn should_match_patterns_case_sensitively() {
     let should_not_run = mock_panic("must not run");
     let exit = ExitStatus::Code(42);
 
@@ -48,8 +48,8 @@ fn should_match_patterns_case_sensitively() {
     assert_eq!(run_env!(cmd), Ok(exit));
 }
 
-#[test]
-fn should_return_success_if_no_arms_or_no_matches() {
+#[tokio::test]
+async fn should_return_success_if_no_arms_or_no_matches() {
     let word = mock_word_fields(Fields::Single("hello".to_owned()));
     let cmd = case(
         word.clone(),
@@ -68,8 +68,8 @@ fn should_return_success_if_no_arms_or_no_matches() {
     assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_join_word_with_space_if_it_evals_with_multiple_fields() {
+#[tokio::test]
+async fn should_join_word_with_space_if_it_evals_with_multiple_fields() {
     let should_not_run = mock_panic("must not run");
     let exit = ExitStatus::Code(42);
     let word = mock_word_fields(Fields::Split(vec!["hello".to_owned(), "world".to_owned()]));
@@ -90,8 +90,8 @@ fn should_join_word_with_space_if_it_evals_with_multiple_fields() {
     assert_eq!(run_env!(cmd), Ok(exit));
 }
 
-#[test]
-fn should_only_run_one_arm_body_if_a_pattern_matches_lazily() {
+#[tokio::test]
+async fn should_only_run_one_arm_body_if_a_pattern_matches_lazily() {
     let should_not_run = mock_panic("must not run");
     let word = mock_word_fields(Fields::Single("hello".to_owned()));
     let exit = ExitStatus::Code(42);
@@ -128,8 +128,8 @@ fn should_only_run_one_arm_body_if_a_pattern_matches_lazily() {
     assert_eq!(run_env!(cmd), Ok(exit));
 }
 
-#[test]
-fn should_propagate_fatal_errors() {
+#[tokio::test]
+async fn should_propagate_fatal_errors() {
     let should_not_run = mock_panic("must not run");
     let should_not_run_word = mock_word_panic("word must not run");
     let word = mock_word_fields(Fields::Single("foo".to_owned()));
@@ -172,8 +172,8 @@ fn should_propagate_fatal_errors() {
     assert_eq!(run_env!(cmd), Err(MockErr::Fatal(true)));
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let mut env = new_env();
 
     let should_not_run = mock_panic("must not run");

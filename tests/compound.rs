@@ -12,8 +12,8 @@ pub use self::support::*;
 
 type Kind = CompoundCommandKind<Rc<String>, MockWord, MockCmd>;
 
-#[test]
-fn compound_command_kind_smoke() {
+#[tokio::test]
+async fn compound_command_kind_smoke() {
     let mock_word = mock_word_fields(Fields::Single("foo".to_owned()));
 
     let exit = ExitStatus::Code(42);
@@ -64,8 +64,8 @@ fn compound_command_kind_smoke() {
     assert_eq!(run!(cmd), Ok(exit));
 }
 
-#[test]
-fn compound_command_kind_cancel_smoke() {
+#[tokio::test]
+async fn compound_command_kind_cancel_smoke() {
     let should_not_run = mock_panic("should not run");
 
     let cmd: Kind = CompoundCommandKind::Brace(vec![mock_must_cancel()]);

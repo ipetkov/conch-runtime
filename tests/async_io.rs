@@ -5,8 +5,8 @@ use conch_runtime::io::Pipe;
 use futures::Future;
 use tokio_io::io::read_to_end;
 
-#[test]
-fn async_io_thread_pool_smoke() {
+#[tokio::test]
+async fn async_io_thread_pool_smoke() {
     let pipe = Pipe::new().expect("failed to create pipe");
     let best_effort_pipe = Pipe::new().expect("failed to create pipe");
 

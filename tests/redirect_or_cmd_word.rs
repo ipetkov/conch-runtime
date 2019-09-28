@@ -11,15 +11,15 @@ use futures::future::poll_fn;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let mut env = new_env_with_no_fds();
 
     {
         let env = env.sub_env();
         let future = eval_redirects_or_cmd_words::<MockRedirect<_>, MockWord, _, _>(vec![], &env)
             .pin_env(env);
-        let (_restorer, words) = tokio::runtime::current_thread::block_on_all(future).unwrap();
+        let (_restorer, words) = Compat01As03::new(future).await.unwrap();
         assert!(words.is_empty());
     }
 
@@ -42,8 +42,9 @@ fn smoke() {
         &env,
     );
 
-    let (mut restorer, words) =
-        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))).unwrap();
+    let (mut restorer, words) = Compat01As03::new(poll_fn(|| future.poll(&mut env)))
+        .await
+        .unwrap();
 
     assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
     restorer.restore(&mut env);
@@ -55,8 +56,8 @@ fn smoke() {
     );
 }
 
-#[test]
-fn should_propagate_errors_and_restore_redirects() {
+#[tokio::test]
+async fn should_propagate_errors_and_restore_redirects() {
     let mut env = new_env_with_no_fds();
 
     {
@@ -77,7 +78,7 @@ fn should_propagate_errors_and_restore_redirects() {
 
         let err = EvalRedirectOrCmdWordError::CmdWord(MockErr::Fatal(false));
         assert_eq!(
-            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))),
+            Compat01As03::new(poll_fn(|| future.poll(&mut env))).await,
             Err(err)
         );
         assert_eq!(env.file_desc(1), None);
@@ -101,15 +102,15 @@ fn should_propagate_errors_and_restore_redirects() {
 
         let err = EvalRedirectOrCmdWordError::Redirect(MockErr::Fatal(false));
         assert_eq!(
-            tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))),
+            Compat01As03::new(poll_fn(|| future.poll(&mut env))).await,
             Err(err)
         );
         assert_eq!(env.file_desc(1), None);
     }
 }
 
-#[test]
-fn should_propagate_cancel_and_restore_redirects() {
+#[tokio::test]
+async fn should_propagate_cancel_and_restore_redirects() {
     let mut env = new_env_with_no_fds();
 
     test_cancel!(

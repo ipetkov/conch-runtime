@@ -13,7 +13,7 @@ pub use self::support::*;
 
 macro_rules! run_env {
     ($future:expr, $env:expr) => {{
-        tokio::runtime::current_thread::block_on_all($future.pin_env($env.sub_env()).flatten())
+        Compat01As03::new($future.pin_env($env.sub_env()).flatten()).await
     }};
 }
 
@@ -58,8 +58,12 @@ impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
     }
 }
 
-#[test]
-fn should_run_with_appropriate_args() {
+#[tokio::test]
+async fn should_run_with_appropriate_args() {
+    should_run_with_appropriate_args_impl().await
+}
+
+async fn should_run_with_appropriate_args_impl() {
     let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("arg_foo".to_owned()),
@@ -88,7 +92,7 @@ fn should_run_with_appropriate_args() {
                 Async::NotReady => unreachable!(),
             };
 
-            let ret = tokio::runtime::current_thread::block_on_all(next_future);
+            let ret = Compat01As03::new(next_future).await;
             assert_eq!(ret, Ok(MOCK_EXIT));
             assert_eq!(&**env.var(&result_var).unwrap(), $value);
         }};
@@ -122,8 +126,8 @@ fn should_run_with_appropriate_args() {
     }
 }
 
-#[test]
-fn should_swallow_non_fatal_errors_in_body() {
+#[tokio::test]
+async fn should_swallow_non_fatal_errors_in_body() {
     let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("arg_foo".to_owned()),
@@ -155,8 +159,8 @@ fn should_swallow_non_fatal_errors_in_body() {
     assert_eq!(run_env!(for_cmd, env), Ok(MOCK_EXIT));
 }
 
-#[test]
-fn should_not_run_body_args_are_empty() {
+#[tokio::test]
+async fn should_not_run_body_args_are_empty() {
     let mut env = new_env();
     env.set_args(Rc::new(vec![]));
 
@@ -183,8 +187,8 @@ fn should_not_run_body_args_are_empty() {
     assert_eq!(run_env!(for_cmd, env), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_propagate_all_word_errors() {
+#[tokio::test]
+async fn should_propagate_all_word_errors() {
     let env = new_env();
 
     let should_not_run = mock_panic("must not run");
@@ -207,8 +211,8 @@ fn should_propagate_all_word_errors() {
     assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(false)));
 }
 
-#[test]
-fn should_propagate_fatal_errors_in_body() {
+#[tokio::test]
+async fn should_propagate_fatal_errors_in_body() {
     let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("foo".to_owned()),
@@ -235,8 +239,8 @@ fn should_propagate_fatal_errors_in_body() {
     assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let mut env = new_env();
     env.set_args(Rc::new(vec![
         Rc::new("foo".to_owned()),

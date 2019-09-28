@@ -11,8 +11,8 @@ use std::thread;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn smoke_open_path() {
+#[tokio::test]
+async fn smoke_open_path() {
     let msg = "hello world";
     let tempdir = mktmp!();
 
@@ -38,8 +38,8 @@ fn smoke_open_path() {
     assert_eq!(result, msg);
 }
 
-#[test]
-fn smoke_pipe() {
+#[tokio::test]
+async fn smoke_pipe() {
     let msg = "pipe message";
     let Pipe {
         mut reader,

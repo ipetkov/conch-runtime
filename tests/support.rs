@@ -19,6 +19,7 @@ pub use conch_runtime::path::*;
 pub use conch_runtime::spawn::{self, *};
 pub use conch_runtime::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS};
 pub use futures::{Async, Future, Poll};
+pub use futures_preview::compat::Compat01As03;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[macro_export]
@@ -553,9 +554,9 @@ macro_rules! run {
         let cmd = $cmd;
 
         #[allow(deprecated)]
-        let ret_ref = run(&cmd, env.sub_env());
+        let ret_ref = run(&cmd, env.sub_env()).await;
         #[allow(deprecated)]
-        let ret = run(cmd, env);
+        let ret = run(cmd, env).await;
 
         assert_eq!(ret_ref, ret);
         ret
@@ -564,10 +565,9 @@ macro_rules! run {
 
 /// Spawns and syncronously runs the provided command to completion.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
-pub fn run<T: Spawn<E>, E>(cmd: T, env: E) -> Result<ExitStatus, T::Error> {
+pub async fn run<T: Spawn<E>, E>(cmd: T, env: E) -> Result<ExitStatus, T::Error> {
     let future = cmd.spawn(&env).pin_env(env).flatten();
-
-    tokio::runtime::current_thread::block_on_all(future)
+    Compat01As03::new(future).await
 }
 
 #[macro_export]
@@ -608,9 +608,9 @@ macro_rules! eval_with_thread_pool {
         let word = $word;
         let cfg = $cfg;
         #[allow(deprecated)]
-        let ret_ref = eval_word(&word, cfg, $threads);
+        let ret_ref = eval_word(&word, cfg, $threads).await;
         #[allow(deprecated)]
-        let ret = eval_word(word, cfg, $threads);
+        let ret = eval_word(word, cfg, $threads).await;
         assert_eq!(ret_ref, ret);
         ret
     }};
@@ -618,7 +618,7 @@ macro_rules! eval_with_thread_pool {
 
 /// Evaluates a word to completion.
 #[deprecated(note = "use `eval!` macro instead, to cover spawning T and &T")]
-pub fn eval_word<W: WordEval<DefaultEnv<String>>>(
+pub async fn eval_word<W: WordEval<DefaultEnv<String>>>(
     word: W,
     cfg: WordEvalConfig,
     threads: usize,
@@ -626,7 +626,7 @@ pub fn eval_word<W: WordEval<DefaultEnv<String>>>(
     let env = DefaultEnv::<String>::new(Some(threads)).expect("failed to create env");
     let future = word.eval_with_config(&env, cfg).pin_env(env);
 
-    tokio::runtime::current_thread::block_on_all(future)
+    Compat01As03::new(future).await
 }
 
 pub fn bin_path(s: &str) -> ::std::path::PathBuf {

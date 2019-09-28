@@ -122,11 +122,11 @@ fn rc(s: &str) -> Rc<String> {
     Rc::new(String::from(s))
 }
 
-fn run_builtin(name: &str, args: &[&str]) -> Output {
-    run_builtin_with_prep(name, args, |_| {})
+async fn run_builtin(name: &str, args: &[&str]) -> Output {
+    run_builtin_with_prep(name, args, |_| {}).await
 }
 
-fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
+async fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
 where
     for<'a> F: FnOnce(&'a mut DefaultEnvRc),
 {
@@ -160,7 +160,8 @@ where
             })
             .map_err(|void| void::unreachable(void));
 
-        tokio::runtime::current_thread::block_on_all(read_to_end_out.join(future))
+        Compat01As03::new(read_to_end_out.join(future))
+            .await
             .map(|((_, out), exit)| (out, exit))
             .expect("future failed")
     };
@@ -184,41 +185,41 @@ fn test_cancel_impl(name: &str) {
     builtin.spawn(&env).cancel(&mut env);
 }
 
-#[test]
-fn builtin_smoke_cd() {
+#[tokio::test]
+async fn builtin_smoke_cd() {
     let temp = mktmp!();
     let tempdir = temp.path().display().to_string();
 
-    let output = run_builtin("cd", &[&tempdir]);
+    let output = run_builtin("cd", &[&tempdir]).await;
     assert_eq!(output.exit, EXIT_SUCCESS);
     assert_eq!(output.out, "");
     assert_eq!(output.env.current_working_dir(), temp.path());
 }
 
-#[test]
-fn builtin_smoke_colon() {
-    let output = run_builtin(":", &[]);
+#[tokio::test]
+async fn builtin_smoke_colon() {
+    let output = run_builtin(":", &[]).await;
     assert_eq!(output.exit, EXIT_SUCCESS);
     assert_eq!(output.out, "");
 }
 
-#[test]
-fn builtin_smoke_echo() {
-    let output = run_builtin("echo", &["foo", "bar"]);
+#[tokio::test]
+async fn builtin_smoke_echo() {
+    let output = run_builtin("echo", &["foo", "bar"]).await;
     assert_eq!(output.exit, EXIT_SUCCESS);
     assert_eq!(output.out, "foo bar\n");
 }
 
-#[test]
-fn builtin_smoke_false() {
-    let output = run_builtin("false", &[]);
+#[tokio::test]
+async fn builtin_smoke_false() {
+    let output = run_builtin("false", &[]).await;
     assert_eq!(output.exit, EXIT_ERROR);
     assert_eq!(output.out, "");
 }
 
-#[test]
-fn builtin_smoke_pwd() {
-    let output = run_builtin("pwd", &[]);
+#[tokio::test]
+async fn builtin_smoke_pwd() {
+    let output = run_builtin("pwd", &[]).await;
     assert_eq!(output.exit, EXIT_SUCCESS);
     assert_eq!(
         output.out,
@@ -226,8 +227,8 @@ fn builtin_smoke_pwd() {
     );
 }
 
-#[test]
-fn builtin_smoke_shift() {
+#[tokio::test]
+async fn builtin_smoke_shift() {
     let mut args = vec![
         Rc::new(String::from("first")),
         Rc::new(String::from("second")),
@@ -236,7 +237,8 @@ fn builtin_smoke_shift() {
     ];
     let output = run_builtin_with_prep("shift", &["2"], |env| {
         env.set_args(Rc::new(args.clone()));
-    });
+    })
+    .await;
 
     args.remove(0);
     args.remove(0);
@@ -246,9 +248,9 @@ fn builtin_smoke_shift() {
     assert_eq!(output.env.args(), args);
 }
 
-#[test]
-fn builtin_smoke_true() {
-    let output = run_builtin("true", &[]);
+#[tokio::test]
+async fn builtin_smoke_true() {
+    let output = run_builtin("true", &[]).await;
     assert_eq!(output.exit, EXIT_SUCCESS);
     assert_eq!(output.out, "");
 }

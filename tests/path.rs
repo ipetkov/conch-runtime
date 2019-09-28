@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 mod support;
 pub use self::support::*;
 
-#[test]
-fn join_logical_normalizes_root_paths() {
+#[tokio::test]
+async fn join_logical_normalizes_root_paths() {
     let mut path = NormalizedPath::new();
     path.join_normalized_logial("some/path");
 
@@ -19,14 +19,14 @@ fn join_logical_normalizes_root_paths() {
     assert_eq!(*path, Path::new("/foo/baz"));
 }
 
-#[test]
-fn new_normalized_logical_normalizes_root_paths() {
+#[tokio::test]
+async fn new_normalized_logical_normalizes_root_paths() {
     let path = NormalizedPath::new_normalized_logical(PathBuf::from("/foo/./bar/../baz"));
     assert_eq!(*path, Path::new("/foo/baz"));
 }
 
-#[test]
-fn join_logical_normalizes_relative_paths() {
+#[tokio::test]
+async fn join_logical_normalizes_relative_paths() {
     let mut path = NormalizedPath::new();
     path.join_normalized_logial("foo/bar");
 
@@ -34,15 +34,15 @@ fn join_logical_normalizes_relative_paths() {
     assert_eq!(*path, Path::new("foo/qux/baz"));
 }
 
-#[test]
-fn new_normalized_logical_normalizes_relative_paths() {
+#[tokio::test]
+async fn new_normalized_logical_normalizes_relative_paths() {
     let path =
         NormalizedPath::new_normalized_logical(PathBuf::from("foo/bar/./../qux/./bar/../baz"));
     assert_eq!(*path, Path::new("foo/qux/baz"));
 }
 
-#[test]
-fn join_physical_normalizes_paths_and_resolves_symlinks() {
+#[tokio::test]
+async fn join_physical_normalizes_paths_and_resolves_symlinks() {
     // NB: on windows we apparently can't append a path with `/` separators
     // if the path we're joining to has already been canonicalized
     fn join_path<I>(path: &Path, components: I) -> PathBuf

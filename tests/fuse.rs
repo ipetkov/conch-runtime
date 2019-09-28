@@ -32,8 +32,8 @@ impl EnvFuture<()> for MockFuture {
     }
 }
 
-#[test]
-fn poll_after_success() {
+#[tokio::test]
+async fn poll_after_success() {
     let env = &mut ();
     let mut future = MockFuture::ok().fuse();
 
@@ -41,8 +41,8 @@ fn poll_after_success() {
     assert_eq!(future.poll(env), Ok(Async::NotReady));
 }
 
-#[test]
-fn poll_after_error() {
+#[tokio::test]
+async fn poll_after_error() {
     let env = &mut ();
     let mut future = MockFuture::err().fuse();
 
@@ -50,8 +50,8 @@ fn poll_after_error() {
     assert_eq!(future.poll(env), Ok(Async::NotReady));
 }
 
-#[test]
-fn poll_after_cancel() {
+#[tokio::test]
+async fn poll_after_cancel() {
     let env = &mut ();
     let mut future = MockFuture::ok().fuse();
 
@@ -59,8 +59,8 @@ fn poll_after_cancel() {
     assert_eq!(future.poll(env), Ok(Async::NotReady));
 }
 
-#[test]
-fn cancel_after_success() {
+#[tokio::test]
+async fn cancel_after_success() {
     let env = &mut ();
     let mut future = MockFuture::ok().fuse();
 
@@ -68,8 +68,8 @@ fn cancel_after_success() {
     future.cancel(env);
 }
 
-#[test]
-fn cancel_after_error() {
+#[tokio::test]
+async fn cancel_after_error() {
     let env = &mut ();
     let mut future = MockFuture::err().fuse();
 
@@ -77,8 +77,8 @@ fn cancel_after_error() {
     future.cancel(env);
 }
 
-#[test]
-fn cancel_after_cancel() {
+#[tokio::test]
+async fn cancel_after_cancel() {
     let env = &mut ();
     let mut future = MockFuture::ok().fuse();
 

@@ -8,16 +8,16 @@ use futures::Future;
 mod support;
 pub use self::support::*;
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let exit = ExitStatus::Code(42);
     let env = LastStatusEnv::new();
     let future = mock_status(exit).pin_env(env).flatten();
     assert_eq!(future.wait(), Ok(exit));
 }
 
-#[test]
-fn unwrap_and_cancel() {
+#[tokio::test]
+async fn unwrap_and_cancel() {
     let env = LastStatusEnv::new();
     let mut future = mock_must_cancel().pin_env(env.clone());
 

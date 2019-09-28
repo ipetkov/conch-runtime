@@ -16,8 +16,8 @@ fn eval<W: Into<Option<MockWord>>>(param: &MockParam, word: W) -> Result<Fields<
         .wait()
 }
 
-#[test]
-fn should_evaluate_appropriately() {
+#[tokio::test]
+async fn should_evaluate_appropriately() {
     let must_not_run = mock_word_panic("should not run");
     let mock_word = mock_word_fields(Fields::Single("abc*d".to_owned()));
     let mock_word_wild = mock_word_fields(Fields::Single("*".to_owned()));
@@ -59,8 +59,8 @@ fn should_evaluate_appropriately() {
     eval(&param, None).unwrap();
 }
 
-#[test]
-fn should_propagate_errors_from_word_if_applicable() {
+#[tokio::test]
+async fn should_propagate_errors_from_word_if_applicable() {
     let must_not_run = mock_word_panic("should not run");
 
     // Param not present
@@ -85,8 +85,8 @@ fn should_propagate_errors_from_word_if_applicable() {
     eval(&param, None).unwrap();
 }
 
-#[test]
-fn should_propagate_cancel_if_required() {
+#[tokio::test]
+async fn should_propagate_cancel_if_required() {
     let env = &mut ();
     let must_not_run = Some(mock_word_panic("should not run"));
     let must_cancel = Some(mock_word_must_cancel());

@@ -15,8 +15,8 @@ fn env_path() -> String {
     bin_path("env").to_str().unwrap().to_owned()
 }
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let word = ast::TopLevelWord(ast::ComplexWord::Single(ast::Word::Simple(
         ast::SimpleWord::Literal(Rc::new(env_path())),
     )));
@@ -37,8 +37,8 @@ fn smoke() {
     assert_eq!(run!(cmd, env), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn smoke_atomic() {
+#[tokio::test]
+async fn smoke_atomic() {
     let word = ast::AtomicTopLevelWord(ast::ComplexWord::Single(ast::Word::Simple(
         ast::SimpleWord::Literal(Arc::new(env_path())),
     )));

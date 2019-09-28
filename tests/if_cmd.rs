@@ -10,12 +10,12 @@ pub use self::support::*;
 macro_rules! run_env {
     ($future:expr) => {{
         let env = new_env();
-        tokio::runtime::current_thread::block_on_all($future.pin_env(env).flatten())
+        Compat01As03::new($future.pin_env(env).flatten()).await
     }};
 }
 
-#[test]
-fn should_run_body_of_successful_guard() {
+#[tokio::test]
+async fn should_run_body_of_successful_guard() {
     let should_not_run = mock_panic("must not run");
     let exit = ExitStatus::Code(42);
 
@@ -39,8 +39,8 @@ fn should_run_body_of_successful_guard() {
     assert_eq!(run_env!(cmd), Ok(exit));
 }
 
-#[test]
-fn should_run_else_branch_if_present_and_no_successful_guards() {
+#[tokio::test]
+async fn should_run_else_branch_if_present_and_no_successful_guards() {
     let should_not_run = mock_panic("must not run");
     let exit = ExitStatus::Code(42);
 
@@ -69,8 +69,8 @@ fn should_run_else_branch_if_present_and_no_successful_guards() {
     assert_eq!(run_env!(cmd), Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn should_propagate_fatal_errors() {
+#[tokio::test]
+async fn should_propagate_fatal_errors() {
     let should_not_run = mock_panic("must not run");
 
     let cmd = if_cmd(
@@ -86,8 +86,8 @@ fn should_propagate_fatal_errors() {
     assert_eq!(run_env!(cmd), Err(MockErr::Fatal(true)));
 }
 
-#[test]
-fn should_propagate_cancel() {
+#[tokio::test]
+async fn should_propagate_cancel() {
     let mut env = new_env();
 
     let should_not_run = mock_panic("must not run");

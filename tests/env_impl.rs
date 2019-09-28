@@ -8,9 +8,9 @@ use std::borrow::Cow;
 pub mod support;
 use crate::support::*;
 
-#[test]
-fn is_interactive() {
-    tokio::runtime::current_thread::block_on_all(lazy(|| {
+#[tokio::test]
+async fn is_interactive() {
+    Compat01As03::new(lazy(|| {
         for &interactive in &[true, false] {
             let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
                 interactive,
@@ -22,14 +22,15 @@ fn is_interactive() {
         let ret: Result<_, ()> = Ok(());
         ret
     }))
+    .await
     .unwrap();
 }
 
-#[test]
-fn sets_pwd_and_oldpwd_env_vars() {
-    let mut env =
-        tokio::runtime::current_thread::block_on_all(lazy(|| DefaultEnv::<String>::new(Some(1))))
-            .unwrap();
+#[tokio::test]
+async fn sets_pwd_and_oldpwd_env_vars() {
+    let mut env = Compat01As03::new(lazy(|| DefaultEnv::<String>::new(Some(1))))
+        .await
+        .unwrap();
 
     let old_cwd;
     {

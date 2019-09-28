@@ -49,8 +49,8 @@ where
     ret
 }
 
-#[test]
-fn should_evaluate_appropriately() {
+#[tokio::test]
+async fn should_evaluate_appropriately() {
     let must_not_run = mock_word_panic("should not run");
     let val = "word fields";
     let word_fields = Fields::Single(val.to_owned());
@@ -166,8 +166,8 @@ fn should_evaluate_appropriately() {
     eval(true, &param, None).unwrap();
 }
 
-#[test]
-fn should_propagate_errors_from_word_if_applicable() {
+#[tokio::test]
+async fn should_propagate_errors_from_word_if_applicable() {
     let must_not_run = mock_word_panic("should not run");
     let name = "var".to_owned();
 
@@ -235,8 +235,8 @@ fn should_propagate_errors_from_word_if_applicable() {
     assert_eq!(eval(true, &param, None), Err(bad_assig.clone()));
 }
 
-#[test]
-fn should_propagate_cancel_if_required() {
+#[tokio::test]
+async fn should_propagate_cancel_if_required() {
     let mut env = VarEnv::<String, String>::new();
     let must_not_run = Some(mock_word_panic("should not run"));
     let must_cancel = Some(mock_word_must_cancel());

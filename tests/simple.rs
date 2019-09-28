@@ -69,15 +69,15 @@ impl BuiltinEnvironment for DummyBuiltinEnv {
 }
 
 #[cfg(feature = "conch-parser")]
-#[test]
-fn ast_node_smoke_test() {
+#[tokio::test]
+async fn ast_node_smoke_test() {
     use conch_parser::ast;
 
-    fn run<T: Spawn<TestEnv>>(cmd: T) -> Result<ExitStatus, T::Error> {
+    async fn run<T: Spawn<TestEnv>>(cmd: T) -> Result<ExitStatus, T::Error> {
         let env = new_test_env();
         let future = cmd.spawn(&env).pin_env(env).flatten();
 
-        tokio::runtime::current_thread::block_on_all(future)
+        Compat01As03::new(future).await
     }
 
     let key = Rc::new("key".to_owned());
@@ -94,14 +94,14 @@ fn ast_node_smoke_test() {
         ))],
     };
 
-    let ret_ref = run(&cmd);
-    let ret = run(cmd);
+    let ret_ref = run(&cmd).await;
+    let ret = run(cmd).await;
     assert_eq!(ret_ref, ret);
     assert_eq!(ret, Ok(EXIT_SUCCESS));
 }
 
-#[test]
-fn function_smoke() {
+#[tokio::test]
+async fn function_smoke() {
     const KEY: &str = "key";
     const VAL: &str = "val";
     const EXIT: ExitStatus = ExitStatus::Code(42);
@@ -168,14 +168,14 @@ fn function_smoke() {
     );
 
     assert_eq!(
-        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
+        Compat01As03::new(poll_fn(|| future.poll(&mut env)).flatten()).await,
         Ok(EXIT)
     );
     assert_eq!(env.var(&key), None);
 }
 
-#[test]
-fn should_set_executable_cwd_same_as_env() {
+#[tokio::test]
+async fn should_set_executable_cwd_same_as_env() {
     let mut env = new_test_env();
 
     let pipe = env.open_pipe().expect("failed to open pipe");
@@ -210,14 +210,12 @@ fn should_set_executable_cwd_same_as_env() {
         .map(move |(_, msg)| assert!(cwd.ends_with(&*String::from_utf8_lossy(&msg))))
         .map_err(|e| panic!("stdout failed: {}", e));
 
-    let status = tokio::runtime::current_thread::block_on_all(
-        poll_fn(|| future.poll(&mut env)).flatten().join(stdout),
-    );
+    let status = Compat01As03::new(poll_fn(|| future.poll(&mut env)).flatten().join(stdout)).await;
     assert_eq!(status, Ok((EXIT_SUCCESS, ())));
 }
 
-#[test]
-fn command_redirect_and_env_var_overrides() {
+#[tokio::test]
+async fn command_redirect_and_env_var_overrides() {
     let mut env = new_test_env();
     env.unset_var(&"SHLVL".to_owned());
     env.unset_var(&"OLDPWD".to_owned());
@@ -268,17 +266,15 @@ fn command_redirect_and_env_var_overrides() {
         })
         .map_err(|e| panic!("stdout failed: {}", e));
 
-    let status = tokio::runtime::current_thread::block_on_all(
-        poll_fn(|| future.poll(&mut env)).flatten().join(stdout),
-    );
+    let status = Compat01As03::new(poll_fn(|| future.poll(&mut env)).flatten().join(stdout)).await;
     assert_eq!(status, Ok((EXIT_SUCCESS, ())));
 
     assert_eq!(env.file_desc(1), None);
     assert_eq!(env.exported_var(&key), None);
 }
 
-#[test]
-fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
+#[tokio::test]
+async fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
     let mut env = new_test_env();
 
     let key = Rc::new("key".to_owned());
@@ -323,7 +319,7 @@ fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
     );
 
     assert_eq!(
-        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
+        Compat01As03::new(poll_fn(|| future.poll(&mut env)).flatten()).await,
         Ok(EXIT_SUCCESS)
     );
 
@@ -336,8 +332,8 @@ fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
     );
 }
 
-#[test]
-fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
+#[tokio::test]
+async fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
     let mut env = new_test_env();
 
     let key = Rc::new("key".to_owned());
@@ -364,7 +360,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
+        match Compat01As03::new(poll_fn(|| future.poll(&mut env))).await {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -393,7 +389,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
+        match Compat01As03::new(poll_fn(|| future.poll(&mut env))).await {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -421,7 +417,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
+        match Compat01As03::new(poll_fn(|| future.poll(&mut env))).await {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -449,7 +445,7 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
             &env,
         );
 
-        match tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env))) {
+        match Compat01As03::new(poll_fn(|| future.poll(&mut env))).await {
             Ok(_) => panic!("unexepected success"),
             Err(e) => assert_eq!(e, MockErr::Fatal(false)),
         }
@@ -458,8 +454,8 @@ fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
     }
 }
 
-#[test]
-fn should_propagate_cancel_and_restore_redirects_and_vars() {
+#[tokio::test]
+async fn should_propagate_cancel_and_restore_redirects_and_vars() {
     let mut env = new_test_env();
 
     let key = Rc::new("key".to_owned());
@@ -540,8 +536,8 @@ fn should_propagate_cancel_and_restore_redirects_and_vars() {
     assert_eq!(env.var(&key), None);
 }
 
-#[test]
-fn builtins_should_have_lower_precedence_than_functions() {
+#[tokio::test]
+async fn builtins_should_have_lower_precedence_than_functions() {
     const FN_EXIT: ExitStatus = ExitStatus::Code(42);
 
     #[derive(Debug, Clone, Copy)]
@@ -585,13 +581,13 @@ fn builtins_should_have_lower_precedence_than_functions() {
     );
 
     assert_eq!(
-        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
+        Compat01As03::new(poll_fn(|| future.poll(&mut env)).flatten()).await,
         Ok(FN_EXIT)
     );
 }
 
-#[test]
-fn should_pass_restorers_to_builtin_utility_if_spawned() {
+#[tokio::test]
+async fn should_pass_restorers_to_builtin_utility_if_spawned() {
     const REDIRECT_RESTORER: MockRedirectRestorer = MockRedirectRestorer("redirect restorer");
     const VAR_RESTORER: MockVarRestorer = MockVarRestorer("var restorer");
 
@@ -742,7 +738,7 @@ fn should_pass_restorers_to_builtin_utility_if_spawned() {
     );
 
     assert_eq!(
-        tokio::runtime::current_thread::block_on_all(poll_fn(|| future.poll(&mut env)).flatten()),
+        Compat01As03::new(poll_fn(|| future.poll(&mut env)).flatten()).await,
         Ok(BUILTIN_EXIT_STATUS)
     );
 }

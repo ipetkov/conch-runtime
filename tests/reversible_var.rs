@@ -5,8 +5,8 @@ use conch_runtime::env::{
     VariableEnvironment,
 };
 
-#[test]
-fn smoke() {
+#[tokio::test]
+async fn smoke() {
     let key_exported = "key_exported";
     let val_existing_exported = "var_exported";
     let mut env = VarEnv::with_env_vars(vec![(key_exported, val_existing_exported)]);
