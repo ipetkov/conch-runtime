@@ -4,7 +4,6 @@ use crate::{Fd, RefCounted, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Result;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// An interface for setting and getting shell file descriptors.
@@ -35,145 +34,133 @@ impl<'a, T: ?Sized + FileDescEnvironment> FileDescEnvironment for &'a mut T {
     }
 }
 
-macro_rules! impl_env {
-    ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
-        $(#[$attr])*
-        #[derive(PartialEq, Eq)]
-        pub struct $Env<T> {
-            fds: $Rc<HashMap<Fd, (T, Permissions)>>,
-        }
-
-        impl<T> $Env<T> {
-            /// Constructs a new environment with no open file descriptors.
-            pub fn new() -> Self {
-                $Env {
-                    fds: HashMap::new().into(),
-                }
-            }
-
-            /// Constructs a new environment with no open file descriptors,
-            /// but with a specified capacity for storing open file descriptors.
-            pub fn with_capacity(capacity: usize) -> Self {
-                $Env {
-                    fds: HashMap::with_capacity(capacity).into(),
-                }
-            }
-
-            /// Constructs a new environment and initializes it with duplicated
-            /// stdio file descriptors or handles of the current process.
-            pub fn with_process_stdio() -> Result<Self> where T: From<FileDesc> {
-                let (stdin, stdout, stderr) = dup_stdio()?;
-
-                let mut fds = HashMap::with_capacity(3);
-                fds.insert(STDIN_FILENO,  (stdin.into(),  Permissions::Read));
-                fds.insert(STDOUT_FILENO, (stdout.into(), Permissions::Write));
-                fds.insert(STDERR_FILENO, (stderr.into(), Permissions::Write));
-
-                Ok(Self {
-                    fds: fds.into(),
-                })
-            }
-
-            /// Constructs a new environment with a provided collection of provided
-            /// file descriptors in the form `(shell_fd, handle, permissions)`.
-            pub fn with_fds<I: IntoIterator<Item = (Fd, T, Permissions)>>(iter: I) -> Self {
-                $Env {
-                    fds: iter.into_iter()
-                        .map(|(fd, handle, perms)| (fd, (handle, perms)))
-                        .collect::<HashMap<_, _>>()
-                        .into(),
-                }
-            }
-        }
-
-        impl<T: fmt::Debug> fmt::Debug for $Env<T> {
-            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                use std::collections::BTreeMap;
-
-                #[derive(Debug)]
-                struct FileDescDebug<T> {
-                    permissions: Permissions,
-                    os_handle: T,
-                }
-
-                let mut fds = BTreeMap::new();
-                for (fd, &(ref handle, perms)) in &*self.fds {
-                    fds.insert(fd, FileDescDebug {
-                        os_handle: handle,
-                        permissions: perms,
-                    });
-                }
-
-                fmt.debug_struct(stringify!($Env))
-                    .field("fds", &fds)
-                    .finish()
-            }
-        }
-
-        impl<T> Default for $Env<T> {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl<T> Clone for $Env<T> {
-            fn clone(&self) -> Self {
-                $Env {
-                    fds: self.fds.clone(),
-                }
-            }
-        }
-
-        impl<T> SubEnvironment for $Env<T> {
-            fn sub_env(&self) -> Self {
-                self.clone()
-            }
-        }
-
-        impl<T: Clone + Eq> FileDescEnvironment for $Env<T> {
-            type FileHandle = T;
-
-            fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
-                self.fds.get(&fd).map(|&(ref handle, perms)| (handle, perms))
-            }
-
-            fn set_file_desc(&mut self, fd: Fd, handle: Self::FileHandle, perms: Permissions) {
-                let needs_insert = {
-                    let existing = self.fds.get(&fd).map(|&(ref handle, perms)| (handle, perms));
-                    existing != Some((&handle, perms))
-                };
-
-                if needs_insert {
-                    self.fds.make_mut().insert(fd, (handle, perms));
-                }
-            }
-
-            fn close_file_desc(&mut self, fd: Fd) {
-                if self.fds.contains_key(&fd) {
-                    self.fds.make_mut().remove(&fd);
-                }
-            }
-        }
-    };
+/// An environment module for setting and getting shell file descriptors.
+#[derive(PartialEq, Eq)]
+pub struct FileDescEnv<T> {
+    fds: Arc<HashMap<Fd, (T, Permissions)>>,
 }
 
-impl_env!(
-    /// An environment module for setting and getting shell file descriptors.
-    ///
-    /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `env::atomic::FileDescEnv`.
-    pub struct FileDescEnv,
-    Rc
-);
+impl<T> FileDescEnv<T> {
+    /// Constructs a new environment with no open file descriptors.
+    pub fn new() -> Self {
+        Self {
+            fds: HashMap::new().into(),
+        }
+    }
 
-impl_env!(
-    /// An environment module for setting and getting shell file descriptors.
-    ///
-    /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `env::FileDescEnv` as a cheaper alternative.
-    pub struct AtomicFileDescEnv,
-    Arc
-);
+    /// Constructs a new environment with no open file descriptors,
+    /// but with a specified capacity for storing open file descriptors.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            fds: HashMap::with_capacity(capacity).into(),
+        }
+    }
+
+    /// Constructs a new environment and initializes it with duplicated
+    /// stdio file descriptors or handles of the current process.
+    pub fn with_process_stdio() -> Result<Self>
+    where
+        T: From<FileDesc>,
+    {
+        let (stdin, stdout, stderr) = dup_stdio()?;
+
+        let mut fds = HashMap::with_capacity(3);
+        fds.insert(STDIN_FILENO, (stdin.into(), Permissions::Read));
+        fds.insert(STDOUT_FILENO, (stdout.into(), Permissions::Write));
+        fds.insert(STDERR_FILENO, (stderr.into(), Permissions::Write));
+
+        Ok(Self { fds: fds.into() })
+    }
+
+    /// Constructs a new environment with a provided collection of provided
+    /// file descriptors in the form `(shell_fd, handle, permissions)`.
+    pub fn with_fds<I: IntoIterator<Item = (Fd, T, Permissions)>>(iter: I) -> Self {
+        Self {
+            fds: iter
+                .into_iter()
+                .map(|(fd, handle, perms)| (fd, (handle, perms)))
+                .collect::<HashMap<_, _>>()
+                .into(),
+        }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for FileDescEnv<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use std::collections::BTreeMap;
+
+        #[derive(Debug)]
+        struct FileDescDebug<T> {
+            permissions: Permissions,
+            os_handle: T,
+        }
+
+        let mut fds = BTreeMap::new();
+        for (fd, &(ref handle, perms)) in &*self.fds {
+            fds.insert(
+                fd,
+                FileDescDebug {
+                    os_handle: handle,
+                    permissions: perms,
+                },
+            );
+        }
+
+        fmt.debug_struct(stringify!(FileDescEnv))
+            .field("fds", &fds)
+            .finish()
+    }
+}
+
+impl<T> Default for FileDescEnv<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Clone for FileDescEnv<T> {
+    fn clone(&self) -> Self {
+        Self {
+            fds: self.fds.clone(),
+        }
+    }
+}
+
+impl<T> SubEnvironment for FileDescEnv<T> {
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl<T: Clone + Eq> FileDescEnvironment for FileDescEnv<T> {
+    type FileHandle = T;
+
+    fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
+        self.fds
+            .get(&fd)
+            .map(|&(ref handle, perms)| (handle, perms))
+    }
+
+    fn set_file_desc(&mut self, fd: Fd, handle: Self::FileHandle, perms: Permissions) {
+        let needs_insert = {
+            let existing = self
+                .fds
+                .get(&fd)
+                .map(|&(ref handle, perms)| (handle, perms));
+            existing != Some((&handle, perms))
+        };
+
+        if needs_insert {
+            self.fds.make_mut().insert(fd, (handle, perms));
+        }
+    }
+
+    fn close_file_desc(&mut self, fd: Fd) {
+        if self.fds.contains_key(&fd) {
+            self.fds.make_mut().remove(&fd);
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

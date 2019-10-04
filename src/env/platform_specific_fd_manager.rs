@@ -1,4 +1,3 @@
-use crate::env::atomic::FileDescEnv as AtomicFileDescEnv;
 use crate::env::{
     AsyncIoEnvironment, FileDescEnv, FileDescEnvironment, FileDescManagerEnv, FileDescOpener,
     FileDescOpenerEnv, Pipe, SubEnvironment,
@@ -16,7 +15,6 @@ macro_rules! impl_env {
         $(#[$env_attr:meta])*
         pub struct $Env:ident,
         $Inner:ident,
-        $InnerFileDescEnv:ident,
 
         $(#[$file_desc_handle_attr:meta])*
         pub struct $FileDescHandle:ident,
@@ -49,7 +47,7 @@ macro_rules! impl_env {
         impl $Env {
             /// Create a new environment with no open file descriptors.
             pub fn new(fallback_num_threads: Option<usize>) -> Self {
-                Self::construct(fallback_num_threads, $InnerFileDescEnv::new())
+                Self::construct(fallback_num_threads, FileDescEnv::new())
             }
 
             /// Constructs a new environment with no open file descriptors,
@@ -60,7 +58,7 @@ macro_rules! impl_env {
             ) -> Self {
                 Self::construct(
                     fallback_num_threads,
-                    $InnerFileDescEnv::with_capacity(capacity)
+                    FileDescEnv::with_capacity(capacity)
                 )
             }
 
@@ -179,7 +177,6 @@ impl_env! {
     /// see `env::atomic::PlatformSpecificFileDescManagerEnv`.
     pub struct PlatformSpecificFileDescManagerEnv,
     Inner,
-    FileDescEnv,
 
     /// A managed `FileDesc` handle created through a `PlatformSpecificFileDescManagerEnv`.
     pub struct PlatformSpecificManagedHandle,
@@ -208,7 +205,6 @@ impl_env! {
     /// see `PlatformSpecificFileDescManagerEnv` as a cheaper alternative.
     pub struct AtomicPlatformSpecificFileDescManagerEnv,
     AtomicInner,
-    AtomicFileDescEnv,
 
     /// A managed `FileDesc` handle created through an `AtomicPlatformSpecificFileDescManagerEnv`.
     pub struct AtomicPlatformSpecificManagedHandle,
@@ -305,21 +301,21 @@ type AtomicInnerWriteAll = ::env::async_io::ThreadPoolWriteAll;
 #[cfg(unix)]
 type AtomicInner = FileDescManagerEnv<
     FileDescOpenerEnv,
-    AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
+    FileDescEnv<AtomicPlatformSpecificManagedHandle>,
     crate::os::unix::env::EventedAsyncIoEnv,
 >;
 
 #[cfg(not(unix))]
 type AtomicInner = FileDescManagerEnv<
     ::env::ArcFileDescOpenerEnv<FileDescOpenerEnv>,
-    AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
+    FileDescEnv<AtomicPlatformSpecificManagedHandle>,
     ArcShimAsyncIoEnv,
 >;
 
 impl AtomicPlatformSpecificFileDescManagerEnv {
     fn construct(
         fallback_num_threads: Option<usize>,
-        fd_env: AtomicFileDescEnv<AtomicPlatformSpecificManagedHandle>,
+        fd_env: FileDescEnv<AtomicPlatformSpecificManagedHandle>,
     ) -> Self {
         #[cfg(unix)]
         let get_inner = |_: Option<usize>| {
