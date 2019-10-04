@@ -2,7 +2,6 @@
 
 use futures;
 
-use conch_runtime::env::atomic;
 use conch_runtime::env::{FileDescManagerEnvironment, PlatformSpecificFileDescManagerEnv};
 use futures::Future;
 use futures_preview::compat::Compat01As03;
@@ -11,14 +10,6 @@ use tokio_io::io::read_to_end;
 #[tokio::test]
 async fn platform_specific_fd_manager_smoke() {
     run_test(&mut PlatformSpecificFileDescManagerEnv::new(Some(4))).await;
-}
-
-#[tokio::test]
-async fn atomic_platform_specific_fd_manager_smoke() {
-    run_test(&mut atomic::PlatformSpecificFileDescManagerEnv::new(Some(
-        4,
-    )))
-    .await;
 }
 
 async fn run_test<E: ?Sized + FileDescManagerEnvironment>(env: &mut E) {

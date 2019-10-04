@@ -14,7 +14,6 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::env::atomic;
 use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
 use crate::env::PlatformSpecificFileDescManagerEnv;
 use crate::env::{
@@ -278,7 +277,7 @@ pub type DefaultEnvConfigRc = DefaultEnvConfig<Rc<String>>;
 /// ```
 pub type DefaultAtomicEnvConfig<T> = EnvConfig<
     ArgsEnv<T>,
-    atomic::PlatformSpecificFileDescManagerEnv,
+    PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<T, T>,
     ExecEnv,
@@ -333,7 +332,7 @@ where
     /// If no thread number is specified, one thread per CPU will be used.
     pub fn new_atomic(fallback_num_threads: Option<usize>) -> io::Result<Self> {
         let file_desc_manager_env =
-            atomic::PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
+            PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
 
         Ok(DefaultAtomicEnvConfig {
             interactive: false,
@@ -908,7 +907,7 @@ pub type DefaultEnvRc = DefaultEnv<Rc<String>>;
 /// ```
 pub type DefaultAtomicEnv<T> = AtomicEnv<
     ArgsEnv<T>,
-    atomic::PlatformSpecificFileDescManagerEnv,
+    PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<T, T>,
     ExecEnv,

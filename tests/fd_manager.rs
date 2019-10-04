@@ -1,7 +1,7 @@
 #![deny(rust_2018_idioms)]
 
 use conch_runtime::env::{
-    atomic, FileDescManagerEnvironment, FileDescOpener, PlatformSpecificFileDescManagerEnv,
+    FileDescManagerEnvironment, FileDescOpener, PlatformSpecificFileDescManagerEnv,
 };
 use futures::future::{lazy, ok, Future};
 use futures_preview::compat::Compat01As03;
@@ -10,11 +10,6 @@ use tokio_io::io::read_to_end;
 #[tokio::test]
 async fn fd_manager() {
     do_test(PlatformSpecificFileDescManagerEnv::new(Some(4))).await;
-}
-
-#[tokio::test]
-async fn fd_manager_atomic() {
-    do_test(atomic::PlatformSpecificFileDescManagerEnv::new(Some(4))).await;
 }
 
 async fn do_test<E>(mut env: E)

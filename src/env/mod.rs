@@ -63,12 +63,6 @@ pub mod atomic {
     pub use super::env_impl::DefaultAtomicEnvArc as DefaultEnvArc;
     pub use super::env_impl::DefaultAtomicEnvConfig as DefaultEnvConfig;
     pub use super::env_impl::DefaultAtomicEnvConfigArc as DefaultEnvConfigArc;
-    pub use super::platform_specific_fd_manager::{
-        AtomicPlatformSpecificAsyncRead as PlatformSpecificAsyncRead,
-        AtomicPlatformSpecificFileDescManagerEnv as PlatformSpecificFileDescManagerEnv,
-        AtomicPlatformSpecificManagedHandle as PlatformSpecificManagedHandle,
-        AtomicPlatformSpecificWriteAll as PlatformSpecificWriteAll,
-    };
 }
 
 /// An interface for checking if the current environment is an interactive one.
