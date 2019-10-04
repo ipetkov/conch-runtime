@@ -278,7 +278,7 @@ pub type DefaultEnvConfigRc = DefaultEnvConfig<Rc<String>>;
 /// # }
 /// ```
 pub type DefaultAtomicEnvConfig<T> = EnvConfig<
-    atomic::ArgsEnv<T>,
+    ArgsEnv<T>,
     atomic::PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<T, T>,
@@ -338,7 +338,7 @@ where
 
         Ok(DefaultAtomicEnvConfig {
             interactive: false,
-            args_env: atomic::ArgsEnv::new(),
+            args_env: ArgsEnv::new(),
             file_desc_manager_env,
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
@@ -910,7 +910,7 @@ pub type DefaultEnvRc = DefaultEnv<Rc<String>>;
 /// # }
 /// ```
 pub type DefaultAtomicEnv<T> = AtomicEnv<
-    atomic::ArgsEnv<T>,
+    ArgsEnv<T>,
     atomic::PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<T, T>,

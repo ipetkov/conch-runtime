@@ -58,7 +58,6 @@ pub use self::var::{
 /// A module which provides atomic implementations (which can be `Send` and
 /// `Sync`) of the various environment interfaces.
 pub mod atomic {
-    pub use super::args::AtomicArgsEnv as ArgsEnv;
     pub use super::cur_dir::AtomicVirtualWorkingDirEnv as VirtualWorkingDirEnv;
     pub use super::env_impl::AtomicEnv as Env;
     pub use super::env_impl::DefaultAtomicEnv as DefaultEnv;

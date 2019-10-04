@@ -6,6 +6,7 @@ use conch_runtime::spawn::{for_args, for_loop, for_with_args};
 use conch_runtime::RefCounted;
 use futures::future::{ok, FutureResult};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -65,7 +66,7 @@ async fn should_run_with_appropriate_args() {
 
 async fn should_run_with_appropriate_args_impl() {
     let mut env = new_env();
-    env.set_args(Rc::new(vec![
+    env.set_args(Arc::new(vec![
         Rc::new("arg_foo".to_owned()),
         Rc::new("arg_bar".to_owned()),
     ]));
@@ -129,7 +130,7 @@ async fn should_run_with_appropriate_args_impl() {
 #[tokio::test]
 async fn should_swallow_non_fatal_errors_in_body() {
     let mut env = new_env();
-    env.set_args(Rc::new(vec![
+    env.set_args(Arc::new(vec![
         Rc::new("arg_foo".to_owned()),
         Rc::new("arg_bar".to_owned()),
     ]));
@@ -162,7 +163,7 @@ async fn should_swallow_non_fatal_errors_in_body() {
 #[tokio::test]
 async fn should_not_run_body_args_are_empty() {
     let mut env = new_env();
-    env.set_args(Rc::new(vec![]));
+    env.set_args(Arc::new(vec![]));
 
     let should_not_run = mock_panic("must not run");
     let name = Rc::new("name".to_owned());
@@ -214,7 +215,7 @@ async fn should_propagate_all_word_errors() {
 #[tokio::test]
 async fn should_propagate_fatal_errors_in_body() {
     let mut env = new_env();
-    env.set_args(Rc::new(vec![
+    env.set_args(Arc::new(vec![
         Rc::new("foo".to_owned()),
         Rc::new("bar".to_owned()),
     ]));
@@ -242,7 +243,7 @@ async fn should_propagate_fatal_errors_in_body() {
 #[tokio::test]
 async fn should_propagate_cancel() {
     let mut env = new_env();
-    env.set_args(Rc::new(vec![
+    env.set_args(Arc::new(vec![
         Rc::new("foo".to_owned()),
         Rc::new("bar".to_owned()),
     ]));

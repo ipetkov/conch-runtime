@@ -230,13 +230,13 @@ async fn builtin_smoke_pwd() {
 #[tokio::test]
 async fn builtin_smoke_shift() {
     let mut args = vec![
-        Rc::new(String::from("first")),
-        Rc::new(String::from("second")),
-        Rc::new(String::from("third")),
-        Rc::new(String::from("fourth")),
+        String::from("first").into(),
+        String::from("second").into(),
+        String::from("third").into(),
+        String::from("fourth").into(),
     ];
     let output = run_builtin_with_prep("shift", &["2"], |env| {
-        env.set_args(Rc::new(args.clone()));
+        env.set_args(args.clone().into());
     })
     .await;
 

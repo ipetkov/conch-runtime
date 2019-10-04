@@ -5,6 +5,7 @@ use futures;
 use conch_runtime::spawn::{function, BoxSpawnEnvFuture, BoxStatusFuture};
 use futures::future::{poll_fn, FutureResult};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -108,7 +109,7 @@ async fn should_restore_args_after_completion() {
     assert!(function(&fn_name, vec!(), &env).is_none());
     env.set_function(fn_name.clone(), mock_wrapper(mock_status(exit)));
 
-    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
+    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
     let mut future =
@@ -129,7 +130,7 @@ async fn should_propagate_errors_and_restore_args() {
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_error(false)));
 
-    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
+    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
     let mut future =
@@ -150,7 +151,7 @@ async fn should_propagate_cancel_and_restore_args() {
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_must_cancel()));
 
-    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
+    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
     let future = function(&fn_name, vec!["qux".to_owned()], &env).expect("failed to find function");
@@ -223,7 +224,7 @@ async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
         depth_copy
     };
 
-    let args = Rc::new(vec!["foo".to_owned(), "bar".to_owned()]);
+    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
     env.set_args(args.clone());
 
     let mut future =
