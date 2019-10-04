@@ -1,10 +1,8 @@
 use crate::env::SubEnvironment;
-use crate::RefCounted;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// An interface for setting and getting shell and environment variables.
@@ -87,173 +85,186 @@ impl<'a, T: ?Sized + UnsetVariableEnvironment> UnsetVariableEnvironment for &'a 
     }
 }
 
-macro_rules! impl_env {
-    ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
-        $(#[$attr])*
-        #[derive(PartialEq, Eq)]
-        pub struct $Env<N: Eq + Hash, V> {
-            /// A mapping of variable names to their values.
-            ///
-            /// The tupled boolean indicates if a variable should be exported to other commands.
-            vars: $Rc<HashMap<N, (V, bool)>>,
-        }
-
-        impl<N: Eq + Hash, V> $Env<N, V> {
-            /// Constructs a new environment with no environment variables.
-            pub fn new() -> Self {
-                $Env {
-                    vars: HashMap::new().into(),
-                }
-            }
-
-            /// Constructs a new environment and initializes it with the environment
-            /// variables of the current process.
-            pub fn with_process_env_vars() -> Self where N: From<String>, V: From<String> {
-                Self::with_env_vars(::std::env::vars().into_iter()
-                                    .map(|(k, v)| (k.into(), v.into())))
-            }
-
-            /// Constructs a new environment with a provided collection of `(key, value)`
-            /// environment variable pairs. These variables (if any) will be inherited by
-            /// all commands.
-            pub fn with_env_vars<I: IntoIterator<Item = (N, V)>>(iter: I) -> Self {
-                $Env {
-                    vars: iter.into_iter()
-                        .map(|(k, v)| (k, (v, true)))
-                        .collect::<HashMap<_, _>>()
-                        .into(),
-                }
-            }
-        }
-
-        impl<N: Eq + Hash + Clone, V: Clone + Eq> VariableEnvironment for $Env<N, V> {
-            type VarName = N;
-            type Var = V;
-
-            fn var<Q: ?Sized>(&self, name: &Q) -> Option<&Self::Var>
-                where Self::VarName: Borrow<Q>, Q: Hash + Eq,
-            {
-                self.vars.get(name).map(|&(ref val, _)| val)
-            }
-
-            fn set_var(&mut self, name: Self::VarName, val: Self::Var) {
-                let (needs_insert, exported) = match self.vars.get(&name) {
-                    Some(&(ref existing_val, exported)) => (&val != existing_val, exported),
-                    None => (true, false),
-                };
-
-                if needs_insert {
-                    self.vars.make_mut().insert(name, (val, exported));
-                }
-            }
-
-            fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
-                let ret: Vec<_> = self.vars.iter()
-                    .filter_map(|(k, &(ref v, exported))| if exported {
-                        Some((k, v))
-                    } else {
-                        None
-                    })
-                .collect();
-
-                Cow::Owned(ret)
-            }
-        }
-
-        impl<N: Eq + Hash + Clone, V: Clone + Eq> ExportedVariableEnvironment for $Env<N, V> {
-            fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)> {
-                self.vars.get(name).map(|&(ref val, exported)| (val, exported))
-            }
-
-            fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool) {
-                let needs_insert = match self.vars.get(&name) {
-                    Some(&(ref existing_val, _)) => val != *existing_val,
-                    None => true,
-                };
-
-                if needs_insert {
-                    self.vars.make_mut().insert(name, (val, exported));
-                }
-            }
-        }
-
-        impl<N: Eq + Hash + Clone, V: Eq + Clone> UnsetVariableEnvironment for $Env<N, V> {
-            fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-                where Self::VarName: Borrow<Q>, Q: Hash + Eq,
-            {
-                if self.vars.contains_key(name) {
-                    self.vars.make_mut().remove(name);
-                }
-            }
-        }
-
-        impl<N: Eq + Ord + Hash + fmt::Debug, V: fmt::Debug> fmt::Debug for $Env<N, V> {
-            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                use std::collections::BTreeMap;
-
-                let mut vars = BTreeMap::new();
-                let mut env_vars = BTreeMap::new();
-
-                for (name, &(ref val, is_env)) in &*self.vars {
-                    if is_env {
-                        env_vars.insert(name, val);
-                    } else {
-                        vars.insert(name, val);
-                    }
-                }
-
-                fmt.debug_struct(stringify!($Env))
-                    .field("env_vars", &env_vars)
-                    .field("vars", &vars)
-                    .finish()
-            }
-        }
-
-        impl<N: Eq + Hash, V> Default for $Env<N, V> {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl<N: Eq + Hash, V> Clone for $Env<N, V> {
-            fn clone(&self) -> Self {
-                $Env {
-                    vars: self.vars.clone(),
-                }
-            }
-        }
-
-        impl<N: Eq + Hash, V> SubEnvironment for $Env<N, V> {
-            fn sub_env(&self) -> Self {
-                self.clone()
-            }
-        }
-    };
+/// An environment module for setting, getting, and exporting shell variables.
+#[derive(PartialEq, Eq)]
+pub struct VarEnv<N: Eq + Hash, V> {
+    /// A mapping of variable names to their values.
+    ///
+    /// The tupled boolean indicates if a variable should be exported to other commands.
+    vars: Arc<HashMap<N, (V, bool)>>,
 }
 
-impl_env!(
-    /// An environment module for setting and getting shell variables.
-    ///
-    /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `env::atomic::VarEnv`.
-    pub struct VarEnv,
-    Rc
-);
+impl<N, V> VarEnv<N, V>
+where
+    N: Eq + Hash,
+{
+    /// Constructs a new environment with no environment variables.
+    pub fn new() -> Self {
+        Self {
+            vars: Arc::new(HashMap::new()),
+        }
+    }
 
-impl_env!(
-    /// An environment module for setting and getting shell variables.
-    ///
-    /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `env::VarEnv` as a cheaper alternative.
-    pub struct AtomicVarEnv,
-    Arc
-);
+    /// Constructs a new environment and initializes it with the environment
+    /// variables of the current process.
+    pub fn with_process_env_vars() -> Self
+    where
+        N: From<String>,
+        V: From<String>,
+    {
+        Self::with_env_vars(::std::env::vars().map(|(k, v)| (k.into(), v.into())))
+    }
+
+    /// Constructs a new environment with a provided collection of `(key, value)`
+    /// environment variable pairs. These variables (if any) will be inherited by
+    /// all commands.
+    pub fn with_env_vars<I: IntoIterator<Item = (N, V)>>(iter: I) -> Self {
+        Self {
+            vars: Arc::new(
+                iter.into_iter()
+                    .map(|(k, v)| (k, (v, true)))
+                    .collect::<HashMap<_, _>>(),
+            ),
+        }
+    }
+}
+
+impl<N, V> VariableEnvironment for VarEnv<N, V>
+where
+    N: Eq + Clone + Hash,
+    V: Eq + Clone,
+{
+    type VarName = N;
+    type Var = V;
+
+    fn var<Q: ?Sized>(&self, name: &Q) -> Option<&Self::Var>
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.vars.get(name).map(|&(ref val, _)| val)
+    }
+
+    fn set_var(&mut self, name: Self::VarName, val: Self::Var) {
+        let (needs_insert, exported) = match self.vars.get(&name) {
+            Some(&(ref existing_val, exported)) => (&val != existing_val, exported),
+            None => (true, false),
+        };
+
+        if needs_insert {
+            Arc::make_mut(&mut self.vars).insert(name, (val, exported));
+        }
+    }
+
+    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+        let ret: Vec<_> = self
+            .vars
+            .iter()
+            .filter_map(|(k, &(ref v, exported))| if exported { Some((k, v)) } else { None })
+            .collect();
+
+        Cow::Owned(ret)
+    }
+}
+
+impl<N, V> ExportedVariableEnvironment for VarEnv<N, V>
+where
+    N: Eq + Clone + Hash,
+    V: Eq + Clone,
+{
+    fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)> {
+        self.vars
+            .get(name)
+            .map(|&(ref val, exported)| (val, exported))
+    }
+
+    fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool) {
+        let needs_insert = match self.vars.get(&name) {
+            Some(&(ref existing_val, _)) => val != *existing_val,
+            None => true,
+        };
+
+        if needs_insert {
+            Arc::make_mut(&mut self.vars).insert(name, (val, exported));
+        }
+    }
+}
+
+impl<N, V> UnsetVariableEnvironment for VarEnv<N, V>
+where
+    N: Eq + Clone + Hash,
+    V: Eq + Clone,
+{
+    fn unset_var<Q: ?Sized>(&mut self, name: &Q)
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        if self.vars.contains_key(name) {
+            Arc::make_mut(&mut self.vars).remove(name);
+        }
+    }
+}
+
+impl<N, V> fmt::Debug for VarEnv<N, V>
+where
+    N: Eq + Ord + Hash + fmt::Debug,
+    V: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use std::collections::BTreeMap;
+
+        let mut vars = BTreeMap::new();
+        let mut env_vars = BTreeMap::new();
+
+        for (name, &(ref val, is_env)) in &*self.vars {
+            if is_env {
+                env_vars.insert(name, val);
+            } else {
+                vars.insert(name, val);
+            }
+        }
+
+        fmt.debug_struct(stringify!(VarEnv))
+            .field("env_vars", &env_vars)
+            .field("vars", &vars)
+            .finish()
+    }
+}
+
+impl<N, V> Default for VarEnv<N, V>
+where
+    N: Eq + Hash,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<N, V> Clone for VarEnv<N, V>
+where
+    N: Eq + Hash,
+{
+    fn clone(&self) -> Self {
+        Self {
+            vars: self.vars.clone(),
+        }
+    }
+}
+
+impl<N, V> SubEnvironment for VarEnv<N, V>
+where
+    N: Eq + Hash,
+{
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::env::SubEnvironment;
-    use crate::RefCounted;
 
     #[test]
     fn test_set_get_unset_var() {
@@ -295,16 +306,16 @@ mod tests {
         let name = "var";
         let value = "value";
         let mut env = VarEnv::new();
-        env.set_var(name.to_owned(), value.to_owned());
+        env.set_var(name, value);
 
         let mut env = env.sub_env();
-        env.set_var(name.to_owned(), value.to_owned());
-        if env.vars.get_mut().is_some() {
+        env.set_var(name, value);
+        if Arc::get_mut(&mut env.vars).is_some() {
             panic!("needles clone!");
         }
 
         env.unset_var(not_set);
-        if env.vars.get_mut().is_some() {
+        if Arc::get_mut(&mut env.vars).is_some() {
             panic!("needles clone!");
         }
     }
@@ -314,22 +325,19 @@ mod tests {
         use std::collections::HashSet;
         use std::iter::FromIterator;
 
-        let env_name1 = "env_name1".to_owned();
-        let env_name2 = "env_name2".to_owned();
-        let env_val1 = "env_val1".to_owned();
-        let env_val2 = "env_val2".to_owned();
-        let name = "name".to_owned();
-        let val = "value".to_owned();
+        let env_name1 = "env_name1";
+        let env_name2 = "env_name2";
+        let env_val1 = "env_val1";
+        let env_val2 = "env_val2";
+        let name = "name";
+        let val = "value";
 
-        let mut env = VarEnv::with_env_vars(vec![
-            (env_name1.clone(), env_val1.clone()),
-            (env_name2.clone(), env_val2.clone()),
-        ]);
+        let mut env = VarEnv::with_env_vars(vec![(env_name1, env_val1), (env_name2, env_val2)]);
         env.set_var(name, val);
 
         let correct = vec![(&env_name1, &env_val1), (&env_name2, &env_val2)];
 
-        let vars: HashSet<(&String, &String)> = HashSet::from_iter(env.env_vars().into_owned());
+        let vars: HashSet<(_, _)> = HashSet::from_iter(env.env_vars().into_owned());
         assert_eq!(vars, HashSet::from_iter(correct));
     }
 
@@ -341,14 +349,14 @@ mod tests {
         let child_value = "child-value";
 
         let mut parent = VarEnv::new();
-        parent.set_var(parent_name.to_owned(), parent_value);
+        parent.set_var(parent_name, parent_value);
 
         {
             let mut child = parent.sub_env();
             assert_eq!(child.var(parent_name), Some(&parent_value));
 
-            child.set_var(parent_name.to_owned(), child_value);
-            child.set_var(child_name.to_owned(), child_value);
+            child.set_var(parent_name, child_value);
+            child.set_var(child_name, child_value);
             assert_eq!(child.var(parent_name), Some(&child_value));
             assert_eq!(child.var(child_name), Some(&child_value));
 
@@ -365,23 +373,20 @@ mod tests {
         use std::collections::HashSet;
         use std::iter::FromIterator;
 
-        let name1 = "var1".to_owned();
-        let value1 = "value1".to_owned();
-        let name2 = "var2".to_owned();
-        let value2 = "value2".to_owned();
+        let name1 = "var1";
+        let value1 = "value1";
+        let name2 = "var2";
+        let value2 = "value2";
 
-        let env = VarEnv::with_env_vars(vec![
-            (name1.clone(), value1.clone()),
-            (name2.clone(), value2.clone()),
-        ]);
+        let env = VarEnv::with_env_vars(vec![(name1, value1), (name2, value2)]);
 
         let env_vars = HashSet::from_iter(vec![(&name1, &value1), (&name2, &value2)]);
 
-        let vars: HashSet<(&String, &String)> = HashSet::from_iter(env.env_vars().into_owned());
+        let vars: HashSet<(_, _)> = HashSet::from_iter(env.env_vars().into_owned());
         assert_eq!(vars, env_vars);
 
         let child = env.sub_env();
-        let vars: HashSet<(&String, &String)> = HashSet::from_iter(child.env_vars().into_owned());
+        let vars: HashSet<(_, _)> = HashSet::from_iter(child.env_vars().into_owned());
         assert_eq!(vars, env_vars);
     }
 }

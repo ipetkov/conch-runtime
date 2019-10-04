@@ -73,7 +73,6 @@ pub mod atomic {
         AtomicPlatformSpecificManagedHandle as PlatformSpecificManagedHandle,
         AtomicPlatformSpecificWriteAll as PlatformSpecificWriteAll,
     };
-    pub use super::var::AtomicVarEnv as VarEnv;
 }
 
 /// An interface for checking if the current environment is an interactive one.

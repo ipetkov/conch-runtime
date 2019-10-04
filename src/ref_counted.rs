@@ -7,8 +7,7 @@ pub trait RefCounted<T>: Sized + Clone + Deref<Target = T> + From<T> {
     /// Returns a mutable reference to the contained value if the wrapper
     /// has a single, unique, reference.
     ///
-    /// Returns `None` if the `Rc<T>` is not unique.
-    ///
+    /// Returns `None` if this is not the only reference to the data.
     fn get_mut(&mut self) -> Option<&mut T>;
 
     /// Make a mutable reference into the given implementation. If the

@@ -19,7 +19,6 @@ pub enum MaybeEventedFd {
 ///
 /// To make use of this extension, make sure this trait is imported into
 /// the appropriate module.
-/// ```
 pub trait FileDescExt {
     /// Attempts to register the underlying primitive OS handle the default `tokio` reactor.
     ///
