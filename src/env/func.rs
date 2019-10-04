@@ -1,9 +1,7 @@
 use crate::env::SubEnvironment;
-use crate::RefCounted;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// An interface for setting and getting shell functions.
@@ -118,108 +116,88 @@ impl SubEnvironment for FnFrameEnv {
     }
 }
 
-macro_rules! impl_env {
-    ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident) => {
-        $(#[$attr])*
-        #[derive(PartialEq, Eq)]
-        pub struct $Env<N: Hash + Eq, F> {
-            functions: $Rc<HashMap<N, F>>,
-        }
-
-        impl<N: Hash + Eq, F> $Env<N, F> {
-            /// Constructs a new `FnEnv` with no defined functions.
-            pub fn new() -> Self {
-                $Env {
-                    functions: HashMap::new().into(),
-                }
-            }
-
-            pub(crate) fn fn_names(&self) -> ::std::collections::hash_map::Keys<N, F> {
-                self.functions.keys()
-            }
-        }
-
-        impl<N, F> fmt::Debug for $Env<N, F>
-            where N: Hash + Eq + fmt::Debug + Ord,
-                  F: fmt::Debug,
-        {
-            fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                use std::collections::BTreeMap;
-                use std::iter::FromIterator;
-
-                fmt.debug_struct(stringify!($Env))
-                    .field("functions", &BTreeMap::from_iter(self.functions.iter()))
-                    .finish()
-            }
-        }
-
-        impl<N: Hash + Eq, F> Default for $Env<N, F> {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl<N: Hash + Eq, F> Clone for $Env<N, F> {
-            fn clone(&self) -> Self {
-                $Env {
-                    functions: self.functions.clone(),
-                }
-            }
-        }
-
-        impl<N: Hash + Eq, F> SubEnvironment for $Env<N, F> {
-            fn sub_env(&self) -> Self {
-                self.clone()
-            }
-        }
-
-        impl<N, F> FunctionEnvironment for $Env<N, F>
-            where N: Clone + Hash + Eq,
-                  F: Clone,
-        {
-            type FnName = N;
-            type Fn = F;
-
-            fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
-                self.functions.get(name)
-            }
-
-            fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
-                // FIXME: after specialization lands, don't insert if F: Eq and old == new
-                self.functions.make_mut().insert(name, func);
-            }
-        }
-
-        impl<N, F> UnsetFunctionEnvironment for $Env<N, F>
-            where N: Clone + Hash + Eq,
-                  F: Clone,
-        {
-            fn unset_function(&mut self, name: &Self::FnName) {
-                if self.has_function(name) {
-                    self.functions.make_mut().remove(name);
-                }
-            }
-        }
-    };
+/// An environment module for setting and getting shell functions.
+#[derive(PartialEq, Eq)]
+pub struct FnEnv<N: Hash + Eq, F> {
+    functions: Arc<HashMap<N, F>>,
 }
 
-impl_env!(
-    /// An environment module for setting and getting shell functions.
-    ///
-    /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-    /// see `env::atomic::FnEnv`.
-    pub struct FnEnv,
-    Rc
-);
+impl<N: Hash + Eq, F> FnEnv<N, F> {
+    /// Constructs a new `FnEnv` with no defined functions.
+    pub fn new() -> Self {
+        Self {
+            functions: HashMap::new().into(),
+        }
+    }
 
-impl_env!(
-    /// An environment module for setting and getting shell functions.
-    ///
-    /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
-    /// see `env::FnEnv` as a cheaper alternative.
-    pub struct AtomicFnEnv,
-    Arc
-);
+    pub(crate) fn fn_names(&self) -> ::std::collections::hash_map::Keys<N, F> {
+        self.functions.keys()
+    }
+}
+
+impl<N, F> fmt::Debug for FnEnv<N, F>
+where
+    N: Hash + Eq + fmt::Debug + Ord,
+    F: fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use std::collections::BTreeMap;
+        use std::iter::FromIterator;
+
+        fmt.debug_struct(stringify!(FnEnv))
+            .field("functions", &BTreeMap::from_iter(self.functions.iter()))
+            .finish()
+    }
+}
+
+impl<N: Hash + Eq, F> Default for FnEnv<N, F> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<N: Hash + Eq, F> Clone for FnEnv<N, F> {
+    fn clone(&self) -> Self {
+        Self {
+            functions: self.functions.clone(),
+        }
+    }
+}
+
+impl<N: Hash + Eq, F> SubEnvironment for FnEnv<N, F> {
+    fn sub_env(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl<N, F> FunctionEnvironment for FnEnv<N, F>
+where
+    N: Clone + Hash + Eq,
+    F: Clone,
+{
+    type FnName = N;
+    type Fn = F;
+
+    fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
+        self.functions.get(name)
+    }
+
+    fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
+        Arc::make_mut(&mut self.functions).insert(name, func);
+    }
+}
+
+impl<N, F> UnsetFunctionEnvironment for FnEnv<N, F>
+where
+    N: Clone + Hash + Eq,
+    F: Clone,
+{
+    fn unset_function(&mut self, name: &Self::FnName) {
+        if self.has_function(name) {
+            Arc::make_mut(&mut self.functions).remove(name);
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

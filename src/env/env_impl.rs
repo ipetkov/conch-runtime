@@ -15,7 +15,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::env::atomic;
-use crate::env::atomic::FnEnv as AtomicFnEnv;
 use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
 use crate::env::PlatformSpecificFileDescManagerEnv;
 use crate::env::{
@@ -352,14 +351,14 @@ where
 }
 
 macro_rules! impl_env {
-    ($(#[$attr:meta])* pub struct $Env:ident, $FnEnv:ident, $Rc:ident, $($extra:tt)*) => {
+    ($(#[$attr:meta])* pub struct $Env:ident, $Rc:ident, $($extra:tt)*) => {
         $(#[$attr])*
         pub struct $Env<A, FM, L, V, EX, WD, B, N: Eq + Hash, ERR> {
             /// If the shell is running in interactive mode
             interactive: bool,
             args_env: A,
             file_desc_manager_env: FM,
-            fn_env: $FnEnv<N, $Rc<dyn SpawnBoxed<$Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> $($extra)*>>,
+            fn_env: FnEnv<N, $Rc<dyn SpawnBoxed<$Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> $($extra)*>>,
             fn_frame_env: FnFrameEnv,
             last_status_env: L,
             var_env: V,
@@ -395,7 +394,7 @@ macro_rules! impl_env {
                 let mut env = $Env {
                     interactive: cfg.interactive,
                     args_env: cfg.args_env,
-                    fn_env: $FnEnv::new(),
+                    fn_env: FnEnv::new(),
                     fn_frame_env: FnFrameEnv::new(),
                     file_desc_manager_env: cfg.file_desc_manager_env,
                     last_status_env: cfg.last_status_env,
@@ -843,7 +842,6 @@ impl_env!(
     /// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
     /// see `atomic::Env`.
     pub struct Env,
-    FnEnv,
     Rc,
 );
 
@@ -854,7 +852,6 @@ impl_env!(
     /// Uses `Arc` internally. If `Send` and `Sync` is not required of the implementation,
     /// see `Env` as a cheaper alternative.
     pub struct AtomicEnv,
-    AtomicFnEnv,
     Arc,
     + Send + Sync
 );

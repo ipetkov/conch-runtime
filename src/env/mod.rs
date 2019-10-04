@@ -65,7 +65,6 @@ pub mod atomic {
     pub use super::env_impl::DefaultAtomicEnvConfig as DefaultEnvConfig;
     pub use super::env_impl::DefaultAtomicEnvConfigArc as DefaultEnvConfigArc;
     pub use super::fd::AtomicFileDescEnv as FileDescEnv;
-    pub use super::func::AtomicFnEnv as FnEnv;
     pub use super::platform_specific_fd_manager::{
         AtomicPlatformSpecificAsyncRead as PlatformSpecificAsyncRead,
         AtomicPlatformSpecificFileDescManagerEnv as PlatformSpecificFileDescManagerEnv,
