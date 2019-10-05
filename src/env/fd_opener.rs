@@ -3,7 +3,6 @@ use crate::io::{FileDesc, Pipe as OsPipe};
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// A pipe reader/writer pair created by a `FileDescOpener`.
@@ -70,62 +69,39 @@ impl FileDescOpener for FileDescOpenerEnv {
     }
 }
 
-macro_rules! impl_env {
-    (
-        $(#[$env_attr:meta])*
-        pub struct $Env:ident,
-        $Rc:ident,
-    ) => {
-        $(#[$env_attr])*
-        #[derive(Default, Debug, Clone, PartialEq, Eq)]
-        pub struct $Env<O> {
-            opener: O,
-        }
+/// A `FileDescOpener` implementation which delegates to another implementation,
+/// but wraps any returned handles with in an `Arc`.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct ArcFileDescOpenerEnv<O> {
+    opener: O,
+}
 
-        impl<O> $Env<O> {
-            /// Create a new wrapper instance around some other `FileDescOpener` implementation.
-            pub fn new(opener: O) -> Self {
-                Self {
-                    opener: opener
-                }
-            }
-        }
+impl<O> ArcFileDescOpenerEnv<O> {
+    /// Create a new wrapper instance around some other `FileDescOpener` implementation.
+    pub fn new(opener: O) -> Self {
+        Self { opener }
+    }
+}
 
-        impl<O: SubEnvironment> SubEnvironment for $Env<O> {
-            fn sub_env(&self) -> Self {
-                Self {
-                    opener: self.opener.sub_env(),
-                }
-            }
-        }
-
-        impl<O: FileDescOpener> FileDescOpener for $Env<O> {
-            type OpenedFileHandle = $Rc<O::OpenedFileHandle>;
-
-            fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
-                self.opener.open_path(path, opts).map($Rc::new)
-            }
-
-            fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
-                self.opener.open_pipe().map(|pipe| Pipe {
-                    reader: $Rc::new(pipe.reader),
-                    writer: $Rc::new(pipe.writer),
-                })
-            }
+impl<O: SubEnvironment> SubEnvironment for ArcFileDescOpenerEnv<O> {
+    fn sub_env(&self) -> Self {
+        Self {
+            opener: self.opener.sub_env(),
         }
     }
 }
 
-impl_env! {
-    /// A `FileDescOpener` implementation which delegates to another implementation,
-    /// but wraps any returned handles with in an `Rc`.
-    pub struct RcFileDescOpenerEnv,
-    Rc,
-}
+impl<O: FileDescOpener> FileDescOpener for ArcFileDescOpenerEnv<O> {
+    type OpenedFileHandle = Arc<O::OpenedFileHandle>;
 
-impl_env! {
-    /// A `FileDescOpener` implementation which delegates to another implementation,
-    /// but wraps any returned handles with in an `Arc`.
-    pub struct ArcFileDescOpenerEnv,
-    Arc,
+    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
+        self.opener.open_path(path, opts).map(Arc::new)
+    }
+
+    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
+        self.opener.open_pipe().map(|pipe| Pipe {
+            reader: Arc::new(pipe.reader),
+            writer: Arc::new(pipe.writer),
+        })
+    }
 }
