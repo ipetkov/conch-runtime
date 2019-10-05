@@ -3,11 +3,11 @@
     allow(dead_code, unused_imports)
 )]
 
-use conch_runtime::env::{DefaultEnvConfigRc, DefaultEnvRc};
+use conch_runtime::env::{DefaultEnvArc, DefaultEnvConfigArc};
 use conch_runtime::future::EnvFuture;
 use conch_runtime::spawn::sequence;
 use conch_runtime::{ExitStatus, EXIT_ERROR};
-use futures::future::{lazy, Future};
+use futures::future::Future;
 use futures_preview::compat::Compat01As03;
 use owned_chars::OwnedCharsExt;
 use std::io::{stderr, stdin, BufRead, BufReader, Write};
@@ -19,7 +19,7 @@ fn main() {}
 #[cfg(all(feature = "conch-parser", feature = "top-level"))]
 #[tokio::main]
 async fn main() {
-    use conch_parser::ast::builder::RcBuilder;
+    use conch_parser::ast::builder::ArcBuilder;
     use conch_parser::lexer::Lexer;
     use conch_parser::parse::Parser;
 
@@ -42,7 +42,7 @@ async fn main() {
 
     // Initialize our token lexer and shell parser with the program's input
     let lex = Lexer::new(stdin);
-    let parser = Parser::with_builder(lex, RcBuilder::new());
+    let parser = Parser::with_builder(lex, ArcBuilder::new());
 
     let cmds = parser.into_iter().map(|result| {
         result.unwrap_or_else(|e| {
@@ -52,9 +52,9 @@ async fn main() {
     });
 
     // Instantiate our environment for executing commands
-    let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
+    let env = DefaultEnvArc::with_config(DefaultEnvConfigArc {
         interactive: true,
-        ..DefaultEnvConfigRc::new(None).expect("failed to create env config")
+        ..DefaultEnvConfigArc::new(None).expect("failed to create env config")
     });
 
     let status = Compat01As03::new(sequence(cmds).pin_env(env).flatten()).await;

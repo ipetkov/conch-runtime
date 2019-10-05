@@ -11,7 +11,7 @@ pub use self::support::*;
 async fn run_substitution<I, S>(cmds: I) -> Result<String, S::Error>
 where
     I: IntoIterator<Item = S>,
-    S: Spawn<DefaultEnvRc>,
+    S: Spawn<DefaultEnvArc>,
     S::Error: IsFatalError + From<IoError>,
 {
     let env = new_env_with_threads(2);

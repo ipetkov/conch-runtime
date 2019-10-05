@@ -12,9 +12,9 @@ use crate::support::*;
 async fn is_interactive() {
     Compat01As03::new(lazy(|| {
         for &interactive in &[true, false] {
-            let env = DefaultEnvRc::with_config(DefaultEnvConfigRc {
+            let env = DefaultEnvArc::with_config(DefaultEnvConfigArc {
                 interactive,
-                ..DefaultEnvConfigRc::new(Some(1)).unwrap()
+                ..DefaultEnvConfigArc::new(Some(1)).unwrap()
             });
             assert_eq!(env.is_interactive(), interactive);
         }

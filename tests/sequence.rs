@@ -10,11 +10,11 @@ use futures::Future;
 mod support;
 pub use self::support::*;
 
-async fn run_sequence<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvRc>>::Error>
+async fn run_sequence<I>(cmds: I) -> Result<ExitStatus, <I::Item as Spawn<DefaultEnvArc>>::Error>
 where
     I: IntoIterator,
-    I::Item: Spawn<DefaultEnvRc>,
-    <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
+    I::Item: Spawn<DefaultEnvArc>,
+    <I::Item as Spawn<DefaultEnvArc>>::Error: IsFatalError,
 {
     let env = new_env();
     let future = sequence(cmds).pin_env(env).flatten();
@@ -24,8 +24,8 @@ where
 fn run_cancel_sequence<I>(cmds: I)
 where
     I: IntoIterator,
-    I::Item: Spawn<DefaultEnvRc>,
-    <I::Item as Spawn<DefaultEnvRc>>::Error: IsFatalError,
+    I::Item: Spawn<DefaultEnvArc>,
+    <I::Item as Spawn<DefaultEnvArc>>::Error: IsFatalError,
 {
     let mut env = new_env();
     test_cancel!(sequence(cmds), env);

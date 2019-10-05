@@ -4,7 +4,6 @@ use futures;
 
 use conch_runtime::spawn::{function, BoxSpawnEnvFuture, BoxStatusFuture};
 use futures::future::{poll_fn, FutureResult};
-use std::rc::Rc;
 use std::sync::Arc;
 
 #[macro_use]
@@ -41,8 +40,8 @@ struct MockCmdWrapper {
     cmd: MockCmd,
 }
 
-fn mock_wrapper(cmd: MockCmd) -> Rc<MockCmdWrapper> {
-    Rc::new(MockCmdWrapper {
+fn mock_wrapper(cmd: MockCmd) -> Arc<MockCmdWrapper> {
+    Arc::new(MockCmdWrapper {
         has_checked: false,
         cmd,
     })
@@ -166,11 +165,11 @@ struct MockFnRecursive<F> {
 }
 
 impl<F> MockFnRecursive<F> {
-    fn new(f: F) -> Rc<Self>
+    fn new(f: F) -> Arc<Self>
     where
         F: Fn(&TestEnv) -> BoxSpawnEnvFuture<'static, TestEnv, MockErr>,
     {
-        Rc::new(MockFnRecursive { callback: f })
+        Arc::new(MockFnRecursive { callback: f })
     }
 }
 
@@ -189,13 +188,15 @@ where
 
 #[tokio::test]
 async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     let exit = ExitStatus::Code(42);
     let fn_name = "fn name".to_owned();
     let mut env = new_test_env();
 
     let depth = {
         let num_calls = 3usize;
-        let depth = Rc::new(::std::cell::Cell::new(num_calls));
+        let depth = Arc::new(AtomicUsize::new(num_calls));
         let depth_copy = depth.clone();
         let fn_name = fn_name.clone();
 
@@ -204,10 +205,7 @@ async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
             MockFnRecursive::new(move |env| {
                 assert_eq!(env.is_fn_running(), true);
 
-                let num_calls = depth.get().saturating_sub(1);
-                depth.set(num_calls);
-
-                if num_calls <= 0 {
+                if depth.fetch_sub(1, Ordering::SeqCst) == 1 {
                     mock_wrapper(mock_status(exit)).spawn(env)
                 } else {
                     let cur_args: Vec<_> = env.args().iter().cloned().collect();
@@ -235,6 +233,6 @@ async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
     assert_eq!(Compat01As03::new(next).await, Ok(exit));
 
     assert_eq!(env.args(), &**args);
-    assert_eq!(depth.get(), 0);
+    assert_eq!(depth.load(Ordering::SeqCst), 0);
     assert_eq!(env.is_fn_running(), false);
 }

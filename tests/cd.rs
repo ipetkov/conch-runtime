@@ -9,7 +9,7 @@ use std::os::unix::fs::symlink as symlink_dir;
 #[cfg(windows)]
 use std::os::windows::fs::symlink_dir;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -26,7 +26,7 @@ struct CdResult {
 
 async fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
 where
-    for<'a> F: FnOnce(&'a mut DefaultEnvRc),
+    for<'a> F: FnOnce(&'a mut DefaultEnvArc),
 {
     let mut env = new_env_with_threads(4);
 
@@ -96,7 +96,7 @@ async fn successful_if_no_stdout() {
 
     let mut env = new_env_with_no_fds();
 
-    let args: Vec<Rc<String>> = vec![input.to_string_lossy().into_owned().into()];
+    let args: Vec<Arc<String>> = vec![input.to_string_lossy().into_owned().into()];
     let mut cd = cd(args).spawn(&env);
 
     let exit = Compat01As03::new(poll_fn(|| cd.poll(&mut env)).flatten()).await;
@@ -333,7 +333,7 @@ async fn dash_unset_old_pwd_is_error() {
 #[should_panic]
 fn polling_canceled_pwd_panics() {
     let mut env = new_env_with_no_fds();
-    let mut cd = cd(Vec::<Rc<String>>::new()).spawn(&env);
+    let mut cd = cd(Vec::<Arc<String>>::new()).spawn(&env);
 
     cd.cancel(&mut env);
     let _ = cd.poll(&mut env);

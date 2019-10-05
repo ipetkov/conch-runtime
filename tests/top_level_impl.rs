@@ -4,7 +4,6 @@
 use conch_runtime;
 
 use conch_parser::ast;
-use std::rc::Rc;
 use std::sync::Arc;
 
 #[macro_use]
@@ -17,28 +16,6 @@ fn env_path() -> String {
 
 #[tokio::test]
 async fn smoke() {
-    let word = ast::TopLevelWord(ast::ComplexWord::Single(ast::Word::Simple(
-        ast::SimpleWord::Literal(Rc::new(env_path())),
-    )));
-
-    let cmd = ast::TopLevelCommand(ast::Command::List(ast::CommandList {
-        first: ast::ListableCommand::Single(ast::PipeableCommand::Simple(Box::new(
-            ast::SimpleCommand {
-                redirects_or_env_vars: vec![],
-                redirects_or_cmd_words: vec![ast::RedirectOrCmdWord::CmdWord(word)],
-            },
-        ))),
-        rest: vec![],
-    }));
-
-    let mut env = DefaultEnvRc::new(Some(1)).unwrap();
-    env.close_file_desc(conch_runtime::STDOUT_FILENO); // NB: don't dump env vars here
-
-    assert_eq!(run!(cmd, env), Ok(EXIT_SUCCESS));
-}
-
-#[tokio::test]
-async fn smoke_atomic() {
     let word = ast::AtomicTopLevelWord(ast::ComplexWord::Single(ast::Word::Simple(
         ast::SimpleWord::Literal(Arc::new(env_path())),
     )));
@@ -53,7 +30,7 @@ async fn smoke_atomic() {
         rest: vec![],
     }));
 
-    let mut env = conch_runtime::env::atomic::DefaultEnvArc::new_atomic(Some(1)).unwrap();
+    let mut env = DefaultEnvArc::new(Some(1)).unwrap();
     env.close_file_desc(conch_runtime::STDOUT_FILENO); // NB: don't dump env vars here
 
     assert_eq!(run!(cmd, env), Ok(EXIT_SUCCESS));

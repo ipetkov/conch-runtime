@@ -13,7 +13,7 @@ use conch_runtime::spawn::{simple_command, simple_command_with_restorers};
 use conch_runtime::Fd;
 use futures::future::{ok, poll_fn, FutureResult};
 use std::io;
-use std::rc::Rc;
+use std::sync::Arc;
 use void::Void;
 
 #[macro_use]
@@ -21,14 +21,14 @@ mod support;
 pub use self::support::*;
 
 type TestEnvWithBuiltin<B> = Env<
-    ArgsEnv<Rc<String>>,
+    ArgsEnv<Arc<String>>,
     PlatformSpecificFileDescManagerEnv,
     LastStatusEnv,
-    VarEnv<Rc<String>, Rc<String>>,
+    VarEnv<Arc<String>, Arc<String>>,
     ExecEnv,
     VirtualWorkingDirEnv,
     B,
-    Rc<String>,
+    Arc<String>,
     MockErr,
 >;
 
@@ -36,7 +36,7 @@ type TestEnv = TestEnvWithBuiltin<DummyBuiltinEnv>;
 
 macro_rules! new_test_env_config {
     () => {{
-        DefaultEnvConfigRc::new(Some(1))
+        DefaultEnvConfigArc::new(Some(1))
             .expect("failed to create test env")
             .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(1)))
             .change_builtin_env(DummyBuiltinEnv)
@@ -56,7 +56,7 @@ const BUILTIN_EXIT_STATUS: ExitStatus = ExitStatus::Code(99);
 struct DummyBuiltinEnv;
 
 impl BuiltinEnvironment for DummyBuiltinEnv {
-    type BuiltinName = Rc<String>;
+    type BuiltinName = Arc<String>;
     type Builtin = RealBuiltin;
 
     fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
@@ -80,7 +80,7 @@ async fn ast_node_smoke_test() {
         Compat01As03::new(future).await
     }
 
-    let key = Rc::new("key".to_owned());
+    let key = Arc::new("key".to_owned());
     let val = "val".to_owned();
 
     let bin_path = bin_path("env").to_str().unwrap().to_owned();
@@ -111,7 +111,7 @@ async fn function_smoke() {
 
     impl<'a, E: ?Sized> Spawn<E> for &'a MockFn
     where
-        E: VariableEnvironment<VarName = Rc<String>, Var = Rc<String>>,
+        E: VariableEnvironment<VarName = Arc<String>, Var = Arc<String>>,
         E: FileDescEnvironment,
     {
         type Error = MockErr;
@@ -125,7 +125,7 @@ async fn function_smoke() {
 
     impl<E: ?Sized> EnvFuture<E> for MockFn
     where
-        E: VariableEnvironment<VarName = Rc<String>, Var = Rc<String>>,
+        E: VariableEnvironment<VarName = Arc<String>, Var = Arc<String>>,
         E: FileDescEnvironment,
     {
         type Item = FutureResult<ExitStatus, Self::Error>;
@@ -144,11 +144,11 @@ async fn function_smoke() {
 
     let mut env = new_test_env();
 
-    let key = Rc::new(KEY.to_owned());
+    let key = Arc::new(KEY.to_owned());
     let fn_name = "fn_name".to_owned();
     assert_eq!(env.var(&key), None);
 
-    env.set_function(Rc::new(fn_name.clone()), Rc::new(MockFn));
+    env.set_function(Arc::new(fn_name.clone()), Arc::new(MockFn));
 
     let mut future = simple_command::<MockRedirect<_>, _, _, _, _, _>(
         vec![RedirectOrVarAssig::VarAssig(
@@ -181,7 +181,7 @@ async fn should_set_executable_cwd_same_as_env() {
     let pipe = env.open_pipe().expect("failed to open pipe");
 
     let bin_path = bin_path("pwd").to_str().unwrap().to_owned();
-    let mut future = simple_command::<MockRedirect<_>, Rc<String>, _, _, _, _>(
+    let mut future = simple_command::<MockRedirect<_>, Arc<String>, _, _, _, _>(
         vec![],
         vec![
             RedirectOrCmdWord::CmdWord(mock_word_fields(Fields::Single(bin_path))),
@@ -221,10 +221,10 @@ async fn command_redirect_and_env_var_overrides() {
     env.unset_var(&"OLDPWD".to_owned());
     env.unset_var(&"PWD".to_owned());
 
-    let key = Rc::new("key".to_owned());
-    let key_existing = Rc::new("key_existing".to_owned());
+    let key = Arc::new("key".to_owned());
+    let key_existing = Arc::new("key_existing".to_owned());
     let val = "val".to_owned();
-    let val_existing = Rc::new("val_existing".to_owned());
+    let val_existing = Arc::new("val_existing".to_owned());
 
     assert_eq!(env.file_desc(1), None);
     env.set_exported_var(key_existing.clone(), val_existing, true);
@@ -277,14 +277,14 @@ async fn command_redirect_and_env_var_overrides() {
 async fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars() {
     let mut env = new_test_env();
 
-    let key = Rc::new("key".to_owned());
-    let key_exported = Rc::new("key_exported".to_owned());
+    let key = Arc::new("key".to_owned());
+    let key_exported = Arc::new("key_exported".to_owned());
     let val = "val".to_owned();
     let val_exported = "val_exported".to_owned();
 
     assert_eq!(env.file_desc(1), None);
     assert_eq!(env.file_desc(2), None);
-    env.set_exported_var(key_exported.clone(), Rc::new("old".to_owned()), true);
+    env.set_exported_var(key_exported.clone(), Arc::new("old".to_owned()), true);
 
     let mut future = simple_command(
         vec![
@@ -325,10 +325,10 @@ async fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars
 
     assert_eq!(env.file_desc(1), None);
     assert_eq!(env.file_desc(2), None);
-    assert_eq!(env.exported_var(&key), Some((&Rc::new(val), false)));
+    assert_eq!(env.exported_var(&key), Some((&Arc::new(val), false)));
     assert_eq!(
         env.exported_var(&key_exported),
-        Some((&Rc::new(val_exported), true))
+        Some((&Arc::new(val_exported), true))
     );
 }
 
@@ -336,7 +336,7 @@ async fn command_with_no_words_should_open_and_restore_redirects_and_assign_vars
 async fn should_propagate_errors_and_restore_redirects_without_assigning_vars() {
     let mut env = new_test_env();
 
-    let key = Rc::new("key".to_owned());
+    let key = Arc::new("key".to_owned());
     let val = "val".to_owned();
 
     {
@@ -458,7 +458,7 @@ async fn should_propagate_errors_and_restore_redirects_without_assigning_vars() 
 async fn should_propagate_cancel_and_restore_redirects_and_vars() {
     let mut env = new_test_env();
 
-    let key = Rc::new("key".to_owned());
+    let key = Arc::new("key".to_owned());
     let val = Fields::Single("foo".to_owned());
 
     test_cancel!(
@@ -570,9 +570,9 @@ async fn builtins_should_have_lower_precedence_than_functions() {
     let mut env = new_test_env();
 
     let fn_name = BUILTIN_CMD.to_owned();
-    env.set_function(Rc::new(fn_name.clone()), Rc::new(MockFn));
+    env.set_function(Arc::new(fn_name.clone()), Arc::new(MockFn));
 
-    let mut future = simple_command::<MockRedirect<_>, Rc<String>, _, _, _, _>(
+    let mut future = simple_command::<MockRedirect<_>, Arc<String>, _, _, _, _>(
         vec![],
         vec![RedirectOrCmdWord::CmdWord(mock_word_fields(
             Fields::Single(fn_name),
@@ -655,7 +655,7 @@ async fn should_pass_restorers_to_builtin_utility_if_spawned() {
     struct MockBuiltin;
 
     impl BuiltinEnvironment for MockBuiltinEnv {
-        type BuiltinName = Rc<String>;
+        type BuiltinName = Arc<String>;
         type Builtin = MockBuiltin;
 
         fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {

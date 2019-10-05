@@ -9,7 +9,7 @@ use conch_runtime::{Fd, STDOUT_FILENO};
 use futures::future::poll_fn;
 use std::cell::RefCell;
 use std::io;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -19,7 +19,7 @@ pub use self::support::*;
 struct Output {
     out: String,
     exit: ExitStatus,
-    env: DefaultEnvRc,
+    env: DefaultEnvArc,
 }
 
 #[derive(Debug)]
@@ -118,8 +118,8 @@ where
     }
 }
 
-fn rc(s: &str) -> Rc<String> {
-    Rc::new(String::from(s))
+fn rc(s: &str) -> Arc<String> {
+    Arc::new(String::from(s))
 }
 
 async fn run_builtin(name: &str, args: &[&str]) -> Output {
@@ -128,7 +128,7 @@ async fn run_builtin(name: &str, args: &[&str]) -> Output {
 
 async fn run_builtin_with_prep<F>(name: &str, args: &[&str], prep: F) -> Output
 where
-    for<'a> F: FnOnce(&'a mut DefaultEnvRc),
+    for<'a> F: FnOnce(&'a mut DefaultEnvArc),
 {
     let mut env = new_env_with_threads(2);
 
@@ -176,7 +176,7 @@ where
 fn test_cancel_impl(name: &str) {
     let mut env = new_env();
 
-    let args: Vec<Rc<String>> = vec![];
+    let args: Vec<Arc<String>> = vec![];
     let builtin = env
         .builtin(&rc(name))
         .unwrap_or_else(|| panic!("did not find builtin for `{}`", name))

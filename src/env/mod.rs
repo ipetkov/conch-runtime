@@ -32,7 +32,7 @@ pub use self::cur_dir::{
     ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };
 pub use self::env_impl::{
-    DefaultEnv, DefaultEnvConfig, DefaultEnvConfigRc, DefaultEnvRc, Env, EnvConfig,
+    DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
 };
 pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
@@ -54,16 +54,6 @@ pub use self::string_wrapper::StringWrapper;
 pub use self::var::{
     ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
 };
-
-/// A module which provides atomic implementations (which can be `Send` and
-/// `Sync`) of the various environment interfaces.
-pub mod atomic {
-    pub use super::env_impl::AtomicEnv as Env;
-    pub use super::env_impl::DefaultAtomicEnv as DefaultEnv;
-    pub use super::env_impl::DefaultAtomicEnvArc as DefaultEnvArc;
-    pub use super::env_impl::DefaultAtomicEnvConfig as DefaultEnvConfig;
-    pub use super::env_impl::DefaultAtomicEnvConfigArc as DefaultEnvConfigArc;
-}
 
 /// An interface for checking if the current environment is an interactive one.
 pub trait IsInteractiveEnvironment {

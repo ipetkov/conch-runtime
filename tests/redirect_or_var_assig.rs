@@ -6,27 +6,27 @@ use conch_runtime::env::FileDescEnvironment;
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::Permissions;
 use futures::future::poll_fn;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
 pub use self::support::*;
 
 type MockRedirectOrVarAssig =
-    RedirectOrVarAssig<MockRedirect<PlatformSpecificManagedHandle>, Rc<String>, MockWord>;
+    RedirectOrVarAssig<MockRedirect<PlatformSpecificManagedHandle>, Arc<String>, MockWord>;
 
 fn eval(
     vars: Vec<MockRedirectOrVarAssig>,
     export_vars: Option<bool>,
-    env: &DefaultEnvRc,
+    env: &DefaultEnvArc,
 ) -> EvalRedirectOrVarAssig<
     MockRedirect<PlatformSpecificManagedHandle>,
-    Rc<String>,
+    Arc<String>,
     MockWord,
     ::std::vec::IntoIter<MockRedirectOrVarAssig>,
-    DefaultEnvRc,
-    RedirectRestorer<DefaultEnvRc>,
-    VarRestorer<DefaultEnvRc>,
+    DefaultEnvArc,
+    RedirectRestorer<DefaultEnvArc>,
+    VarRestorer<DefaultEnvArc>,
 > {
     eval_redirects_or_var_assignments_with_restorers(
         RedirectRestorer::new(),
@@ -41,10 +41,10 @@ fn eval(
 async fn smoke() {
     let mut env = new_env_with_no_fds();
 
-    let key = Rc::new("key".to_owned());
-    let key_empty = Rc::new("key_empty".to_owned());
-    let key_empty2 = Rc::new("key_empty2".to_owned());
-    let key_split = Rc::new("key_split".to_owned());
+    let key = Arc::new("key".to_owned());
+    let key_empty = Arc::new("key_empty".to_owned());
+    let key_empty2 = Arc::new("key_empty2".to_owned());
+    let key_split = Arc::new("key_split".to_owned());
     let val = "val".to_owned();
 
     let all_keys = vec![
@@ -54,7 +54,7 @@ async fn smoke() {
         key_split.clone(),
     ];
 
-    let assert_empty_vars = |env: &DefaultEnvRc| {
+    let assert_empty_vars = |env: &DefaultEnvArc| {
         for var in &all_keys {
             assert_eq!(env.var(var), None);
         }
@@ -109,10 +109,10 @@ async fn smoke() {
     redirect_restorer.restore(&mut env);
     assert_eq!(env.file_desc(1), None);
 
-    assert_eq!(env.var(&key), Some(&Rc::new(val)));
-    assert_eq!(env.var(&key_empty), Some(&Rc::new(String::new())));
-    assert_eq!(env.var(&key_empty2), Some(&Rc::new(String::new())));
-    assert_eq!(env.var(&key_split), Some(&Rc::new("foo bar".to_owned())));
+    assert_eq!(env.var(&key), Some(&Arc::new(val)));
+    assert_eq!(env.var(&key_empty), Some(&Arc::new(String::new())));
+    assert_eq!(env.var(&key_empty2), Some(&Arc::new(String::new())));
+    assert_eq!(env.var(&key_split), Some(&Arc::new("foo bar".to_owned())));
 
     #[allow(deprecated)]
     var_restorer.restore(&mut env);
@@ -123,15 +123,15 @@ async fn smoke() {
 async fn should_honor_export_vars_config() {
     let mut env = new_env_with_no_fds();
 
-    let key = Rc::new("key".to_owned());
-    let key_existing = Rc::new("key_existing".to_owned());
-    let key_existing_exported = Rc::new("key_existing_exported".to_owned());
+    let key = Arc::new("key".to_owned());
+    let key_existing = Arc::new("key_existing".to_owned());
+    let key_existing_exported = Arc::new("key_existing_exported".to_owned());
 
-    let val_existing = Rc::new("val_existing".to_owned());
-    let val_existing_exported = Rc::new("val_existing_exported".to_owned());
-    let val = Rc::new("val".to_owned());
-    let val_new = Rc::new("val_new".to_owned());
-    let val_new_alt = Rc::new("val_new_alt".to_owned());
+    let val_existing = Arc::new("val_existing".to_owned());
+    let val_existing_exported = Arc::new("val_existing_exported".to_owned());
+    let val = Arc::new("val".to_owned());
+    let val_new = Arc::new("val_new".to_owned());
+    let val_new_alt = Arc::new("val_new_alt".to_owned());
 
     env.set_exported_var(key_existing.clone(), val_existing.clone(), false);
     env.set_exported_var(
@@ -185,7 +185,7 @@ async fn should_honor_export_vars_config() {
 async fn should_propagate_errors_and_restore_redirects_and_vars() {
     let mut env = new_env_with_no_fds();
 
-    let key = Rc::new("key".to_owned());
+    let key = Arc::new("key".to_owned());
 
     {
         assert_eq!(env.file_desc(1), None);
@@ -252,7 +252,7 @@ async fn should_propagate_errors_and_restore_redirects_and_vars() {
 async fn should_propagate_cancel_and_restore_redirects_and_vars() {
     let mut env = new_env_with_no_fds();
 
-    let key = Rc::new("key".to_owned());
+    let key = Arc::new("key".to_owned());
 
     test_cancel!(
         eval(

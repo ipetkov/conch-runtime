@@ -5,7 +5,6 @@ use futures;
 use conch_runtime::spawn::{for_args, for_loop, for_with_args};
 use conch_runtime::RefCounted;
 use futures::future::{ok, FutureResult};
-use std::rc::Rc;
 use std::sync::Arc;
 
 #[macro_use]
@@ -25,36 +24,36 @@ const RESULT_VAR: &str = "resulting var name";
 #[derive(Debug, Clone)]
 struct MockCmd2;
 
-impl<'a> Spawn<DefaultEnvRc> for &'a MockCmd2 {
+impl<'a> Spawn<DefaultEnvArc> for &'a MockCmd2 {
     type Error = MockErr;
     type EnvFuture = Self;
     type Future = FutureResult<ExitStatus, Self::Error>;
 
-    fn spawn(self, _: &DefaultEnvRc) -> Self::EnvFuture {
+    fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
         self
     }
 }
 
-impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
+impl<'a> EnvFuture<DefaultEnvArc> for &'a MockCmd2 {
     type Item = FutureResult<ExitStatus, Self::Error>;
     type Error = MockErr;
 
-    fn poll(&mut self, env: &mut DefaultEnvRc) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, env: &mut DefaultEnvArc) -> Poll<Self::Item, Self::Error> {
         let result_var = RESULT_VAR.to_owned();
         let mut result_val = env
             .var(&result_var)
             .cloned()
-            .unwrap_or_else(|| Rc::new(String::new()));
+            .unwrap_or_else(|| Arc::new(String::new()));
 
         if let Some(val) = env.var(&VAR.to_owned()) {
             result_val.make_mut().push_str(&**val);
         }
 
-        env.set_var(Rc::new(result_var), result_val);
+        env.set_var(Arc::new(result_var), result_val);
         Ok(Async::Ready(ok(MOCK_EXIT)))
     }
 
-    fn cancel(&mut self, _env: &mut DefaultEnvRc) {
+    fn cancel(&mut self, _env: &mut DefaultEnvArc) {
         unimplemented!()
     }
 }
@@ -67,12 +66,12 @@ async fn should_run_with_appropriate_args() {
 async fn should_run_with_appropriate_args_impl() {
     let mut env = new_env();
     env.set_args(Arc::new(vec![
-        Rc::new("arg_foo".to_owned()),
-        Rc::new("arg_bar".to_owned()),
+        Arc::new("arg_foo".to_owned()),
+        Arc::new("arg_bar".to_owned()),
     ]));
 
-    let result_var = Rc::new(RESULT_VAR.to_owned());
-    let name = Rc::new(VAR.to_owned());
+    let result_var = Arc::new(RESULT_VAR.to_owned());
+    let name = Arc::new(VAR.to_owned());
     let vars_raw = vec!["raw_foo".to_owned(), "raw_bar".to_owned()];
     let vars = mock_word_fields(Fields::Split(vars_raw.clone()));
     let cmd = MockCmd2;
@@ -121,7 +120,7 @@ async fn should_run_with_appropriate_args_impl() {
     }
 
     {
-        let vars_raw = vars_raw.into_iter().map(Rc::new);
+        let vars_raw = vars_raw.into_iter().map(Arc::new);
         let for_cmd = for_with_args(name.clone(), vars_raw, vec![&cmd]);
         run_env_and_assert_var!(for_cmd, env, "raw_fooraw_bar");
     }
@@ -131,11 +130,11 @@ async fn should_run_with_appropriate_args_impl() {
 async fn should_swallow_non_fatal_errors_in_body() {
     let mut env = new_env();
     env.set_args(Arc::new(vec![
-        Rc::new("arg_foo".to_owned()),
-        Rc::new("arg_bar".to_owned()),
+        Arc::new("arg_foo".to_owned()),
+        Arc::new("arg_bar".to_owned()),
     ]));
 
-    let name = Rc::new("name".to_owned());
+    let name = Arc::new("name".to_owned());
     let vars = mock_word_fields(Fields::Single((*name).clone()));
 
     let non_fatal = mock_error(false);
@@ -166,7 +165,7 @@ async fn should_not_run_body_args_are_empty() {
     env.set_args(Arc::new(vec![]));
 
     let should_not_run = mock_panic("must not run");
-    let name = Rc::new("name".to_owned());
+    let name = Arc::new("name".to_owned());
     let vars = mock_word_fields(Fields::Zero);
 
     let for_cmd = for_loop(
@@ -193,7 +192,7 @@ async fn should_propagate_all_word_errors() {
     let env = new_env();
 
     let should_not_run = mock_panic("must not run");
-    let name = Rc::new("name".to_owned());
+    let name = Arc::new("name".to_owned());
 
     let for_cmd = for_loop(
         name.clone(),
@@ -216,11 +215,11 @@ async fn should_propagate_all_word_errors() {
 async fn should_propagate_fatal_errors_in_body() {
     let mut env = new_env();
     env.set_args(Arc::new(vec![
-        Rc::new("foo".to_owned()),
-        Rc::new("bar".to_owned()),
+        Arc::new("foo".to_owned()),
+        Arc::new("bar".to_owned()),
     ]));
 
-    let name = Rc::new("name".to_owned());
+    let name = Arc::new("name".to_owned());
     let vars_raw = vec!["foo".to_owned(), "bar".to_owned()];
     let vars = mock_word_fields(Fields::Split(vars_raw.clone()));
     let fatal = mock_error(true);
@@ -235,7 +234,7 @@ async fn should_propagate_fatal_errors_in_body() {
     let for_cmd = for_args(name.clone(), vec![&fatal], &env);
     assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 
-    let vars_raw = vars_raw.into_iter().map(Rc::new);
+    let vars_raw = vars_raw.into_iter().map(Arc::new);
     let for_cmd = for_with_args(name.clone(), vars_raw, vec![&fatal]);
     assert_eq!(run_env!(for_cmd, env), Err(MockErr::Fatal(true)));
 }
@@ -244,11 +243,11 @@ async fn should_propagate_fatal_errors_in_body() {
 async fn should_propagate_cancel() {
     let mut env = new_env();
     env.set_args(Arc::new(vec![
-        Rc::new("foo".to_owned()),
-        Rc::new("bar".to_owned()),
+        Arc::new("foo".to_owned()),
+        Arc::new("bar".to_owned()),
     ]));
 
-    let name = Rc::new("name".to_owned());
+    let name = Arc::new("name".to_owned());
     let vars_raw = vec!["foo".to_owned(), "bar".to_owned()];
     let vars = mock_word_fields(Fields::Split(vars_raw.clone()));
     let should_not_run = mock_panic("must not run");
@@ -273,7 +272,7 @@ async fn should_propagate_cancel() {
     let for_cmd = for_args(name.clone(), vec![&must_cancel], &env);
     test_cancel!(for_cmd, env);
 
-    let vars_raw = vars_raw.into_iter().map(Rc::new);
+    let vars_raw = vars_raw.into_iter().map(Arc::new);
     let for_cmd = for_with_args(name.clone(), vars_raw, vec![&must_cancel]);
     test_cancel!(for_cmd, env);
 }

@@ -10,7 +10,7 @@ use crate::runtime::{STDIN_FILENO, STDOUT_FILENO};
 use crate::syntax::ast::ListableCommand;
 use futures::future::{ok, FutureResult};
 use futures::{Async, Poll};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -62,26 +62,26 @@ async fn single_command_env_changes_remain() {
     const VALUE: &str = "value";
 
     struct MockCmdWithSideEffects;
-    impl Spawn<DefaultEnvRc> for MockCmdWithSideEffects {
+    impl Spawn<DefaultEnvArc> for MockCmdWithSideEffects {
         type Error = ();
         type EnvFuture = Self;
         type Future = FutureResult<ExitStatus, Self::Error>;
 
-        fn spawn(self, _: &DefaultEnvRc) -> Self::EnvFuture {
+        fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
             self
         }
     }
 
-    impl EnvFuture<DefaultEnvRc> for MockCmdWithSideEffects {
+    impl EnvFuture<DefaultEnvArc> for MockCmdWithSideEffects {
         type Item = FutureResult<ExitStatus, Self::Error>;
         type Error = ();
 
-        fn poll(&mut self, env: &mut DefaultEnvRc) -> Poll<Self::Item, Self::Error> {
+        fn poll(&mut self, env: &mut DefaultEnvArc) -> Poll<Self::Item, Self::Error> {
             env.set_var(VAR.to_owned().into(), VALUE.to_owned().into());
             Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
 
-        fn cancel(&mut self, _env: &mut DefaultEnvRc) {}
+        fn cancel(&mut self, _env: &mut DefaultEnvArc) {}
     }
 
     let var = VAR.to_owned();
@@ -167,39 +167,39 @@ async fn multiple_commands_smoke() {
     use std::thread;
 
     #[derive(Clone)]
-    struct MockCmdFn<'a>(Rc<RefCell<dyn FnMut(&mut DefaultEnvRc) + 'a>>);
+    struct MockCmdFn<'a>(Arc<RefCell<dyn FnMut(&mut DefaultEnvArc) + 'a>>);
 
-    impl<'a> Spawn<DefaultEnvRc> for MockCmdFn<'a> {
+    impl<'a> Spawn<DefaultEnvArc> for MockCmdFn<'a> {
         type Error = RuntimeError;
         type EnvFuture = Self;
         type Future = FutureResult<ExitStatus, Self::Error>;
 
-        fn spawn(self, _: &DefaultEnvRc) -> Self::EnvFuture {
+        fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
             self
         }
     }
 
-    impl<'a: 'b, 'b> Spawn<DefaultEnvRc> for &'b MockCmdFn<'a> {
+    impl<'a: 'b, 'b> Spawn<DefaultEnvArc> for &'b MockCmdFn<'a> {
         type Error = RuntimeError;
         type EnvFuture = MockCmdFn<'a>;
         type Future = FutureResult<ExitStatus, Self::Error>;
 
-        fn spawn(self, _: &DefaultEnvRc) -> Self::EnvFuture {
+        fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
             self.clone()
         }
     }
 
-    impl<'a> EnvFuture<DefaultEnvRc> for MockCmdFn<'a> {
+    impl<'a> EnvFuture<DefaultEnvArc> for MockCmdFn<'a> {
         type Item = FutureResult<ExitStatus, Self::Error>;
         type Error = RuntimeError;
 
-        fn poll(&mut self, env: &mut DefaultEnvRc) -> Poll<Self::Item, Self::Error> {
+        fn poll(&mut self, env: &mut DefaultEnvArc) -> Poll<Self::Item, Self::Error> {
             use std::ops::DerefMut;
             (self.0.as_ref().borrow_mut().deref_mut())(env);
             Ok(Async::Ready(ok(EXIT_SUCCESS)))
         }
 
-        fn cancel(&mut self, _env: &mut DefaultEnvRc) {}
+        fn cancel(&mut self, _env: &mut DefaultEnvArc) {}
     }
 
     let mut writer = None;
@@ -209,12 +209,12 @@ async fn multiple_commands_smoke() {
         let list = ListableCommand::Pipe(
             false,
             vec![
-                MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
+                MockCmdFn(Arc::new(RefCell::new(|env: &mut DefaultEnvArc| {
                     let fdes_perms = env.file_desc(STDOUT_FILENO).unwrap();
                     assert_eq!(fdes_perms.1, Permissions::Write);
                     writer = Some(fdes_perms.0.clone());
                 }))),
-                MockCmdFn(Rc::new(RefCell::new(|env: &mut DefaultEnvRc| {
+                MockCmdFn(Arc::new(RefCell::new(|env: &mut DefaultEnvArc| {
                     let fdes_perms = env.file_desc(STDIN_FILENO).unwrap();
                     assert_eq!(fdes_perms.1, Permissions::Read);
                     reader = Some(fdes_perms.0.clone());

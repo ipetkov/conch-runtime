@@ -27,22 +27,22 @@ enum MockCmd2 {
     SetVar,
 }
 
-impl<'a> Spawn<DefaultEnvRc> for &'a MockCmd2 {
+impl<'a> Spawn<DefaultEnvArc> for &'a MockCmd2 {
     type Error = MockErr;
     type EnvFuture = Self;
     type Future = FutureResult<ExitStatus, Self::Error>;
 
-    fn spawn(self, _: &DefaultEnvRc) -> Self::EnvFuture {
+    fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
         self
     }
 }
 
-impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
+impl<'a> EnvFuture<DefaultEnvArc> for &'a MockCmd2 {
     type Item = FutureResult<ExitStatus, Self::Error>;
     type Error = MockErr;
 
-    fn poll(&mut self, env: &mut DefaultEnvRc) -> Poll<Self::Item, Self::Error> {
-        let has_run_body = ::std::rc::Rc::new("has_run_body".to_owned());
+    fn poll(&mut self, env: &mut DefaultEnvArc) -> Poll<Self::Item, Self::Error> {
+        let has_run_body = ::std::sync::Arc::new("has_run_body".to_owned());
         let ran = env.var(&has_run_body).is_some();
 
         let ret = match **self {
@@ -62,7 +62,7 @@ impl<'a> EnvFuture<DefaultEnvRc> for &'a MockCmd2 {
         Ok(Async::Ready(result(ret)))
     }
 
-    fn cancel(&mut self, _env: &mut DefaultEnvRc) {
+    fn cancel(&mut self, _env: &mut DefaultEnvArc) {
         unimplemented!()
     }
 }

@@ -7,57 +7,47 @@ use conch_parser::ast::PipeableCommand;
 use conch_parser::ast::PipeableCommand::*;
 use conch_runtime::spawn::SpawnBoxed;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 #[macro_use]
 mod support;
 pub use self::support::*;
 
-type CmdRc = PipeableCommand<&'static str, MockCmd, MockCmd, Rc<MockCmd>>;
 type CmdArc = PipeableCommand<&'static str, MockCmd, MockCmd, Arc<MockCmd>>;
 
-macro_rules! impl_env {
-    ($MockEnvRc:ident, $Rc:ident, $($extra_bounds:tt)*) => {
-        #[derive(Clone)]
-        struct $MockEnvRc {
-            inner: HashMap<&'static str, $Rc<dyn 'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>>,
-        }
+#[derive(Clone)]
+struct MockEnvArc {
+    inner: HashMap<
+        &'static str,
+        Arc<dyn SpawnBoxed<MockEnvArc, Error = MockErr> + 'static + Send + Sync>,
+    >,
+}
 
-        impl $MockEnvRc {
-            fn new() -> Self {
-                $MockEnvRc {
-                    inner: HashMap::new(),
-                }
-            }
-        }
-
-        impl FunctionEnvironment for $MockEnvRc {
-            type FnName = &'static str;
-            type Fn = $Rc<dyn 'static + SpawnBoxed<$MockEnvRc, Error = MockErr> $($extra_bounds)*>;
-
-            fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
-                self.inner.get(name)
-            }
-
-            fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
-                self.inner.insert(name, func);
-            }
+impl MockEnvArc {
+    fn new() -> Self {
+        Self {
+            inner: HashMap::new(),
         }
     }
 }
 
-impl_env!(MockEnvRc, Rc,);
-impl_env!(MockEnvArc, Arc, + Send + Sync);
+impl FunctionEnvironment for MockEnvArc {
+    type FnName = &'static str;
+    type Fn = Arc<dyn SpawnBoxed<MockEnvArc, Error = MockErr> + 'static + Send + Sync>;
+
+    fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
+        self.inner.get(name)
+    }
+
+    fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
+        self.inner.insert(name, func);
+    }
+}
 
 macro_rules! run_all {
     ($cmd:expr) => {{
-        let mut env = MockEnvRc::new();
-        let ret_rc = run_all!($cmd, CmdRc, env);
         let mut env = MockEnvArc::new();
-        let ret_arc = run_all!($cmd, CmdArc, env);
-        assert_eq!(ret_rc, ret_arc);
-        ret_rc
+        run_all!($cmd, CmdArc, env)
     }};
 
     ($cmd:expr, $type:ident, $env:ident) => {{
@@ -87,8 +77,8 @@ fn run_with_env<T: Spawn<E>, E: ?Sized>(cmd: T, env: &mut E) -> Result<ExitStatu
 
 macro_rules! do_run_cancel {
     ($cmd:expr) => {{
-        let mut env = MockEnvRc::new();
-        do_run_cancel!($cmd, CmdRc, env);
+        let mut env = MockEnvArc::new();
+        do_run_cancel!($cmd, CmdArc, env);
         let mut env = MockEnvArc::new();
         do_run_cancel!($cmd, CmdArc, env);
     }};
@@ -140,7 +130,6 @@ fn smoke() {
     assert_eq!(run_all!(Simple(mock_status(exit))), Ok(exit));
     assert_eq!(run_all!(Compound(mock_status(exit))), Ok(exit));
 
-    run_test!(CmdRc, MockEnvRc);
     run_test!(CmdArc, MockEnvArc);
 }
 

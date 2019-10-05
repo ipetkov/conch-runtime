@@ -4,13 +4,13 @@
 extern crate conch_parser as syntax;
 
 use crate::syntax::ast::{CompoundCommandKind, GuardBodyPair, PatternBodyPair};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
 pub use self::support::*;
 
-type Kind = CompoundCommandKind<Rc<String>, MockWord, MockCmd>;
+type Kind = CompoundCommandKind<Arc<String>, MockWord, MockCmd>;
 
 #[tokio::test]
 async fn compound_command_kind_smoke() {
@@ -31,7 +31,7 @@ async fn compound_command_kind_smoke() {
     assert_eq!(run!(cmd), Ok(exit));
 
     let cmd: Kind = CompoundCommandKind::For {
-        var: Rc::new("var".to_owned()),
+        var: Arc::new("var".to_owned()),
         words: Some(vec![mock_word.clone()]),
         body: vec![mock_status(exit)],
     };
@@ -81,7 +81,7 @@ async fn compound_command_kind_cancel_smoke() {
     run_cancel!(cmd);
 
     let cmd: Kind = CompoundCommandKind::For {
-        var: Rc::new("var".to_owned()),
+        var: Arc::new("var".to_owned()),
         words: None,
         body: vec![mock_must_cancel()],
     };

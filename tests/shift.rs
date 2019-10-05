@@ -2,7 +2,7 @@
 use futures;
 
 use futures::future::poll_fn;
-use std::rc::Rc;
+use std::sync::Arc;
 
 mod support;
 pub use self::support::spawn::builtin::shift;
@@ -36,7 +36,7 @@ async fn run_shift(
     let env_args_expected = env_args_expected
         .iter()
         .map(|&s| s.to_owned())
-        .map(Rc::new)
+        .map(Arc::new)
         .collect::<Vec<_>>();
     assert_eq!(env.args(), env_args_expected);
 }
@@ -81,7 +81,7 @@ async fn shift_multiple_arg_does_nothing_and_exit_with_error() {
 #[should_panic]
 fn polling_canceled_shift_panics() {
     let mut env = new_env_with_no_fds();
-    let mut shift = shift(Vec::<Rc<String>>::new()).spawn(&env);
+    let mut shift = shift(Vec::<Arc<String>>::new()).spawn(&env);
 
     shift.cancel(&mut env);
     let _ = shift.poll(&mut env);

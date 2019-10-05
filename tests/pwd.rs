@@ -12,7 +12,7 @@ use std::os::unix::fs::symlink as symlink_dir;
 #[cfg(windows)]
 use std::os::windows::fs::symlink_dir;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -65,7 +65,7 @@ async fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     fs::create_dir(&path_foo_sym).expect("failed to create foo");
 
     let mut env = Env::with_config(
-        DefaultEnvConfigRc::new(Some(2))
+        DefaultEnvConfigArc::new(Some(2))
             .expect("failed to create test env")
             .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(2)))
             .change_var_env(VarEnv::<String, String>::new())
@@ -146,7 +146,7 @@ async fn last_specified_flag_wins() {
 #[tokio::test]
 async fn successful_if_no_stdout() {
     let env = new_env_with_no_fds();
-    let pwd = pwd(Vec::<Rc<String>>::new());
+    let pwd = pwd(Vec::<Arc<String>>::new());
     let exit = Compat01As03::new(pwd.spawn(&env).pin_env(env).flatten()).await;
     assert_eq!(exit, Ok(EXIT_SUCCESS));
 }
@@ -155,7 +155,7 @@ async fn successful_if_no_stdout() {
 #[should_panic]
 fn polling_canceled_pwd_panics() {
     let mut env = new_env_with_no_fds();
-    let mut pwd = pwd(Vec::<Rc<String>>::new()).spawn(&env);
+    let mut pwd = pwd(Vec::<Arc<String>>::new()).spawn(&env);
 
     pwd.cancel(&mut env);
     let _ = pwd.poll(&mut env);

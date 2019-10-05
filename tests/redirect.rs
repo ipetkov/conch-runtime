@@ -46,16 +46,16 @@ macro_rules! eval_no_compare {
     }}
 }
 
-async fn eval<T: RedirectEval<DefaultEnvRc>>(
+async fn eval<T: RedirectEval<DefaultEnvArc>>(
     redirect: T,
 ) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut env = new_env();
     eval_with_env(redirect, &mut env).await
 }
 
-async fn eval_with_env<T: RedirectEval<DefaultEnvRc>>(
+async fn eval_with_env<T: RedirectEval<DefaultEnvArc>>(
     redirect: T,
-    env: &mut DefaultEnvRc,
+    env: &mut DefaultEnvArc,
 ) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut future = redirect.eval(&env);
     Compat01As03::new(poll_fn(move || future.poll(env))).await
@@ -67,14 +67,14 @@ async fn test_open_redirect<F1, F2>(
     mut before: F1,
     mut after: F2,
 ) where
-    for<'a> F1: FnMut(&'a mut DefaultEnvRc),
+    for<'a> F1: FnMut(&'a mut DefaultEnvArc),
     F2: FnMut(FileDesc),
 {
     type RA = RedirectAction<PlatformSpecificManagedHandle>;
 
     let mut env = new_env_with_no_fds();
 
-    let get_file_desc = |action: RA, correct_fd, env: &mut DefaultEnvRc| {
+    let get_file_desc = |action: RA, correct_fd, env: &mut DefaultEnvArc| {
         let action_fdes = match action {
             RedirectAction::Open(result_fd, ref fdes, perms) => {
                 assert_eq!(perms, correct_permissions);
@@ -378,10 +378,10 @@ async fn apply_redirect_action() {
 #[tokio::test]
 async fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     for &interactive in &[true, false] {
-        let mut env_cfg = DefaultEnvConfigRc::new(Some(1)).unwrap();
+        let mut env_cfg = DefaultEnvConfigArc::new(Some(1)).unwrap();
         env_cfg.interactive = interactive;
 
-        let mut env = DefaultEnvRc::with_config(env_cfg);
+        let mut env = DefaultEnvArc::with_config(env_cfg);
 
         let cfg = WordEvalConfig {
             tilde_expansion: TildeExpansion::First,

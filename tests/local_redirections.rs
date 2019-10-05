@@ -15,7 +15,7 @@ use std::fs::OpenOptions;
 use std::hash::Hash;
 use std::io;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[macro_use]
 mod support;
@@ -23,7 +23,7 @@ pub use self::support::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MockEnv {
-    file_desc_env: FileDescEnv<Rc<FileDesc>>,
+    file_desc_env: FileDescEnv<Arc<FileDesc>>,
     var_env: VarEnv<&'static str, &'static str>,
 }
 
@@ -37,23 +37,23 @@ impl MockEnv {
 }
 
 impl FileDescOpener for MockEnv {
-    type OpenedFileHandle = Rc<FileDesc>;
+    type OpenedFileHandle = Arc<FileDesc>;
 
     fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
-        opts.open(&path).map(FileDesc::from).map(Rc::new)
+        opts.open(&path).map(FileDesc::from).map(Arc::new)
     }
 
     fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
         let pipe = ::conch_runtime::io::Pipe::new()?;
         Ok(Pipe {
-            reader: Rc::new(pipe.reader),
-            writer: Rc::new(pipe.writer),
+            reader: Arc::new(pipe.reader),
+            writer: Arc::new(pipe.writer),
         })
     }
 }
 
 impl AsyncIoEnvironment for MockEnv {
-    type IoHandle = Rc<FileDesc>;
+    type IoHandle = Arc<FileDesc>;
     type Read = PlatformSpecificAsyncRead;
     type WriteAll = PlatformSpecificWriteAll;
 
@@ -71,7 +71,7 @@ impl AsyncIoEnvironment for MockEnv {
 }
 
 impl FileDescEnvironment for MockEnv {
-    type FileHandle = Rc<FileDesc>;
+    type FileHandle = Arc<FileDesc>;
 
     fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
         self.file_desc_env.file_desc(fd)
@@ -110,7 +110,7 @@ impl VariableEnvironment for MockEnv {
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MockCmd2 {
-    expected_fds: HashMap<Fd, Option<(Rc<FileDesc>, Permissions)>>,
+    expected_fds: HashMap<Fd, Option<(Arc<FileDesc>, Permissions)>>,
     var: &'static str,
     value: &'static str,
 }

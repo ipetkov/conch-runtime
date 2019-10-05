@@ -528,18 +528,18 @@ impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
     }
 }
 
-pub fn new_env() -> DefaultEnvRc {
+pub fn new_env() -> DefaultEnvArc {
     new_env_with_threads(1)
 }
 
-pub fn new_env_with_threads(threads: usize) -> DefaultEnvRc {
-    DefaultEnvRc::new(Some(threads)).expect("failed to create env")
+pub fn new_env_with_threads(threads: usize) -> DefaultEnvArc {
+    DefaultEnvArc::new(Some(threads)).expect("failed to create env")
 }
 
-pub fn new_env_with_no_fds() -> DefaultEnvRc {
-    let mut cfg = DefaultEnvConfigRc::new(Some(1)).expect("failed to create env cfg");
+pub fn new_env_with_no_fds() -> DefaultEnvArc {
+    let mut cfg = DefaultEnvConfigArc::new(Some(1)).expect("failed to create env cfg");
     cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
-    DefaultEnvRc::with_config(cfg)
+    DefaultEnvArc::with_config(cfg)
 }
 
 #[macro_export]
@@ -589,7 +589,7 @@ macro_rules! run_cancel {
 /// It is up to the caller to set up the command in a way that failure to
 /// propagate cancel messages results in a panic.
 #[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
-pub fn run_cancel<T: Spawn<DefaultEnvRc>>(cmd: T) {
+pub fn run_cancel<T: Spawn<DefaultEnvArc>>(cmd: T) {
     let mut env = new_env();
     let env_future = cmd.spawn(&env);
     test_cancel_impl(env_future, &mut env);
