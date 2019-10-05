@@ -131,9 +131,6 @@ impl PartialEq<ManagedFileDesc> for ManagedFileDesc {
 
 /// An environment implementation which manages opening, storing, and performing
 /// async I/O operations on file descriptor handles.
-///
-/// Uses `Rc` internally. For a possible `Send` and `Sync` implementation,
-/// see `os::unix::env::atomic::EventedAsyncIoEnv`.
 #[derive(Default, Debug, Clone)]
 #[allow(missing_copy_implementations)]
 pub struct EventedAsyncIoEnv(());
