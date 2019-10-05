@@ -6,7 +6,7 @@ mod cpu_pool;
 mod unwrapper;
 
 pub use self::cpu_pool::{ThreadPoolAsyncIoEnv, ThreadPoolReadAsync, ThreadPoolWriteAll};
-pub use self::unwrapper::{ArcUnwrappingAsyncIoEnv, RcUnwrappingAsyncIoEnv};
+pub use self::unwrapper::ArcUnwrappingAsyncIoEnv;
 
 /// An interface for performing async operations on file handles.
 pub trait AsyncIoEnvironment {

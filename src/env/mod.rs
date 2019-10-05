@@ -24,8 +24,8 @@ pub use self::args::{
     ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
 };
 pub use self::async_io::{
-    ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, RcUnwrappingAsyncIoEnv, ThreadPoolAsyncIoEnv,
-    ThreadPoolReadAsync, ThreadPoolWriteAll,
+    ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, ThreadPoolAsyncIoEnv, ThreadPoolReadAsync,
+    ThreadPoolWriteAll,
 };
 pub use self::builtin::BuiltinEnvironment;
 pub use self::cur_dir::{
