@@ -43,62 +43,81 @@
 #![deny(unused_qualifications)]
 
 #[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate futures;
-#[macro_use]
-extern crate rental;
-
-#[macro_use]
+#[cfg(broken)]
 pub mod error;
+#[cfg(broken)]
 pub mod env;
+#[cfg(broken)]
 pub mod eval;
+#[cfg(broken)]
 pub mod future;
+#[cfg(broken)]
 pub mod io;
+#[cfg(broken)]
 pub mod os;
+#[cfg(broken)]
 pub mod path;
+#[cfg(broken)]
 pub mod spawn;
 
+#[cfg(broken)]
 mod exit_status;
+#[cfg(broken)]
 mod future_ext;
+#[cfg(broken)]
 mod ref_counted;
 #[cfg(unix)]
 #[path = "sys/unix/mod.rs"]
+#[cfg(broken)]
 mod sys;
 #[cfg(windows)]
 #[path = "sys/windows/mod.rs"]
+#[cfg(broken)]
 mod sys;
 
+#[cfg(broken)]
 pub use self::exit_status::ExitStatus;
+#[cfg(broken)]
 pub use self::exit_status::{
     EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
 };
+#[cfg(broken)]
 pub use self::ref_counted::RefCounted;
+#[cfg(broken)]
 pub use self::spawn::Spawn;
 
 /// Generic panic message for futures which have been polled after completion.
+#[cfg(broken)]
 const POLLED_TWICE: &str = "this future cannot be polled again after completion!";
 /// Generic panic message for futures which have been cancelled after completion.
+#[cfg(broken)]
 const CANCELLED_TWICE: &str = "this future cannot be cancelled again after completion!";
 
 /// The default value of `$IFS` unless overriden.
+#[cfg(broken)]
 const IFS_DEFAULT: &str = " \t\n";
 
 /// File descriptor for standard input.
+#[cfg(broken)]
 pub const STDIN_FILENO: Fd = 0;
 /// File descriptor for standard output.
+#[cfg(broken)]
 pub const STDOUT_FILENO: Fd = 1;
 /// File descriptor for standard error.
+#[cfg(broken)]
 pub const STDERR_FILENO: Fd = 2;
 
+#[cfg(broken)]
 lazy_static::lazy_static! {
     static ref HOME: String = { String::from("HOME") };
 }
 
 /// The type that represents a file descriptor within shell scripts.
+#[cfg(broken)]
 pub type Fd = u16;
 
 /// A private trait for converting to inner types.
+#[cfg(broken)]
 trait IntoInner: Sized {
     /// The inner type.
     type Inner;
