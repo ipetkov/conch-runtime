@@ -23,6 +23,19 @@ failure     = "0.1"
 failure_derive = "0.1"
 lazy_static = "1"
 
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3.4"
+features = [
+  "fileapi",
+  "handleapi",
+  "minwindef",
+  "namedpipeapi",
+  "processenv",
+  "processthreadsapi",
+  "winbase",
+  "winnt"
+]
+
 [dev-dependencies]
 tempfile = "3.1"
 tokio = { version = "0.2", features = ["full"] }

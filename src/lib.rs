@@ -65,7 +65,6 @@ mod ref_counted;
 mod sys;
 #[cfg(windows)]
 #[path = "sys/windows/mod.rs"]
-#[cfg(broken)]
 mod sys;
 
 pub use self::exit_status::{
