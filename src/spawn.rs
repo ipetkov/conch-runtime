@@ -53,7 +53,7 @@ pub use self::swallow_non_fatal::swallow_non_fatal_errors;
 pub trait Spawn<E: ?Sized> {
     type Error;
 
-    async fn spawn<'a>(&'a self, env: &'a mut E) -> BoxFuture<'a, Result<ExitStatus, Self::Error>>;
+    async fn spawn(&self, env: &mut E) -> BoxFuture<'static, Result<ExitStatus, Self::Error>>;
 }
 
 ///// A trait for spawning commands into an `EnvFuture` which can be

@@ -21,10 +21,7 @@ async fn should_propagate_result() {
     impl<E: ?Sized + Send> Spawn<E> for MockResult {
         type Error = void::Void;
 
-        async fn spawn<'a>(
-            &'a self,
-            _: &'a mut E,
-        ) -> BoxFuture<'a, Result<ExitStatus, Self::Error>> {
+        async fn spawn(&self, _: &mut E) -> BoxFuture<'static, Result<ExitStatus, Self::Error>> {
             async { Ok(EXIT) }.boxed()
         }
     }

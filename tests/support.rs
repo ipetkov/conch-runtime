@@ -160,7 +160,7 @@ impl From<Void> for MockErr {
 impl<E: ?Sized + Send> Spawn<E> for MockErr {
     type Error = Self;
 
-    async fn spawn<'a>(&'a self, _: &'a mut E) -> BoxFuture<'a, Result<ExitStatus, Self::Error>> {
+    async fn spawn(&self, _: &mut E) -> BoxFuture<'static, Result<ExitStatus, Self::Error>> {
         let slf = self.clone();
         async { Err(slf) }.boxed()
     }
