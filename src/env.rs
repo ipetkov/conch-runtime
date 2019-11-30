@@ -4,54 +4,54 @@
 use failure::Fail;
 
 mod args;
-mod async_io;
-pub mod builtin;
+//mod async_io;
+//pub mod builtin;
 mod cur_dir;
-mod env_impl;
-mod executable;
-mod fd;
-mod fd_manager;
-mod fd_opener;
-mod func;
+//mod env_impl;
+//mod executable;
+//mod fd;
+//mod fd_manager;
+//mod fd_opener;
+//mod func;
 mod last_status;
-mod platform_specific_fd_manager;
-mod reversible_redirect;
-mod reversible_var;
+//mod platform_specific_fd_manager;
+//mod reversible_redirect;
+//mod reversible_var;
 mod string_wrapper;
-mod var;
+//mod var;
 
 pub use self::args::{
     ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
 };
-pub use self::async_io::{
-    ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, ThreadPoolAsyncIoEnv, ThreadPoolReadAsync,
-    ThreadPoolWriteAll,
-};
-pub use self::builtin::BuiltinEnvironment;
+//pub use self::async_io::{
+//    ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, ThreadPoolAsyncIoEnv, ThreadPoolReadAsync,
+//    ThreadPoolWriteAll,
+//};
+//pub use self::builtin::BuiltinEnvironment;
 pub use self::cur_dir::{
     ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };
-pub use self::env_impl::{
-    DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
-};
-pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
-pub use self::fd::{FileDescEnv, FileDescEnvironment};
-pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
-pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe};
-pub use self::func::{
-    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
-};
+//pub use self::env_impl::{
+//    DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
+//};
+//pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
+//pub use self::fd::{FileDescEnv, FileDescEnvironment};
+//pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
+//pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe};
+//pub use self::func::{
+//    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
+//};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
-pub use self::platform_specific_fd_manager::{
-    PlatformSpecificAsyncRead, PlatformSpecificFileDescManagerEnv, PlatformSpecificManagedHandle,
-    PlatformSpecificWriteAll,
-};
-pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
-pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
+//pub use self::platform_specific_fd_manager::{
+//    PlatformSpecificAsyncRead, PlatformSpecificFileDescManagerEnv, PlatformSpecificManagedHandle,
+//    PlatformSpecificWriteAll,
+//};
+//pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
+//pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
 pub use self::string_wrapper::StringWrapper;
-pub use self::var::{
-    ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
-};
+//pub use self::var::{
+//    ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
+//};
 
 /// An interface for checking if the current environment is an interactive one.
 pub trait IsInteractiveEnvironment {

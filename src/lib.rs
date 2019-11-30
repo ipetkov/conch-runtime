@@ -42,12 +42,8 @@
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]
 
-#[macro_use]
-#[cfg(broken)]
-pub mod error;
-#[cfg(broken)]
 pub mod env;
-#[cfg(broken)]
+pub mod error;
 pub mod eval;
 #[cfg(broken)]
 pub mod future;
@@ -55,7 +51,6 @@ pub mod future;
 pub mod io;
 #[cfg(broken)]
 pub mod os;
-#[cfg(broken)]
 pub mod path;
 #[cfg(broken)]
 pub mod spawn;
@@ -63,7 +58,6 @@ pub mod spawn;
 mod exit_status;
 #[cfg(broken)]
 mod future_ext;
-#[cfg(broken)]
 mod ref_counted;
 #[cfg(unix)]
 #[path = "sys/unix/mod.rs"]
@@ -77,7 +71,6 @@ mod sys;
 pub use self::exit_status::{
     ExitStatus, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
 };
-#[cfg(broken)]
 pub use self::ref_counted::RefCounted;
 #[cfg(broken)]
 pub use self::spawn::Spawn;

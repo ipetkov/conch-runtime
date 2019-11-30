@@ -1,4 +1,5 @@
 #![deny(rust_2018_idioms)]
+
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 

@@ -1,5 +1,6 @@
 //! Defines helpers and utilities for working with file system paths
 
+use failure_derive::Fail;
 use std::fmt;
 use std::io;
 use std::mem;
@@ -10,7 +11,7 @@ use std::path::{Component, Path, PathBuf};
 #[derive(Debug, Fail)]
 pub struct NormalizationError {
     /// The error that occured.
-    #[cause]
+    #[fail(cause)]
     err: io::Error,
     /// The path that caused the error.
     path: PathBuf,

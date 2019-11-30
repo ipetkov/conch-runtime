@@ -1,4 +1,5 @@
 #![deny(rust_2018_idioms)]
+
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::symlink as symlink_dir;
