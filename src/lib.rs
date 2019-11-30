@@ -87,22 +87,17 @@ const CANCELLED_TWICE: &str = "this future cannot be cancelled again after compl
 const IFS_DEFAULT: &str = " \t\n";
 
 /// File descriptor for standard input.
-#[cfg(broken)]
 pub const STDIN_FILENO: Fd = 0;
 /// File descriptor for standard output.
-#[cfg(broken)]
 pub const STDOUT_FILENO: Fd = 1;
 /// File descriptor for standard error.
-#[cfg(broken)]
 pub const STDERR_FILENO: Fd = 2;
 
-#[cfg(broken)]
 lazy_static::lazy_static! {
     static ref HOME: String = { String::from("HOME") };
 }
 
 /// The type that represents a file descriptor within shell scripts.
-#[cfg(broken)]
 pub type Fd = u16;
 
 /// A private trait for converting to inner types.
