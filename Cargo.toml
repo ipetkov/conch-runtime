@@ -21,6 +21,7 @@ A library for evaluating/executing programs written in the shell programming lan
 [dependencies]
 failure     = "0.1"
 failure_derive = "0.1"
+lazy_static = "1"
 
 [dev-dependencies]
 tempfile = "3.1"

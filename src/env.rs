@@ -18,7 +18,7 @@ mod last_status;
 //mod reversible_redirect;
 //mod reversible_var;
 mod string_wrapper;
-//mod var;
+mod var;
 
 pub use self::args::{
     ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
@@ -49,9 +49,9 @@ pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 //pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 //pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
 pub use self::string_wrapper::StringWrapper;
-//pub use self::var::{
-//    ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
-//};
+pub use self::var::{
+    ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
+};
 
 /// An interface for checking if the current environment is an interactive one.
 pub trait IsInteractiveEnvironment {

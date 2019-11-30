@@ -83,7 +83,6 @@ const POLLED_TWICE: &str = "this future cannot be polled again after completion!
 const CANCELLED_TWICE: &str = "this future cannot be cancelled again after completion!";
 
 /// The default value of `$IFS` unless overriden.
-#[cfg(broken)]
 const IFS_DEFAULT: &str = " \t\n";
 
 /// File descriptor for standard input.
