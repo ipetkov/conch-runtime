@@ -1,8 +1,5 @@
-use crate::future::{Async, EnvFuture, Poll};
-use futures::Future;
 use std::fmt;
 use std::process;
-use void::Void;
 
 /// Exit code for commands that exited successfully.
 pub const EXIT_SUCCESS: ExitStatus = ExitStatus::Code(0);
@@ -58,27 +55,5 @@ impl From<process::ExitStatus> for ExitStatus {
             Some(code) => ExitStatus::Code(code),
             None => get_signal(exit).map_or(EXIT_ERROR, ExitStatus::Signal),
         }
-    }
-}
-
-impl<E: ?Sized> EnvFuture<E> for ExitStatus {
-    type Item = Self;
-    type Error = Void;
-
-    fn poll(&mut self, _env: &mut E) -> Poll<Self::Item, Self::Error> {
-        Ok(Async::Ready(*self))
-    }
-
-    fn cancel(&mut self, _env: &mut E) {
-        // Nothing to do
-    }
-}
-
-impl Future for ExitStatus {
-    type Item = Self;
-    type Error = Void;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(Async::Ready(*self))
     }
 }

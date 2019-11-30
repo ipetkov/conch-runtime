@@ -60,7 +60,6 @@ pub mod path;
 #[cfg(broken)]
 pub mod spawn;
 
-#[cfg(broken)]
 mod exit_status;
 #[cfg(broken)]
 mod future_ext;
@@ -75,11 +74,8 @@ mod sys;
 #[cfg(broken)]
 mod sys;
 
-#[cfg(broken)]
-pub use self::exit_status::ExitStatus;
-#[cfg(broken)]
 pub use self::exit_status::{
-    EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
+    ExitStatus, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
 };
 #[cfg(broken)]
 pub use self::ref_counted::RefCounted;
