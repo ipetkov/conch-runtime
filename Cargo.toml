@@ -19,9 +19,12 @@ A library for evaluating/executing programs written in the shell programming lan
 #top-level = ["conch-parser"]
 
 [dependencies]
+async-trait = "0.1"
 failure     = "0.1"
 failure_derive = "0.1"
+futures-core = "0.3"
 lazy_static = "1"
+void = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

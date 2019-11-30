@@ -51,7 +51,6 @@ pub mod io;
 #[cfg(broken)]
 pub mod os;
 pub mod path;
-#[cfg(broken)]
 pub mod spawn;
 
 mod exit_status;
@@ -75,7 +74,6 @@ pub use self::exit_status::{
     ExitStatus, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
 };
 pub use self::ref_counted::RefCounted;
-#[cfg(broken)]
 pub use self::spawn::Spawn;
 
 /// Generic panic message for futures which have been polled after completion.

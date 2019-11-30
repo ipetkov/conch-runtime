@@ -3,36 +3,35 @@
 
 //use super::Fd;
 //use crate::io::Permissions;
-//use failure::Fail;
+use failure::Fail;
 //use std::convert::From;
 //use std::fmt::{self, Display, Formatter};
 //use std::io::Error as IoError;
-//use void;
-use failure_derive::Fail;
+use void;
 
-///// Determines whether an error should be treated as "fatal".
-/////
-///// Typically, "fatal" errors will abort any currently running commands
-///// (e.g. loops, compound commands, pipelines, etc.) all the way
-///// to a top level command, and consider it unsuccessful. On the other hand,
-///// non-fatal errors are usually swallowed by intermediate commands, and the
-///// execution is allowed to continue.
-/////
-///// Ultimately it is up to the caller to decide how to handle fatal vs non-fatal
-///// errors.
-//pub trait IsFatalError: Fail {
-//    /// Checks whether the error should be considered a "fatal" error.
-//    fn is_fatal(&self) -> bool;
-//}
+/// Determines whether an error should be treated as "fatal".
+///
+/// Typically, "fatal" errors will abort any currently running commands
+/// (e.g. loops, compound commands, pipelines, etc.) all the way
+/// to a top level command, and consider it unsuccessful. On the other hand,
+/// non-fatal errors are usually swallowed by intermediate commands, and the
+/// execution is allowed to continue.
+///
+/// Ultimately it is up to the caller to decide how to handle fatal vs non-fatal
+/// errors.
+pub trait IsFatalError: Fail {
+    /// Checks whether the error should be considered a "fatal" error.
+    fn is_fatal(&self) -> bool;
+}
 
-//impl IsFatalError for void::Void {
-//    fn is_fatal(&self) -> bool {
-//        void::unreachable(*self)
-//    }
-//}
+impl IsFatalError for void::Void {
+    fn is_fatal(&self) -> bool {
+        void::unreachable(*self)
+    }
+}
 
 /// An error which may arise during parameter expansion.
-#[derive(PartialEq, Eq, Clone, Debug, Fail)]
+#[derive(PartialEq, Eq, Clone, Debug, failure_derive::Fail)]
 pub enum ExpansionError {
     /// Attempted to divide by zero in an arithmetic subsitution.
     #[fail(display = "attempted to divide by zero")]
@@ -61,7 +60,7 @@ pub enum ExpansionError {
 //}
 
 ///// An error which may arise during redirection.
-//#[derive(Debug, Fail)]
+//#[derive(Debug, failure_derive::Fail)]
 //pub enum RedirectionError {
 //    /// A redirect path evaluated to multiple fields.
 //    Ambiguous(Vec<String>),
@@ -139,7 +138,7 @@ pub enum ExpansionError {
 //}
 
 ///// An error which may arise when spawning a command process.
-//#[derive(Debug, Fail)]
+//#[derive(Debug, failure_derive::Fail)]
 //pub enum CommandError {
 //    /// Unable to find a command/function/builtin to execute.
 //    NotFound(String),
@@ -186,7 +185,7 @@ pub enum ExpansionError {
 //}
 
 ///// An error which may arise while executing commands.
-//#[derive(Debug, Fail)]
+//#[derive(Debug, failure_derive::Fail)]
 //pub enum RuntimeError {
 //    /// Any I/O error returned by the OS during execution and the
 //    /// file that caused the error if applicable.
