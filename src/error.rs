@@ -1,8 +1,8 @@
 //! A module defining the various kinds of errors that may arise
 //! while executing commands.
 
-use crate::Fd;
 use crate::io::Permissions;
+use crate::Fd;
 use failure::Fail;
 use std::convert::From;
 use std::fmt::{self, Display, Formatter};

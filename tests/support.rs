@@ -1,24 +1,24 @@
 #![deny(rust_2018_idioms)]
 
-//use conch_runtime::error::IsFatalError;
-//use conch_runtime::STDOUT_FILENO;
-//use futures::future::result as future_result;
-//use futures::future::FutureResult;
-//use std::fs::OpenOptions;
-//use std::path::Path;
-//use std::sync::Arc;
+use conch_runtime::error::IsFatalError;
+// use conch_runtime::STDOUT_FILENO;
+// use std::fs::OpenOptions;
+// use std::path::Path;
+use std::sync::Arc;
 use tempfile::TempDir;
-//use void::{unreachable, Void};
+use void::{unreachable, Void};
 
 // Convenience re-exports
 pub use conch_runtime::env::{self, *};
-//pub use conch_runtime::error::*;
+pub use conch_runtime::error::*;
 //pub use conch_runtime::eval::*;
 //pub use conch_runtime::future::*;
 pub use conch_runtime::path::*;
-//pub use conch_runtime::spawn::{self, *};
-//pub use conch_runtime::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS};
-//pub use futures::{Async, Future, Poll};
+pub use conch_runtime::spawn::{self, *};
+pub use conch_runtime::{ExitStatus, EXIT_ERROR, EXIT_SUCCESS};
+pub use failure::Fail;
+pub use futures_core::future::*;
+pub use futures_util::future::*;
 //pub use futures_preview::compat::Compat01As03;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
@@ -80,81 +80,91 @@ pub fn mktmp_impl(path: &str) -> TempDir {
 //    .expect("failed to open DEV_NULL")
 //}
 
-//#[derive(Debug, Clone, PartialEq, Eq)]
-//pub enum MockErr {
-//    Fatal(bool),
-//    ExpansionError(ExpansionError),
-//    RedirectionError(Arc<RedirectionError>),
-//    CommandError(Arc<CommandError>),
-//}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockErr {
+    Fatal(bool),
+    ExpansionError(ExpansionError),
+    RedirectionError(Arc<RedirectionError>),
+    CommandError(Arc<CommandError>),
+}
 
-//impl failure::Fail for MockErr {
-//    fn cause(&self) -> Option<&dyn failure::Fail> {
-//        match *self {
-//            MockErr::Fatal(_) => None,
-//            MockErr::ExpansionError(ref e) => Some(e),
-//            MockErr::RedirectionError(ref e) => Some(&**e),
-//            MockErr::CommandError(ref e) => Some(&**e),
-//        }
-//    }
-//}
+impl failure::Fail for MockErr {
+    fn cause(&self) -> Option<&dyn failure::Fail> {
+        match *self {
+            MockErr::Fatal(_) => None,
+            MockErr::ExpansionError(ref e) => Some(e),
+            MockErr::RedirectionError(ref e) => Some(&**e),
+            MockErr::CommandError(ref e) => Some(&**e),
+        }
+    }
+}
 
-//impl conch_runtime::error::IsFatalError for MockErr {
-//    fn is_fatal(&self) -> bool {
-//        match *self {
-//            MockErr::Fatal(fatal) => fatal,
-//            MockErr::ExpansionError(ref e) => e.is_fatal(),
-//            MockErr::RedirectionError(ref e) => e.is_fatal(),
-//            MockErr::CommandError(ref e) => e.is_fatal(),
-//        }
-//    }
-//}
+impl conch_runtime::error::IsFatalError for MockErr {
+    fn is_fatal(&self) -> bool {
+        match *self {
+            MockErr::Fatal(fatal) => fatal,
+            MockErr::ExpansionError(ref e) => e.is_fatal(),
+            MockErr::RedirectionError(ref e) => e.is_fatal(),
+            MockErr::CommandError(ref e) => e.is_fatal(),
+        }
+    }
+}
 
-//impl ::std::fmt::Display for MockErr {
-//    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-//        write!(
-//            fmt,
-//            "mock {}fatal error",
-//            if self.is_fatal() { "non-" } else { "" }
-//        )
-//    }
-//}
+impl ::std::fmt::Display for MockErr {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        write!(
+            fmt,
+            "mock {}fatal error",
+            if self.is_fatal() { "non-" } else { "" }
+        )
+    }
+}
 
-//impl From<RuntimeError> for MockErr {
-//    fn from(err: RuntimeError) -> Self {
-//        MockErr::Fatal(err.is_fatal())
-//    }
-//}
+impl From<RuntimeError> for MockErr {
+    fn from(err: RuntimeError) -> Self {
+        MockErr::Fatal(err.is_fatal())
+    }
+}
 
-//impl From<ExpansionError> for MockErr {
-//    fn from(err: ExpansionError) -> Self {
-//        MockErr::ExpansionError(err)
-//    }
-//}
+impl From<ExpansionError> for MockErr {
+    fn from(err: ExpansionError) -> Self {
+        MockErr::ExpansionError(err)
+    }
+}
 
-//impl From<RedirectionError> for MockErr {
-//    fn from(err: RedirectionError) -> Self {
-//        MockErr::RedirectionError(Arc::new(err))
-//    }
-//}
+impl From<RedirectionError> for MockErr {
+    fn from(err: RedirectionError) -> Self {
+        MockErr::RedirectionError(Arc::new(err))
+    }
+}
 
-//impl From<CommandError> for MockErr {
-//    fn from(err: CommandError) -> Self {
-//        MockErr::CommandError(Arc::new(err))
-//    }
-//}
+impl From<CommandError> for MockErr {
+    fn from(err: CommandError) -> Self {
+        MockErr::CommandError(Arc::new(err))
+    }
+}
 
-//impl From<::std::io::Error> for MockErr {
-//    fn from(_: ::std::io::Error) -> Self {
-//        MockErr::Fatal(false)
-//    }
-//}
+impl From<::std::io::Error> for MockErr {
+    fn from(_: ::std::io::Error) -> Self {
+        MockErr::Fatal(false)
+    }
+}
 
-//impl From<Void> for MockErr {
-//    fn from(void: Void) -> Self {
-//        unreachable(void)
-//    }
-//}
+impl From<Void> for MockErr {
+    fn from(void: Void) -> Self {
+        unreachable(void)
+    }
+}
+
+#[async_trait::async_trait]
+impl<E: ?Sized + Send> Spawn<E> for MockErr {
+    type Error = Self;
+
+    async fn spawn<'a>(&'a self, _: &'a mut E) -> BoxFuture<'a, Result<ExitStatus, Self::Error>> {
+        let slf = self.clone();
+        async { Err(slf) }.boxed()
+    }
+}
 
 //#[derive(Debug, Clone, PartialEq, Eq)]
 //#[must_use = "futures do nothing unless polled"]
