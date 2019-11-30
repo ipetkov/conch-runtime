@@ -4,7 +4,7 @@ use std::io::{Error, Result};
 
 pub mod io;
 
-trait IsZero {
+pub(crate) trait IsZero {
     fn is_zero(&self) -> bool;
 }
 
@@ -24,7 +24,7 @@ impl<T> IsZero for *mut T {
     }
 }
 
-fn cvt<I: IsZero>(i: I) -> Result<I> {
+pub(crate) fn cvt<I: IsZero>(i: I) -> Result<I> {
     if i.is_zero() {
         Err(Error::last_os_error())
     } else {

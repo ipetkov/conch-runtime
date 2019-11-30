@@ -10,9 +10,9 @@ use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::process::Stdio;
 
-mod fd_ext;
+//mod fd_ext;
 
-pub use self::fd_ext::{EventedFileDesc, FileDescExt, MaybeEventedFd};
+//pub use self::fd_ext::{EventedFileDesc, FileDescExt, MaybeEventedFd};
 
 /// A wrapper around an owned UNIX file descriptor. The wrapper
 /// allows reading from or write to the descriptor, and will

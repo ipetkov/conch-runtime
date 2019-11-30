@@ -47,7 +47,6 @@ pub mod error;
 pub mod eval;
 #[cfg(broken)]
 pub mod future;
-#[cfg(broken)]
 pub mod io;
 #[cfg(broken)]
 pub mod os;
@@ -59,13 +58,18 @@ mod exit_status;
 #[cfg(broken)]
 mod future_ext;
 mod ref_counted;
-#[cfg(unix)]
-#[path = "sys/unix/mod.rs"]
-#[cfg(broken)]
-mod sys;
-#[cfg(windows)]
-#[path = "sys/windows/mod.rs"]
-mod sys;
+
+mod sys {
+    #[cfg(unix)]
+    mod unix;
+    #[cfg(unix)]
+    pub(crate) use self::unix::*;
+
+    #[cfg(windows)]
+    mod windows;
+    #[cfg(windows)]
+    pub(crate) use self::windows::*;
+}
 
 pub use self::exit_status::{
     ExitStatus, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
@@ -104,7 +108,6 @@ lazy_static::lazy_static! {
 pub type Fd = u16;
 
 /// A private trait for converting to inner types.
-#[cfg(broken)]
 trait IntoInner: Sized {
     /// The inner type.
     type Inner;
