@@ -9,9 +9,9 @@ mod args;
 mod cur_dir;
 //mod env_impl;
 //mod executable;
-//mod fd;
+mod fd;
 //mod fd_manager;
-//mod fd_opener;
+mod fd_opener;
 //mod func;
 mod last_status;
 //mod platform_specific_fd_manager;
@@ -35,9 +35,9 @@ pub use self::cur_dir::{
 //    DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
 //};
 //pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
-//pub use self::fd::{FileDescEnv, FileDescEnvironment};
+pub use self::fd::{FileDescEnv, FileDescEnvironment};
 //pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
-//pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe};
+pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe};
 //pub use self::func::{
 //    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
 //};
