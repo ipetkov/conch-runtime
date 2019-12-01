@@ -4,7 +4,7 @@
 use failure::Fail;
 
 mod args;
-//mod async_io;
+mod async_io;
 //pub mod builtin;
 mod cur_dir;
 //mod env_impl;
@@ -23,10 +23,7 @@ mod var;
 pub use self::args::{
     ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
 };
-//pub use self::async_io::{
-//    ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, ThreadPoolAsyncIoEnv, ThreadPoolReadAsync,
-//    ThreadPoolWriteAll,
-//};
+pub use self::async_io::AsyncIoEnvironment;
 //pub use self::builtin::BuiltinEnvironment;
 pub use self::cur_dir::{
     ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
