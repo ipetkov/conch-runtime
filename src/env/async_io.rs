@@ -1,6 +1,10 @@
 use async_trait::async_trait;
 use std::io;
 
+mod unwrapper;
+
+pub use self::unwrapper::ArcUnwrappingAsyncIoEnv;
+
 /// An interface for performing async operations on file handles.
 #[async_trait]
 pub trait AsyncIoEnvironment {
@@ -8,7 +12,7 @@ pub trait AsyncIoEnvironment {
     type IoHandle;
 
     /// Asynchronously read *all* data from the specified handle.
-    async fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Vec<u8>>;
+    async fn read_all(&mut self, fd: Self::IoHandle) -> io::Result<Vec<u8>>;
 
     /// Asynchronously write `data` into the specified handle.
     async fn write_all(&mut self, fd: Self::IoHandle, data: &[u8]) -> io::Result<()>;
@@ -27,8 +31,8 @@ where
 {
     type IoHandle = T::IoHandle;
 
-    async fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Vec<u8>> {
-        (**self).read_async(fd).await
+    async fn read_all(&mut self, fd: Self::IoHandle) -> io::Result<Vec<u8>> {
+        (**self).read_all(fd).await
     }
 
     async fn write_all(&mut self, fd: Self::IoHandle, data: &[u8]) -> io::Result<()> {
