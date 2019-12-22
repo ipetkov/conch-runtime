@@ -21,14 +21,38 @@ pub use crate::sys::io::getpid;
 pub struct FileDesc(sys::io::RawIo);
 
 impl FileDesc {
+    /// Constructs an `FileDesc` from the specified raw file descriptor.
+    ///
+    /// # Safety
+    ///
+    /// This function **consumes ownership** of the specified file
+    /// descriptor. The returned object will take responsibility for closing
+    /// it when the object goes out of scope.
+    ///
+    /// This function is also unsafe as the primitives currently returned
+    /// have the contract that they are the sole owner of the file
+    /// descriptor they are wrapping. Usage of this function could
+    /// accidentally allow violating this contract which can cause memory
+    /// unsafety in code that relies on it being true.
     #[cfg(unix)]
-    /// Takes ownership of and wraps an OS file primitive.
     pub unsafe fn new(fd: ::std::os::unix::io::RawFd) -> Self {
         Self::from_inner(sys::io::RawIo::new(fd))
     }
 
+    /// Constructs an `FileDesc` from the specified raw handle.
+    ///
+    /// # Safety
+    ///
+    /// This function will **consume ownership** of the handle given,
+    /// passing responsibility for closing the handle to the returned
+    /// object.
+    ///
+    /// This function is also unsafe as the primitives currently returned
+    /// have the contract that they are the sole owner of the file
+    /// descriptor they are wrapping. Usage of this function could
+    /// accidentally allow violating this contract which can cause memory
+    /// unsafety in code that relies on it being true.
     #[cfg(windows)]
-    /// Takes ownership of and wraps an OS file primitive.
     pub unsafe fn new(handle: ::std::os::windows::io::RawHandle) -> Self {
         Self::from_inner(sys::io::RawIo::new(handle))
     }
@@ -36,6 +60,15 @@ impl FileDesc {
     /// Duplicates the underlying OS file primitive.
     pub fn duplicate(&self) -> Result<Self> {
         Ok(Self::from_inner(self.inner().duplicate()?))
+    }
+
+    /// Sets the `O_NONBLOCK` flag on the descriptor to the desired state.
+    ///
+    /// Specifiying `true` will set the file descriptor in non-blocking mode,
+    /// while specifying `false` will set it to blocking mode.
+    #[cfg(unix)]
+    pub fn set_nonblock(&mut self, set: bool) -> Result<()> {
+        self.inner_mut().set_nonblock(set)
     }
 
     fn read(&self, buf: &mut [u8]) -> Result<usize> {

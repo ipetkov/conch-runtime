@@ -10,10 +10,6 @@ use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::process::Stdio;
 
-//mod fd_ext;
-
-//pub use self::fd_ext::{EventedFileDesc, FileDescExt, MaybeEventedFd};
-
 /// A wrapper around an owned UNIX file descriptor. The wrapper
 /// allows reading from or write to the descriptor, and will
 /// close it once it goes out of scope.
@@ -50,6 +46,32 @@ impl IntoRawFd for FileDesc {
 impl From<File> for FileDesc {
     fn from(file: File) -> Self {
         unsafe { FromRawFd::from_raw_fd(file.into_raw_fd()) }
+    }
+}
+
+impl mio::Evented for FileDesc {
+    fn register(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> Result<()> {
+        mio::unix::EventedFd(&self.as_raw_fd()).register(poll, token, interest, opts)
+    }
+
+    fn reregister(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> Result<()> {
+        mio::unix::EventedFd(&self.as_raw_fd()).reregister(poll, token, interest, opts)
+    }
+
+    fn deregister(&self, poll: &mio::Poll) -> Result<()> {
+        mio::unix::EventedFd(&self.as_raw_fd()).deregister(poll)
     }
 }
 
