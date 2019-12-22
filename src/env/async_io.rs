@@ -1,4 +1,4 @@
-use async_trait::async_trait;
+use futures_core::future::BoxFuture;
 use std::io;
 
 mod unwrapper;
@@ -6,16 +6,19 @@ mod unwrapper;
 pub use self::unwrapper::ArcUnwrappingAsyncIoEnv;
 
 /// An interface for performing async operations on file handles.
-#[async_trait]
 pub trait AsyncIoEnvironment {
     /// The underlying handle (e.g. `FileDesc`) with which to perform the async I/O.
     type IoHandle;
 
     /// Asynchronously read *all* data from the specified handle.
-    async fn read_all(&mut self, fd: Self::IoHandle) -> io::Result<Vec<u8>>;
+    fn read_all(&mut self, fd: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>>;
 
     /// Asynchronously write `data` into the specified handle.
-    async fn write_all(&mut self, fd: Self::IoHandle, data: &[u8]) -> io::Result<()>;
+    fn write_all<'a>(
+        &mut self,
+        fd: Self::IoHandle,
+        data: &'a [u8],
+    ) -> BoxFuture<'a, io::Result<()>>;
 
     /// Asynchronously write the contents of `data` to a file handle in the
     /// background on a best effort basis (e.g. the implementation can give up
@@ -23,20 +26,23 @@ pub trait AsyncIoEnvironment {
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>);
 }
 
-#[async_trait]
-impl<'a, T> AsyncIoEnvironment for &'a mut T
+impl<'b, T> AsyncIoEnvironment for &'b mut T
 where
-    T: 'a + ?Sized + Send + AsyncIoEnvironment,
+    T: 'b + ?Sized + Send + Sync + AsyncIoEnvironment,
     T::IoHandle: Send,
 {
     type IoHandle = T::IoHandle;
 
-    async fn read_all(&mut self, fd: Self::IoHandle) -> io::Result<Vec<u8>> {
-        (**self).read_all(fd).await
+    fn read_all(&mut self, fd: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
+        (**self).read_all(fd)
     }
 
-    async fn write_all(&mut self, fd: Self::IoHandle, data: &[u8]) -> io::Result<()> {
-        (**self).write_all(fd, data).await
+    fn write_all<'a>(
+        &mut self,
+        fd: Self::IoHandle,
+        data: &'a [u8],
+    ) -> BoxFuture<'a, io::Result<()>> {
+        (**self).write_all(fd, data)
     }
 
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
