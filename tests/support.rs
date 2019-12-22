@@ -25,7 +25,7 @@ pub use futures_util::future::*;
 #[macro_export]
 macro_rules! mktmp {
     () => {
-        mktmp_impl(concat!(
+        crate::support::mktmp_impl(concat!(
             "test-",
             module_path!(),
             "-",

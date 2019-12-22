@@ -1,8 +1,10 @@
 use futures_core::future::BoxFuture;
 use std::io;
 
+mod tokio;
 mod unwrapper;
 
+pub use self::tokio::TokioAsyncIoEnv;
 pub use self::unwrapper::ArcUnwrappingAsyncIoEnv;
 
 /// An interface for performing async operations on file handles.
