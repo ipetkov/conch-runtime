@@ -2,12 +2,13 @@
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
 use failure::Fail;
+use futures_core::future::BoxFuture;
 
 mod args;
 mod async_io;
 //pub mod builtin;
 mod cur_dir;
-//mod env_impl;
+mod env_impl;
 //mod executable;
 mod fd;
 //mod fd_manager;
@@ -28,9 +29,9 @@ pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, TokioAsync
 pub use self::cur_dir::{
     ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };
-//pub use self::env_impl::{
-//    DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
-//};
+pub use self::env_impl::{
+    DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
+};
 //pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
 //pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};

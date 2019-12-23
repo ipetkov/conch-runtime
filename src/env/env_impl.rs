@@ -1,8 +1,9 @@
 use crate::error::{CommandError, RuntimeError};
 use crate::io::Permissions;
-use crate::spawn::SpawnBoxed;
+//use crate::spawn::SpawnBoxed;
 use crate::{ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 use failure::Fail;
+use futures_core::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
 use std::fmt;
@@ -13,16 +14,14 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
-use crate::env::PlatformSpecificFileDescManagerEnv;
+//use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
+//use crate::env::PlatformSpecificFileDescManagerEnv;
 use crate::env::{
-    ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, ExecEnv,
-    ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
-    FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
-    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment,
-    SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper, SubEnvironment,
-    UnsetFunctionEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
-    VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
+    ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
+    ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
+    LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment, SetArgumentsEnvironment,
+    ShiftArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment, VarEnv,
+    VariableEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };
 
 /// A struct for configuring a new `Env` instance.
@@ -245,12 +244,15 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
 /// ```
 pub type DefaultEnvConfig<T> = EnvConfig<
     ArgsEnv<T>,
-    PlatformSpecificFileDescManagerEnv,
+    //PlatformSpecificFileDescManagerEnv,
+    (),
     LastStatusEnv,
     VarEnv<T, T>,
-    ExecEnv,
+    //ExecEnv,
+    (),
     VirtualWorkingDirEnv,
-    BuiltinEnv<T>,
+    //BuiltinEnv<T>,
+    (),
     T,
     RuntimeError,
 >;
@@ -270,8 +272,8 @@ where
     /// (easily) support async IO, a dedicated thread-pool will be used.
     /// If no thread number is specified, one thread per CPU will be used.
     pub fn new(fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        let file_desc_manager_env =
-            PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
+        let file_desc_manager_env = ();
+        //PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
 
         Ok(DefaultEnvConfig {
             interactive: false,
@@ -279,9 +281,11 @@ where
             file_desc_manager_env,
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
-            exec_env: ExecEnv::new(),
+            //exec_env: ExecEnv::new(),
+            exec_env: (),
             working_dir_env: VirtualWorkingDirEnv::with_process_working_dir()?,
-            builtin_env: BuiltinEnv::new(),
+            //builtin_env: BuiltinEnv::new(),
+            builtin_env: (),
             fn_name: PhantomData,
             fn_error: PhantomData,
         })
@@ -295,11 +299,13 @@ pub struct Env<A, FM, L, V, EX, WD, B, N: Eq + Hash, ERR> {
     interactive: bool,
     args_env: A,
     file_desc_manager_env: FM,
-    fn_env: FnEnv<
-        N,
-        Arc<dyn SpawnBoxed<Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> + Send + Sync>,
-    >,
-    fn_frame_env: FnFrameEnv,
+    // fn_env: FnEnv<
+    //     N,
+    //     Arc<dyn SpawnBoxed<Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> + Send + Sync>,
+    // >,
+    // fn_frame_env: FnFrameEnv,
+    fn_env: PhantomData<(N, ERR)>,
+    fn_frame_env: PhantomData<()>,
     last_status_env: L,
     var_env: V,
     exec_env: EX,
@@ -336,8 +342,10 @@ where
         let mut env = Env {
             interactive: cfg.interactive,
             args_env: cfg.args_env,
-            fn_env: FnEnv::new(),
-            fn_frame_env: FnFrameEnv::new(),
+            // fn_env: FnEnv::new(),
+            // fn_frame_env: FnFrameEnv::new(),
+            fn_env: PhantomData,
+            fn_frame_env: PhantomData,
             file_desc_manager_env: cfg.file_desc_manager_env,
             last_status_env: cfg.last_status_env,
             var_env: cfg.var_env,
@@ -407,14 +415,14 @@ where
     WD: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        use std::collections::BTreeSet;
-        let fn_names: BTreeSet<_> = self.fn_env.fn_names().collect();
+        // use std::collections::BTreeSet;
+        // let fn_names: BTreeSet<_> = self.fn_env.fn_names().collect();
 
         fmt.debug_struct(stringify!(Env))
             .field("interactive", &self.interactive)
             .field("args_env", &self.args_env)
             .field("file_desc_manager_env", &self.file_desc_manager_env)
-            .field("functions", &fn_names)
+            // .field("functions", &fn_names)
             .field("fn_frame_env", &self.fn_frame_env)
             .field("last_status_env", &self.last_status_env)
             .field("var_env", &self.var_env)
@@ -465,8 +473,10 @@ where
             interactive: self.is_interactive(),
             args_env: self.args_env.sub_env(),
             file_desc_manager_env: self.file_desc_manager_env.sub_env(),
-            fn_env: self.fn_env.sub_env(),
-            fn_frame_env: self.fn_frame_env.sub_env(),
+            // fn_env: self.fn_env.sub_env(),
+            // fn_frame_env: self.fn_frame_env.sub_env(),
+            fn_env: PhantomData,
+            fn_frame_env: PhantomData,
             last_status_env: self.last_status_env.sub_env(),
             var_env: self.var_env.sub_env(),
             exec_env: self.exec_env.sub_env(),
@@ -530,14 +540,16 @@ where
     N: Hash + Eq,
 {
     type IoHandle = FM::IoHandle;
-    type Read = FM::Read;
-    type WriteAll = FM::WriteAll;
 
-    fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
-        self.file_desc_manager_env.read_async(fd)
+    fn read_all(&mut self, fd: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
+        self.file_desc_manager_env.read_all(fd)
     }
 
-    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+    fn write_all<'a>(
+        &mut self,
+        fd: Self::IoHandle,
+        data: &'a [u8],
+    ) -> BoxFuture<'a, io::Result<()>> {
         self.file_desc_manager_env.write_all(fd, data)
     }
 
@@ -582,74 +594,79 @@ where
     }
 }
 
-impl<A, FM, L, V, EX, WD, B, N, ERR> ReportFailureEnvironment
-    for Env<A, FM, L, V, EX, WD, B, N, ERR>
-where
-    A: ArgumentsEnvironment,
-    A::Arg: fmt::Display,
-    FM: AsyncIoEnvironment + FileDescEnvironment,
-    FM::FileHandle: Clone,
-    FM::IoHandle: From<FM::FileHandle>,
-    N: Hash + Eq,
-{
-    fn report_failure(&mut self, fail: &dyn Fail) {
-        let fd = match self.file_desc(STDERR_FILENO) {
-            Some((fdes, _)) => fdes.clone(),
-            None => return,
-        };
+// impl<A, FM, L, V, EX, WD, B, N, ERR> ReportFailureEnvironment
+//     for Env<A, FM, L, V, EX, WD, B, N, ERR>
+// where
+//     A: ArgumentsEnvironment,
+//     A::Arg: fmt::Display,
+//     FM: AsyncIoEnvironment + FileDescEnvironment,
+//     FM::FileHandle: Clone,
+//     FM::IoHandle: From<FM::FileHandle>,
+//     N: Hash + Eq,
+// {
+//     fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
+//         let fd = match self.file_desc(STDERR_FILENO) {
+//             Some((fdes, _)) => fdes.clone(),
+//             None => return Box::pin(async {}),
+//         };
 
-        let data = format!("{}: {}\n", self.name(), fail).into_bytes();
-        self.write_all_best_effort(fd.into(), data);
-    }
-}
+//         let data = format!("{}: {}\n", self.name(), fail).into_bytes();
+//         // let future = self.write_all(fd, data)
+//         // self.write_all_best_effort(fd.into(), data);
 
-impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
-where
-    N: Hash + Eq + Clone,
-{
-    type FnName = N;
-    type Fn = Arc<dyn SpawnBoxed<Self, Error = ERR> + Send + Sync>;
+//         Box::pin(async move {
+//             let _ = self.file_desc_manager_env.write_all(fd.into(), &data).await;
+//         })
+//     }
+// }
 
-    fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
-        self.fn_env.function(name)
-    }
+//impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
+//where
+//    N: Hash + Eq + Clone,
+//{
+//    type FnName = N;
+//    type Fn = Arc<dyn SpawnBoxed<Self, Error = ERR> + Send + Sync>;
+//
+//    fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
+//        self.fn_env.function(name)
+//    }
+//
+//    fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
+//        self.fn_env.set_function(name, func);
+//    }
+//
+//    fn has_function(&self, name: &Self::FnName) -> bool {
+//        self.fn_env.has_function(name)
+//    }
+//}
 
-    fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
-        self.fn_env.set_function(name, func);
-    }
+// impl<A, FM, L, V, EX, WD, B, N, ERR> UnsetFunctionEnvironment
+//     for Env<A, FM, L, V, EX, WD, B, N, ERR>
+// where
+//     N: Hash + Eq + Clone,
+// {
+//     fn unset_function(&mut self, name: &Self::FnName) {
+//         self.fn_env.unset_function(name);
+//     }
+// }
 
-    fn has_function(&self, name: &Self::FnName) -> bool {
-        self.fn_env.has_function(name)
-    }
-}
-
-impl<A, FM, L, V, EX, WD, B, N, ERR> UnsetFunctionEnvironment
-    for Env<A, FM, L, V, EX, WD, B, N, ERR>
-where
-    N: Hash + Eq + Clone,
-{
-    fn unset_function(&mut self, name: &Self::FnName) {
-        self.fn_env.unset_function(name);
-    }
-}
-
-impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionFrameEnvironment
-    for Env<A, FM, L, V, EX, WD, B, N, ERR>
-where
-    N: Hash + Eq + Clone,
-{
-    fn push_fn_frame(&mut self) {
-        self.fn_frame_env.push_fn_frame()
-    }
-
-    fn pop_fn_frame(&mut self) {
-        self.fn_frame_env.pop_fn_frame()
-    }
-
-    fn is_fn_running(&self) -> bool {
-        self.fn_frame_env.is_fn_running()
-    }
-}
+//impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionFrameEnvironment
+//    for Env<A, FM, L, V, EX, WD, B, N, ERR>
+//where
+//    N: Hash + Eq + Clone,
+//{
+//    fn push_fn_frame(&mut self) {
+//        self.fn_frame_env.push_fn_frame()
+//    }
+//
+//    fn pop_fn_frame(&mut self) {
+//        self.fn_frame_env.pop_fn_frame()
+//    }
+//
+//    fn is_fn_running(&self) -> bool {
+//        self.fn_frame_env.is_fn_running()
+//    }
+//}
 
 impl<A, FM, L, V, EX, WD, B, N, ERR> LastStatusEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
 where
@@ -720,18 +737,18 @@ where
     }
 }
 
-impl<A, FM, L, V, EX, WD, B, N, ERR> ExecutableEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
-where
-    V: UnsetVariableEnvironment,
-    N: Hash + Eq,
-    EX: ExecutableEnvironment,
-{
-    type ExecFuture = EX::ExecFuture;
-
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
-        self.exec_env.spawn_executable(data)
-    }
-}
+//impl<A, FM, L, V, EX, WD, B, N, ERR> ExecutableEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
+//where
+//    V: UnsetVariableEnvironment,
+//    N: Hash + Eq,
+//    EX: ExecutableEnvironment,
+//{
+//    type ExecFuture = EX::ExecFuture;
+//
+//    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+//        self.exec_env.spawn_executable(data)
+//    }
+//}
 
 impl<A, FM, L, V, EX, WD, B, N, ERR> WorkingDirectoryEnvironment
     for Env<A, FM, L, V, EX, WD, B, N, ERR>
@@ -780,18 +797,19 @@ where
     }
 }
 
-impl<A, FM, L, V, EX, WD, B, N, ERR> BuiltinEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
-where
-    N: Hash + Eq,
-    B: BuiltinEnvironment,
-{
-    type BuiltinName = B::BuiltinName;
-    type Builtin = B::Builtin;
+// impl<A, FM, L, V, EX, WD, B, N, ERR> BuiltinEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
+// where
+//     N: Hash + Eq,
+//     B: BuiltinEnvironment,
+// {
+//     type BuiltinName = B::BuiltinName;
+//     type Builtin = B::Builtin;
 
-    fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
-        self.builtin_env.builtin(name)
-    }
-}
+//     fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
+//         self.builtin_env.builtin(name)
+//     }
+// }
+
 /// A default environment configured with provided (non-atomic) implementations.
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
@@ -811,12 +829,15 @@ where
 /// ```
 pub type DefaultEnv<T> = Env<
     ArgsEnv<T>,
-    PlatformSpecificFileDescManagerEnv,
+    //PlatformSpecificFileDescManagerEnv,
+    (),
     LastStatusEnv,
     VarEnv<T, T>,
-    ExecEnv,
+    //ExecEnv,
+    (),
     VirtualWorkingDirEnv,
-    BuiltinEnv<T>,
+    //BuiltinEnv<T>,
+    (),
     T,
     RuntimeError,
 >;
