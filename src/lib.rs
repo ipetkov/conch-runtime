@@ -48,8 +48,6 @@ pub mod eval;
 #[cfg(broken)]
 pub mod future;
 pub mod io;
-#[cfg(broken)]
-pub mod os;
 pub mod path;
 pub mod spawn;
 

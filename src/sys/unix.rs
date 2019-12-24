@@ -2,16 +2,7 @@
 
 use std::io::{Error, ErrorKind, Result};
 
-//mod fd_manager;
-
 pub mod io;
-
-///// Unix-specific environment extensions
-//pub mod env {
-//    pub use super::fd_manager::{
-//        EventedAsyncIoEnv, ManagedAsyncRead, ManagedFileDesc, ManagedWriteAll,
-//    };
-//}
 
 pub(crate) trait IsMinusOne {
     fn is_minus_one(&self) -> bool;
