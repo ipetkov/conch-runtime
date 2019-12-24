@@ -66,12 +66,12 @@ impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a 
 /// An interface for reporting arbitrary failures.
 pub trait ReportFailureEnvironment {
     /// Reports any `Fail`ure as appropriate, e.g. print to stderr.
-    fn report_failure(&mut self, fail: &dyn Fail);
+    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()>;
 }
 
-impl<'a, T: ?Sized + ReportFailureEnvironment> ReportFailureEnvironment for &'a mut T {
-    fn report_failure(&mut self, fail: &dyn Fail) {
-        (**self).report_failure(fail);
+impl<'b, T: ?Sized + ReportFailureEnvironment> ReportFailureEnvironment for &'b mut T {
+    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
+        (**self).report_failure(fail)
     }
 }
 

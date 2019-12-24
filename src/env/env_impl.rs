@@ -594,31 +594,30 @@ where
     }
 }
 
-// impl<A, FM, L, V, EX, WD, B, N, ERR> ReportFailureEnvironment
-//     for Env<A, FM, L, V, EX, WD, B, N, ERR>
-// where
-//     A: ArgumentsEnvironment,
-//     A::Arg: fmt::Display,
-//     FM: AsyncIoEnvironment + FileDescEnvironment,
-//     FM::FileHandle: Clone,
-//     FM::IoHandle: From<FM::FileHandle>,
-//     N: Hash + Eq,
-// {
-//     fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
-//         let fd = match self.file_desc(STDERR_FILENO) {
-//             Some((fdes, _)) => fdes.clone(),
-//             None => return Box::pin(async {}),
-//         };
+impl<A, FM, L, V, EX, WD, B, N, ERR> ReportFailureEnvironment
+    for Env<A, FM, L, V, EX, WD, B, N, ERR>
+where
+    A: ArgumentsEnvironment,
+    A::Arg: fmt::Display,
+    FM: AsyncIoEnvironment + FileDescEnvironment,
+    FM::FileHandle: Clone,
+    FM::IoHandle: From<FM::FileHandle>,
+    N: Hash + Eq,
+{
+    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
+        let fd = match self.file_desc(STDERR_FILENO) {
+            Some((fdes, _)) => fdes.clone(),
+            None => return Box::pin(async {}),
+        };
 
-//         let data = format!("{}: {}\n", self.name(), fail).into_bytes();
-//         // let future = self.write_all(fd, data)
-//         // self.write_all_best_effort(fd.into(), data);
+        let data = format!("{}: {}\n", self.name(), fail).into_bytes();
+        let future = self.write_all(fd.into(), Cow::Owned(data));
 
-//         Box::pin(async move {
-//             let _ = self.file_desc_manager_env.write_all(fd.into(), &data).await;
-//         })
-//     }
-// }
+        Box::pin(async move {
+            let _ = future.await;
+        })
+    }
+}
 
 //impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
 //where

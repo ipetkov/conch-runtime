@@ -7,8 +7,10 @@ pub use self::support::*;
 struct MockEnv;
 
 impl ReportFailureEnvironment for MockEnv {
-    fn report_failure(&mut self, fail: &dyn Fail) {
-        println!("{}", fail);
+    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            println!("{}", fail);
+        })
     }
 }
 
