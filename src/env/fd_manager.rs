@@ -1,6 +1,8 @@
 use crate::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, SubEnvironment};
 use crate::io::Permissions;
 use crate::Fd;
+use futures_core::future::BoxFuture;
+use std::borrow::Cow;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
@@ -103,18 +105,20 @@ where
     A: AsyncIoEnvironment,
 {
     type IoHandle = A::IoHandle;
-    type Read = A::Read;
-    type WriteAll = A::WriteAll;
 
-    fn read_async(&mut self, fd: Self::IoHandle) -> io::Result<Self::Read> {
-        self.async_env.read_async(fd)
+    fn read_all(&mut self, fd: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
+        self.async_env.read_all(fd)
     }
 
-    fn write_all(&mut self, fd: Self::IoHandle, data: Vec<u8>) -> io::Result<Self::WriteAll> {
+    fn write_all<'a>(
+        &mut self,
+        fd: Self::IoHandle,
+        data: Cow<'a, [u8]>,
+    ) -> BoxFuture<'a, io::Result<()>> {
         self.async_env.write_all(fd, data)
     }
 
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
-        self.async_env.write_all_best_effort(fd, data)
+        self.async_env.write_all_best_effort(fd, data);
     }
 }
