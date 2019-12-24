@@ -166,108 +166,40 @@ impl<E: ?Sized + Send> Spawn<E> for MockErr {
     }
 }
 
-//#[derive(Debug, Clone, PartialEq, Eq)]
-//#[must_use = "futures do nothing unless polled"]
-//pub struct MustCancel {
-//    /// Did we get polled at least once (i.e. did we get fully "spawned")
-//    was_polled: bool,
-//    /// Did we ever get a "cancel" signal
-//    was_canceled: bool,
-//}
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockCmd {
+    Status(ExitStatus),
+    Error(MockErr),
+    Panic(&'static str),
+}
 
-//impl MustCancel {
-//    pub fn new() -> Self {
-//        MustCancel {
-//            was_polled: false,
-//            was_canceled: false,
-//        }
-//    }
+pub fn mock_status(status: ExitStatus) -> MockCmd {
+    MockCmd::Status(status)
+}
 
-//    pub fn poll<T, E>(&mut self) -> Poll<T, E> {
-//        assert!(!self.was_canceled, "cannot poll after canceling");
-//        self.was_polled = true;
-//        Ok(Async::NotReady)
-//    }
+pub fn mock_error(fatal: bool) -> MockCmd {
+    MockCmd::Error(MockErr::Fatal(fatal))
+}
 
-//    pub fn cancel(&mut self) {
-//        assert!(!self.was_canceled, "cannot cancel twice");
-//        self.was_canceled = true;
-//    }
-//}
+pub fn mock_panic(msg: &'static str) -> MockCmd {
+    MockCmd::Panic(msg)
+}
 
-//impl Drop for MustCancel {
-//    fn drop(&mut self) {
-//        if self.was_polled {
-//            assert!(self.was_canceled, "MustCancel future was not canceled!");
-//        }
-//    }
-//}
+#[async_trait::async_trait]
+impl<E: ?Sized + Send> Spawn<E> for MockCmd {
+    type Error = MockErr;
 
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug, Clone, PartialEq, Eq)]
-//pub enum MockCmd {
-//    Status(ExitStatus),
-//    Error(MockErr),
-//    Panic(&'static str),
-//    MustCancel(MustCancel),
-//}
+    async fn spawn(&self, _: &mut E) -> BoxFuture<'static, Result<ExitStatus, MockErr>> {
+        let ret = match *self {
+            MockCmd::Status(s) => Ok(s),
+            MockCmd::Error(ref e) => Err(e.clone()),
+            MockCmd::Panic(msg) => panic!("{}", msg),
+        };
 
-//pub fn mock_status(status: ExitStatus) -> MockCmd {
-//    MockCmd::Status(status)
-//}
-
-//pub fn mock_error(fatal: bool) -> MockCmd {
-//    MockCmd::Error(MockErr::Fatal(fatal))
-//}
-
-//pub fn mock_panic(msg: &'static str) -> MockCmd {
-//    MockCmd::Panic(msg)
-//}
-
-//pub fn mock_must_cancel() -> MockCmd {
-//    MockCmd::MustCancel(MustCancel::new())
-//}
-
-//impl<E: ?Sized> Spawn<E> for MockCmd {
-//    type Error = MockErr;
-//    type EnvFuture = Self;
-//    type Future = FutureResult<ExitStatus, MockErr>;
-
-//    fn spawn(self, _: &E) -> Self::EnvFuture {
-//        self
-//    }
-//}
-
-//impl<'a, E: ?Sized> Spawn<E> for &'a MockCmd {
-//    type Error = MockErr;
-//    type EnvFuture = MockCmd;
-//    type Future = FutureResult<ExitStatus, Self::Error>;
-
-//    fn spawn(self, _: &E) -> Self::EnvFuture {
-//        self.clone()
-//    }
-//}
-
-//impl<E: ?Sized> EnvFuture<E> for MockCmd {
-//    type Item = FutureResult<ExitStatus, MockErr>;
-//    type Error = MockErr;
-
-//    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, MockErr> {
-//        match *self {
-//            MockCmd::Status(s) => Ok(Async::Ready(future_result(Ok(s)))),
-//            MockCmd::Error(ref e) => Err(e.clone()),
-//            MockCmd::Panic(msg) => panic!("{}", msg),
-//            MockCmd::MustCancel(ref mut mc) => mc.poll(),
-//        }
-//    }
-
-//    fn cancel(&mut self, _env: &mut E) {
-//        match *self {
-//            MockCmd::Status(_) | MockCmd::Error(_) | MockCmd::Panic(_) => {}
-//            MockCmd::MustCancel(ref mut mc) => mc.cancel(),
-//        }
-//    }
-//}
+        Box::pin(async { ret })
+    }
+}
 
 //pub fn mock_word_fields(fields: Fields<String>) -> MockWord {
 //    MockWord::Fields(Some(fields))
@@ -538,13 +470,9 @@ impl<E: ?Sized + Send> Spawn<E> for MockErr {
 //    }
 //}
 
-//pub fn new_env() -> DefaultEnvArc {
-//    new_env_with_threads(1)
-//}
-
-//pub fn new_env_with_threads(threads: usize) -> DefaultEnvArc {
-//    DefaultEnvArc::new(Some(threads)).expect("failed to create env")
-//}
+pub fn new_env() -> DefaultEnvArc {
+    DefaultEnvArc::new().expect("failed to create env")
+}
 
 //pub fn new_env_with_no_fds() -> DefaultEnvArc {
 //    let mut cfg = DefaultEnvConfigArc::new(Some(1)).expect("failed to create env cfg");

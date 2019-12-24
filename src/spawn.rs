@@ -17,7 +17,7 @@ use futures_core::future::BoxFuture;
 //mod loop_cmd;
 //mod pipeline;
 //mod rc;
-//mod sequence;
+mod sequence;
 //mod simple;
 //mod subshell;
 //mod substitution;
@@ -41,7 +41,7 @@ mod swallow_non_fatal;
 //pub use self::local_redirections::{spawn_with_local_redirections, LocalRedirections};
 //pub use self::loop_cmd::{loop_cmd, Loop};
 //pub use self::pipeline::{pipeline, Pipeline, SpawnedPipeline};
-//pub use self::sequence::{sequence, Sequence};
+pub use self::sequence::sequence;
 //pub use self::simple::{
 //    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
 //};
