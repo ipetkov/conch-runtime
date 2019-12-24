@@ -15,7 +15,6 @@ mod fd;
 mod fd_opener;
 //mod func;
 mod last_status;
-//mod platform_specific_fd_manager;
 //mod reversible_redirect;
 //mod reversible_var;
 mod string_wrapper;
@@ -40,10 +39,6 @@ pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEn
 //    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
 //};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
-//pub use self::platform_specific_fd_manager::{
-//    PlatformSpecificAsyncRead, PlatformSpecificFileDescManagerEnv, PlatformSpecificManagedHandle,
-//    PlatformSpecificWriteAll,
-//};
 //pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 //pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
 pub use self::string_wrapper::StringWrapper;
