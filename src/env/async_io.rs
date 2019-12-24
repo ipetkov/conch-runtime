@@ -1,4 +1,5 @@
 use futures_core::future::BoxFuture;
+use std::borrow::Cow;
 use std::io;
 
 mod tokio;
@@ -19,7 +20,7 @@ pub trait AsyncIoEnvironment {
     fn write_all<'a>(
         &mut self,
         fd: Self::IoHandle,
-        data: &'a [u8],
+        data: Cow<'a, [u8]>,
     ) -> BoxFuture<'a, io::Result<()>>;
 
     /// Asynchronously write the contents of `data` to a file handle in the
@@ -42,7 +43,7 @@ where
     fn write_all<'a>(
         &mut self,
         fd: Self::IoHandle,
-        data: &'a [u8],
+        data: Cow<'a, [u8]>,
     ) -> BoxFuture<'a, io::Result<()>> {
         (**self).write_all(fd, data)
     }

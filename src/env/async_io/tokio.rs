@@ -1,6 +1,7 @@
 use crate::env::{AsyncIoEnvironment, SubEnvironment};
 use crate::io::FileDesc;
 use futures_core::future::BoxFuture;
+use std::borrow::Cow;
 use std::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -51,11 +52,11 @@ impl AsyncIo {
     }
 }
 
-async fn do_write_all(fd: FileDesc, data: &[u8]) -> io::Result<()> {
+async fn do_write_all(fd: FileDesc, data: Cow<'_, [u8]>) -> io::Result<()> {
     match AsyncIo::new(fd) {
         #[cfg(unix)]
-        AsyncIo::PollEvented(mut fd) => fd.write_all(data).await,
-        AsyncIo::File(mut fd) => fd.write_all(data).await,
+        AsyncIo::PollEvented(mut fd) => fd.write_all(&*data).await,
+        AsyncIo::File(mut fd) => fd.write_all(&*data).await,
     }
 }
 
@@ -79,14 +80,14 @@ impl AsyncIoEnvironment for TokioAsyncIoEnv {
     fn write_all<'a>(
         &mut self,
         fd: Self::IoHandle,
-        data: &'a [u8],
+        data: Cow<'a, [u8]>,
     ) -> BoxFuture<'a, io::Result<()>> {
         Box::pin(do_write_all(fd, data))
     }
 
     fn write_all_best_effort(&mut self, fd: Self::IoHandle, data: Vec<u8>) {
         let _ = tokio::spawn(async move {
-            let _ = do_write_all(fd, &data).await;
+            let _ = do_write_all(fd, Cow::Owned(data)).await;
         });
     }
 }

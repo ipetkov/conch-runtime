@@ -3,6 +3,7 @@
 use conch_runtime::env::{AsyncIoEnvironment, TokioAsyncIoEnv};
 use conch_runtime::io::{FileDesc, Pipe};
 use futures_util::future::try_join3;
+use std::borrow::Cow;
 use std::fs::File;
 
 #[macro_use]
@@ -16,7 +17,7 @@ async fn pipe() {
     let msg = "hello piped world!";
     let mut env = TokioAsyncIoEnv::new();
 
-    let write_future = env.write_all(pipe.writer, msg.as_bytes());
+    let write_future = env.write_all(pipe.writer, Cow::Borrowed(msg.as_bytes()));
     env.write_all_best_effort(best_effort_pipe.writer, msg.as_bytes().to_vec());
 
     let read_future = env.read_all(pipe.reader);
@@ -42,7 +43,7 @@ async fn file() {
     let mut env = TokioAsyncIoEnv::new();
 
     let first_writer = FileDesc::from(File::create(&first).expect("failed to create first"));
-    env.write_all(first_writer, msg.as_bytes())
+    env.write_all(first_writer, Cow::Borrowed(msg.as_bytes()))
         .await
         .expect("first write failed");
 

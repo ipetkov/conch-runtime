@@ -548,7 +548,7 @@ where
     fn write_all<'a>(
         &mut self,
         fd: Self::IoHandle,
-        data: &'a [u8],
+        data: Cow<'a, [u8]>,
     ) -> BoxFuture<'a, io::Result<()>> {
         self.file_desc_manager_env.write_all(fd, data)
     }

@@ -1,6 +1,7 @@
 use crate::env::{AsyncIoEnvironment, SubEnvironment};
 use crate::io::{FileDesc, FileDescWrapper};
 use futures_core::future::BoxFuture;
+use std::borrow::Cow;
 use std::io;
 use std::sync::Arc;
 
@@ -45,7 +46,7 @@ where
     fn write_all<'a>(
         &mut self,
         fd: Self::IoHandle,
-        data: &'a [u8],
+        data: Cow<'a, [u8]>,
     ) -> BoxFuture<'a, io::Result<()>> {
         match fd.try_unwrap() {
             Ok(fd) => self.async_io.write_all(fd, data),
