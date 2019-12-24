@@ -1,7 +1,17 @@
-use crate::error::{CommandError, RuntimeError};
-use crate::io::Permissions;
-//use crate::spawn::SpawnBoxed;
 use crate::{ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
+//use crate::spawn::SpawnBoxed;
+//use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
+use crate::env::{
+    ArcFileDescOpenerEnv, ArcUnwrappingAsyncIoEnv, ArgsEnv, ArgumentsEnvironment,
+    AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, ExportedVariableEnvironment,
+    FileDescEnv, FileDescEnvironment, FileDescManagerEnv, FileDescOpener, FileDescOpenerEnv,
+    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment,
+    SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper, SubEnvironment,
+    TokioAsyncIoEnv, UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
+    WorkingDirectoryEnvironment,
+};
+use crate::error::{CommandError, RuntimeError};
+use crate::io::{FileDesc, Permissions};
 use failure::Fail;
 use futures_core::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
@@ -14,16 +24,6 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
-//use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
-//use crate::env::PlatformSpecificFileDescManagerEnv;
-use crate::env::{
-    ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
-    ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
-    LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment, SetArgumentsEnvironment,
-    ShiftArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment, VarEnv,
-    VariableEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
-};
-
 /// A struct for configuring a new `Env` instance.
 ///
 /// It implements `Default` (via `DefaultEnvConfig` alias) so it is possible
@@ -31,17 +31,14 @@ use crate::env::{
 /// of the default implementations.
 ///
 /// ```
-/// # extern crate conch_runtime;
 /// # use std::sync::Arc;
 /// # use conch_runtime::env::{ArgsEnv, ArgumentsEnvironment, DefaultEnvConfig, Env, EnvConfig};
-/// # fn main() {
 /// let env = Env::with_config(EnvConfig {
 ///     args_env: ArgsEnv::with_name(Arc::new(String::from("my_shell"))),
-///     .. DefaultEnvConfig::new(None).expect("failed to create config")
+///     .. DefaultEnvConfig::new().expect("failed to create config")
 /// });
 ///
 /// assert_eq!(**env.name(), "my_shell");
-/// # }
 /// ```
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
@@ -230,22 +227,13 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
 /// and powered by `tokio`.
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
-///
-/// ```no_run
-/// # extern crate conch_runtime;
-/// # use std::sync::Arc;
-/// # use conch_runtime::env::DefaultEnvConfig;
-/// # fn main() {
-/// // Fallback to using one thread per CPU
-/// let cfg1 = DefaultEnvConfig::<Arc<String>>::new(None);
-/// // Fallback to specific number of threads
-/// let cfg2 = DefaultEnvConfig::<Arc<String>>::new(Some(2));
-/// # }
-/// ```
 pub type DefaultEnvConfig<T> = EnvConfig<
     ArgsEnv<T>,
-    //PlatformSpecificFileDescManagerEnv,
-    (),
+    FileDescManagerEnv<
+        ArcFileDescOpenerEnv<FileDescOpenerEnv>,
+        FileDescEnv<Arc<FileDesc>>,
+        ArcUnwrappingAsyncIoEnv<TokioAsyncIoEnv>,
+    >,
     LastStatusEnv,
     VarEnv<T, T>,
     //ExecEnv,
@@ -266,14 +254,12 @@ where
     T: Eq + Hash + From<String>,
 {
     /// Creates a new `DefaultEnvConfig` using default environment components.
-    ///
-    /// A `tokio` `Remote` handle is required for performing async IO on
-    /// supported platforms. Otherwise, if the platform does not support
-    /// (easily) support async IO, a dedicated thread-pool will be used.
-    /// If no thread number is specified, one thread per CPU will be used.
-    pub fn new(fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        let file_desc_manager_env = ();
-        //PlatformSpecificFileDescManagerEnv::with_process_stdio(fallback_num_threads)?;
+    pub fn new() -> io::Result<Self> {
+        let file_desc_manager_env = FileDescManagerEnv::new(
+            ArcFileDescOpenerEnv::new(FileDescOpenerEnv::new()),
+            FileDescEnv::<Arc<FileDesc>>::with_process_stdio()?,
+            ArcUnwrappingAsyncIoEnv::new(TokioAsyncIoEnv::new()),
+        );
 
         Ok(DefaultEnvConfig {
             interactive: false,
@@ -606,8 +592,8 @@ where
 {
     fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
         let fd = match self.file_desc(STDERR_FILENO) {
-            Some((fdes, _)) => fdes.clone(),
-            None => return Box::pin(async {}),
+            Some((fdes, perms)) if perms.writable() => fdes.clone(),
+            _ => return Box::pin(async {}),
         };
 
         let data = format!("{}: {}\n", self.name(), fail).into_bytes();
@@ -812,24 +798,13 @@ where
 /// A default environment configured with provided (non-atomic) implementations.
 ///
 /// Generic over the representation of shell words, variables, function names, etc.
-///
-/// ```no_run
-/// # extern crate conch_runtime;
-/// # use std::sync::Arc;
-/// # use conch_runtime::env::DefaultEnv;
-/// # use conch_runtime::env::DefaultEnvConfig;
-/// # fn main() {
-/// // Fallback to using one thread per CPU
-/// let env1 = DefaultEnv::<Arc<String>>::new(None);
-///
-/// // Fallback to specific number of threads
-/// let env2 = DefaultEnv::<Arc<String>>::new(Some(2));
-/// # }
-/// ```
 pub type DefaultEnv<T> = Env<
     ArgsEnv<T>,
-    //PlatformSpecificFileDescManagerEnv,
-    (),
+    FileDescManagerEnv<
+        ArcFileDescOpenerEnv<FileDescOpenerEnv>,
+        FileDescEnv<Arc<FileDesc>>,
+        ArcUnwrappingAsyncIoEnv<TokioAsyncIoEnv>,
+    >,
     LastStatusEnv,
     VarEnv<T, T>,
     //ExecEnv,
@@ -852,7 +827,7 @@ where
     /// Creates a new default environment.
     ///
     /// See the definition of `DefaultEnvConfig` for what configuration will be used.
-    pub fn new(fallback_num_threads: Option<usize>) -> io::Result<Self> {
-        DefaultEnvConfig::new(fallback_num_threads).map(Self::with_config)
+    pub fn new() -> io::Result<Self> {
+        DefaultEnvConfig::new().map(Self::with_config)
     }
 }
