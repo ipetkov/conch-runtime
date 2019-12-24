@@ -19,7 +19,7 @@ use futures_core::future::BoxFuture;
 //mod rc;
 mod sequence;
 //mod simple;
-//mod subshell;
+mod subshell;
 //mod substitution;
 mod swallow_non_fatal;
 //mod vec_sequence;
@@ -45,7 +45,7 @@ pub use self::sequence::sequence;
 //pub use self::simple::{
 //    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
 //};
-//pub use self::subshell::{subshell, Subshell};
+pub use self::subshell::subshell;
 //pub use self::substitution::{substitution, Substitution, SubstitutionEnvFuture};
 pub use self::swallow_non_fatal::swallow_non_fatal_errors;
 
