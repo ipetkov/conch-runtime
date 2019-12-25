@@ -9,7 +9,7 @@ mod async_io;
 //pub mod builtin;
 mod cur_dir;
 mod env_impl;
-//mod executable;
+mod executable;
 mod fd;
 mod fd_manager;
 mod fd_opener;
@@ -31,9 +31,11 @@ pub use self::cur_dir::{
 pub use self::env_impl::{
     DefaultEnv, DefaultEnvArc, DefaultEnvConfig, DefaultEnvConfigArc, Env, EnvConfig,
 };
-//pub use self::executable::{Child, ExecEnv, ExecutableData, ExecutableEnvironment};
+pub use self::executable::{ExecutableData, ExecutableEnvironment, TokioExecEnv};
 pub use self::fd::{FileDescEnv, FileDescEnvironment};
-pub use self::fd_manager::{FileDescManagerEnv, FileDescManagerEnvironment};
+pub use self::fd_manager::{
+    FileDescManagerEnv, FileDescManagerEnvironment, TokioFileDescManagerEnv,
+};
 pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe};
 //pub use self::func::{
 //    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,

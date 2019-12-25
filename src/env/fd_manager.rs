@@ -7,6 +7,9 @@ use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
 
+mod tokio;
+pub use self::tokio::TokioFileDescManagerEnv;
+
 /// A marker trait for implementations which can open, store, and perform
 /// async I/O operations on file handles.
 pub trait FileDescManagerEnvironment:

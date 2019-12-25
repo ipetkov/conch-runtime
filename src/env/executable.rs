@@ -1,28 +1,28 @@
 use crate::env::SubEnvironment;
 use crate::error::CommandError;
 use crate::io::FileDesc;
-use crate::ExitStatus;
-use futures::{Async, Future, Poll};
-use std::borrow::Cow;
+use crate::{ExitStatus, EXIT_ERROR};
+use futures_core::future::BoxFuture;
 use std::ffi::OsStr;
+use std::future::Future;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::Path;
-use std::process::{Command, Stdio};
-use tokio_process::{CommandExt, StatusAsync};
+use std::process::Stdio;
+use tokio::process::Command;
 
 /// Any data required to execute a child process.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExecutableData<'a> {
     /// The name/path to the executable.
-    pub name: Cow<'a, OsStr>,
+    pub name: &'a OsStr,
     /// Arguments to be provided to the executable.
-    pub args: Vec<Cow<'a, OsStr>>,
+    pub args: &'a [&'a OsStr],
     /// Any environment variables that should be passed to the executable.
     /// Environment variables from the current process must **NOT** be inherited
     /// if they do not appear in this collection.
-    pub env_vars: Vec<(Cow<'a, OsStr>, Cow<'a, OsStr>)>,
+    pub env_vars: &'a [(&'a OsStr, &'a OsStr)],
     /// The current working directory the executable should start out with.
-    pub current_dir: Cow<'a, Path>,
+    pub current_dir: &'a Path,
     /// The executable's standard input will be redirected to this descriptor
     /// or the equivalent of `/dev/null` if not specified.
     pub stdin: Option<FileDesc>,
@@ -34,38 +34,10 @@ pub struct ExecutableData<'a> {
     pub stderr: Option<FileDesc>,
 }
 
-impl<'a> ExecutableData<'a> {
-    /// Ensures all inner data is fully owned and thus lifted to a `'static` lifetime.
-    pub fn into_owned(self) -> ExecutableData<'static> {
-        let args = self
-            .args
-            .into_iter()
-            .map(Cow::into_owned)
-            .map(Cow::Owned)
-            .collect();
-
-        let env_vars = self
-            .env_vars
-            .into_iter()
-            .map(|(k, v)| (Cow::Owned(k.into_owned()), Cow::Owned(v.into_owned())))
-            .collect();
-
-        ExecutableData {
-            name: Cow::Owned(self.name.into_owned()),
-            args,
-            env_vars,
-            current_dir: Cow::Owned(self.current_dir.into_owned()),
-            stdin: self.stdin,
-            stdout: self.stdout,
-            stderr: self.stderr,
-        }
-    }
-}
-
 /// An interface for asynchronously spawning executables.
 pub trait ExecutableEnvironment {
     /// A future which will resolve to the executable's exit status.
-    type ExecFuture: Future<Item = ExitStatus>;
+    type ExecFuture: Future<Output = ExitStatus>;
 
     /// Attempt to spawn the executable command.
     fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError>;
@@ -79,60 +51,56 @@ impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a mut T {
     }
 }
 
-/// An `ExecutableEnvironment` implementation that uses a `tokio` event loop
+/// An `ExecutableEnvironment` implementation that uses `tokio`
 /// to monitor when child processes have exited.
-///
-/// > **Note**: Any futures/adapters returned by this implementation should
-/// > be run on the same event loop that was associated with this environment,
-/// > otherwise no progress may occur unless the associated event loop is
-/// > turned externally.
 #[derive(Clone, Debug, Default)]
 #[allow(missing_copy_implementations)]
-pub struct ExecEnv(());
+pub struct TokioExecEnv(());
 
-impl SubEnvironment for ExecEnv {
+impl SubEnvironment for TokioExecEnv {
     fn sub_env(&self) -> Self {
         self.clone()
     }
 }
 
-impl ExecEnv {
+impl TokioExecEnv {
     /// Construct a new environment.
     pub fn new() -> Self {
         Self(())
     }
 }
 
-fn spawn_child(data: ExecutableData<'_>) -> Result<StatusAsync, CommandError> {
-    let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
+impl ExecutableEnvironment for TokioExecEnv {
+    type ExecFuture = BoxFuture<'static, ExitStatus>;
 
-    let name = data.name;
-    let mut cmd = Command::new(&name);
-    cmd.args(data.args)
-        .env_clear() // Ensure we don't inherit from the process
-        .current_dir(&data.current_dir)
-        .stdin(stdio(data.stdin))
-        .stdout(stdio(data.stdout))
-        .stderr(stdio(data.stderr));
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+        let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
-    // Ensure a PATH env var is defined, otherwise it appears that
-    // things default to the PATH env var defined for the process
-    cmd.env("PATH", "");
+        let name = data.name;
+        let mut cmd = Command::new(&name);
+        cmd.args(data.args)
+            .kill_on_drop(true) // Ensure we clean up any dropped handles
+            .env_clear() // Ensure we don't inherit from the process
+            .current_dir(&data.current_dir)
+            .stdin(stdio(data.stdin))
+            .stdout(stdio(data.stdout))
+            .stderr(stdio(data.stderr));
 
-    for (k, v) in data.env_vars {
-        cmd.env(k, v);
-    }
+        // Ensure a PATH env var is defined, otherwise it appears that
+        // things default to the PATH env var defined for the process
+        cmd.env("PATH", "");
 
-    cmd.status_async()
-        .map_err(|err| map_io_err(err, convert_to_string(name)))
-}
+        for (k, v) in data.env_vars {
+            cmd.env(k, v);
+        }
 
-fn convert_to_string(os_str: Cow<OsStr>) -> String {
-    match os_str {
-        Cow::Borrowed(s) => s.to_string_lossy().into_owned(),
-        Cow::Owned(string) => string
-            .into_string()
-            .unwrap_or_else(|s| s.as_os_str().to_string_lossy().into_owned()),
+        let child = cmd
+            .spawn()
+            .map_err(|err| map_io_err(err, name.to_string_lossy().into_owned()))?;
+
+        Ok(Box::pin(async move {
+            child.await.map(ExitStatus::from).unwrap_or(EXIT_ERROR)
+        }))
     }
 }
 
@@ -153,42 +121,5 @@ fn map_io_err(err: IoError, name: String) -> CommandError {
         CommandError::NotExecutable(name)
     } else {
         CommandError::Io(err, Some(name))
-    }
-}
-
-impl ExecutableEnvironment for ExecEnv {
-    type ExecFuture = Child;
-
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
-        Ok(Child {
-            inner: spawn_child(data)?,
-        })
-    }
-}
-
-/// A future that will wait for a child process to exit.
-///
-/// Created by the `ExecEnv::spawn_executable` method.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct Child {
-    inner: StatusAsync,
-}
-
-impl Future for Child {
-    type Item = ExitStatus;
-    type Error = CommandError;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let result = match self.inner.poll() {
-            Ok(Async::Ready(status)) => Ok(status),
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(err) => Err(err),
-        };
-
-        result
-            .map(ExitStatus::from)
-            .map(Async::Ready)
-            .map_err(|err| CommandError::Io(err, None))
     }
 }

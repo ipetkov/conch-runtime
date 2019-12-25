@@ -57,15 +57,17 @@ pub trait Spawn<E: ?Sized> {
 }
 
 impl<'a, T, E> Spawn<E> for &'a T
-where T: Spawn<E>,
-      E: ?Sized
+where
+    T: Spawn<E>,
+    E: ?Sized,
 {
     type Error = T::Error;
 
     fn spawn<'life0, 'life1, 'async_trait>(
         &'life0 self,
-        env: &'life1 mut E
-    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>> where
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>>
+    where
         'life0: 'async_trait,
         'life1: 'async_trait,
         Self: 'async_trait,

@@ -2,16 +2,15 @@ use crate::{ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 //use crate::spawn::SpawnBoxed;
 //use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
 use crate::env::{
-    ArcFileDescOpenerEnv, ArcUnwrappingAsyncIoEnv, ArgsEnv, ArgumentsEnvironment,
-    AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, ExportedVariableEnvironment,
-    FileDescEnv, FileDescEnvironment, FileDescManagerEnv, FileDescOpener, FileDescOpenerEnv,
-    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment,
-    SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper, SubEnvironment,
-    TokioAsyncIoEnv, UnsetVariableEnvironment, VarEnv, VariableEnvironment, VirtualWorkingDirEnv,
-    WorkingDirectoryEnvironment,
+    ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
+    ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
+    FileDescOpener, IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
+    ReportFailureEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper,
+    SubEnvironment, TokioExecEnv, TokioFileDescManagerEnv, UnsetVariableEnvironment, VarEnv,
+    VariableEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };
 use crate::error::{CommandError, RuntimeError};
-use crate::io::{FileDesc, Permissions};
+use crate::io::Permissions;
 use failure::Fail;
 use futures_core::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
@@ -229,15 +228,10 @@ impl<A, FM, L, V, EX, WD, B, N, ERR> EnvConfig<A, FM, L, V, EX, WD, B, N, ERR> {
 /// Generic over the representation of shell words, variables, function names, etc.
 pub type DefaultEnvConfig<T> = EnvConfig<
     ArgsEnv<T>,
-    FileDescManagerEnv<
-        ArcFileDescOpenerEnv<FileDescOpenerEnv>,
-        FileDescEnv<Arc<FileDesc>>,
-        ArcUnwrappingAsyncIoEnv<TokioAsyncIoEnv>,
-    >,
+    TokioFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<T, T>,
-    //ExecEnv,
-    (),
+    TokioExecEnv,
     VirtualWorkingDirEnv,
     //BuiltinEnv<T>,
     (),
@@ -255,11 +249,7 @@ where
 {
     /// Creates a new `DefaultEnvConfig` using default environment components.
     pub fn new() -> io::Result<Self> {
-        let file_desc_manager_env = FileDescManagerEnv::new(
-            ArcFileDescOpenerEnv::new(FileDescOpenerEnv::new()),
-            FileDescEnv::<Arc<FileDesc>>::with_process_stdio()?,
-            ArcUnwrappingAsyncIoEnv::new(TokioAsyncIoEnv::new()),
-        );
+        let file_desc_manager_env = TokioFileDescManagerEnv::with_process_stdio()?;
 
         Ok(DefaultEnvConfig {
             interactive: false,
@@ -267,8 +257,7 @@ where
             file_desc_manager_env,
             last_status_env: LastStatusEnv::new(),
             var_env: VarEnv::with_process_env_vars(),
-            //exec_env: ExecEnv::new(),
-            exec_env: (),
+            exec_env: TokioExecEnv::new(),
             working_dir_env: VirtualWorkingDirEnv::with_process_working_dir()?,
             //builtin_env: BuiltinEnv::new(),
             builtin_env: (),
@@ -722,18 +711,17 @@ where
     }
 }
 
-//impl<A, FM, L, V, EX, WD, B, N, ERR> ExecutableEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
-//where
-//    V: UnsetVariableEnvironment,
-//    N: Hash + Eq,
-//    EX: ExecutableEnvironment,
-//{
-//    type ExecFuture = EX::ExecFuture;
-//
-//    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
-//        self.exec_env.spawn_executable(data)
-//    }
-//}
+impl<A, FM, L, V, EX, WD, B, N, ERR> ExecutableEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
+where
+    N: Hash + Eq,
+    EX: ExecutableEnvironment,
+{
+    type ExecFuture = EX::ExecFuture;
+
+    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+        self.exec_env.spawn_executable(data)
+    }
+}
 
 impl<A, FM, L, V, EX, WD, B, N, ERR> WorkingDirectoryEnvironment
     for Env<A, FM, L, V, EX, WD, B, N, ERR>
@@ -800,15 +788,10 @@ where
 /// Generic over the representation of shell words, variables, function names, etc.
 pub type DefaultEnv<T> = Env<
     ArgsEnv<T>,
-    FileDescManagerEnv<
-        ArcFileDescOpenerEnv<FileDescOpenerEnv>,
-        FileDescEnv<Arc<FileDesc>>,
-        ArcUnwrappingAsyncIoEnv<TokioAsyncIoEnv>,
-    >,
+    TokioFileDescManagerEnv,
     LastStatusEnv,
     VarEnv<T, T>,
-    //ExecEnv,
-    (),
+    TokioExecEnv,
     VirtualWorkingDirEnv,
     //BuiltinEnv<T>,
     (),

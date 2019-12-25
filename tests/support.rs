@@ -564,12 +564,12 @@ pub fn new_env() -> DefaultEnvArc {
 //    Compat01As03::new(future).await
 //}
 
-//pub fn bin_path(s: &str) -> ::std::path::PathBuf {
-//    let mut me = ::std::env::current_exe().unwrap();
-//    me.pop();
-//    if me.ends_with("deps") {
-//        me.pop();
-//    }
-//    me.push(s);
-//    me
-//}
+pub fn bin_path(s: &str) -> ::std::path::PathBuf {
+    let mut me = ::std::env::current_exe().unwrap();
+    me.pop();
+    if me.ends_with("deps") {
+        me.pop();
+    }
+    me.push(s);
+    me
+}
