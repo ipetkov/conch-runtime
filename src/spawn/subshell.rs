@@ -20,8 +20,8 @@ where
 {
     let mut env = env.sub_env();
     async move {
-        match sequence(iter, &mut env).await.await {
-            Ok(status) => status,
+        match sequence(iter, &mut env).await {
+            Ok(future) => future.await,
             Err(e) => {
                 env.report_failure(&e).await;
                 EXIT_ERROR

@@ -23,24 +23,28 @@ async fn should_propagate_result() {
     impl<E: ?Sized + Send> Spawn<E> for MockResult {
         type Error = void::Void;
 
-        async fn spawn(&self, _: &mut E) -> BoxFuture<'static, Result<ExitStatus, Self::Error>> {
-            async { Ok(EXIT) }.boxed()
+        async fn spawn(&self, _: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+            Ok(Box::pin(async { EXIT }))
         }
     }
 
-    let ret = swallow_non_fatal_errors(&MockResult, &mut MockEnv).await;
-    assert_eq!(Ok(EXIT), ret);
+    let ret = swallow_non_fatal_errors(&MockResult, &mut MockEnv)
+        .await
+        .unwrap();
+    assert_eq!(EXIT, ret.await);
 }
 
 #[tokio::test]
 async fn should_swallow_non_fatal_errors() {
-    let ret = swallow_non_fatal_errors(&MockErr::Fatal(false), &mut MockEnv).await;
-    assert_eq!(Ok(EXIT_ERROR), ret);
+    let ret = swallow_non_fatal_errors(&MockErr::Fatal(false), &mut MockEnv)
+        .await
+        .unwrap();
+    assert_eq!(EXIT_ERROR, ret.await);
 }
 
 #[tokio::test]
 async fn should_propagate_fatal_errors() {
     let err = MockErr::Fatal(true);
-    let ret = swallow_non_fatal_errors(&err, &mut MockEnv).await;
-    assert_eq!(Err(err), ret);
+    let ret = swallow_non_fatal_errors(&err, &mut MockEnv).await.err();
+    assert_eq!(Some(err), ret);
 }

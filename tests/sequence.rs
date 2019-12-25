@@ -10,10 +10,10 @@ async fn should_resolve_to_last_status() {
     let cmds = vec![mock_status(EXIT_SUCCESS), mock_status(exit)];
 
     let mut env = new_env();
-    let future = sequence(cmds, &mut env).await;
+    let future = sequence(cmds, &mut env).await.unwrap();
     drop(env);
 
-    assert_eq!(Ok(exit), future.await);
+    assert_eq!(exit, future.await);
 }
 
 #[tokio::test]
@@ -21,10 +21,10 @@ async fn should_resolve_successfully_for_no_commands() {
     let cmds = Vec::<MockCmd>::new();
 
     let mut env = new_env();
-    let future = sequence(cmds, &mut env).await;
+    let future = sequence(cmds, &mut env).await.unwrap();
     drop(env);
 
-    assert_eq!(Ok(EXIT_SUCCESS), future.await);
+    assert_eq!(EXIT_SUCCESS, future.await);
 }
 
 #[tokio::test]
@@ -32,11 +32,11 @@ async fn should_swallow_non_fatal_errors() {
     let cmds = vec![mock_error(false), mock_status(EXIT_SUCCESS)];
 
     let mut env = new_env();
-    let future = sequence(cmds, &mut env).await;
+    let future = sequence(cmds, &mut env).await.unwrap();
     assert_eq!(EXIT_ERROR, env.last_status()); // Error of the first command
     drop(env);
 
-    assert_eq!(Ok(EXIT_SUCCESS), future.await);
+    assert_eq!(EXIT_SUCCESS, future.await);
 }
 
 #[tokio::test]
@@ -47,11 +47,10 @@ async fn should_terminate_on_fatal_errors() {
     let mut env = new_env();
     env.set_last_status(original_status);
 
-    sequence(cmds, &mut env)
-        .await
-        .await
-        .err()
-        .expect("did not get expected error");
+    assert_eq!(
+        Some(MockErr::Fatal(true)),
+        sequence(cmds, &mut env).await.err()
+    );
 
     // Bubbles up fatal errors without touching the last status
     assert_eq!(original_status, env.last_status());
@@ -66,9 +65,9 @@ async fn runs_all_commands_in_environment_if_running_interactively() {
         interactive: true,
         ..DefaultEnvConfigArc::new().unwrap()
     });
-    let future = sequence(cmds, &mut env).await;
+    let future = sequence(cmds, &mut env).await.unwrap();
     assert_eq!(exit, env.last_status()); // Error of the first command
     drop(env);
 
-    assert_eq!(Ok(exit), future.await);
+    assert_eq!(exit, future.await);
 }

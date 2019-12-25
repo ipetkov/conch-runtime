@@ -13,7 +13,7 @@ use std::iter::Peekable;
 pub async fn sequence<I, E: ?Sized>(
     iter: I,
     env: &mut E,
-) -> BoxFuture<'static, Result<ExitStatus, <I::Item as Spawn<E>>::Error>>
+) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
 where
     E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
     I: IntoIterator,
@@ -26,7 +26,7 @@ where
 async fn do_sequence<I, E: ?Sized>(
     mut iter: Peekable<I>,
     env: &mut E,
-) -> BoxFuture<'static, Result<ExitStatus, <I::Item as Spawn<E>>::Error>>
+) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
 where
     E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
     I: Iterator,
@@ -34,26 +34,29 @@ where
     <I::Item as Spawn<E>>::Error: IsFatalError,
 {
     if iter.peek().is_none() {
-        return Box::pin(async { Ok(EXIT_SUCCESS) });
+        return Ok(Box::pin(async { EXIT_SUCCESS }));
     }
 
     while let Some(cmd) = iter.next() {
+        let cmd = swallow_non_fatal_errors(&cmd, env).await?;
+
         // NB: if in interactive mode, don't peek at the next command
         // because the input may not be ready (e.g. blocking iterator)
         // and we don't want to block this command on further, unrelated, input.
         let is_not_last = env.is_interactive() || iter.peek().is_some();
-
         if is_not_last {
-            match swallow_non_fatal_errors(&cmd, env).await {
-                Ok(status) => env.set_last_status(status),
-                err @ Err(_) => return Box::pin(async { err }),
-            }
+            // We still expect more commands in the sequence, therefore,
+            // we should keep polling and hold on to the environment here
+            let status = cmd.await;
+            env.set_last_status(status);
         } else {
-            return cmd.spawn(env).await;
+            // The last command of our sequence which no longer needs
+            // an environment context, so we can yield it back to the caller.
+            return Ok(cmd);
         }
     }
 
     // Return the last status here if we're running in interactive mode.
     let status = env.last_status();
-    Box::pin(async move { Ok(status) })
+    Ok(Box::pin(async move { status }))
 }

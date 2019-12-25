@@ -160,9 +160,8 @@ impl From<Void> for MockErr {
 impl<E: ?Sized + Send> Spawn<E> for MockErr {
     type Error = Self;
 
-    async fn spawn(&self, _: &mut E) -> BoxFuture<'static, Result<ExitStatus, Self::Error>> {
-        let slf = self.clone();
-        async { Err(slf) }.boxed()
+    async fn spawn(&self, _: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+        Err(self.clone())
     }
 }
 
@@ -190,14 +189,12 @@ pub fn mock_panic(msg: &'static str) -> MockCmd {
 impl<E: ?Sized + Send> Spawn<E> for MockCmd {
     type Error = MockErr;
 
-    async fn spawn(&self, _: &mut E) -> BoxFuture<'static, Result<ExitStatus, MockErr>> {
-        let ret = match *self {
-            MockCmd::Status(s) => Ok(s),
+    async fn spawn(&self, _: &mut E) -> Result<BoxFuture<'static, ExitStatus>, MockErr> {
+        match *self {
+            MockCmd::Status(s) => Ok(Box::pin(async move { s })),
             MockCmd::Error(ref e) => Err(e.clone()),
             MockCmd::Panic(msg) => panic!("{}", msg),
-        };
-
-        Box::pin(async { ret })
+        }
     }
 }
 

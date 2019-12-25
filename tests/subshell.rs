@@ -31,18 +31,3 @@ async fn should_terminate_on_fatal_errors_but_swallow_them() {
     let cmds = vec![mock_error(true), mock_panic("should not run")];
     assert_eq!(EXIT_ERROR, subshell(cmds, &new_env()).await);
 }
-
-#[tokio::test]
-async fn should_isolate_parent_env_from_any_changes() {
-    let mut env = new_env();
-
-    let original_status = ExitStatus::Code(5);
-    env.set_last_status(original_status);
-
-    let cmds = vec![mock_status(ExitStatus::Code(42))];
-
-    let future = subshell(cmds, &env).flatten();
-    Compat01As03::new(future).await.expect("subshell failed");
-
-    assert_eq!(env.last_status(), original_status);
-}
