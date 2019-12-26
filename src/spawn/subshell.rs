@@ -11,21 +11,28 @@ use std::future::Future;
 ///
 /// The `env` parameter will be copied as a `SubEnvironment`, in whose context
 /// the commands will be executed.
-pub fn subshell<I, E: ?Sized>(iter: I, env: &E) -> impl Future<Output = ExitStatus>
+pub fn subshell<I, E>(iter: I, env: &E) -> impl Future<Output = ExitStatus>
 where
     I: IntoIterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
     E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment + SubEnvironment,
 {
-    let mut env = env.sub_env();
-    async move {
-        match sequence(iter, &mut env).await {
-            Ok(future) => future.await,
-            Err(e) => {
-                env.report_failure(&e).await;
-                EXIT_ERROR
-            }
+    subshell_with_env(iter, env.sub_env())
+}
+
+pub(crate) async fn subshell_with_env<I, S, E>(iter: I, mut env: E) -> ExitStatus
+where
+    I: IntoIterator<Item = S>,
+    S: Spawn<E>,
+    S::Error: IsFatalError,
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+{
+    match sequence(iter, &mut env).await {
+        Ok(future) => future.await,
+        Err(e) => {
+            env.report_failure(&e).await;
+            EXIT_ERROR
         }
     }
 }

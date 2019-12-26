@@ -20,7 +20,7 @@ mod and_or;
 mod sequence;
 //mod simple;
 mod subshell;
-//mod substitution;
+mod substitution;
 mod swallow_non_fatal;
 //mod vec_sequence;
 
@@ -46,7 +46,7 @@ pub use self::sequence::sequence;
 //    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
 //};
 pub use self::subshell::subshell;
-//pub use self::substitution::{substitution, Substitution, SubstitutionEnvFuture};
+pub use self::substitution::substitution;
 pub use self::swallow_non_fatal::swallow_non_fatal_errors;
 
 #[async_trait]

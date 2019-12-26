@@ -1,7 +1,7 @@
 #![deny(rust_2018_idioms)]
 
 use conch_runtime::error::IsFatalError;
-// use conch_runtime::STDOUT_FILENO;
+use conch_runtime::STDOUT_FILENO;
 // use std::fs::OpenOptions;
 // use std::path::Path;
 use std::sync::Arc;
@@ -304,89 +304,41 @@ impl<E: ?Sized + Send> Spawn<E> for MockCmd {
 //    }
 //}
 
-//#[derive(Debug, Clone)]
-//pub enum MockOutCmd {
-//    Out(&'static str),
-//    Cmd(MockCmd),
-//}
+#[derive(Debug, Clone)]
+pub enum MockOutCmd {
+    Out(&'static str),
+    Cmd(MockCmd),
+}
 
-//impl<E: ?Sized> Spawn<E> for MockOutCmd
-//where
-//    E: AsyncIoEnvironment + FileDescEnvironment,
-//    E::FileHandle: Clone,
-//    E::IoHandle: From<E::FileHandle>,
-//    E::WriteAll: 'static,
-//{
-//    type Error = MockErr;
-//    type EnvFuture = Self;
-//    type Future = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
+#[async_trait::async_trait]
+impl<E: ?Sized + Send> Spawn<E> for MockOutCmd
+where
+    E: AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle> + Send,
+{
+    type Error = MockErr;
 
-//    fn spawn(self, _: &E) -> Self::EnvFuture {
-//        self
-//    }
-//}
+    async fn spawn(&self, env: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+        match *self {
+            MockOutCmd::Cmd(ref cmd) => cmd.spawn(env).await,
+            MockOutCmd::Out(ref msg) => {
+                let fd = env
+                    .file_desc(STDOUT_FILENO)
+                    .expect("failed to get stdout")
+                    .0
+                    .clone()
+                    .into();
 
-//impl<'a, E: ?Sized> Spawn<E> for &'a MockOutCmd
-//where
-//    E: AsyncIoEnvironment + FileDescEnvironment,
-//    E::FileHandle: Clone,
-//    E::IoHandle: From<E::FileHandle>,
-//    E::WriteAll: 'static,
-//{
-//    type Error = MockErr;
-//    type EnvFuture = MockOutCmd;
-//    type Future = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
+                env.write_all(fd, msg.as_bytes().into())
+                    .await
+                    .expect("failed to write all");
 
-//    fn spawn(self, _: &E) -> Self::EnvFuture {
-//        self.clone()
-//    }
-//}
-
-//impl<E: ?Sized> EnvFuture<E> for MockOutCmd
-//where
-//    E: AsyncIoEnvironment + FileDescEnvironment,
-//    E::FileHandle: Clone,
-//    E::IoHandle: From<E::FileHandle>,
-//    E::WriteAll: 'static,
-//{
-//    type Item = Box<dyn 'static + Future<Item = ExitStatus, Error = Self::Error>>;
-//    type Error = MockErr;
-
-//    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-//        let msg = match *self {
-//            MockOutCmd::Out(ref m) => m,
-//            MockOutCmd::Cmd(ref mut c) => match c.poll(env) {
-//                Ok(Async::Ready(f)) => return Ok(Async::Ready(Box::new(f))),
-//                Ok(Async::NotReady) => return Ok(Async::NotReady),
-//                Err(e) => return Err(e),
-//            },
-//        };
-
-//        let fd = env
-//            .file_desc(STDOUT_FILENO)
-//            .expect("failed to get stdout")
-//            .0
-//            .clone()
-//            .into();
-
-//        let future = env
-//            .write_all(fd, msg.as_bytes().into())
-//            .expect("failed to create write_all future")
-//            .then(|result| {
-//                result.expect("unexpected failure");
-//                Ok(EXIT_SUCCESS)
-//            });
-
-//        Ok(Async::Ready(Box::new(future)))
-//    }
-
-//    fn cancel(&mut self, env: &mut E) {
-//        match *self {
-//            MockOutCmd::Out(_) => {}
-//            MockOutCmd::Cmd(ref mut c) => c.cancel(env),
-//        };
-//    }
-//}
+                Ok(Box::pin(async { EXIT_SUCCESS }))
+            }
+        }
+    }
+}
 
 //#[must_use = "futures do nothing unless polled"]
 //#[derive(Debug, Clone)]
