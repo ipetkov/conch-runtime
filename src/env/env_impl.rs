@@ -1,6 +1,9 @@
+// FIXME: consider removing all these generics here and only offer a concrete env (generic over word types and Fn errors)
+// FIXME: consumers still have all the pieces so they can make their own environment and swap out pieces there
+// FIXME: downside is any unit tests which want a mock env, will need to basically do the same
 use crate::{ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
 //use crate::spawn::SpawnBoxed;
-//use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
+use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
 use crate::env::{
     ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
     ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
@@ -233,8 +236,7 @@ pub type DefaultEnvConfig<T> = EnvConfig<
     VarEnv<T, T>,
     TokioExecEnv,
     VirtualWorkingDirEnv,
-    //BuiltinEnv<T>,
-    (),
+    BuiltinEnv<T>,
     T,
     RuntimeError,
 >;
@@ -259,8 +261,7 @@ where
             var_env: VarEnv::with_process_env_vars(),
             exec_env: TokioExecEnv::new(),
             working_dir_env: VirtualWorkingDirEnv::with_process_working_dir()?,
-            //builtin_env: BuiltinEnv::new(),
-            builtin_env: (),
+            builtin_env: BuiltinEnv::new(),
             fn_name: PhantomData,
             fn_error: PhantomData,
         })
@@ -770,18 +771,18 @@ where
     }
 }
 
-// impl<A, FM, L, V, EX, WD, B, N, ERR> BuiltinEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
-// where
-//     N: Hash + Eq,
-//     B: BuiltinEnvironment,
-// {
-//     type BuiltinName = B::BuiltinName;
-//     type Builtin = B::Builtin;
+impl<A, FM, L, V, EX, WD, B, N, ERR> BuiltinEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
+where
+    N: Hash + Eq,
+    B: BuiltinEnvironment,
+{
+    type BuiltinName = B::BuiltinName;
+    type Builtin = B::Builtin;
 
-//     fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
-//         self.builtin_env.builtin(name)
-//     }
-// }
+    fn builtin(&self, name: &Self::BuiltinName) -> Option<Self::Builtin> {
+        self.builtin_env.builtin(name)
+    }
+}
 
 /// A default environment configured with provided (non-atomic) implementations.
 ///
@@ -793,8 +794,7 @@ pub type DefaultEnv<T> = Env<
     VarEnv<T, T>,
     TokioExecEnv,
     VirtualWorkingDirEnv,
-    //BuiltinEnv<T>,
-    (),
+    BuiltinEnv<T>,
     T,
     RuntimeError,
 >;

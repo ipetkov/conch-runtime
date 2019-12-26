@@ -6,7 +6,7 @@ use futures_core::future::BoxFuture;
 
 mod args;
 mod async_io;
-//pub mod builtin;
+pub mod builtin;
 mod cur_dir;
 mod env_impl;
 mod executable;
@@ -24,7 +24,7 @@ pub use self::args::{
     ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
 };
 pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, TokioAsyncIoEnv};
-//pub use self::builtin::BuiltinEnvironment;
+pub use self::builtin::BuiltinEnvironment;
 pub use self::cur_dir::{
     ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };

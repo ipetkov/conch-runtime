@@ -1,19 +1,10 @@
 //! A module which defines interfaces for expressing shell builtin utilities,
 //! and provides a default implementations.
 
-use crate::env::{
-    ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
-    FileDescEnvironment, RedirectEnvRestorer, ShiftArgumentsEnvironment, StringWrapper,
-    SubEnvironment, VarEnvRestorer, VariableEnvironment, WorkingDirectoryEnvironment,
-};
-use crate::future::{Async, EnvFuture, Poll};
-use crate::spawn::{builtin, ExitResult, Spawn};
-use crate::ExitStatus;
-use futures::Future;
-use std::borrow::Borrow;
+use crate::env::{StringWrapper, SubEnvironment};
+//use crate::spawn::{builtin, Spawn};
 use std::fmt;
 use std::marker::PhantomData;
-use void::Void;
 
 /// An interface for builtin utilities which can be spawned with some arguments.
 ///
@@ -177,182 +168,182 @@ where
     }
 }
 
-impl<I, R, V, E: ?Sized> Spawn<E> for PreparedBuiltin<I, R, V>
-where
-    I: Iterator,
-    I::Item: StringWrapper,
-    R: RedirectEnvRestorer<E>,
-    V: VarEnvRestorer<E>,
-    E: ArgumentsEnvironment
-        + AsyncIoEnvironment
-        + ChangeWorkingDirectoryEnvironment
-        + FileDescEnvironment
-        + ShiftArgumentsEnvironment
-        + VariableEnvironment
-        + WorkingDirectoryEnvironment,
-    E::FileHandle: Clone,
-    E::IoHandle: From<E::FileHandle>,
-    E::VarName: Borrow<String> + From<String>,
-    E::Var: Borrow<String> + From<String>,
-{
-    type EnvFuture = SpawnedBuiltin<I, R, V>;
-    type Future = ExitResult<BuiltinFuture<E::WriteAll>>;
-    type Error = Void;
+// impl<I, R, V, E: ?Sized> Spawn<E> for PreparedBuiltin<I, R, V>
+// where
+//     I: Iterator,
+//     I::Item: StringWrapper,
+//     R: RedirectEnvRestorer<E>,
+//     V: VarEnvRestorer<E>,
+//     E: ArgumentsEnvironment
+//         + AsyncIoEnvironment
+//         + ChangeWorkingDirectoryEnvironment
+//         + FileDescEnvironment
+//         + ShiftArgumentsEnvironment
+//         + VariableEnvironment
+//         + WorkingDirectoryEnvironment,
+//     E::FileHandle: Clone,
+//     E::IoHandle: From<E::FileHandle>,
+//     E::VarName: Borrow<String> + From<String>,
+//     E::Var: Borrow<String> + From<String>,
+// {
+//     type EnvFuture = SpawnedBuiltin<I, R, V>;
+//     type Future = ExitResult<BuiltinFuture<E::WriteAll>>;
+//     type Error = Void;
 
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        let args = self.args;
-        let kind = match self.kind {
-            BuiltinKind::Cd => SpawnedBuiltinKind::Cd(builtin::cd(args).spawn(env)),
-            BuiltinKind::Colon => SpawnedBuiltinKind::Colon(builtin::colon().spawn(env)),
-            BuiltinKind::Echo => SpawnedBuiltinKind::Echo(builtin::echo(args).spawn(env)),
-            BuiltinKind::False => SpawnedBuiltinKind::False(builtin::false_cmd().spawn(env)),
-            BuiltinKind::Pwd => SpawnedBuiltinKind::Pwd(builtin::pwd(args).spawn(env)),
-            BuiltinKind::Shift => SpawnedBuiltinKind::Shift(builtin::shift(args).spawn(env)),
-            BuiltinKind::True => SpawnedBuiltinKind::True(builtin::true_cmd().spawn(env)),
-        };
+//     fn spawn(self, env: &E) -> Self::EnvFuture {
+//         let args = self.args;
+//         let kind = match self.kind {
+//             BuiltinKind::Cd => SpawnedBuiltinKind::Cd(builtin::cd(args).spawn(env)),
+//             BuiltinKind::Colon => SpawnedBuiltinKind::Colon(builtin::colon().spawn(env)),
+//             BuiltinKind::Echo => SpawnedBuiltinKind::Echo(builtin::echo(args).spawn(env)),
+//             BuiltinKind::False => SpawnedBuiltinKind::False(builtin::false_cmd().spawn(env)),
+//             BuiltinKind::Pwd => SpawnedBuiltinKind::Pwd(builtin::pwd(args).spawn(env)),
+//             BuiltinKind::Shift => SpawnedBuiltinKind::Shift(builtin::shift(args).spawn(env)),
+//             BuiltinKind::True => SpawnedBuiltinKind::True(builtin::true_cmd().spawn(env)),
+//         };
 
-        SpawnedBuiltin {
-            redirect_restorer: Some(self.redirect_restorer),
-            var_restorer: Some(self.var_restorer),
-            kind,
-        }
-    }
-}
+//         SpawnedBuiltin {
+//             redirect_restorer: Some(self.redirect_restorer),
+//             var_restorer: Some(self.var_restorer),
+//             kind,
+//         }
+//     }
+// }
 
-#[derive(Debug)]
-enum SpawnedBuiltinKind<I> {
-    Cd(builtin::SpawnedCd<I>),
-    Colon(builtin::SpawnedColon),
-    Echo(builtin::SpawnedEcho<I>),
-    False(builtin::SpawnedFalse),
-    Pwd(builtin::SpawnedPwd<I>),
-    Shift(builtin::SpawnedShift<I>),
-    True(builtin::SpawnedTrue),
-}
+// #[derive(Debug)]
+// enum SpawnedBuiltinKind<I> {
+//     Cd(builtin::SpawnedCd<I>),
+//     Colon(builtin::SpawnedColon),
+//     Echo(builtin::SpawnedEcho<I>),
+//     False(builtin::SpawnedFalse),
+//     Pwd(builtin::SpawnedPwd<I>),
+//     Shift(builtin::SpawnedShift<I>),
+//     True(builtin::SpawnedTrue),
+// }
 
-/// A future representing a fully spawned builtin utility.
-#[derive(Debug)]
-#[must_use = "futures do nothing unless polled"]
-pub struct SpawnedBuiltin<I, R, V> {
-    kind: SpawnedBuiltinKind<I>,
-    redirect_restorer: Option<R>,
-    var_restorer: Option<V>,
-}
+// /// A future representing a fully spawned builtin utility.
+// #[derive(Debug)]
+// #[must_use = "futures do nothing unless polled"]
+// pub struct SpawnedBuiltin<I, R, V> {
+//     kind: SpawnedBuiltinKind<I>,
+//     redirect_restorer: Option<R>,
+//     var_restorer: Option<V>,
+// }
 
-impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
-where
-    I: Iterator,
-    I::Item: StringWrapper,
-    R: RedirectEnvRestorer<E>,
-    V: VarEnvRestorer<E>,
-    E: ArgumentsEnvironment
-        + AsyncIoEnvironment
-        + ChangeWorkingDirectoryEnvironment
-        + FileDescEnvironment
-        + ShiftArgumentsEnvironment
-        + VariableEnvironment
-        + WorkingDirectoryEnvironment,
-    E::FileHandle: Clone,
-    E::IoHandle: From<E::FileHandle>,
-    E::VarName: Borrow<String> + From<String>,
-    E::Var: Borrow<String> + From<String>,
-{
-    type Item = ExitResult<BuiltinFuture<E::WriteAll>>;
-    type Error = Void;
+// impl<I, R, V, E: ?Sized> EnvFuture<E> for SpawnedBuiltin<I, R, V>
+// where
+//     I: Iterator,
+//     I::Item: StringWrapper,
+//     R: RedirectEnvRestorer<E>,
+//     V: VarEnvRestorer<E>,
+//     E: ArgumentsEnvironment
+//         + AsyncIoEnvironment
+//         + ChangeWorkingDirectoryEnvironment
+//         + FileDescEnvironment
+//         + ShiftArgumentsEnvironment
+//         + VariableEnvironment
+//         + WorkingDirectoryEnvironment,
+//     E::FileHandle: Clone,
+//     E::IoHandle: From<E::FileHandle>,
+//     E::VarName: Borrow<String> + From<String>,
+//     E::Var: Borrow<String> + From<String>,
+// {
+//     type Item = ExitResult<BuiltinFuture<E::WriteAll>>;
+//     type Error = Void;
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        macro_rules! try_map {
-            ($future:expr, $env:ident, $mapper:expr) => {{
-                match $future.poll($env) {
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    result => result.map(|poll| poll.map($mapper)),
-                }
-            }};
-        }
+//     fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
+//         macro_rules! try_map {
+//             ($future:expr, $env:ident, $mapper:expr) => {{
+//                 match $future.poll($env) {
+//                     Ok(Async::NotReady) => return Ok(Async::NotReady),
+//                     result => result.map(|poll| poll.map($mapper)),
+//                 }
+//             }};
+//         }
 
-        macro_rules! try_map_future {
-            ($future:expr, $env:ident, $mapper:path) => {{
-                try_map!($future, $env, |er| match er {
-                    ExitResult::Ready(e) => ExitResult::Ready(e),
-                    ExitResult::Pending(f) => {
-                        ExitResult::Pending(BuiltinFuture { kind: $mapper(f) })
-                    }
-                })
-            }};
-        }
+//         macro_rules! try_map_future {
+//             ($future:expr, $env:ident, $mapper:path) => {{
+//                 try_map!($future, $env, |er| match er {
+//                     ExitResult::Ready(e) => ExitResult::Ready(e),
+//                     ExitResult::Pending(f) => {
+//                         ExitResult::Pending(BuiltinFuture { kind: $mapper(f) })
+//                     }
+//                 })
+//             }};
+//         }
 
-        let ret = match self.kind {
-            SpawnedBuiltinKind::Colon(ref mut f) => try_map!(f, env, ExitResult::from),
-            SpawnedBuiltinKind::False(ref mut f) => try_map!(f, env, ExitResult::from),
-            SpawnedBuiltinKind::True(ref mut f) => try_map!(f, env, ExitResult::from),
+//         let ret = match self.kind {
+//             SpawnedBuiltinKind::Colon(ref mut f) => try_map!(f, env, ExitResult::from),
+//             SpawnedBuiltinKind::False(ref mut f) => try_map!(f, env, ExitResult::from),
+//             SpawnedBuiltinKind::True(ref mut f) => try_map!(f, env, ExitResult::from),
 
-            SpawnedBuiltinKind::Cd(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Cd),
-            SpawnedBuiltinKind::Echo(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Echo),
-            SpawnedBuiltinKind::Pwd(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Pwd),
-            SpawnedBuiltinKind::Shift(ref mut f) => {
-                try_map_future!(f, env, BuiltinFutureKind::Shift)
-            }
-        };
+//             SpawnedBuiltinKind::Cd(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Cd),
+//             SpawnedBuiltinKind::Echo(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Echo),
+//             SpawnedBuiltinKind::Pwd(ref mut f) => try_map_future!(f, env, BuiltinFutureKind::Pwd),
+//             SpawnedBuiltinKind::Shift(ref mut f) => {
+//                 try_map_future!(f, env, BuiltinFutureKind::Shift)
+//             }
+//         };
 
-        if let Some(mut r) = self.redirect_restorer.take() {
-            r.restore(env);
-        }
-        if let Some(mut r) = self.var_restorer.take() {
-            r.restore(env);
-        }
+//         if let Some(mut r) = self.redirect_restorer.take() {
+//             r.restore(env);
+//         }
+//         if let Some(mut r) = self.var_restorer.take() {
+//             r.restore(env);
+//         }
 
-        ret
-    }
+//         ret
+//     }
 
-    fn cancel(&mut self, env: &mut E) {
-        match self.kind {
-            SpawnedBuiltinKind::Cd(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::Colon(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::Echo(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::False(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::Pwd(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::Shift(ref mut f) => f.cancel(env),
-            SpawnedBuiltinKind::True(ref mut f) => f.cancel(env),
-        }
+//     fn cancel(&mut self, env: &mut E) {
+//         match self.kind {
+//             SpawnedBuiltinKind::Cd(ref mut f) => f.cancel(env),
+//             SpawnedBuiltinKind::Colon(ref mut f) => f.cancel(env),
+//             SpawnedBuiltinKind::Echo(ref mut f) => f.cancel(env),
+//             SpawnedBuiltinKind::False(ref mut f) => f.cancel(env),
+//             SpawnedBuiltinKind::Pwd(ref mut f) => f.cancel(env),
+//             SpawnedBuiltinKind::Shift(ref mut f) => f.cancel(env),
+//             SpawnedBuiltinKind::True(ref mut f) => f.cancel(env),
+//         }
 
-        if let Some(mut r) = self.redirect_restorer.take() {
-            r.restore(env);
-        }
-        if let Some(mut r) = self.var_restorer.take() {
-            r.restore(env);
-        }
-    }
-}
+//         if let Some(mut r) = self.redirect_restorer.take() {
+//             r.restore(env);
+//         }
+//         if let Some(mut r) = self.var_restorer.take() {
+//             r.restore(env);
+//         }
+//     }
+// }
 
-#[derive(Debug)]
-enum BuiltinFutureKind<W> {
-    Cd(builtin::CdFuture<W>),
-    Echo(builtin::EchoFuture<W>),
-    Pwd(builtin::PwdFuture<W>),
-    Shift(builtin::ShiftFuture<W>),
-}
+// #[derive(Debug)]
+// enum BuiltinFutureKind<W> {
+//     Cd(builtin::CdFuture<W>),
+//     Echo(builtin::EchoFuture<W>),
+//     Pwd(builtin::PwdFuture<W>),
+//     Shift(builtin::ShiftFuture<W>),
+// }
 
-/// A future representing a fully spawned builtin utility which no longer
-/// requires an environment to run.
-#[derive(Debug)]
-#[must_use = "futures do nothing unless polled"]
-pub struct BuiltinFuture<W> {
-    kind: BuiltinFutureKind<W>,
-}
+// /// A future representing a fully spawned builtin utility which no longer
+// /// requires an environment to run.
+// #[derive(Debug)]
+// #[must_use = "futures do nothing unless polled"]
+// pub struct BuiltinFuture<W> {
+//     kind: BuiltinFutureKind<W>,
+// }
 
-impl<W> Future for BuiltinFuture<W>
-where
-    W: Future,
-{
-    type Item = ExitStatus;
-    type Error = Void;
+// impl<W> Future for BuiltinFuture<W>
+// where
+//     W: Future,
+// {
+//     type Item = ExitStatus;
+//     type Error = Void;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.kind {
-            BuiltinFutureKind::Cd(ref mut f) => f.poll(),
-            BuiltinFutureKind::Echo(ref mut f) => f.poll(),
-            BuiltinFutureKind::Pwd(ref mut f) => f.poll(),
-            BuiltinFutureKind::Shift(ref mut f) => f.poll(),
-        }
-    }
-}
+//     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+//         match self.kind {
+//             BuiltinFutureKind::Cd(ref mut f) => f.poll(),
+//             BuiltinFutureKind::Echo(ref mut f) => f.poll(),
+//             BuiltinFutureKind::Pwd(ref mut f) => f.poll(),
+//             BuiltinFutureKind::Shift(ref mut f) => f.poll(),
+//         }
+//     }
+// }
