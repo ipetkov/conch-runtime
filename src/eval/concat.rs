@@ -1,9 +1,7 @@
 use crate::env::StringWrapper;
 use crate::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
-use crate::future::{Async, EnvFuture, Poll};
-use std::fmt;
-use std::iter::Fuse;
-use std::mem;
+use futures_core::future::BoxFuture;
+use std::iter::{Fuse, Peekable};
 
 /// Creates a future adapter which concatenates multiple words together.
 ///
@@ -12,112 +10,92 @@ use std::mem;
 /// the first newly generated field will be concatenated to the last existing
 /// field, and the remainder of the newly generated fields will form their own
 /// distinct fields.
-pub fn concat<W, I, E: ?Sized>(words: I, env: &E, cfg: WordEvalConfig) -> Concat<W, I::IntoIter, E>
+pub async fn concat<I, E>(
+    words: I,
+    env: &mut E,
+    cfg: WordEvalConfig,
+) -> Result<
+    BoxFuture<'static, Fields<<I::Item as WordEval<E>>::EvalResult>>,
+    <I::Item as WordEval<E>>::Error,
+>
 where
-    W: WordEval<E>,
-    I: IntoIterator<Item = W>,
+    I: IntoIterator,
+    I::Item: WordEval<E>,
+    <I::Item as WordEval<E>>::EvalResult: 'static + Send,
+    E: ?Sized,
 {
-    let mut iter = words.into_iter().fuse();
-    let future = iter.next().map(|w| w.eval_with_config(env, cfg));
-
-    Concat {
-        split_fields_further: cfg.split_fields_further,
-        fields: Vec::new(),
-        future,
-        rest: iter,
-    }
+    do_concat(words.into_iter().fuse().peekable(), env, cfg).await
 }
 
-/// A future adapter which concatenates multiple words together.
-///
-/// All words will be concatenated together in the same field, however,
-/// intermediate `At`, `Star`, and `Split` fields will be handled as follows:
-/// the first newly generated field will be concatenated to the last existing
-/// field, and the remainder of the newly generated fields will form their own
-/// distinct fields.
-#[must_use = "futures do nothing unless polled"]
-pub struct Concat<W, I, E: ?Sized>
+async fn do_concat<W, I, E>(
+    mut words: Peekable<Fuse<I>>,
+    env: &mut E,
+    cfg: WordEvalConfig,
+) -> Result<BoxFuture<'static, Fields<W::EvalResult>>, W::Error>
 where
     W: WordEval<E>,
+    W::EvalResult: 'static + Send,
     I: Iterator<Item = W>,
+    E: ?Sized,
 {
-    split_fields_further: bool,
-    fields: Vec<W::EvalResult>,
-    future: Option<W::EvalFuture>,
-    rest: Fuse<I>,
-}
-
-impl<W, I, E: ?Sized> fmt::Debug for Concat<W, I, E>
-where
-    W: WordEval<E> + fmt::Debug,
-    W::EvalResult: fmt::Debug,
-    W::EvalFuture: fmt::Debug,
-    I: Iterator<Item = W> + fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Concat")
-            .field("split_fields_further", &self.split_fields_further)
-            .field("fields", &self.fields)
-            .field("future", &self.future)
-            .field("rest", &self.rest)
-            .finish()
-    }
-}
-
-impl<W, I, E: ?Sized> EnvFuture<E> for Concat<W, I, E>
-where
-    W: WordEval<E>,
-    I: Iterator<Item = W>,
-{
-    type Item = Fields<W::EvalResult>;
-    type Error = W::Error;
-
     // FIXME: implement tilde substitution here somehow?
-    // FIXME: might also be useful to publicly expose the `concat` function once implemented
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            if self.future.is_none() {
-                if let Some(w) = self.rest.next() {
-                    let cfg = WordEvalConfig {
-                        tilde_expansion: TildeExpansion::None,
-                        split_fields_further: self.split_fields_further,
-                    };
-
-                    self.future = Some(w.eval_with_config(env, cfg));
+    let mut fields = match words.next() {
+        None => vec![],
+        Some(first_word) => {
+            let future = first_word.eval_with_config(env, cfg).await?;
+            if words.peek().is_none() {
+                // No more words return our result as is
+                return Ok(Box::pin(future));
+            } else {
+                match future.await {
+                    Fields::Zero => vec![],
+                    Fields::Single(s) => vec![s],
+                    Fields::At(v) | Fields::Star(v) | Fields::Split(v) => v,
                 }
             }
+        }
+    };
 
-            let next = match self.future {
-                None => {
-                    let fields = mem::replace(&mut self.fields, Vec::new());
-                    return Ok(Async::Ready(fields.into()));
-                }
+    let cfg = WordEvalConfig {
+        tilde_expansion: TildeExpansion::None,
+        split_fields_further: cfg.split_fields_further,
+    };
 
-                Some(ref mut f) => try_ready!(f.poll(env)),
-            };
+    let mut last = None;
+    while let Some(word) = words.next() {
+        let future = word.eval_with_config(env, cfg).await?;
 
-            // Ensure we don't poll twice
-            self.future = None;
+        // If this is the last word, we can continue without the environment
+        if words.peek().is_none() {
+            last = Some(future);
+            break;
+        }
 
-            let mut iter = next.into_iter().fuse();
-            match (self.fields.pop(), iter.next()) {
-                (Some(last), Some(next)) => {
-                    let mut new = last.into_owned();
-                    new.push_str(next.as_str());
-                    self.fields.push(new.into());
-                }
-                (Some(last), None) => self.fields.push(last),
-                (None, Some(next)) => self.fields.push(next),
-                (None, None) => continue,
+        append(&mut fields, future.await);
+    }
+
+    Ok(Box::pin(async move {
+        if let Some(future) = last {
+            append(&mut fields, future.await);
+        }
+
+        Fields::from(fields)
+    }))
+}
+
+fn append<T: StringWrapper>(previous: &mut Vec<T>, next: Fields<T>) {
+    let mut iter = next.into_iter().fuse();
+
+    if let Some(next) = iter.next() {
+        match previous.pop() {
+            None => previous.push(next),
+            Some(last) => {
+                let mut new = last.into_owned();
+                new.push_str(next.as_str());
+                previous.push(new.into());
             }
-
-            self.fields.extend(iter);
         }
     }
 
-    fn cancel(&mut self, env: &mut E) {
-        if let Some(f) = self.future.as_mut() {
-            f.cancel(env);
-        }
-    }
+    previous.extend(iter);
 }

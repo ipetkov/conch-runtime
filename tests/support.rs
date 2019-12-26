@@ -11,15 +11,13 @@ use void::{unreachable, Void};
 // Convenience re-exports
 pub use conch_runtime::env::{self, *};
 pub use conch_runtime::error::*;
-//pub use conch_runtime::eval::*;
-//pub use conch_runtime::future::*;
+pub use conch_runtime::eval::*;
 pub use conch_runtime::path::*;
 pub use conch_runtime::spawn::{self, *};
 pub use conch_runtime::{ExitStatus, EXIT_ERROR, EXIT_SUCCESS};
 pub use failure::Fail;
 pub use futures_core::future::*;
 pub use futures_util::future::*;
-//pub use futures_preview::compat::Compat01As03;
 
 /// Poor man's mktmp. A macro for creating "unique" test directories.
 #[macro_export]
@@ -149,7 +147,7 @@ impl<E: ?Sized + Send> Spawn<E> for MockErr {
     }
 }
 
-#[must_use = "futures do nothing unless polled"]
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockCmd {
     Status(ExitStatus),
@@ -182,93 +180,62 @@ impl<E: ?Sized + Send> Spawn<E> for MockCmd {
     }
 }
 
-//pub fn mock_word_fields(fields: Fields<String>) -> MockWord {
-//    MockWord::Fields(Some(fields))
-//}
+pub fn mock_word_fields(fields: Fields<String>) -> MockWord {
+    MockWord::Fields(fields)
+}
 
-//pub fn mock_word_error(fatal: bool) -> MockWord {
-//    MockWord::Error(MockErr::Fatal(fatal))
-//}
+pub fn mock_word_error(fatal: bool) -> MockWord {
+    MockWord::Error(MockErr::Fatal(fatal))
+}
 
-//pub fn mock_word_must_cancel() -> MockWord {
-//    MockWord::MustCancel(MustCancel::new())
-//}
+pub fn mock_word_assert_cfg(cfg: WordEvalConfig) -> MockWord {
+    MockWord::AssertCfg(cfg, None)
+}
 
-//pub fn mock_word_assert_cfg(cfg: WordEvalConfig) -> MockWord {
-//    MockWord::AssertCfg(cfg, None)
-//}
+pub fn mock_word_assert_cfg_with_fields(fields: Fields<String>, cfg: WordEvalConfig) -> MockWord {
+    MockWord::AssertCfg(cfg, Some(fields))
+}
 
-//pub fn mock_word_assert_cfg_with_fields(fields: Fields<String>, cfg: WordEvalConfig) -> MockWord {
-//    MockWord::AssertCfg(cfg, Some(fields))
-//}
+pub fn mock_word_panic(msg: &'static str) -> MockWord {
+    MockWord::Panic(msg)
+}
 
-//pub fn mock_word_panic(msg: &'static str) -> MockWord {
-//    MockWord::Panic(msg)
-//}
+#[must_use]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockWord {
+    Fields(Fields<String>),
+    Error(MockErr),
+    AssertCfg(WordEvalConfig, Option<Fields<String>>),
+    Panic(&'static str),
+}
 
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug, Clone, PartialEq, Eq)]
-//pub enum MockWord {
-//    Fields(Option<Fields<String>>),
-//    Error(MockErr),
-//    MustCancel(MustCancel),
-//    AssertCfg(WordEvalConfig, Option<Fields<String>>),
-//    Panic(&'static str),
-//}
+#[async_trait::async_trait]
+impl<E> WordEval<E> for MockWord
+where
+    E: ?Sized + Send,
+{
+    type EvalResult = String;
+    type Error = MockErr;
 
-//impl<E: ?Sized> WordEval<E> for MockWord {
-//    type EvalResult = String;
-//    type Error = MockErr;
-//    type EvalFuture = Self;
+    async fn eval_with_config(
+        &self,
+        _: &mut E,
+        cfg: WordEvalConfig,
+    ) -> Result<BoxFuture<'static, Fields<String>>, MockErr> {
+        if let MockWord::AssertCfg(ref expected, _) = self {
+            assert_eq!(*expected, cfg);
+        }
 
-//    fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-//        if let MockWord::AssertCfg(expected, _) = self {
-//            assert_eq!(expected, cfg);
-//        }
+        let fields = match self {
+            MockWord::Fields(f) => f.clone(),
+            MockWord::AssertCfg(_, f) => f.clone().unwrap_or(Fields::Zero),
+            MockWord::Error(e) => return Err(e.clone()),
+            MockWord::Panic(msg) => panic!("{}", msg),
+        };
 
-//        self
-//    }
-//}
-
-//impl<'a, E: ?Sized> WordEval<E> for &'a MockWord {
-//    type EvalResult = String;
-//    type Error = MockErr;
-//    type EvalFuture = MockWord;
-
-//    fn eval_with_config(self, _: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-//        if let MockWord::AssertCfg(ref expected, _) = *self {
-//            assert_eq!(*expected, cfg);
-//        }
-
-//        self.clone()
-//    }
-//}
-
-//impl<E: ?Sized> EnvFuture<E> for MockWord {
-//    type Item = Fields<String>;
-//    type Error = MockErr;
-
-//    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, MockErr> {
-//        match *self {
-//            MockWord::Fields(ref mut f) => Ok(Async::Ready(f.take().expect("polled twice"))),
-//            MockWord::Error(ref mut e) => Err(e.clone()),
-//            MockWord::MustCancel(ref mut mc) => mc.poll(),
-//            MockWord::AssertCfg(_, ref mut fields) => {
-//                let ret = fields.take().unwrap_or(Fields::Zero);
-//                Ok(Async::Ready(ret))
-//            }
-//            MockWord::Panic(msg) => panic!("{}", msg),
-//        }
-//    }
-
-//    fn cancel(&mut self, _: &mut E) {
-//        match *self {
-//            MockWord::Fields(_) | MockWord::Error(_) | MockWord::AssertCfg(_, _) => {}
-//            MockWord::MustCancel(ref mut mc) => mc.cancel(),
-//            MockWord::Panic(msg) => panic!("{}", msg),
-//        }
-//    }
-//}
+        Ok(Box::pin(async move { fields }))
+    }
+}
 
 //#[derive(Debug, Clone)]
 //pub enum MockParam {

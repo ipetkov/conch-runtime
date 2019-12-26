@@ -1,13 +1,14 @@
 //! A module for evaluating arbitrary shell components such as words,
 //! parameter subsitutions, redirections, and others.
 
-//use crate::env::{StringWrapper, VariableEnvironment};
+use crate::env::StringWrapper;
 use crate::error::ExpansionError;
+use futures_core::future::BoxFuture;
 //use crate::future::{Async, EnvFuture, Poll};
 //use glob;
 //use std::borrow::Borrow;
 
-//mod concat;
+mod concat;
 //mod double_quoted;
 mod fields;
 //mod param_subst;
@@ -18,7 +19,7 @@ mod fields;
 //#[cfg(feature = "conch-parser")]
 //pub mod ast_impl;
 
-//pub use self::concat::{concat, Concat};
+pub use self::concat::concat;
 //pub use self::double_quoted::{double_quoted, DoubleQuoted};
 pub use self::fields::Fields;
 //pub use self::param_subst::{
@@ -102,6 +103,39 @@ pub struct WordEvalConfig {
     pub tilde_expansion: TildeExpansion,
     /// Perform field splitting where appropriate or not.
     pub split_fields_further: bool,
+}
+
+pub trait WordEval<E: ?Sized> {
+    type EvalResult: StringWrapper;
+    type Error;
+
+    fn eval<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, Fields<Self::EvalResult>>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        self.eval_with_config(
+            env,
+            WordEvalConfig {
+                tilde_expansion: TildeExpansion::First,
+                split_fields_further: true,
+            },
+        )
+    }
+
+    fn eval_with_config<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+        cfg: WordEvalConfig,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, Fields<Self::EvalResult>>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait;
 }
 
 ///// A trait for evaluating shell words with various rules for expansion.
