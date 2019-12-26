@@ -7,7 +7,7 @@ use crate::ExitStatus;
 use async_trait::async_trait;
 use futures_core::future::BoxFuture;
 
-//mod and_or;
+mod and_or;
 //mod builtin_exec;
 //mod case;
 //mod for_cmd;
@@ -31,8 +31,8 @@ mod swallow_non_fatal;
 //// Private definitions
 //use self::vec_sequence::{VecSequence, VecSequenceWithLast};
 
-//// Pub reexports
-//pub use self::and_or::{and_or_list, AndOr, AndOrList};
+// Pub reexports
+pub use self::and_or::{and_or_list, AndOr};
 //pub use self::builtin_exec::builtin;
 //pub use self::case::{case, Case, PatternBodyPair};
 //pub use self::for_cmd::{for_args, for_loop, for_with_args, For, ForArgs};

@@ -50,22 +50,6 @@ pub fn mktmp_impl(path: &str) -> TempDir {
         .expect("tempdir creation failed")
 }
 
-//#[macro_export]
-//macro_rules! test_cancel {
-//    ($future:expr) => {
-//        test_cancel!($future, ())
-//    };
-//    ($future:expr, $env:expr) => {{
-//        crate::support::test_cancel_impl($future, &mut $env);
-//    }};
-//}
-
-//pub fn test_cancel_impl<F: EnvFuture<E>, E: ?Sized>(mut future: F, env: &mut E) {
-//    let _ = future.poll(env); // Give a chance to init things
-//    future.cancel(env); // Cancel the operation
-//    drop(future);
-//}
-
 //#[cfg(unix)]
 //pub const DEV_NULL: &str = "/dev/null";
 
@@ -471,64 +455,11 @@ pub fn new_env() -> DefaultEnvArc {
     DefaultEnvArc::new().expect("failed to create env")
 }
 
-//pub fn new_env_with_no_fds() -> DefaultEnvArc {
-//    let mut cfg = DefaultEnvConfigArc::new(Some(1)).expect("failed to create env cfg");
-//    cfg.file_desc_manager_env = PlatformSpecificFileDescManagerEnv::new(Some(1));
-//    DefaultEnvArc::with_config(cfg)
-//}
-
-//#[macro_export]
-//macro_rules! run {
-//    ($cmd:expr) => {{
-//        let env = crate::support::new_env();
-//        run!($cmd, env)
-//    }};
-
-//    ($cmd:expr, $env:expr) => {{
-//        let env = $env;
-//        let cmd = $cmd;
-
-//        #[allow(deprecated)]
-//        let ret_ref = run(&cmd, env.sub_env()).await;
-//        #[allow(deprecated)]
-//        let ret = run(cmd, env).await;
-
-//        assert_eq!(ret_ref, ret);
-//        ret
-//    }};
-//}
-
-///// Spawns and syncronously runs the provided command to completion.
-//#[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
-//pub async fn run<T: Spawn<E>, E>(cmd: T, env: E) -> Result<ExitStatus, T::Error> {
-//    let future = cmd.spawn(&env).pin_env(env).flatten();
-//    Compat01As03::new(future).await
-//}
-
-//#[macro_export]
-//macro_rules! run_cancel {
-//    ($cmd:expr) => {{
-//        let cmd = $cmd;
-//        #[allow(deprecated)]
-//        let ret_ref = run_cancel(&cmd);
-//        #[allow(deprecated)]
-//        let ret = run_cancel(cmd);
-//        assert_eq!(ret_ref, ret);
-//        ret
-//    }};
-//}
-
-///// Spawns the provided command and polls it a single time to give it a
-///// chance to get initialized. Then cancels and drops the future.
-/////
-///// It is up to the caller to set up the command in a way that failure to
-///// propagate cancel messages results in a panic.
-//#[deprecated(note = "use `run!` macro instead, to cover spawning T and &T")]
-//pub fn run_cancel<T: Spawn<DefaultEnvArc>>(cmd: T) {
-//    let mut env = new_env();
-//    let env_future = cmd.spawn(&env);
-//    test_cancel_impl(env_future, &mut env);
-//}
+pub fn new_env_with_no_fds() -> DefaultEnvArc {
+    let mut cfg = DefaultEnvConfigArc::new().expect("failed to create env cfg");
+    cfg.file_desc_manager_env = TokioFileDescManagerEnv::new();
+    DefaultEnvArc::with_config(cfg)
+}
 
 //#[macro_export]
 //macro_rules! eval {
