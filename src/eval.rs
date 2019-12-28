@@ -9,7 +9,7 @@ use futures_core::future::BoxFuture;
 //use std::borrow::Borrow;
 
 mod concat;
-//mod double_quoted;
+mod double_quoted;
 mod fields;
 //mod param_subst;
 //mod redirect;
@@ -20,7 +20,7 @@ mod fields;
 //pub mod ast_impl;
 
 pub use self::concat::concat;
-//pub use self::double_quoted::{double_quoted, DoubleQuoted};
+pub use self::double_quoted::double_quoted;
 pub use self::fields::Fields;
 //pub use self::param_subst::{
 //    alternative, assign, default, error, len, remove_largest_prefix, remove_largest_suffix,
