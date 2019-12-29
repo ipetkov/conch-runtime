@@ -1,114 +1,34 @@
-use crate::eval::{concat, Concat, Fields, WordEval, WordEvalConfig};
-use crate::future::{EnvFuture, Poll};
-use conch_parser::ast;
-use std::fmt;
-use std::slice;
-use std::vec;
+use crate::eval::{concat, WordEval, WordEvalConfig, WordEvalResult};
+use conch_parser::ast::ComplexWord;
+use futures_core::future::BoxFuture;
 
-impl<W, E: ?Sized> WordEval<E> for ast::ComplexWord<W>
+impl<W, E> WordEval<E> for ComplexWord<W>
 where
-    W: WordEval<E>,
+    W: 'static + Send + Sync + WordEval<E>,
+    W::EvalResult: 'static + Send,
+    E: ?Sized + Send,
+    // T: 'static + Send + Sync + StringWrapper,
+    // P: Send + Sync + ParamEval<E, EvalResult = T>,
+    // S: Send + Sync + WordEval<E, EvalResult = T>,
+    // E: ?Sized + Send + VariableEnvironment<Var = T>,
+    // E::VarName: Borrow<String>,
 {
     type EvalResult = W::EvalResult;
     type Error = W::Error;
-    type EvalFuture = ComplexWord<W, vec::IntoIter<W>, E>;
 
-    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-        let state = match self {
-            ast::ComplexWord::Single(w) => State::Single(w.eval_with_config(env, cfg)),
-            ast::ComplexWord::Concat(v) => State::Concat(concat(v, env, cfg)),
-        };
-
-        ComplexWord { state }
-    }
-}
-
-impl<'a, W, E: ?Sized> WordEval<E> for &'a ast::ComplexWord<W>
-where
-    &'a W: WordEval<E>,
-{
-    type EvalResult = <&'a W as WordEval<E>>::EvalResult;
-    type Error = <&'a W as WordEval<E>>::Error;
-    type EvalFuture = ComplexWord<&'a W, slice::Iter<'a, W>, E>;
-
-    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-        let state = match *self {
-            ast::ComplexWord::Single(ref w) => State::Single(w.eval_with_config(env, cfg)),
-            ast::ComplexWord::Concat(ref v) => State::Concat(concat(v, env, cfg)),
-        };
-
-        ComplexWord { state }
-    }
-}
-
-/// A future representing the evaluation of a `ComplexWord`.
-#[must_use = "futures do nothing unless polled"]
-pub struct ComplexWord<W, I, E: ?Sized>
-where
-    W: WordEval<E>,
-    I: Iterator<Item = W>,
-{
-    state: State<W, I, E>,
-}
-
-impl<W, I, E: ?Sized> fmt::Debug for ComplexWord<W, I, E>
-where
-    W: WordEval<E> + fmt::Debug,
-    W::EvalResult: fmt::Debug,
-    W::EvalFuture: fmt::Debug,
-    I: Iterator<Item = W> + fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ComplexWord")
-            .field("state", &self.state)
-            .finish()
-    }
-}
-
-enum State<W, I, E: ?Sized>
-where
-    W: WordEval<E>,
-    I: Iterator<Item = W>,
-{
-    Single(W::EvalFuture),
-    Concat(Concat<W, I, E>),
-}
-
-impl<W, I, E: ?Sized> fmt::Debug for State<W, I, E>
-where
-    W: WordEval<E> + fmt::Debug,
-    W::EvalResult: fmt::Debug,
-    W::EvalFuture: fmt::Debug,
-    I: Iterator<Item = W> + fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            State::Single(ref f) => fmt.debug_tuple("State::Single").field(f).finish(),
-
-            State::Concat(ref f) => fmt.debug_tuple("State::Concat").field(f).finish(),
-        }
-    }
-}
-
-impl<W, I, E: ?Sized> EnvFuture<E> for ComplexWord<W, I, E>
-where
-    W: WordEval<E>,
-    I: Iterator<Item = W>,
-{
-    type Item = Fields<W::EvalResult>;
-    type Error = W::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        match self.state {
-            State::Single(ref mut s) => s.poll(env),
-            State::Concat(ref mut c) => c.poll(env),
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        match self.state {
-            State::Single(ref mut s) => s.cancel(env),
-            State::Concat(ref mut c) => c.cancel(env),
+    fn eval_with_config<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+        cfg: WordEvalConfig,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        match self {
+            ComplexWord::Single(w) => w.eval_with_config(env, cfg),
+            ComplexWord::Concat(words) => Box::pin(async move { concat(words, env, cfg).await }),
         }
     }
 }

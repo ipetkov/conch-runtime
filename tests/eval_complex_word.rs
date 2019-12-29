@@ -1,13 +1,9 @@
 #![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-use conch_runtime;
-
 use conch_parser::ast;
 use conch_parser::ast::ComplexWord::*;
-use conch_runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -23,7 +19,14 @@ async fn assert_eval_equals_fields(complex: ComplexWord, fields: Fields<String>)
         split_fields_further: true,
     };
 
-    assert_eq!(eval!(complex, cfg), Ok(fields));
+    let mut env = VarEnv::<String, String>::new();
+    let future = complex
+        .eval_with_config(&mut env, cfg)
+        .await
+        .expect("eval failed");
+    drop(env);
+
+    assert_eq!(fields, future.await);
 }
 
 #[tokio::test]
@@ -35,7 +38,15 @@ async fn test_single() {
         tilde_expansion: TildeExpansion::All,
         split_fields_further: true,
     };
-    eval!(Single(mock_word_error(false)), cfg).unwrap_err();
+
+    let mut env = VarEnv::<String, String>::new();
+    assert_eq!(
+        Some(MockErr::Fatal(false)),
+        Single(mock_word_error(false))
+            .eval_with_config(&mut env, cfg)
+            .await
+            .err()
+    );
 }
 
 #[tokio::test]
@@ -49,7 +60,11 @@ async fn test_concat_error() {
         tilde_expansion: TildeExpansion::All,
         split_fields_further: true,
     };
-    eval!(concat, cfg).unwrap_err();
+    let mut env = VarEnv::<String, String>::new();
+    assert_eq!(
+        Some(MockErr::Fatal(false)),
+        concat.eval_with_config(&mut env, cfg).await.err()
+    );
 }
 
 #[tokio::test]
@@ -153,19 +168,4 @@ async fn test_concat_param_at_expands_to_nothing_when_args_not_set_and_concats_w
         mock_word_fields(Fields::Single("bar".to_owned())),
     ]);
     assert_eval_equals_single(concat, "foobar").await;
-}
-
-#[tokio::test]
-async fn test_single_cancel() {
-    test_cancel!(Single(mock_word_must_cancel()).eval(&mut ()));
-}
-
-#[tokio::test]
-async fn test_concat_cancel() {
-    let concat = Concat(vec![
-        mock_word_must_cancel(),
-        mock_word_must_cancel(),
-        mock_word_must_cancel(),
-    ]);
-    test_cancel!(concat.eval(&mut ()));
 }

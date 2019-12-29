@@ -5,14 +5,13 @@
 // use conch_parser::ast;
 
 mod arith;
-// mod complex_word;
+mod complex_word;
 // mod param_subst;
 mod parameter;
 mod redirect;
 mod simple_word;
 // mod word;
 
-// pub use self::complex_word::ComplexWord;
 // pub use self::param_subst::ParameterSubstitution;
 // pub use self::word::Word;
 
