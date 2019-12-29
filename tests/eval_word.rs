@@ -24,7 +24,14 @@ async fn assert_eval_equals_fields(word: Word, fields: Fields<String>) {
         split_fields_further: true,
     };
 
-    assert_eq!(eval!(word, cfg), Ok(fields));
+    let mut env = VarEnv::<String, String>::new();
+    let future = word
+        .eval_with_config(&mut env, cfg)
+        .await
+        .expect("eval failed");
+    drop(env);
+
+    assert_eq!(fields, future.await);
 }
 
 #[tokio::test]
@@ -37,7 +44,14 @@ async fn test_simple() {
         split_fields_further: true,
     };
 
-    eval!(Simple(mock_word_error(false)), cfg).unwrap_err();
+    let mut env = VarEnv::<String, String>::new();
+    assert_eq!(
+        Some(MockErr::Fatal(false)),
+        Simple(mock_word_error(false))
+            .eval_with_config(&mut env, cfg)
+            .await
+            .err()
+    );
 }
 
 #[tokio::test]
@@ -123,9 +137,13 @@ async fn test_double_quoted_param_star_expands_but_joined_by_ifs() {
             None => env.unset_var(&"IFS".to_owned()),
         }
 
-        let result = word.eval_with_config(&mut env, cfg).pin_env(env).wait();
+        let future = word
+            .eval_with_config(&mut env, cfg)
+            .await
+            .expect("eval failed");
+        drop(env);
 
-        assert_eq!(result, Ok(Fields::Single(expected.to_owned())));
+        assert_eq!(Fields::Single(expected.to_owned()), future.await);
     }
 
     let double_quoted = DoubleQuoted(vec![
@@ -157,23 +175,4 @@ async fn test_double_quoted_no_field_splitting() {
         split_fields_further: false,
     })]);
     assert_eval_equals_fields(double_quoted, Fields::Zero).await;
-}
-
-#[tokio::test]
-async fn test_simple_cancel() {
-    let mut env = VarEnv::<String, String>::new();
-    let future = Simple(mock_word_must_cancel()).eval(&mut env);
-    test_cancel!(future, env);
-}
-
-#[tokio::test]
-async fn test_double_quoted_cancel() {
-    let mut env = VarEnv::<String, String>::new();
-    let future = DoubleQuoted(vec![
-        mock_word_must_cancel(),
-        mock_word_must_cancel(),
-        mock_word_must_cancel(),
-    ])
-    .eval(&mut env);
-    test_cancel!(future, env);
 }

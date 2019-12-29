@@ -10,10 +10,9 @@ mod complex_word;
 mod parameter;
 mod redirect;
 mod simple_word;
-// mod word;
+mod word;
 
 // pub use self::param_subst::ParameterSubstitution;
-// pub use self::word::Word;
 
 // impl<R, W> From<ast::RedirectOrCmdWord<R, W>> for RedirectOrCmdWord<R, W> {
 //     fn from(from: ast::RedirectOrCmdWord<R, W>) -> Self {
