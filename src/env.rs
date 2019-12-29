@@ -13,7 +13,7 @@ mod executable;
 mod fd;
 mod fd_manager;
 mod fd_opener;
-//mod func;
+mod func;
 mod last_status;
 //mod reversible_redirect;
 //mod reversible_var;
@@ -37,9 +37,9 @@ pub use self::fd_manager::{
     FileDescManagerEnv, FileDescManagerEnvironment, TokioFileDescManagerEnv,
 };
 pub use self::fd_opener::{ArcFileDescOpenerEnv, FileDescOpener, FileDescOpenerEnv, Pipe};
-//pub use self::func::{
-//    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
-//};
+pub use self::func::{
+    FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
+};
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
 //pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
 //pub use self::reversible_var::{VarEnvRestorer, VarRestorer};

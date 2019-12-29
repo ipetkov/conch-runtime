@@ -1,19 +1,19 @@
 // FIXME: consider removing all these generics here and only offer a concrete env (generic over word types and Fn errors)
 // FIXME: consumers still have all the pieces so they can make their own environment and swap out pieces there
 // FIXME: downside is any unit tests which want a mock env, will need to basically do the same
-use crate::{ExitStatus, Fd, IFS_DEFAULT, STDERR_FILENO};
-//use crate::spawn::SpawnBoxed;
 use crate::env::builtin::{BuiltinEnv, BuiltinEnvironment};
 use crate::env::{
     ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
     ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
-    FileDescOpener, IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe,
-    ReportFailureEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper,
-    SubEnvironment, TokioExecEnv, TokioFileDescManagerEnv, UnsetVariableEnvironment, VarEnv,
-    VariableEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
+    FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
+    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment,
+    SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper, SubEnvironment,
+    TokioExecEnv, TokioFileDescManagerEnv, UnsetFunctionEnvironment, UnsetVariableEnvironment,
+    VarEnv, VariableEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };
 use crate::error::{CommandError, RuntimeError};
 use crate::io::Permissions;
+use crate::{ExitStatus, Fd, Spawn, IFS_DEFAULT, STDERR_FILENO};
 use failure::Fail;
 use futures_core::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
@@ -275,13 +275,10 @@ pub struct Env<A, FM, L, V, EX, WD, B, N: Eq + Hash, ERR> {
     interactive: bool,
     args_env: A,
     file_desc_manager_env: FM,
-    // fn_env: FnEnv<
-    //     N,
-    //     Arc<dyn SpawnBoxed<Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> + Send + Sync>,
-    // >,
-    // fn_frame_env: FnFrameEnv,
-    fn_env: PhantomData<(N, ERR)>,
-    fn_frame_env: PhantomData<()>,
+    #[allow(clippy::type_complexity)]
+    fn_env:
+        FnEnv<N, Arc<dyn Spawn<Env<A, FM, L, V, EX, WD, B, N, ERR>, Error = ERR> + Send + Sync>>,
+    fn_frame_env: FnFrameEnv,
     last_status_env: L,
     var_env: V,
     exec_env: EX,
@@ -318,10 +315,8 @@ where
         let mut env = Env {
             interactive: cfg.interactive,
             args_env: cfg.args_env,
-            // fn_env: FnEnv::new(),
-            // fn_frame_env: FnFrameEnv::new(),
-            fn_env: PhantomData,
-            fn_frame_env: PhantomData,
+            fn_env: FnEnv::new(),
+            fn_frame_env: FnFrameEnv::new(),
             file_desc_manager_env: cfg.file_desc_manager_env,
             last_status_env: cfg.last_status_env,
             var_env: cfg.var_env,
@@ -369,7 +364,7 @@ where
             args_env: self.args_env.clone(),
             file_desc_manager_env: self.file_desc_manager_env.clone(),
             fn_env: self.fn_env.clone(),
-            fn_frame_env: self.fn_frame_env.clone(),
+            fn_frame_env: self.fn_frame_env,
             last_status_env: self.last_status_env.clone(),
             var_env: self.var_env.clone(),
             exec_env: self.exec_env.clone(),
@@ -391,14 +386,14 @@ where
     WD: fmt::Debug,
 {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        // use std::collections::BTreeSet;
-        // let fn_names: BTreeSet<_> = self.fn_env.fn_names().collect();
+        use std::collections::BTreeSet;
+        let fn_names: BTreeSet<_> = self.fn_env.fn_names().collect();
 
         fmt.debug_struct(stringify!(Env))
             .field("interactive", &self.interactive)
             .field("args_env", &self.args_env)
             .field("file_desc_manager_env", &self.file_desc_manager_env)
-            // .field("functions", &fn_names)
+            .field("functions", &fn_names)
             .field("fn_frame_env", &self.fn_frame_env)
             .field("last_status_env", &self.last_status_env)
             .field("var_env", &self.var_env)
@@ -449,10 +444,8 @@ where
             interactive: self.is_interactive(),
             args_env: self.args_env.sub_env(),
             file_desc_manager_env: self.file_desc_manager_env.sub_env(),
-            // fn_env: self.fn_env.sub_env(),
-            // fn_frame_env: self.fn_frame_env.sub_env(),
-            fn_env: PhantomData,
-            fn_frame_env: PhantomData,
+            fn_env: self.fn_env.sub_env(),
+            fn_frame_env: self.fn_frame_env.sub_env(),
             last_status_env: self.last_status_env.sub_env(),
             var_env: self.var_env.sub_env(),
             exec_env: self.exec_env.sub_env(),
@@ -595,53 +588,53 @@ where
     }
 }
 
-//impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
-//where
-//    N: Hash + Eq + Clone,
-//{
-//    type FnName = N;
-//    type Fn = Arc<dyn SpawnBoxed<Self, Error = ERR> + Send + Sync>;
-//
-//    fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
-//        self.fn_env.function(name)
-//    }
-//
-//    fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
-//        self.fn_env.set_function(name, func);
-//    }
-//
-//    fn has_function(&self, name: &Self::FnName) -> bool {
-//        self.fn_env.has_function(name)
-//    }
-//}
+impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
+where
+    N: Hash + Eq + Clone,
+{
+    type FnName = N;
+    type Fn = Arc<dyn Spawn<Self, Error = ERR> + Send + Sync>;
 
-// impl<A, FM, L, V, EX, WD, B, N, ERR> UnsetFunctionEnvironment
-//     for Env<A, FM, L, V, EX, WD, B, N, ERR>
-// where
-//     N: Hash + Eq + Clone,
-// {
-//     fn unset_function(&mut self, name: &Self::FnName) {
-//         self.fn_env.unset_function(name);
-//     }
-// }
+    fn function(&self, name: &Self::FnName) -> Option<&Self::Fn> {
+        self.fn_env.function(name)
+    }
 
-//impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionFrameEnvironment
-//    for Env<A, FM, L, V, EX, WD, B, N, ERR>
-//where
-//    N: Hash + Eq + Clone,
-//{
-//    fn push_fn_frame(&mut self) {
-//        self.fn_frame_env.push_fn_frame()
-//    }
-//
-//    fn pop_fn_frame(&mut self) {
-//        self.fn_frame_env.pop_fn_frame()
-//    }
-//
-//    fn is_fn_running(&self) -> bool {
-//        self.fn_frame_env.is_fn_running()
-//    }
-//}
+    fn set_function(&mut self, name: Self::FnName, func: Self::Fn) {
+        self.fn_env.set_function(name, func);
+    }
+
+    fn has_function(&self, name: &Self::FnName) -> bool {
+        self.fn_env.has_function(name)
+    }
+}
+
+impl<A, FM, L, V, EX, WD, B, N, ERR> UnsetFunctionEnvironment
+    for Env<A, FM, L, V, EX, WD, B, N, ERR>
+where
+    N: Hash + Eq + Clone,
+{
+    fn unset_function(&mut self, name: &Self::FnName) {
+        self.fn_env.unset_function(name);
+    }
+}
+
+impl<A, FM, L, V, EX, WD, B, N, ERR> FunctionFrameEnvironment
+    for Env<A, FM, L, V, EX, WD, B, N, ERR>
+where
+    N: Hash + Eq + Clone,
+{
+    fn push_fn_frame(&mut self) {
+        self.fn_frame_env.push_fn_frame()
+    }
+
+    fn pop_fn_frame(&mut self) {
+        self.fn_frame_env.pop_fn_frame()
+    }
+
+    fn is_fn_running(&self) -> bool {
+        self.fn_frame_env.is_fn_running()
+    }
+}
 
 impl<A, FM, L, V, EX, WD, B, N, ERR> LastStatusEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
 where

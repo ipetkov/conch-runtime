@@ -58,7 +58,47 @@ pub trait Spawn<E: ?Sized> {
 
 impl<'a, T, E> Spawn<E> for &'a T
 where
-    T: Spawn<E>,
+    T: ?Sized + Spawn<E>,
+    E: ?Sized,
+{
+    type Error = T::Error;
+
+    fn spawn<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).spawn(env)
+    }
+}
+
+impl<'a, T, E> Spawn<E> for Box<T>
+where
+    T: ?Sized + Spawn<E>,
+    E: ?Sized,
+{
+    type Error = T::Error;
+
+    fn spawn<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).spawn(env)
+    }
+}
+
+impl<'a, T, E> Spawn<E> for std::sync::Arc<T>
+where
+    T: ?Sized + Spawn<E>,
     E: ?Sized,
 {
     type Error = T::Error;
@@ -253,51 +293,6 @@ where
 //    }
 //}
 
-///// Represents either a ready `ExitStatus` or a future that will resolve to one.
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug)]
-//pub enum ExitResult<F> {
-//    /// An unresolved future.
-//    Pending(F),
-//    /// A ready `ExitStatus` value.
-//    Ready(ExitStatus),
-//}
-
-//impl<F> ExitResult<F> {
-//    /// Maps a `ExitResult<F>` to `ExitResult<G>` by applying a function to a
-//    /// contained [`Pending`] value, leaving the [`Ready`] value untouched.
-//    pub fn map<G, O>(self, op: O) -> ExitResult<G>
-//    where
-//        O: FnOnce(F) -> G,
-//    {
-//        match self {
-//            ExitResult::Pending(f) => ExitResult::Pending(op(f)),
-//            ExitResult::Ready(status) => ExitResult::Ready(status),
-//        }
-//    }
-//}
-
-//impl<F> From<ExitStatus> for ExitResult<F> {
-//    fn from(status: ExitStatus) -> Self {
-//        ExitResult::Ready(status)
-//    }
-//}
-
-//impl<F> Future for ExitResult<F>
-//where
-//    F: Future<Item = ExitStatus>,
-//{
-//    type Item = F::Item;
-//    type Error = F::Error;
-
-//    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-//        match *self {
-//            ExitResult::Pending(ref mut f) => f.poll(),
-//            ExitResult::Ready(exit) => Ok(Async::Ready(exit)),
-//        }
-//    }
-//}
-
 ///// A grouping of guard and body commands.
 //#[derive(Debug, PartialEq, Eq, Clone)]
 //pub struct GuardBodyPair<T> {
@@ -307,3 +302,45 @@ where
 //    /// The body commands to execute if the guard is successful.
 //    pub body: T,
 //}
+
+#[cfg(test)]
+mod test {
+    use super::Spawn;
+    use crate::{ExitStatus, EXIT_SUCCESS};
+    use futures_core::future::BoxFuture;
+    use std::sync::Arc;
+
+    #[test]
+    fn check_spawn_impls() {
+        struct Dummy;
+
+        #[async_trait::async_trait]
+        impl<E> Spawn<E> for Dummy
+        where
+            E: ?Sized + Send,
+        {
+            type Error = ();
+
+            async fn spawn(
+                &self,
+                _: &mut E,
+            ) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+                Ok(Box::pin(async { EXIT_SUCCESS }))
+            }
+        }
+
+        fn assert_spawn<T: Spawn<()>>() {}
+
+        assert_spawn::<Dummy>();
+        assert_spawn::<&Dummy>();
+        assert_spawn::<&&Dummy>();
+
+        assert_spawn::<Box<Dummy>>();
+        assert_spawn::<Box<&Dummy>>();
+        assert_spawn::<Box<dyn Spawn<(), Error = ()>>>();
+
+        assert_spawn::<Arc<Dummy>>();
+        assert_spawn::<&Arc<Dummy>>();
+        assert_spawn::<Arc<dyn Spawn<(), Error = ()>>>();
+    }
+}
