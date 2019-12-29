@@ -1,112 +1,54 @@
 use crate::env::{FunctionEnvironment, FunctionFrameEnvironment, SetArgumentsEnvironment};
-use crate::future::{Async, EnvFuture, Poll};
-use crate::{Spawn, CANCELLED_TWICE, POLLED_TWICE};
-use std::fmt;
+use crate::{ExitStatus, Spawn};
+use futures_core::future::BoxFuture;
 
 /// Creates a future adapter that will attempt to execute a function (if it has
 /// been defined) with a given set of arguments.
-pub fn function<A, E: ?Sized>(name: &E::FnName, args: A, env: &E) -> Option<Function<E::Fn, E>>
+pub async fn function<S, A, E: ?Sized>(
+    name: &E::FnName,
+    args: A,
+    env: &mut E,
+) -> Option<Result<BoxFuture<'static, ExitStatus>, S::Error>>
 where
-    E: FunctionEnvironment + SetArgumentsEnvironment,
+    E: FunctionEnvironment<Fn = S> + FunctionFrameEnvironment + SetArgumentsEnvironment,
     E::Args: From<A>,
-    E::Fn: Clone + Spawn<E>,
+    S: Clone + Spawn<E>,
 {
-    env.function(name)
-        .cloned()
-        .map(|func| function_body(func, args))
+    match env.function(name).cloned() {
+        Some(func) => Some(function_body(func, args, env).await),
+        None => None,
+    }
 }
 
 /// Creates a future adapter that will execute a function body with the given set of arguments.
-pub fn function_body<S, A, E: ?Sized>(body: S, args: A) -> Function<S, E>
+pub async fn function_body<S, A, E: ?Sized>(
+    body: S,
+    args: A,
+    env: &mut E,
+) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
     S: Spawn<E>,
-    E: SetArgumentsEnvironment,
+    E: FunctionFrameEnvironment + SetArgumentsEnvironment,
     E::Args: From<A>,
 {
-    Function {
-        state: State::Init(Some((body, args.into()))),
-    }
+    do_function_body(body, args.into(), env).await
 }
 
-/// A future that represents the execution of a function registered in an environment.
-#[must_use = "futures do nothing unless polled"]
-pub struct Function<S, E: ?Sized>
-where
-    S: Spawn<E>,
-    E: SetArgumentsEnvironment,
-{
-    state: State<S, S::EnvFuture, E::Args>,
-}
-
-#[derive(Debug)]
-enum State<S, F, A> {
-    Init(Option<(S, A)>),
-    Pending(F, Option<A>),
-    Gone,
-}
-
-impl<S, E: ?Sized> fmt::Debug for Function<S, E>
-where
-    S: Spawn<E> + fmt::Debug,
-    S::EnvFuture: fmt::Debug,
-    E: SetArgumentsEnvironment,
-    E::Args: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Function")
-            .field("state", &self.state)
-            .finish()
-    }
-}
-
-impl<S, E: ?Sized> EnvFuture<E> for Function<S, E>
+async fn do_function_body<S, E: ?Sized>(
+    body: S,
+    args: E::Args,
+    env: &mut E,
+) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
     S: Spawn<E>,
     E: FunctionFrameEnvironment + SetArgumentsEnvironment,
 {
-    type Item = S::Future;
-    type Error = S::Error;
+    env.push_fn_frame();
+    let old_args = env.set_args(args);
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let next_state = match self.state {
-                State::Init(ref mut func_args) => {
-                    env.push_fn_frame();
+    let ret = body.spawn(env).await;
 
-                    let (func, args) = func_args.take().expect(POLLED_TWICE);
-                    let old_args = env.set_args(args);
-
-                    State::Pending(func.spawn(env), Some(old_args))
-                }
-
-                State::Pending(ref mut f, ref mut old_args) => match f.poll(env) {
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    ret => {
-                        env.set_args(old_args.take().expect(POLLED_TWICE));
-                        env.pop_fn_frame();
-                        return ret;
-                    }
-                },
-
-                State::Gone => panic!(POLLED_TWICE),
-            };
-
-            self.state = next_state;
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        match self.state {
-            State::Init(_) => {}
-            State::Pending(ref mut f, ref mut old_args) => {
-                let old_args = old_args.take().expect(CANCELLED_TWICE);
-                f.cancel(env);
-                env.set_args(old_args);
-                env.pop_fn_frame();
-            }
-            State::Gone => panic!(CANCELLED_TWICE),
-        }
-
-        self.state = State::Gone;
-    }
+    env.set_args(old_args);
+    env.pop_fn_frame();
+    ret
 }
