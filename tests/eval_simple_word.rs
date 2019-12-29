@@ -1,13 +1,9 @@
 #![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-use conch_runtime;
-
 use conch_parser::ast;
 use conch_parser::ast::SimpleWord::*;
-use conch_runtime::eval::{Fields, TildeExpansion, WordEval, WordEvalConfig};
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -24,7 +20,14 @@ async fn assert_eval_equals_fields(word: SimpleWord, fields: Fields<String>) {
         split_fields_further: true,
     };
 
-    assert_eq!(eval!(word, cfg), Ok(fields));
+    let mut env = VarEnv::<String, String>::new();
+    let future = word
+        .eval_with_config(&mut env, cfg)
+        .await
+        .expect("eval failed");
+    drop(env);
+
+    assert_eq!(fields, future.await);
 }
 
 #[tokio::test]
@@ -60,9 +63,13 @@ async fn test_lone_tilde_expansion() {
     env.set_var("HOME".to_owned(), home_value.clone());
 
     let word: SimpleWord = Tilde;
-    let result = word.eval_with_config(&mut env, cfg).pin_env(env).wait();
+    let future = word
+        .eval_with_config(&mut env, cfg)
+        .await
+        .expect("eval failed");
+    drop(env);
 
-    assert_eq!(result, Ok(Fields::Single(home_value)));
+    assert_eq!(Fields::Single(home_value), future.await);
 }
 
 #[tokio::test]
@@ -80,23 +87,11 @@ async fn test_subst_error() {
 
     let mut env = VarEnv::<String, String>::new();
     let word: SimpleWord = Subst(mock_word_error(true));
-    word.eval_with_config(&mut env, cfg)
-        .pin_env(env)
-        .wait()
-        .unwrap_err();
-}
 
-#[tokio::test]
-async fn test_subst_cancel() {
-    let cfg = WordEvalConfig {
-        tilde_expansion: TildeExpansion::None,
-        split_fields_further: false,
-    };
-
-    let mut env = VarEnv::<String, String>::new();
-    let word: SimpleWord = Subst(mock_word_must_cancel());
-    let future = word.eval_with_config(&mut env, cfg);
-    test_cancel!(future, env);
+    assert_eq!(
+        Some(MockErr::Fatal(true)),
+        word.eval_with_config(&mut env, cfg).await.err()
+    );
 }
 
 #[tokio::test]
@@ -123,8 +118,12 @@ async fn test_param_splitting() {
 
         let mut env = VarEnv::<String, String>::new();
         let word: SimpleWord = Param(MockParam::Split(split, fields.clone()));
-        let result = word.eval_with_config(&mut env, cfg).pin_env(env).wait();
+        let future = word
+            .eval_with_config(&mut env, cfg)
+            .await
+            .expect("eval failed");
+        drop(env);
 
-        assert_eq!(result, Ok(fields));
+        assert_eq!(fields, future.await);
     }
 }

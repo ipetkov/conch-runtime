@@ -9,12 +9,11 @@ mod arith;
 // mod param_subst;
 // mod parameter;
 mod redirect;
-// mod simple_word;
+mod simple_word;
 // mod word;
 
 // pub use self::complex_word::ComplexWord;
 // pub use self::param_subst::ParameterSubstitution;
-// pub use self::simple_word::SimpleWord;
 // pub use self::word::Word;
 
 // impl<R, W> From<ast::RedirectOrCmdWord<R, W>> for RedirectOrCmdWord<R, W> {
