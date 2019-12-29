@@ -11,7 +11,7 @@ use futures_core::future::BoxFuture;
 mod concat;
 mod double_quoted;
 mod fields;
-//mod param_subst;
+mod param_subst;
 mod redirect;
 //mod redirect_or_cmd_word;
 //mod redirect_or_var_assig;
@@ -22,10 +22,7 @@ pub mod ast_impl;
 pub use self::concat::concat;
 pub use self::double_quoted::double_quoted;
 pub use self::fields::Fields;
-//pub use self::param_subst::{
-//    alternative, assign, default, error, len, remove_largest_prefix, remove_largest_suffix,
-//    remove_smallest_prefix, remove_smallest_suffix, split,
-//};
+pub use self::param_subst::{len, split};
 //pub use self::param_subst::{
 //    Alternative, Assign, Error, EvalDefault, RemoveLargestPrefix, RemoveLargestSuffix,
 //    RemoveSmallestPrefix, RemoveSmallestSuffix, Split,
@@ -43,32 +40,32 @@ pub use self::redirect::{
 //    EvalRedirectOrVarAssigError, RedirectOrVarAssig,
 //};
 
-///// A trait for evaluating parameters.
-//pub trait ParamEval<E: ?Sized> {
-//    /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
-//    type EvalResult: StringWrapper;
+/// A trait for evaluating parameters.
+pub trait ParamEval<E: ?Sized> {
+    /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
+    type EvalResult: StringWrapper;
 
-//    /// Evaluates a parameter in the context of some environment,
-//    /// optionally splitting fields.
-//    ///
-//    /// A `None` value indicates that the parameter is unset.
-//    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>>;
+    /// Evaluates a parameter in the context of some environment,
+    /// optionally splitting fields.
+    ///
+    /// A `None` value indicates that the parameter is unset.
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>>;
 
-//    /// Returns the (variable) name of the parameter to be used for assignments, if applicable.
-//    fn assig_name(&self) -> Option<Self::EvalResult>;
-//}
+    /// Returns the (variable) name of the parameter to be used for assignments, if applicable.
+    fn assig_name(&self) -> Option<Self::EvalResult>;
+}
 
-//impl<'a, E: ?Sized, P: ?Sized + ParamEval<E>> ParamEval<E> for &'a P {
-//    type EvalResult = P::EvalResult;
+impl<'a, E: ?Sized, P: ?Sized + ParamEval<E>> ParamEval<E> for &'a P {
+    type EvalResult = P::EvalResult;
 
-//    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
-//        (**self).eval(split_fields_further, env)
-//    }
+    fn eval(&self, split_fields_further: bool, env: &E) -> Option<Fields<Self::EvalResult>> {
+        (**self).eval(split_fields_further, env)
+    }
 
-//    fn assig_name(&self) -> Option<Self::EvalResult> {
-//        (**self).assig_name()
-//    }
-//}
+    fn assig_name(&self) -> Option<Self::EvalResult> {
+        (**self).assig_name()
+    }
+}
 
 /// A trait for evaluating arithmetic expansions.
 pub trait ArithEval<E: ?Sized> {

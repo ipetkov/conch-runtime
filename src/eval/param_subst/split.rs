@@ -1,48 +1,26 @@
-use crate::env::{StringWrapper, VariableEnvironment};
-use crate::eval::Fields;
-use crate::future::{Async, EnvFuture, Poll};
+use crate::env::VariableEnvironment;
+use crate::eval::{Fields, WordEval, WordEvalConfig};
 use std::borrow::Borrow;
-
-/// A future representing a word evaluation and conditionally splitting it afterwards.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct Split<F> {
-    split_fields_further: bool,
-    future: F,
-}
 
 /// Creates a future adapter that will conditionally split the resulting fields
 /// of the inner future.
-pub fn split<F>(split_fields_further: bool, future: F) -> Split<F> {
-    Split {
-        split_fields_further,
-        future,
-    }
-}
-
-impl<T, F, E: ?Sized> EnvFuture<E> for Split<F>
+pub async fn split<W, E>(
+    word: W,
+    env: &mut E,
+    cfg: WordEvalConfig,
+) -> Result<Fields<W::EvalResult>, W::Error>
 where
-    T: StringWrapper,
-    F: EnvFuture<E, Item = Fields<T>>,
-    E: VariableEnvironment,
+    W: WordEval<E>,
+    E: ?Sized + VariableEnvironment,
     E::VarName: Borrow<String>,
     E::Var: Borrow<String>,
 {
-    type Item = F::Item;
-    type Error = F::Error;
+    let fields = word.eval_with_config(env, cfg).await?.await;
+    let ret = if cfg.split_fields_further {
+        fields.split(env)
+    } else {
+        fields
+    };
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let fields = try_ready!(self.future.poll(env));
-        let ret = if self.split_fields_further {
-            fields.split(env)
-        } else {
-            fields
-        };
-
-        Ok(Async::Ready(ret))
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        self.future.cancel(env);
-    }
+    Ok(ret)
 }

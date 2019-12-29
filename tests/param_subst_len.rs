@@ -1,8 +1,6 @@
 #![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-use conch_runtime;
-
 use conch_runtime::eval::{len, Fields};
 
 mod support;

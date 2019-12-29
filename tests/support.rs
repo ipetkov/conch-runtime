@@ -237,39 +237,39 @@ where
     }
 }
 
-//#[derive(Debug, Clone)]
-//pub enum MockParam {
-//    FieldsWithName(Option<Fields<String>>, String),
-//    Fields(Option<Fields<String>>),
-//    Split(bool /* expect_split */, Fields<String>),
-//}
+#[derive(Debug, Clone)]
+pub enum MockParam {
+    FieldsWithName(Option<Fields<String>>, String),
+    Fields(Option<Fields<String>>),
+    Split(bool /* expect_split */, Fields<String>),
+}
 
-//impl ::std::fmt::Display for MockParam {
-//    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-//        write!(fmt, "MockParam")
-//    }
-//}
+impl ::std::fmt::Display for MockParam {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        write!(fmt, "MockParam")
+    }
+}
 
-//impl<E: ?Sized> ParamEval<E> for MockParam {
-//    type EvalResult = String;
+impl<E: ?Sized> ParamEval<E> for MockParam {
+    type EvalResult = String;
 
-//    fn eval(&self, split_fields_further: bool, _: &E) -> Option<Fields<Self::EvalResult>> {
-//        match *self {
-//            MockParam::Fields(ref f) | MockParam::FieldsWithName(ref f, _) => f.clone(),
-//            MockParam::Split(expect_split, ref f) => {
-//                assert_eq!(expect_split, split_fields_further);
-//                Some(f.clone())
-//            }
-//        }
-//    }
+    fn eval(&self, split_fields_further: bool, _: &E) -> Option<Fields<Self::EvalResult>> {
+        match *self {
+            MockParam::Fields(ref f) | MockParam::FieldsWithName(ref f, _) => f.clone(),
+            MockParam::Split(expect_split, ref f) => {
+                assert_eq!(expect_split, split_fields_further);
+                Some(f.clone())
+            }
+        }
+    }
 
-//    fn assig_name(&self) -> Option<Self::EvalResult> {
-//        match *self {
-//            MockParam::Fields(_) | MockParam::Split(..) => None,
-//            MockParam::FieldsWithName(_, ref name) => Some(name.clone()),
-//        }
-//    }
-//}
+    fn assig_name(&self) -> Option<Self::EvalResult> {
+        match *self {
+            MockParam::Fields(_) | MockParam::Split(..) => None,
+            MockParam::FieldsWithName(_, ref name) => Some(name.clone()),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum MockOutCmd {
