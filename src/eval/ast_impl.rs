@@ -4,7 +4,7 @@
 // use crate::eval::{RedirectOrCmdWord, RedirectOrVarAssig};
 // use conch_parser::ast;
 
-// mod arith;
+mod arith;
 // mod complex_word;
 // mod param_subst;
 // mod parameter;
