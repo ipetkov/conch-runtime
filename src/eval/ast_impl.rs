@@ -7,7 +7,7 @@
 mod arith;
 // mod complex_word;
 // mod param_subst;
-// mod parameter;
+mod parameter;
 mod redirect;
 mod simple_word;
 // mod word;

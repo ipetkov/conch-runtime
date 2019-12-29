@@ -24,7 +24,7 @@ async fn test_eval_parameter_with_set_vars() {
 
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        ..EnvConfig::new(Some(1)).expect("failed to create env")
+        ..EnvConfig::new().expect("failed to create env")
     });
 
     env.set_var("var1".to_owned(), var1.clone());
@@ -89,7 +89,7 @@ async fn test_eval_parameter_with_set_vars() {
 
 #[tokio::test]
 async fn test_eval_parameter_with_unset_vars() {
-    let env = Env::new(Some(1)).expect("failed to create env");
+    let env = Env::new().expect("failed to create env");
 
     assert_eq!(At.eval(false, &env), Some(Fields::Zero));
     assert_eq!(Star.eval(false, &env), Some(Fields::Zero));
@@ -123,7 +123,7 @@ async fn test_eval_parameter_splitting_with_default_ifs() {
 
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        ..EnvConfig::new(Some(1)).expect("failed to create env")
+        ..EnvConfig::new().expect("failed to create env")
     });
 
     env.set_var("var1".to_owned(), val1.clone());
@@ -183,7 +183,7 @@ async fn test_eval_parameter_splitting_with_custom_ifs() {
 
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        ..EnvConfig::new(Some(1)).expect("failed to create env")
+        ..EnvConfig::new().expect("failed to create env")
     });
 
     env.set_var("IFS".to_owned(), "0 ".to_owned());
@@ -305,7 +305,7 @@ async fn test_eval_parameter_splitting_with_empty_ifs() {
 
     let mut env = Env::with_config(EnvConfig {
         args_env: ArgsEnv::with_name_and_args("shell name".to_owned(), args.clone()),
-        ..EnvConfig::new(Some(1)).expect("failed to create env")
+        ..EnvConfig::new().expect("failed to create env")
     });
 
     env.set_var("IFS".to_owned(), "".to_owned());
