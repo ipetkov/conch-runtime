@@ -12,12 +12,12 @@ mod concat;
 mod double_quoted;
 mod fields;
 //mod param_subst;
-//mod redirect;
+mod redirect;
 //mod redirect_or_cmd_word;
 //mod redirect_or_var_assig;
 
-//#[cfg(feature = "conch-parser")]
-//pub mod ast_impl;
+#[cfg(feature = "conch-parser")]
+pub mod ast_impl;
 
 pub use self::concat::concat;
 pub use self::double_quoted::double_quoted;
@@ -30,10 +30,10 @@ pub use self::fields::Fields;
 //    Alternative, Assign, Error, EvalDefault, RemoveLargestPrefix, RemoveLargestSuffix,
 //    RemoveSmallestPrefix, RemoveSmallestSuffix, Split,
 //};
-//pub use self::redirect::{
-//    redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
-//    redirect_read, redirect_readwrite, redirect_write, Redirect, RedirectAction, RedirectEval,
-//};
+pub use self::redirect::{
+    redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
+    redirect_read, redirect_readwrite, redirect_write, RedirectAction, RedirectEval,
+};
 //pub use self::redirect_or_cmd_word::{
 //    eval_redirects_or_cmd_words, eval_redirects_or_cmd_words_with_restorer, EvalRedirectOrCmdWord,
 //    EvalRedirectOrCmdWordError, RedirectOrCmdWord,
@@ -105,6 +105,8 @@ pub struct WordEvalConfig {
     pub split_fields_further: bool,
 }
 
+pub type WordEvalResult<T, E> = Result<BoxFuture<'static, Fields<T>>, E>;
+
 pub trait WordEval<E: ?Sized> {
     type EvalResult: StringWrapper;
     type Error;
@@ -112,7 +114,7 @@ pub trait WordEval<E: ?Sized> {
     fn eval<'life0, 'life1, 'async_trait>(
         &'life0 self,
         env: &'life1 mut E,
-    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, Fields<Self::EvalResult>>, Self::Error>>
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
     where
         'life0: 'async_trait,
         'life1: 'async_trait,
@@ -131,11 +133,45 @@ pub trait WordEval<E: ?Sized> {
         &'life0 self,
         env: &'life1 mut E,
         cfg: WordEvalConfig,
-    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, Fields<Self::EvalResult>>, Self::Error>>
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
     where
         'life0: 'async_trait,
         'life1: 'async_trait,
         Self: 'async_trait;
+}
+
+impl<'a, T, E> WordEval<E> for &'a T
+where
+    T: 'a + WordEval<E>,
+    E: ?Sized,
+{
+    type EvalResult = T::EvalResult;
+    type Error = T::Error;
+
+    fn eval<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).eval(env)
+    }
+
+    fn eval_with_config<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+        cfg: WordEvalConfig,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).eval_with_config(env, cfg)
+    }
 }
 
 ///// A trait for evaluating shell words with various rules for expansion.

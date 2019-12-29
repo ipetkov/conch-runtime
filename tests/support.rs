@@ -2,8 +2,8 @@
 
 use conch_runtime::error::IsFatalError;
 use conch_runtime::STDOUT_FILENO;
-// use std::fs::OpenOptions;
-// use std::path::Path;
+use std::fs::OpenOptions;
+use std::path::Path;
 use std::sync::Arc;
 use tempfile::TempDir;
 use void::{unreachable, Void};
@@ -48,19 +48,19 @@ pub fn mktmp_impl(path: &str) -> TempDir {
         .expect("tempdir creation failed")
 }
 
-//#[cfg(unix)]
-//pub const DEV_NULL: &str = "/dev/null";
+#[cfg(unix)]
+pub const DEV_NULL: &str = "/dev/null";
 
-//#[cfg(windows)]
-//pub const DEV_NULL: &str = "NUL";
+#[cfg(windows)]
+pub const DEV_NULL: &str = "NUL";
 
-//pub fn dev_null<E: ?Sized + FileDescOpener>(env: &mut E) -> E::OpenedFileHandle {
-//    env.open_path(
-//        Path::new(DEV_NULL),
-//        OpenOptions::new().read(true).write(true),
-//    )
-//    .expect("failed to open DEV_NULL")
-//}
+pub fn dev_null<E: ?Sized + FileDescOpener>(env: &mut E) -> E::OpenedFileHandle {
+    env.open_path(
+        Path::new(DEV_NULL),
+        OpenOptions::new().read(true).write(true),
+    )
+    .expect("failed to open DEV_NULL")
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockErr {

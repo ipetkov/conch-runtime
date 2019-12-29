@@ -1,17 +1,12 @@
 #![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-use conch_runtime;
-use futures;
-use tokio_io;
-
 use conch_parser::ast::Redirect;
 use conch_parser::ast::Redirect::*;
 use conch_runtime::env::{AsyncIoEnvironment, FileDescEnvironment};
 use conch_runtime::eval::{RedirectAction, RedirectEval};
 use conch_runtime::io::{FileDesc, FileDescWrapper, Permissions};
 use conch_runtime::{Fd, STDIN_FILENO, STDOUT_FILENO};
-use futures::future::{lazy, poll_fn};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read as IoRead, Write as IoWrite};
@@ -22,43 +17,11 @@ use std::sync::Arc;
 mod support;
 pub use self::support::*;
 
-macro_rules! redirect_eval {
-    ($redirect:expr) => { redirect_eval!(eval, $redirect,) };
-    ($redirect:expr, $env:expr) => {
-        redirect_eval!(eval_with_env, $redirect, &mut $env)
-    };
-    ($eval:ident, $redirect:expr, $($arg:expr),*) => {{
-        let (ret_ref, ret) = eval_no_compare!($eval, $redirect, $($arg),*);
-        assert_eq!(ret_ref, ret);
-        ret
-    }}
-}
-
-macro_rules! eval_no_compare {
-    ($redirect:expr, $env:expr) => {
-        eval_no_compare!(eval_with_env, $redirect, &mut $env)
-    };
-    ($eval:ident, $redirect:expr, $($arg:expr),*) => {{
-        let redirect = $redirect;
-        let ret_ref = $eval(&redirect, $($arg),*).await;
-        let ret = $eval(redirect, $($arg),*).await;
-        (ret_ref, ret)
-    }}
-}
-
 async fn eval<T: RedirectEval<DefaultEnvArc>>(
     redirect: T,
 ) -> Result<RedirectAction<T::Handle>, T::Error> {
     let mut env = new_env();
-    eval_with_env(redirect, &mut env).await
-}
-
-async fn eval_with_env<T: RedirectEval<DefaultEnvArc>>(
-    redirect: T,
-    env: &mut DefaultEnvArc,
-) -> Result<RedirectAction<T::Handle>, T::Error> {
-    let mut future = redirect.eval(&env);
-    Compat01As03::new(poll_fn(move || future.poll(env))).await
+    redirect.eval(&mut env).await
 }
 
 async fn test_open_redirect<F1, F2>(
@@ -70,7 +33,7 @@ async fn test_open_redirect<F1, F2>(
     for<'a> F1: FnMut(&'a mut DefaultEnvArc),
     F2: FnMut(FileDesc),
 {
-    type RA = RedirectAction<PlatformSpecificManagedHandle>;
+    type RA = RedirectAction<Arc<FileDesc>>;
 
     let mut env = new_env_with_no_fds();
 
@@ -96,19 +59,9 @@ async fn test_open_redirect<F1, F2>(
         action_fdes.try_unwrap().unwrap()
     };
 
-    for &(correct_fd, ref redirect) in &cases {
-        before(&mut env);
-        let action = eval_with_env(redirect, &mut env)
-            .await
-            .expect("redirect eval failed");
-        after(get_file_desc(action, correct_fd, &mut env));
-    }
-
     for (correct_fd, redirect) in cases {
         before(&mut env);
-        let action = eval_with_env(redirect, &mut env)
-            .await
-            .expect("redirect eval failed");
+        let action = redirect.eval(&mut env).await.expect("redirect eval failed");
         after(get_file_desc(action, correct_fd, &mut env));
     }
 }
@@ -326,10 +279,10 @@ async fn eval_heredoc() {
 
     for (body, expected) in cases {
         let action = RedirectAction::HereDoc(STDIN_FILENO, expected.clone());
-        assert_eq!(redirect_eval!(Heredoc(None, body.clone())), Ok(action));
+        assert_eq!(eval(Heredoc(None, body.clone())).await, Ok(action));
 
         let action = RedirectAction::HereDoc(42, expected.clone());
-        assert_eq!(redirect_eval!(Heredoc(Some(42), body.clone())), Ok(action));
+        assert_eq!(eval(Heredoc(Some(42), body.clone())).await, Ok(action));
     }
 }
 
@@ -347,38 +300,35 @@ async fn apply_redirect_action() {
         .unwrap();
     assert_eq!(env.file_desc(fd), Some((&fdes, perms)));
 
-    RedirectAction::Close(fd).apply(&mut env).unwrap();
+    RedirectAction::<Arc<_>>::Close(fd).apply(&mut env).unwrap();
     assert_eq!(env.file_desc(fd), None);
 
     let msg = "heredoc body!";
-    let (_, data) = Compat01As03::new(lazy(|| {
-        RedirectAction::HereDoc(fd, msg.as_bytes().to_owned())
-            .apply(&mut env)
-            .unwrap();
+    RedirectAction::<Arc<_>>::HereDoc(fd, msg.as_bytes().to_owned())
+        .apply(&mut env)
+        .unwrap();
 
-        let fdes = env
-            .file_desc(fd)
-            .map(|(fdes, perms)| {
-                assert_eq!(perms, Permissions::Read);
-                fdes.clone()
-            })
-            .expect("heredoc was not opened");
+    let fdes = env
+        .file_desc(fd)
+        .map(|(fdes, perms)| {
+            assert_eq!(perms, Permissions::Read);
+            fdes.clone()
+        })
+        .expect("heredoc was not opened");
 
-        env.close_file_desc(fd); // Drop any other copies of fdes
+    env.close_file_desc(fd); // Drop any other copies of fdes
 
-        let read = env.read_async(fdes).expect("failed to create read future");
-        tokio_io::io::read_to_end(read, vec![])
-    }))
-    .await
-    .unwrap();
-
-    assert_eq!(data, msg.as_bytes());
+    let read = env
+        .read_all(fdes)
+        .await
+        .expect("failed to create read future");
+    assert_eq!(read, msg.as_bytes());
 }
 
 #[tokio::test]
 async fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
     for &interactive in &[true, false] {
-        let mut env_cfg = DefaultEnvConfigArc::new(Some(1)).unwrap();
+        let mut env_cfg = DefaultEnvConfigArc::new().unwrap();
         env_cfg.interactive = interactive;
 
         let mut env = DefaultEnvArc::with_config(env_cfg);
@@ -403,19 +353,10 @@ async fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
         ];
 
         for redirect in cases {
-            let (ret_ref, ret) = eval_no_compare!(redirect.clone(), env);
-            assert!(
-                ret_ref.is_ok(),
-                "unexpected response: {:?} for {:#?}",
-                ret_ref,
-                redirect
-            );
-            assert!(
-                ret.is_ok(),
-                "unexpected response: {:?} for {:#?}",
-                ret,
-                redirect
-            );
+            redirect
+                .eval(&mut env)
+                .await
+                .expect("did not get successful response");
         }
     }
 }
@@ -426,8 +367,8 @@ async fn should_eval_dup_close_approprately() {
     let action = Ok(RedirectAction::Close(fd));
     let path = mock_word_fields(Fields::Single("-".to_owned()));
 
-    assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone())), action);
-    assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone())), action);
+    assert_eq!(eval(DupRead(Some(fd), path.clone())).await, action);
+    assert_eq!(eval(DupWrite(Some(fd), path.clone())).await, action);
 }
 
 #[tokio::test]
@@ -445,11 +386,11 @@ async fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
     ))));
     assert_eq!(env.file_desc(src_fd), None);
     assert_eq!(
-        redirect_eval!(DupRead(None, path.clone()), env),
+        DupRead(None, path.clone()).eval(&mut env).await,
         err.clone()
     );
     assert_eq!(
-        redirect_eval!(DupWrite(None, path.clone()), env),
+        DupWrite(None, path.clone()).eval(&mut env).await,
         err.clone()
     );
 
@@ -461,14 +402,14 @@ async fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
         Permissions::Read,
     ))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Read);
-    assert_eq!(redirect_eval!(DupWrite(Some(fd), path.clone()), env), err);
+    assert_eq!(DupWrite(Some(fd), path.clone()).eval(&mut env).await, err);
 
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdPerms(
         src_fd,
         Permissions::Write,
     ))));
     env.set_file_desc(src_fd, fdes.clone(), Permissions::Write);
-    assert_eq!(redirect_eval!(DupRead(Some(fd), path.clone()), env), err);
+    assert_eq!(DupRead(Some(fd), path.clone()).eval(&mut env).await, err);
 }
 
 #[tokio::test]
@@ -495,13 +436,13 @@ async fn eval_ambiguous_path() {
     for (path, err) in cases {
         let err = Err(MockErr::RedirectionError(Arc::new(err)));
 
-        assert_eq!(redirect_eval!(Read(None, path.clone())), err.clone());
-        assert_eq!(redirect_eval!(ReadWrite(None, path.clone())), err.clone());
-        assert_eq!(redirect_eval!(Write(None, path.clone())), err.clone());
-        assert_eq!(redirect_eval!(Clobber(None, path.clone())), err.clone());
-        assert_eq!(redirect_eval!(Append(None, path.clone())), err.clone());
-        assert_eq!(redirect_eval!(DupRead(None, path.clone())), err.clone());
-        assert_eq!(redirect_eval!(DupWrite(None, path.clone())), err.clone());
+        assert_eq!(err, eval(Read(None, path.clone())).await);
+        assert_eq!(err, eval(ReadWrite(None, path.clone())).await);
+        assert_eq!(err, eval(Write(None, path.clone())).await);
+        assert_eq!(err, eval(Clobber(None, path.clone())).await);
+        assert_eq!(err, eval(Append(None, path.clone())).await);
+        assert_eq!(err, eval(DupRead(None, path.clone())).await);
+        assert_eq!(err, eval(DupWrite(None, path.clone())).await);
     }
 }
 
@@ -510,26 +451,12 @@ async fn should_propagate_errors() {
     let mock_word = mock_word_error(false);
     let err = Err(MockErr::Fatal(false));
 
-    assert_eq!(redirect_eval!(Read(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(ReadWrite(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(Write(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(Clobber(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(Append(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(DupRead(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(DupWrite(None, mock_word.clone())), err);
-    assert_eq!(redirect_eval!(Heredoc(None, mock_word.clone())), err);
-}
-
-#[tokio::test]
-async fn should_propagate_cancel() {
-    let mut env = new_env();
-
-    test_cancel!(Read(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(ReadWrite(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(Write(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(Clobber(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(Append(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(DupRead(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(DupWrite(None, mock_word_must_cancel()).eval(&env), env);
-    test_cancel!(Heredoc(None, mock_word_must_cancel()).eval(&env), env);
+    assert_eq!(err, eval(Read(None, mock_word.clone())).await);
+    assert_eq!(err, eval(ReadWrite(None, mock_word.clone())).await);
+    assert_eq!(err, eval(Write(None, mock_word.clone())).await);
+    assert_eq!(err, eval(Clobber(None, mock_word.clone())).await);
+    assert_eq!(err, eval(Append(None, mock_word.clone())).await);
+    assert_eq!(err, eval(DupRead(None, mock_word.clone())).await);
+    assert_eq!(err, eval(DupWrite(None, mock_word.clone())).await);
+    assert_eq!(err, eval(Heredoc(None, mock_word.clone())).await);
 }
