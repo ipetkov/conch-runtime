@@ -12,7 +12,7 @@ mod and_or;
 //mod case;
 //mod for_cmd;
 mod func_exec;
-//mod if_cmd;
+mod if_cmd;
 //mod local_redirections;
 //mod loop_cmd;
 //mod pipeline;
@@ -37,7 +37,7 @@ pub use self::and_or::{and_or_list, AndOr};
 //pub use self::case::{case, Case, PatternBodyPair};
 //pub use self::for_cmd::{for_args, for_loop, for_with_args, For, ForArgs};
 pub use self::func_exec::{function, function_body};
-//pub use self::if_cmd::{if_cmd, If};
+pub use self::if_cmd::if_cmd;
 //pub use self::local_redirections::{spawn_with_local_redirections, LocalRedirections};
 //pub use self::loop_cmd::{loop_cmd, Loop};
 //pub use self::pipeline::{pipeline, Pipeline, SpawnedPipeline};
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<'a, T, E> Spawn<E> for Box<T>
+impl<T, E> Spawn<E> for Box<T>
 where
     T: ?Sized + Spawn<E>,
     E: ?Sized,
@@ -96,7 +96,7 @@ where
     }
 }
 
-impl<'a, T, E> Spawn<E> for std::sync::Arc<T>
+impl<T, E> Spawn<E> for std::sync::Arc<T>
 where
     T: ?Sized + Spawn<E>,
     E: ?Sized,
@@ -242,9 +242,9 @@ where
 //    fn spawn_ref(&self, env: &E) -> Self::EnvFuture;
 //}
 
-///// A marker trait for any reference.
-//pub trait Ref: Copy {}
-//impl<'a, T> Ref for &'a T {}
+// /// A marker trait for any reference.
+// pub trait Ref: Copy {}
+// impl<'a, T> Ref for &'a T {}
 
 //impl<S, E: ?Sized> SpawnRef<E> for S
 //where
@@ -293,15 +293,15 @@ where
 //    }
 //}
 
-///// A grouping of guard and body commands.
-//#[derive(Debug, PartialEq, Eq, Clone)]
-//pub struct GuardBodyPair<T> {
-//    /// The guard commands, which if successful, should lead to the
-//    /// execution of the body commands.
-//    pub guard: T,
-//    /// The body commands to execute if the guard is successful.
-//    pub body: T,
-//}
+/// A grouping of guard and body commands.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct GuardBodyPair<T> {
+    /// The guard commands, which if successful, should lead to the
+    /// execution of the body commands.
+    pub guard: T,
+    /// The body commands to execute if the guard is successful.
+    pub body: T,
+}
 
 #[cfg(test)]
 mod test {
