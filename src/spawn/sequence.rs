@@ -20,15 +20,33 @@ where
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
 {
-    do_sequence(iter.into_iter().peekable(), env).await
+    do_sequence(iter.into_iter().peekable(), env, |env| env.is_interactive()).await
+}
+
+/// Spawns a slice of sequential items.
+///
+/// Commands are sequentially executed regardless of the exit status of
+/// previous commands. All non-fatal errors are reported and swallowed,
+/// however, "fatal" errors are bubbled up and the sequence terminated.
+pub async fn sequence_slice<S, E: ?Sized>(
+    cmds: &[S],
+    env: &mut E,
+) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
+where
+    E: LastStatusEnvironment + ReportFailureEnvironment,
+    S: Spawn<E>,
+    S::Error: IsFatalError,
+{
+    do_sequence(cmds.iter().peekable(), env, |_| false).await
 }
 
 async fn do_sequence<I, E: ?Sized>(
     mut iter: Peekable<I>,
     env: &mut E,
+    is_interactive: impl Fn(&E) -> bool,
 ) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
 where
-    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    E: LastStatusEnvironment + ReportFailureEnvironment,
     I: Iterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
@@ -43,7 +61,7 @@ where
         // NB: if in interactive mode, don't peek at the next command
         // because the input may not be ready (e.g. blocking iterator)
         // and we don't want to block this command on further, unrelated, input.
-        let is_not_last = env.is_interactive() || iter.peek().is_some();
+        let is_not_last = is_interactive(&env) || iter.peek().is_some();
         if is_not_last {
             // We still expect more commands in the sequence, therefore,
             // we should keep polling and hold on to the environment here

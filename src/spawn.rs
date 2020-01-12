@@ -41,7 +41,7 @@ pub use self::if_cmd::if_cmd;
 //pub use self::local_redirections::{spawn_with_local_redirections, LocalRedirections};
 //pub use self::loop_cmd::{loop_cmd, Loop};
 //pub use self::pipeline::{pipeline, Pipeline, SpawnedPipeline};
-pub use self::sequence::sequence;
+pub use self::sequence::{sequence, sequence_slice};
 //pub use self::simple::{
 //    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
 //};
