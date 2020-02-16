@@ -5,7 +5,6 @@ use crate::env::StringWrapper;
 use crate::error::ExpansionError;
 use futures_core::future::BoxFuture;
 //use crate::future::{Async, EnvFuture, Poll};
-//use glob;
 //use std::borrow::Borrow;
 
 mod concat;
@@ -23,6 +22,9 @@ pub use self::concat::concat;
 pub use self::double_quoted::double_quoted;
 pub use self::fields::Fields;
 pub use self::param_subst::{alternative, assign, default, error, len, split};
+pub use self::param_subst::{
+    remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix, remove_smallest_suffix,
+};
 pub use self::redirect::{
     redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
     redirect_read, redirect_readwrite, redirect_write, RedirectAction, RedirectEval,
@@ -304,41 +306,35 @@ where
 //    }
 //}
 
-///// A future representing a word evaluation as a pattern.
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug)]
-//pub struct Pattern<F> {
-//    f: F,
-//}
+// Evaluate a word as a pattern. Note this is not a public API since there needs to be a
+// better abstraction for allowing consumers to override/define patterns (i.e. don't
+// tie ourselves to `glob`).
+pub(crate) async fn eval_as_pattern<W, E>(word: W, env: &mut E) -> Result<glob::Pattern, W::Error>
+where
+    W: WordEval<E>,
+    E: ?Sized,
+{
+    let future = word.eval_with_config(
+        env,
+        WordEvalConfig {
+            tilde_expansion: TildeExpansion::First,
+            split_fields_further: false,
+        },
+    );
 
-//impl<E: ?Sized, T, F> EnvFuture<E> for Pattern<F>
-//where
-//    F: EnvFuture<E, Item = Fields<T>>,
-//    T: StringWrapper,
-//{
-//    type Item = glob::Pattern;
-//    type Error = F::Error;
-
-//    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-//        // FIXME: "intelligently" compile the pattern here
-//        // Other shells will treat certain glob "errors" (like unmatched char groups)
-//        // as just literal values. Also it would be interesting to explore treating
-//        // variables/interpolated values as literals unconditionally (i.e. glob
-//        // special chars like *, !, ?, etc. would only have special meaning if they
-//        // appear in the original source). Unfortunately, this future doesn't appear
-//        // flexible enough to accomplish that (the actual word itself needs to
-//        // determine what is special and what isn't at each step), so this may
-//        // need to move into its own trait (right now WordEval *must* return a
-//        // Pattern future).
-//        let pat = try_ready!(self.f.poll(env)).join();
-//        let pat = glob::Pattern::new(pat.as_str())
-//            .or_else(|_| glob::Pattern::new(&glob::Pattern::escape(pat.as_str())));
-//        Ok(Async::Ready(
-//            pat.expect("pattern compilation unexpectedly failed"),
-//        ))
-//    }
-
-//    fn cancel(&mut self, env: &mut E) {
-//        self.f.cancel(env)
-//    }
-//}
+    // FIXME: "intelligently" compile the pattern here
+    // Other shells will treat certain glob "errors" (like unmatched char groups)
+    // as just literal values. Also it would be interesting to explore treating
+    // variables/interpolated values as literals unconditionally (i.e. glob
+    // special chars like *, !, ?, etc. would only have special meaning if they
+    // appear in the original source). Unfortunately, this future doesn't appear
+    // flexible enough to accomplish that (the actual word itself needs to
+    // determine what is special and what isn't at each step), so this may
+    // need to move into its own trait (right now WordEval *must* return a
+    // Pattern future).
+    let pat = future.await?.await.join();
+    let pat = glob::Pattern::new(pat.as_str())
+        .or_else(|_| glob::Pattern::new(&glob::Pattern::escape(pat.as_str())))
+        .expect("pattern compilation unexpectedly failed");
+    Ok(pat)
+}
