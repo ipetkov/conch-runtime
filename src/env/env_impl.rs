@@ -696,11 +696,7 @@ where
     V: UnsetVariableEnvironment,
     N: Hash + Eq,
 {
-    fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-    where
-        Self::VarName: Borrow<Q>,
-        Q: Hash + Eq,
-    {
+    fn unset_var(&mut self, name: &V::VarName) {
         self.var_env.unset_var(name)
     }
 }

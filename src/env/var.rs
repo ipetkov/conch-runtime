@@ -69,18 +69,11 @@ impl<'a, T: ?Sized + ExportedVariableEnvironment> ExportedVariableEnvironment fo
 /// An interface for unsetting shell and envrironment variables.
 pub trait UnsetVariableEnvironment: VariableEnvironment {
     /// Unset the value of some variable (including environment variables).
-    fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-    where
-        Self::VarName: Borrow<Q>,
-        Q: Hash + Eq;
+    fn unset_var(&mut self, name: &Self::VarName);
 }
 
 impl<'a, T: ?Sized + UnsetVariableEnvironment> UnsetVariableEnvironment for &'a mut T {
-    fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-    where
-        Self::VarName: Borrow<Q>,
-        Q: Hash + Eq,
-    {
+    fn unset_var(&mut self, name: &T::VarName) {
         (**self).unset_var(name);
     }
 }
@@ -195,11 +188,7 @@ where
     N: Eq + Clone + Hash,
     V: Eq + Clone,
 {
-    fn unset_var<Q: ?Sized>(&mut self, name: &Q)
-    where
-        Self::VarName: Borrow<Q>,
-        Q: Hash + Eq,
-    {
+    fn unset_var(&mut self, name: &N) {
         if self.vars.contains_key(name) {
             Arc::make_mut(&mut self.vars).remove(name);
         }
@@ -269,12 +258,12 @@ mod tests {
     #[test]
     fn test_set_get_unset_var() {
         let name = "var";
-        let value = "value".to_owned();
+        let value = "value";
         let mut env = VarEnv::new();
         assert_eq!(env.var(name), None);
-        env.set_var(name.to_owned(), value.clone());
+        env.set_var(name, value);
         assert_eq!(env.var(name), Some(&value));
-        env.unset_var(name);
+        env.unset_var(&name);
         assert_eq!(env.var(name), None);
     }
 
@@ -314,7 +303,7 @@ mod tests {
             panic!("needles clone!");
         }
 
-        env.unset_var(not_set);
+        env.unset_var(&not_set);
         if Arc::get_mut(&mut env.vars).is_some() {
             panic!("needles clone!");
         }
