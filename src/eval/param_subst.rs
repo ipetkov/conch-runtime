@@ -1,7 +1,7 @@
 use crate::env::StringWrapper;
 use crate::eval::Fields;
 
-//mod alternative;
+mod alternative;
 mod assign;
 //mod default;
 //mod error;
@@ -9,7 +9,7 @@ mod len;
 //mod remove;
 mod split;
 
-//pub use self::alternative::{alternative, Alternative};
+pub use self::alternative::alternative;
 pub use self::assign::assign;
 //pub use self::default::{default, EvalDefault};
 //pub use self::error::{error, Error};

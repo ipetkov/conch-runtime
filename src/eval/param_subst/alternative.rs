@@ -1,21 +1,7 @@
 use super::is_present;
 use crate::eval::{Fields, ParamEval, TildeExpansion, WordEval, WordEvalConfig};
-use crate::future::{Async, EnvFuture, Poll};
 
-/// A future representing a `Alternative` parameter substitution evaluation.
-#[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct Alternative<F> {
-    state: State<F>,
-}
-
-#[derive(Debug)]
-enum State<F> {
-    Zero,
-    Alternative(F),
-}
-
-/// Constructs future representing a `Alternative` parameter substitution evaluation.
+/// Evaluate a parameter and use an alternative value if it is non-empty.
 ///
 /// First, `param` will be evaluated and if the result is non-empty, or if the
 /// result is defined-but-empty and `strict = false`, then `alternative` will be
@@ -24,56 +10,33 @@ enum State<F> {
 /// Otherwise, `Fields::Zero` will be returned (i.e. the value of `param`).
 ///
 /// Note: field splitting will neither be done on the parameter, nor the alternative word.
-pub fn alternative<P: ?Sized, W, E: ?Sized>(
+pub async fn alternative<P, W, E>(
     strict: bool,
     param: &P,
     alternative: Option<W>,
-    env: &E,
+    env: &mut E,
     cfg: TildeExpansion,
-) -> Alternative<W::EvalFuture>
+) -> Result<Fields<W::EvalResult>, W::Error>
 where
-    P: ParamEval<E, EvalResult = W::EvalResult>,
+    P: ?Sized + ParamEval<E, EvalResult = W::EvalResult>,
     W: WordEval<E>,
+    E: ?Sized,
 {
-    let state = match (
+    let word = match (
         is_present(strict, param.eval(false, env)).is_some(),
         alternative,
     ) {
-        (true, Some(w)) => {
-            let future = w.eval_with_config(
-                env,
-                WordEvalConfig {
-                    split_fields_further: false,
-                    tilde_expansion: cfg,
-                },
-            );
-            State::Alternative(future)
-        }
-
-        (true, None) | (false, _) => State::Zero,
+        (true, Some(w)) => w,
+        _ => return Ok(Fields::Zero),
     };
 
-    Alternative { state }
-}
+    let future = word.eval_with_config(
+        env,
+        WordEvalConfig {
+            split_fields_further: false,
+            tilde_expansion: cfg,
+        },
+    );
 
-impl<T, F, E: ?Sized> EnvFuture<E> for Alternative<F>
-where
-    F: EnvFuture<E, Item = Fields<T>>,
-{
-    type Item = F::Item;
-    type Error = F::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        match self.state {
-            State::Zero => Ok(Async::Ready(Fields::Zero)),
-            State::Alternative(ref mut f) => f.poll(env),
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        match self.state {
-            State::Zero => {}
-            State::Alternative(ref mut f) => f.cancel(env),
-        }
-    }
+    Ok(future.await?.await)
 }
