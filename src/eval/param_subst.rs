@@ -4,7 +4,7 @@ use crate::eval::Fields;
 mod alternative;
 mod assign;
 mod default;
-//mod error;
+mod error;
 mod len;
 //mod remove;
 mod split;
@@ -12,7 +12,7 @@ mod split;
 pub use self::alternative::alternative;
 pub use self::assign::assign;
 pub use self::default::default;
-//pub use self::error::{error, Error};
+pub use self::error::error;
 pub use self::len::len;
 //pub use self::remove::{
 //    remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix, remove_smallest_suffix,

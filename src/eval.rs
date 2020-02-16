@@ -22,7 +22,7 @@ pub mod ast_impl;
 pub use self::concat::concat;
 pub use self::double_quoted::double_quoted;
 pub use self::fields::Fields;
-pub use self::param_subst::{alternative, assign, default, len, split};
+pub use self::param_subst::{alternative, assign, default, error, len, split};
 pub use self::redirect::{
     redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
     redirect_read, redirect_readwrite, redirect_write, RedirectAction, RedirectEval,
