@@ -227,10 +227,7 @@ async fn pipeline_io_smoke() {
     drop(default_stdout);
     drop(third_writer);
 
-    let unwrap_handle = |store| {
-        Arc::try_unwrap(unwrap_store(store))
-            .expect("failed to unwrap fd")
-    };
+    let unwrap_handle = |store| Arc::try_unwrap(unwrap_store(store)).expect("failed to unwrap fd");
 
     let first_writer = unwrap_handle(first_writer);
     let second_reader = unwrap_handle(second_reader);

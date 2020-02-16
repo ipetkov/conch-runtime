@@ -22,7 +22,7 @@ pub mod ast_impl;
 pub use self::concat::concat;
 pub use self::double_quoted::double_quoted;
 pub use self::fields::Fields;
-pub use self::param_subst::{len, split};
+pub use self::param_subst::{assign, len, split};
 //pub use self::param_subst::{
 //    Alternative, Assign, Error, EvalDefault, RemoveLargestPrefix, RemoveLargestSuffix,
 //    RemoveSmallestPrefix, RemoveSmallestSuffix, Split,
