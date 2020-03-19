@@ -7,6 +7,7 @@ use futures_core::future::BoxFuture;
 //use crate::future::{Async, EnvFuture, Poll};
 //use std::borrow::Borrow;
 
+mod assignment;
 mod concat;
 mod double_quoted;
 mod fields;
@@ -18,6 +19,7 @@ mod redirect_or_cmd_word;
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
 
+pub use self::assignment::eval_as_assignment;
 pub use self::concat::concat;
 pub use self::double_quoted::double_quoted;
 pub use self::fields::Fields;
@@ -180,47 +182,6 @@ where
 //    /// A future which will carry out the evaluation.
 //    type EvalFuture: EnvFuture<E, Item = Fields<Self::EvalResult>, Error = Self::Error>;
 
-//    /// Evaluates a word in a given environment and performs all expansions.
-//    ///
-//    /// Tilde, parameter, command substitution, and arithmetic expansions are
-//    /// performed first. All resulting fields are then further split based on
-//    /// the contents of the `IFS` variable (no splitting is performed if `IFS`
-//    /// is set to be the empty or null string). Finally, quotes and escaping
-//    /// backslashes are removed from the original word (unless they themselves
-//    /// have been quoted).
-//    fn eval(self, env: &E) -> Self::EvalFuture {
-//        // FIXME: implement path expansion here
-//        self.eval_with_config(
-//            env,
-//            WordEvalConfig {
-//                tilde_expansion: TildeExpansion::First,
-//                split_fields_further: true,
-//            },
-//        )
-//    }
-
-//    /// Evaluates a word in a given environment without doing field and pathname expansions.
-//    ///
-//    /// Tilde, parameter, command substitution, arithmetic expansions, and quote removals
-//    /// will be performed, however. In addition, if multiple fields arise as a result
-//    /// of evaluating `$@` or `$*`, the fields will be joined with a single space.
-//    fn eval_as_assignment(self, env: &E) -> Assignment<Self::EvalFuture>
-//    where
-//        E: VariableEnvironment,
-//        E::VarName: Borrow<String>,
-//        E::Var: Borrow<String>,
-//    {
-//        Assignment {
-//            f: self.eval_with_config(
-//                env,
-//                WordEvalConfig {
-//                    tilde_expansion: TildeExpansion::All,
-//                    split_fields_further: false,
-//                },
-//            ),
-//        }
-//    }
-
 //    /// Evaluates a word just like `eval`, but converts the result into a `glob::Pattern`.
 //    // FIXME: implement patterns according to spec
 //    // FIXME: globbing should be done relative to the shell's cwd WITHOUT changing the process's cwd
@@ -269,40 +230,6 @@ where
 //    #[allow(clippy::boxed_local)]
 //    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
 //        (&**self).eval_with_config(env, cfg)
-//    }
-//}
-
-///// A future representing a word evaluation without doing field and pathname expansions.
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug)]
-//pub struct Assignment<F> {
-//    f: F,
-//}
-
-//impl<E: ?Sized, T, F> EnvFuture<E> for Assignment<F>
-//where
-//    E: VariableEnvironment,
-//    E::VarName: Borrow<String>,
-//    E::Var: Borrow<String>,
-//    T: StringWrapper,
-//    F: EnvFuture<E, Item = Fields<T>>,
-//{
-//    type Item = T;
-//    type Error = F::Error;
-
-//    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-//        let ret = match try_ready!(self.f.poll(env)) {
-//            f @ Fields::Zero | f @ Fields::Single(_) | f @ Fields::At(_) | f @ Fields::Split(_) => {
-//                f.join()
-//            }
-//            f @ Fields::Star(_) => f.join_with_ifs(env),
-//        };
-
-//        Ok(Async::Ready(ret))
-//    }
-
-//    fn cancel(&mut self, env: &mut E) {
-//        self.f.cancel(env)
 //    }
 //}
 

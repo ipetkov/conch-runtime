@@ -53,83 +53,6 @@ async fn test_eval_expands_first_tilde_and_splits_words() {
 }
 
 #[tokio::test]
-async fn test_eval_as_assignment_expands_all_tilde_and_does_not_split_words() {
-    use conch_runtime::env::{VarEnv, VariableEnvironment};
-
-    let cfg = WordEvalConfig {
-        tilde_expansion: TildeExpansion::All,
-        split_fields_further: false,
-    };
-
-    let mut env = VarEnv::new();
-    env.set_var("IFS".to_owned(), "!".to_owned());
-
-    {
-        let word = MockWordCfg {
-            cfg,
-            fields: Fields::Zero,
-        };
-        let mut env = env.clone();
-        assert_eq!(
-            word.eval_as_assignment(&mut env).pin_env(env).wait(),
-            Ok("".to_owned())
-        );
-    }
-
-    {
-        let msg = "foo".to_owned();
-        let word = MockWordCfg {
-            cfg,
-            fields: Fields::Single(msg.clone()),
-        };
-        let mut env = env.clone();
-        assert_eq!(
-            word.eval_as_assignment(&mut env).pin_env(env).wait(),
-            Ok(msg)
-        );
-    }
-
-    {
-        let word = MockWordCfg {
-            cfg,
-            fields: Fields::At(vec!["foo".to_owned(), "bar".to_owned()]),
-        };
-
-        let mut env = env.clone();
-        assert_eq!(
-            word.eval_as_assignment(&mut env).pin_env(env).wait(),
-            Ok("foo bar".to_owned())
-        );
-    }
-
-    {
-        let word = MockWordCfg {
-            cfg,
-            fields: Fields::Split(vec!["foo".to_owned(), "bar".to_owned()]),
-        };
-
-        let mut env = env.clone();
-        assert_eq!(
-            word.eval_as_assignment(&mut env).pin_env(env).wait(),
-            Ok("foo bar".to_owned())
-        );
-    }
-
-    {
-        let word = MockWordCfg {
-            cfg,
-            fields: Fields::Star(vec!["foo".to_owned(), "bar".to_owned()]),
-        };
-
-        let mut env = env.clone();
-        assert_eq!(
-            word.eval_as_assignment(&mut env).pin_env(env).wait(),
-            Ok("foo!bar".to_owned())
-        );
-    }
-}
-
-#[tokio::test]
 async fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_joins_fields() {
     let word = MockWordCfg {
         cfg: WordEvalConfig {
@@ -142,15 +65,6 @@ async fn test_eval_as_pattern_expands_first_tilde_and_does_not_split_words_and_j
     let mut env = ();
     let pat = word.eval_as_pattern(&mut env).pin_env(env).wait().unwrap();
     assert_eq!(pat.as_str(), "foo *? bar");
-}
-
-#[tokio::test]
-async fn test_assignment_cancel() {
-    use conch_runtime::env::VarEnv;
-
-    let mut env = VarEnv::<String, String>::new();
-    let future = mock_word_must_cancel().eval_as_assignment(&mut env);
-    test_cancel!(future, env);
 }
 
 #[tokio::test]
