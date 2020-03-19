@@ -7,11 +7,6 @@ where
     W: 'static + Send + Sync + WordEval<E>,
     W::EvalResult: 'static + Send,
     E: ?Sized + Send,
-    // T: 'static + Send + Sync + StringWrapper,
-    // P: Send + Sync + ParamEval<E, EvalResult = T>,
-    // S: Send + Sync + WordEval<E, EvalResult = T>,
-    // E: ?Sized + Send + VariableEnvironment<Var = T>,
-    // E::VarName: Borrow<String>,
 {
     type EvalResult = W::EvalResult;
     type Error = W::Error;
