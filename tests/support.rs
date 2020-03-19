@@ -307,68 +307,37 @@ where
     }
 }
 
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug, Clone)]
-//pub enum MockRedirect<T> {
-//    Action(Option<RedirectAction<T>>),
-//    MustCancel(MustCancel),
-//    Error(Option<MockErr>),
-//}
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug, Clone)]
+pub enum MockRedirect<T> {
+    Action(RedirectAction<T>),
+    Error(MockErr),
+}
 
-//pub fn mock_redirect<T>(action: RedirectAction<T>) -> MockRedirect<T> {
-//    MockRedirect::Action(Some(action))
-//}
+pub fn mock_redirect<T>(action: RedirectAction<T>) -> MockRedirect<T> {
+    MockRedirect::Action(action)
+}
 
-//pub fn mock_redirect_must_cancel<T>() -> MockRedirect<T> {
-//    MockRedirect::MustCancel(MustCancel::new())
-//}
+pub fn mock_redirect_error<T>(fatal: bool) -> MockRedirect<T> {
+    MockRedirect::Error(MockErr::Fatal(fatal))
+}
 
-//pub fn mock_redirect_error<T>(fatal: bool) -> MockRedirect<T> {
-//    MockRedirect::Error(Some(MockErr::Fatal(fatal)))
-//}
+#[async_trait::async_trait]
+impl<T, E> RedirectEval<E> for MockRedirect<T>
+where
+    T: Clone + Send + Sync,
+    E: ?Sized + Send,
+{
+    type Handle = T;
+    type Error = MockErr;
 
-//impl<T, E: ?Sized> RedirectEval<E> for MockRedirect<T> {
-//    type Handle = T;
-//    type Error = MockErr;
-//    type EvalFuture = Self;
-
-//    fn eval(self, _: &E) -> Self::EvalFuture {
-//        self
-//    }
-//}
-
-//impl<'a, T, E: ?Sized> RedirectEval<E> for &'a MockRedirect<T>
-//where
-//    T: Clone,
-//{
-//    type Handle = T;
-//    type Error = MockErr;
-//    type EvalFuture = MockRedirect<T>;
-
-//    fn eval(self, _: &E) -> Self::EvalFuture {
-//        self.clone()
-//    }
-//}
-
-//impl<T, E: ?Sized> EnvFuture<E> for MockRedirect<T> {
-//    type Item = RedirectAction<T>;
-//    type Error = MockErr;
-
-//    fn poll(&mut self, _: &mut E) -> Poll<Self::Item, MockErr> {
-//        match *self {
-//            MockRedirect::Action(ref mut a) => Ok(Async::Ready(a.take().expect("polled twice"))),
-//            MockRedirect::MustCancel(ref mut mc) => mc.poll(),
-//            MockRedirect::Error(ref mut e) => Err(e.take().expect("polled twice")),
-//        }
-//    }
-
-//    fn cancel(&mut self, _: &mut E) {
-//        match *self {
-//            MockRedirect::Action(_) | MockRedirect::Error(_) => {}
-//            MockRedirect::MustCancel(ref mut mc) => mc.cancel(),
-//        }
-//    }
-//}
+    async fn eval(&self, _: &mut E) -> Result<RedirectAction<Self::Handle>, MockErr> {
+        match self {
+            MockRedirect::Action(a) => Ok(a.clone()),
+            MockRedirect::Error(e) => Err(e.clone()),
+        }
+    }
+}
 
 pub fn new_env() -> DefaultEnvArc {
     DefaultEnvArc::new().expect("failed to create env")

@@ -1,13 +1,6 @@
 #![deny(rust_2018_idioms)]
-use conch_runtime;
-use futures;
-
-use conch_runtime::env::FileDescEnvironment;
-use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::Permissions;
-use futures::future::poll_fn;
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -16,16 +9,17 @@ async fn smoke() {
     let mut env = new_env_with_no_fds();
 
     {
-        let env = env.sub_env();
-        let future = eval_redirects_or_cmd_words::<MockRedirect<_>, MockWord, _, _>(vec![], &env)
-            .pin_env(env);
-        let (_restorer, words) = Compat01As03::new(future).await.unwrap();
+        let mut env = env.sub_env();
+        let (_restorer, words) =
+            eval_redirects_or_cmd_words::<MockRedirect<_>, MockWord, _, _>(vec![], &mut env)
+                .await
+                .unwrap();
         assert!(words.is_empty());
     }
 
     assert_eq!(env.file_desc(1), None);
     let fdes = dev_null(&mut env);
-    let mut future = eval_redirects_or_cmd_words(
+    let (restorer, words) = eval_redirects_or_cmd_words(
         vec![
             RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
                 1,
@@ -39,15 +33,16 @@ async fn smoke() {
                 "baz".to_owned(),
             ]))),
         ],
-        &env,
+        &mut env,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        restorer.get().file_desc(1),
+        Some((&fdes, Permissions::Write))
     );
-
-    let (mut restorer, words) = Compat01As03::new(poll_fn(|| future.poll(&mut env)))
-        .await
-        .unwrap();
-
-    assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
-    restorer.restore(&mut env);
+    let env = restorer.restore();
     assert_eq!(env.file_desc(1), None);
 
     assert_eq!(
@@ -63,7 +58,7 @@ async fn should_propagate_errors_and_restore_redirects() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_cmd_words(
+        let future = eval_redirects_or_cmd_words(
             vec![
                 RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
                     1,
@@ -73,13 +68,12 @@ async fn should_propagate_errors_and_restore_redirects() {
                 RedirectOrCmdWord::CmdWord(mock_word_error(false)),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
             ],
-            &env,
+            &mut env,
         );
 
-        let err = EvalRedirectOrCmdWordError::CmdWord(MockErr::Fatal(false));
         assert_eq!(
-            Compat01As03::new(poll_fn(|| future.poll(&mut env))).await,
-            Err(err)
+            future.await.unwrap_err(),
+            EvalRedirectOrCmdWordError::CmdWord(MockErr::Fatal(false))
         );
         assert_eq!(env.file_desc(1), None);
     }
@@ -87,7 +81,7 @@ async fn should_propagate_errors_and_restore_redirects() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval_redirects_or_cmd_words(
+        let future = eval_redirects_or_cmd_words(
             vec![
                 RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
                     1,
@@ -97,45 +91,13 @@ async fn should_propagate_errors_and_restore_redirects() {
                 RedirectOrCmdWord::Redirect(mock_redirect_error(false)),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
             ],
-            &env,
+            &mut env,
         );
 
-        let err = EvalRedirectOrCmdWordError::Redirect(MockErr::Fatal(false));
         assert_eq!(
-            Compat01As03::new(poll_fn(|| future.poll(&mut env))).await,
-            Err(err)
+            future.await.unwrap_err(),
+            EvalRedirectOrCmdWordError::Redirect(MockErr::Fatal(false))
         );
         assert_eq!(env.file_desc(1), None);
     }
-}
-
-#[tokio::test]
-async fn should_propagate_cancel_and_restore_redirects() {
-    let mut env = new_env_with_no_fds();
-
-    test_cancel!(
-        eval_redirects_or_cmd_words::<MockRedirect<_>, _, _, _>(
-            vec!(RedirectOrCmdWord::CmdWord(mock_word_must_cancel())),
-            &env,
-        ),
-        env
-    );
-
-    assert_eq!(env.file_desc(1), None);
-    test_cancel!(
-        eval_redirects_or_cmd_words(
-            vec!(
-                RedirectOrCmdWord::Redirect(mock_redirect(RedirectAction::Open(
-                    1,
-                    dev_null(&mut env),
-                    Permissions::Write
-                ))),
-                RedirectOrCmdWord::Redirect(mock_redirect_must_cancel()),
-                RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
-            ),
-            &env,
-        ),
-        env
-    );
-    assert_eq!(env.file_desc(1), None);
 }

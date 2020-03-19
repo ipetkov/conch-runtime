@@ -12,7 +12,7 @@ mod double_quoted;
 mod fields;
 mod param_subst;
 mod redirect;
-//mod redirect_or_cmd_word;
+mod redirect_or_cmd_word;
 //mod redirect_or_var_assig;
 
 #[cfg(feature = "conch-parser")]
@@ -29,10 +29,10 @@ pub use self::redirect::{
     redirect_append, redirect_clobber, redirect_dup_read, redirect_dup_write, redirect_heredoc,
     redirect_read, redirect_readwrite, redirect_write, RedirectAction, RedirectEval,
 };
-//pub use self::redirect_or_cmd_word::{
-//    eval_redirects_or_cmd_words, eval_redirects_or_cmd_words_with_restorer, EvalRedirectOrCmdWord,
-//    EvalRedirectOrCmdWordError, RedirectOrCmdWord,
-//};
+pub use self::redirect_or_cmd_word::{
+    eval_redirects_or_cmd_words, eval_redirects_or_cmd_words_with_restorer,
+    EvalRedirectOrCmdWordError, RedirectOrCmdWord,
+};
 //pub use self::redirect_or_var_assig::{
 //    eval_redirects_or_var_assignments_with_restorers, EvalRedirectOrVarAssig,
 //    EvalRedirectOrVarAssigError, RedirectOrVarAssig,
