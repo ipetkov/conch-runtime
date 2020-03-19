@@ -349,40 +349,6 @@ pub fn new_env_with_no_fds() -> DefaultEnvArc {
     DefaultEnvArc::with_config(cfg)
 }
 
-//#[macro_export]
-//macro_rules! eval {
-//    ($word:expr, $cfg:expr) => {
-//        eval_with_thread_pool!($word, $cfg, 1)
-//    };
-//}
-
-//#[macro_export]
-//macro_rules! eval_with_thread_pool {
-//    ($word:expr, $cfg:expr, $threads:expr) => {{
-//        let word = $word;
-//        let cfg = $cfg;
-//        #[allow(deprecated)]
-//        let ret_ref = eval_word(&word, cfg, $threads).await;
-//        #[allow(deprecated)]
-//        let ret = eval_word(word, cfg, $threads).await;
-//        assert_eq!(ret_ref, ret);
-//        ret
-//    }};
-//}
-
-///// Evaluates a word to completion.
-//#[deprecated(note = "use `eval!` macro instead, to cover spawning T and &T")]
-//pub async fn eval_word<W: WordEval<DefaultEnv<String>>>(
-//    word: W,
-//    cfg: WordEvalConfig,
-//    threads: usize,
-//) -> Result<Fields<W::EvalResult>, W::Error> {
-//    let env = DefaultEnv::<String>::new(Some(threads)).expect("failed to create env");
-//    let future = word.eval_with_config(&env, cfg).pin_env(env);
-
-//    Compat01As03::new(future).await
-//}
-
 pub fn bin_path(s: &str) -> ::std::path::PathBuf {
     let mut me = ::std::env::current_exe().unwrap();
     me.pop();

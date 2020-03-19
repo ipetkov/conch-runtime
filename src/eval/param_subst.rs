@@ -7,7 +7,6 @@ mod default;
 mod error;
 mod len;
 mod remove;
-mod split;
 
 pub use self::alternative::alternative;
 pub use self::assign::assign;
@@ -17,7 +16,6 @@ pub use self::len::len;
 pub use self::remove::{
     remove_largest_prefix, remove_largest_suffix, remove_smallest_prefix, remove_smallest_suffix,
 };
-pub use self::split::split;
 
 /// Determines if a `Fields` variant can be considered non-empty/non-null.
 ///
