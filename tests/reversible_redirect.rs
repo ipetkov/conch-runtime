@@ -1,12 +1,14 @@
 #![deny(rust_2018_idioms)]
 
 use conch_runtime::env::{
-    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, PlatformSpecificAsyncRead,
-    PlatformSpecificWriteAll, RedirectEnvRestorer, RedirectRestorer,
+    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, RedirectEnvRestorer,
+    RedirectRestorer,
 };
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::Fd;
+use futures_core::future::BoxFuture;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
@@ -45,14 +47,16 @@ impl<T> FileDescEnvironment for MockFileDescEnv<T> {
 
 impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
     type IoHandle = T;
-    type Read = PlatformSpecificAsyncRead;
-    type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {
+    fn read_all(&mut self, _: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> io::Result<Self::WriteAll> {
+    fn write_all<'a>(
+        &mut self,
+        _: Self::IoHandle,
+        _: Cow<'a, [u8]>,
+    ) -> BoxFuture<'a, io::Result<()>> {
         unimplemented!()
     }
 
@@ -85,8 +89,8 @@ impl From<FileDesc> for S {
     }
 }
 
-#[tokio::test]
-async fn smoke() {
+#[test]
+fn smoke() {
     let mut env = MockFileDescEnv::new();
     env.set_file_desc(1, S("a"), Permissions::Read);
     env.set_file_desc(2, S("b"), Permissions::Write);
@@ -96,64 +100,47 @@ async fn smoke() {
 
     let env_original = env.clone();
 
-    let restorer: &mut dyn RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
+    // let mut restorer: &mut dyn RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
+    let mut restorer = RedirectRestorer::new(env);
 
     // Existing fd set to multiple other values
     restorer
-        .apply_action(RedirectAction::Open(1, S("x"), Permissions::Read), &mut env)
+        .apply_action(RedirectAction::Open(1, S("x"), Permissions::Read))
         .unwrap();
     restorer
-        .apply_action(
-            RedirectAction::Open(1, S("y"), Permissions::Write),
-            &mut env,
-        )
+        .apply_action(RedirectAction::Open(1, S("y"), Permissions::Write))
         .unwrap();
     restorer
-        .apply_action(RedirectAction::HereDoc(1, vec![]), &mut env)
+        .apply_action(RedirectAction::HereDoc(1, vec![]))
         .unwrap();
 
     // Existing fd closed, then opened
+    restorer.apply_action(RedirectAction::Close(2)).unwrap();
     restorer
-        .apply_action(RedirectAction::Close(2), &mut env)
-        .unwrap();
-    restorer
-        .apply_action(
-            RedirectAction::Open(2, S("z"), Permissions::Write),
-            &mut env,
-        )
+        .apply_action(RedirectAction::Open(2, S("z"), Permissions::Write))
         .unwrap();
 
     // Existing fd changed, then closed
     restorer
-        .apply_action(
-            RedirectAction::Open(3, S("w"), Permissions::Write),
-            &mut env,
-        )
+        .apply_action(RedirectAction::Open(3, S("w"), Permissions::Write))
         .unwrap();
-    restorer
-        .apply_action(RedirectAction::Close(3), &mut env)
-        .unwrap();
+    restorer.apply_action(RedirectAction::Close(3)).unwrap();
 
     // Nonexistent fd set, then changed
     restorer
-        .apply_action(RedirectAction::HereDoc(4, vec![]), &mut env)
+        .apply_action(RedirectAction::HereDoc(4, vec![]))
         .unwrap();
     restorer
-        .apply_action(
-            RedirectAction::Open(4, S("s"), Permissions::Write),
-            &mut env,
-        )
+        .apply_action(RedirectAction::Open(4, S("s"), Permissions::Write))
         .unwrap();
 
     // Nonexistent fd set, then closed
     restorer
-        .apply_action(RedirectAction::Open(5, S("t"), Permissions::Read), &mut env)
+        .apply_action(RedirectAction::Open(5, S("t"), Permissions::Read))
         .unwrap();
-    restorer
-        .apply_action(RedirectAction::Close(5), &mut env)
-        .unwrap();
+    restorer.apply_action(RedirectAction::Close(5)).unwrap();
 
-    assert!(env_original != env);
-    restorer.restore(&mut env);
+    assert_ne!(env_original, *restorer.get());
+    let env = restorer.restore();
     assert_eq!(env_original, env);
 }
