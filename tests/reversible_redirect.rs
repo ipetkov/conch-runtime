@@ -91,6 +91,8 @@ impl From<FileDesc> for S {
 
 #[test]
 fn smoke() {
+    type RA = RedirectAction<S>;
+
     let mut env = MockFileDescEnv::new();
     env.set_file_desc(1, S("a"), Permissions::Read);
     env.set_file_desc(2, S("b"), Permissions::Write);
@@ -100,45 +102,40 @@ fn smoke() {
 
     let env_original = env.clone();
 
-    // let mut restorer: &mut dyn RedirectEnvRestorer<_> = &mut RedirectRestorer::new();
     let mut restorer = RedirectRestorer::new(env);
 
     // Existing fd set to multiple other values
-    restorer
-        .apply_action(RedirectAction::Open(1, S("x"), Permissions::Read))
+    RA::Open(1, S("x"), Permissions::Read)
+        .apply(&mut restorer)
         .unwrap();
-    restorer
-        .apply_action(RedirectAction::Open(1, S("y"), Permissions::Write))
+    RA::Open(1, S("y"), Permissions::Write)
+        .apply(&mut restorer)
         .unwrap();
-    restorer
-        .apply_action(RedirectAction::HereDoc(1, vec![]))
-        .unwrap();
+    RA::HereDoc(1, vec![]).apply(&mut restorer).unwrap();
 
     // Existing fd closed, then opened
-    restorer.apply_action(RedirectAction::Close(2)).unwrap();
-    restorer
-        .apply_action(RedirectAction::Open(2, S("z"), Permissions::Write))
+    RA::Close(2).apply(&mut restorer).unwrap();
+    RA::Open(2, S("z"), Permissions::Write)
+        .apply(&mut restorer)
         .unwrap();
 
     // Existing fd changed, then closed
-    restorer
-        .apply_action(RedirectAction::Open(3, S("w"), Permissions::Write))
+    RA::Open(3, S("w"), Permissions::Write)
+        .apply(&mut restorer)
         .unwrap();
-    restorer.apply_action(RedirectAction::Close(3)).unwrap();
+    RA::Close(3).apply(&mut restorer).unwrap();
 
     // Nonexistent fd set, then changed
-    restorer
-        .apply_action(RedirectAction::HereDoc(4, vec![]))
-        .unwrap();
-    restorer
-        .apply_action(RedirectAction::Open(4, S("s"), Permissions::Write))
+    RA::HereDoc(4, vec![]).apply(&mut restorer).unwrap();
+    RA::Open(4, S("s"), Permissions::Write)
+        .apply(&mut restorer)
         .unwrap();
 
     // Nonexistent fd set, then closed
-    restorer
-        .apply_action(RedirectAction::Open(5, S("t"), Permissions::Read))
+    RA::Open(5, S("t"), Permissions::Read)
+        .apply(&mut restorer)
         .unwrap();
-    restorer.apply_action(RedirectAction::Close(5)).unwrap();
+    RA::Close(5).apply(&mut restorer).unwrap();
 
     assert_ne!(env_original, *restorer.get());
     let env = restorer.restore();

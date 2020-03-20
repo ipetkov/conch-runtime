@@ -42,7 +42,7 @@ where
     }
 }
 
-/// Create a  future which will evaluate a series of redirections and shell words.
+/// Evaluate a series of redirections and shell words.
 ///
 /// All redirections will be applied to the environment. On successful completion,
 /// a `RedirectRestorer` will be returned which allows the caller to reverse the
@@ -68,7 +68,7 @@ where
     eval_redirects_or_cmd_words_with_restorer(RedirectRestorer::new(env), words).await
 }
 
-/// Create a future which will evaluate a series of redirections and shell words,
+/// Evaluate a series of redirections and shell words,
 /// and supply a `RedirectEnvRestorer` to use.
 ///
 /// All redirections will be applied to the environment. On successful completion,
@@ -85,10 +85,10 @@ where
     R::Error: Fail + From<RedirectionError>,
     W: WordEval<E>,
     W::Error: Fail,
-    E: 'a + ?Sized + Send + Sync + AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-    E::FileHandle: From<E::OpenedFileHandle>,
-    E::IoHandle: Send + From<E::FileHandle>,
-    RR: RedirectEnvRestorer<&'a mut E>,
+    E: 'a + ?Sized + Send + Sync + FileDescEnvironment,
+    RR: AsyncIoEnvironment + FileDescOpener + RedirectEnvRestorer<&'a mut E>,
+    RR::FileHandle: From<RR::OpenedFileHandle>,
+    RR::IoHandle: Send + From<RR::FileHandle>,
 {
     let words = words.into_iter();
 
@@ -117,10 +117,10 @@ where
     R::Error: Fail + From<RedirectionError>,
     W: WordEval<E>,
     W::Error: Fail,
-    E: 'a + ?Sized + Send + Sync + AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-    E::FileHandle: From<E::OpenedFileHandle>,
-    E::IoHandle: Send + From<E::FileHandle>,
-    RR: RedirectEnvRestorer<&'a mut E>,
+    E: 'a + ?Sized + Send + Sync + FileDescEnvironment,
+    RR: AsyncIoEnvironment + FileDescOpener + RedirectEnvRestorer<&'a mut E>,
+    RR::FileHandle: From<RR::OpenedFileHandle>,
+    RR::IoHandle: Send + From<RR::FileHandle>,
 {
     match candidate {
         RedirectOrCmdWord::CmdWord(w) => {
@@ -136,7 +136,7 @@ where
                 .await
                 .map_err(EvalRedirectOrCmdWordError::Redirect)?;
 
-            if let Err(e) = restorer.apply_action(action) {
+            if let Err(e) = action.apply(restorer) {
                 let err = R::Error::from(RedirectionError::Io(e, None));
                 return Err(EvalRedirectOrCmdWordError::Redirect(err));
             }
