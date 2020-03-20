@@ -141,3 +141,23 @@ fn smoke() {
     let env = restorer.restore();
     assert_eq!(env_original, env);
 }
+
+#[test]
+fn forget_persists_changes() {
+    let mut env = MockFileDescEnv::new();
+    env.set_file_desc(1, S("a"), Permissions::Read);
+    env.set_file_desc(2, S("b"), Permissions::Write);
+    env.close_file_desc(5);
+
+    let env_original = env.clone();
+
+    let mut restorer = RedirectRestorer::new(env);
+
+    restorer.close_file_desc(1);
+    restorer.set_file_desc(2, S("foo"), Permissions::ReadWrite);
+    restorer.set_file_desc(3, S("var"), Permissions::ReadWrite);
+
+    let current = restorer.get().clone();
+    assert_ne!(env_original, current);
+    assert_eq!(current, restorer.forget());
+}

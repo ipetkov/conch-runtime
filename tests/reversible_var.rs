@@ -109,3 +109,28 @@ fn restore_on_drop() {
     drop(restorer);
     assert_eq!(env_original, env);
 }
+
+#[test]
+fn forget_persists_changes() {
+    let key_exported = "key_exported";
+    let val_existing_exported = "var_exported";
+    let mut env = VarEnv::with_env_vars(vec![(key_exported, val_existing_exported)]);
+
+    let key_existing = "key_existing";
+    let val_existing = "val_existing";
+    env.set_var(key_existing, val_existing);
+
+    let key_originally_unset = "key_originally_unset";
+    env.unset_var(&key_originally_unset);
+
+    let env_original = env.clone();
+    let mut restorer = VarRestorer::new(env);
+
+    restorer.set_exported_var(key_exported, "some other exported value", true);
+    restorer.unset_var(&key_existing);
+    restorer.set_exported_var(key_originally_unset, "some new value", true);
+
+    let current = restorer.get().clone();
+    assert_ne!(env_original, current);
+    assert_eq!(current, restorer.forget());
+}

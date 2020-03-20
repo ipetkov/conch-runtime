@@ -31,6 +31,9 @@ pub trait VarEnvRestorer<E: VariableEnvironment>:
     /// Restore all variable definitions to their original state
     /// and return the underlying environment.
     fn restore(self) -> E;
+
+    /// Unwrap the underlying environment **without** restoring anything.
+    fn forget(self) -> E;
 }
 
 /// Maintains a state of all variable definitions that have been modified so that
@@ -114,6 +117,10 @@ where
 
     fn restore(mut self) -> E {
         self.do_restore().expect("double restore")
+    }
+
+    fn forget(mut self) -> E {
+        self.env.take().expect("double unwrap")
     }
 }
 
