@@ -5,7 +5,9 @@ use std::hash::Hash;
 
 /// An interface for wrapping an environment and maintaining a state of all variable
 /// definitions that have been modified so that they can be restored later.
-pub trait VarEnvRestorer<E: VariableEnvironment>: VariableEnvironment {
+pub trait VarEnvRestorer<E: VariableEnvironment>:
+    VariableEnvironment<Var = E::Var, VarName = E::VarName>
+{
     /// Reserves capacity for at least `additional` more variables to be backed up.
     fn reserve(&mut self, additional: usize);
 
