@@ -1,10 +1,14 @@
-use crate::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe};
+use crate::env::{
+    AsyncIoEnvironment, ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, Pipe,
+    UnsetVariableEnvironment, VariableEnvironment,
+};
 use crate::io::Permissions;
 use crate::Fd;
 use futures_core::future::BoxFuture;
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
+use std::hash::Hash;
 use std::io;
 use std::path::Path;
 
@@ -181,5 +185,54 @@ where
 
     fn restore(mut self) -> E {
         self.do_restore().expect("double restore")
+    }
+}
+
+impl<E> VariableEnvironment for RedirectRestorer<E>
+where
+    E: FileDescEnvironment + VariableEnvironment,
+{
+    type VarName = E::VarName;
+    type Var = E::Var;
+
+    fn var<Q: ?Sized>(&self, name: &Q) -> Option<&Self::Var>
+    where
+        Self::VarName: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.env.as_ref().unwrap().var(name)
+    }
+
+    fn set_var(&mut self, name: Self::VarName, val: Self::Var) {
+        self.env.as_mut().unwrap().set_var(name, val);
+    }
+
+    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+        self.env.as_ref().unwrap().env_vars()
+    }
+}
+
+impl<E> ExportedVariableEnvironment for RedirectRestorer<E>
+where
+    E: FileDescEnvironment + ExportedVariableEnvironment,
+{
+    fn exported_var(&self, name: &Self::VarName) -> Option<(&Self::Var, bool)> {
+        self.env.as_ref().unwrap().exported_var(name)
+    }
+
+    fn set_exported_var(&mut self, name: Self::VarName, val: Self::Var, exported: bool) {
+        self.env
+            .as_mut()
+            .unwrap()
+            .set_exported_var(name, val, exported)
+    }
+}
+
+impl<E> UnsetVariableEnvironment for RedirectRestorer<E>
+where
+    E: FileDescEnvironment + UnsetVariableEnvironment,
+{
+    fn unset_var(&mut self, name: &E::VarName) {
+        self.env.as_mut().unwrap().unset_var(name);
     }
 }

@@ -1,40 +1,23 @@
 #![deny(rust_2018_idioms)]
-use conch_runtime;
-use futures;
 
-use conch_runtime::env::FileDescEnvironment;
-use conch_runtime::eval::RedirectAction;
-use conch_runtime::io::Permissions;
-use futures::future::poll_fn;
+use conch_runtime::io::{FileDesc, Permissions};
 use std::sync::Arc;
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
 type MockRedirectOrVarAssig =
-    RedirectOrVarAssig<MockRedirect<PlatformSpecificManagedHandle>, Arc<String>, MockWord>;
+    RedirectOrVarAssig<MockRedirect<Arc<FileDesc>>, Arc<String>, MockWord>;
 
-fn eval(
+async fn eval(
     vars: Vec<MockRedirectOrVarAssig>,
     export_vars: Option<bool>,
-    env: &DefaultEnvArc,
-) -> EvalRedirectOrVarAssig<
-    MockRedirect<PlatformSpecificManagedHandle>,
-    Arc<String>,
-    MockWord,
-    ::std::vec::IntoIter<MockRedirectOrVarAssig>,
-    DefaultEnvArc,
-    RedirectRestorer<DefaultEnvArc>,
-    VarRestorer<DefaultEnvArc>,
+    env: &mut DefaultEnvArc,
+) -> Result<
+    VarRestorer<RedirectRestorer<&mut DefaultEnvArc>>,
+    EvalRedirectOrVarAssigError<MockErr, MockErr>,
 > {
-    eval_redirects_or_var_assignments_with_restorers(
-        RedirectRestorer::new(),
-        VarRestorer::new(),
-        export_vars,
-        vars,
-        env,
-    )
+    eval_redirects_or_var_assignments(export_vars, vars, env).await
 }
 
 #[tokio::test]
@@ -62,12 +45,7 @@ async fn smoke() {
 
     {
         let mut env = env.sub_env();
-        let mut future = eval(vec![], None, &env);
-
-        let (_redirect_restorer, _var_restorer) =
-            Compat01As03::new(poll_fn(|| future.poll(&mut env)))
-                .await
-                .unwrap();
+        eval(vec![], None, &mut env).await.unwrap();
         assert_empty_vars(&env);
     }
 
@@ -75,7 +53,7 @@ async fn smoke() {
     assert_empty_vars(&env);
 
     let fdes = dev_null(&mut env);
-    let mut future = eval(
+    let future = eval(
         vec![
             RedirectOrVarAssig::Redirect(mock_redirect(RedirectAction::Open(
                 1,
@@ -97,26 +75,33 @@ async fn smoke() {
             RedirectOrVarAssig::VarAssig(key_empty2.clone(), Some(mock_word_fields(Fields::Zero))),
         ],
         None,
-        &env,
+        &mut env,
+    );
+    let var_restorer = future.await.unwrap();
+
+    assert_eq!(var_restorer.get().var(&key), Some(&Arc::new(val)));
+    assert_eq!(
+        var_restorer.get().var(&key_empty),
+        Some(&Arc::new(String::new()))
+    );
+    assert_eq!(
+        var_restorer.get().var(&key_empty2),
+        Some(&Arc::new(String::new()))
+    );
+    assert_eq!(
+        var_restorer.get().var(&key_split),
+        Some(&Arc::new("foo bar".to_owned()))
     );
 
-    let (mut redirect_restorer, mut var_restorer) =
-        Compat01As03::new(poll_fn(|| future.poll(&mut env)))
-            .await
-            .unwrap();
+    let redirect_restorer = var_restorer.restore();
+    assert_empty_vars(redirect_restorer.get());
 
-    assert_eq!(env.file_desc(1), Some((&fdes, Permissions::Write)));
-    redirect_restorer.restore(&mut env);
+    assert_eq!(
+        redirect_restorer.get().file_desc(1),
+        Some((&fdes, Permissions::Write))
+    );
+    let env = redirect_restorer.restore();
     assert_eq!(env.file_desc(1), None);
-
-    assert_eq!(env.var(&key), Some(&Arc::new(val)));
-    assert_eq!(env.var(&key_empty), Some(&Arc::new(String::new())));
-    assert_eq!(env.var(&key_empty2), Some(&Arc::new(String::new())));
-    assert_eq!(env.var(&key_split), Some(&Arc::new("foo bar".to_owned())));
-
-    #[allow(deprecated)]
-    var_restorer.restore(&mut env);
-    assert_empty_vars(&env);
 }
 
 #[tokio::test]
@@ -148,7 +133,7 @@ async fn should_honor_export_vars_config() {
 
     for (case, new, existing, existing_exported) in cases {
         let mut env = env.sub_env();
-        let mut future = eval(
+        let future = eval(
             vec![
                 RedirectOrVarAssig::VarAssig(
                     key.clone(),
@@ -164,18 +149,18 @@ async fn should_honor_export_vars_config() {
                 ),
             ],
             case,
-            &env,
+            &mut env,
         );
 
-        let (_redirect_restorer, _var_restorer) =
-            Compat01As03::new(poll_fn(|| future.poll(&mut env)))
-                .await
-                .unwrap();
+        let var_restorer = future.await.unwrap();
 
-        assert_eq!(env.exported_var(&key), Some((&val, new)));
-        assert_eq!(env.exported_var(&key_existing), Some((&val_new, existing)));
+        assert_eq!(var_restorer.get().exported_var(&key), Some((&val, new)));
         assert_eq!(
-            env.exported_var(&key_existing_exported),
+            var_restorer.get().exported_var(&key_existing),
+            Some((&val_new, existing))
+        );
+        assert_eq!(
+            var_restorer.get().exported_var(&key_existing_exported),
             Some((&val_new_alt, existing_exported))
         );
     }
@@ -190,7 +175,7 @@ async fn should_propagate_errors_and_restore_redirects_and_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval(
+        let future = eval(
             vec![
                 RedirectOrVarAssig::Redirect(mock_redirect(RedirectAction::Open(
                     1,
@@ -205,13 +190,12 @@ async fn should_propagate_errors_and_restore_redirects_and_vars() {
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ],
             None,
-            &env,
+            &mut env,
         );
 
-        let err = EvalRedirectOrVarAssigError::VarAssig(MockErr::Fatal(false));
         assert_eq!(
-            Compat01As03::new(poll_fn(|| future.poll(&mut env))).await,
-            Err(err)
+            future.await.unwrap_err(),
+            EvalRedirectOrVarAssigError::VarAssig(MockErr::Fatal(false))
         );
         assert_eq!(env.file_desc(1), None);
         assert_eq!(env.var(&key), None);
@@ -220,7 +204,7 @@ async fn should_propagate_errors_and_restore_redirects_and_vars() {
     {
         assert_eq!(env.file_desc(1), None);
 
-        let mut future = eval(
+        let future = eval(
             vec![
                 RedirectOrVarAssig::Redirect(mock_redirect(RedirectAction::Open(
                     1,
@@ -235,58 +219,14 @@ async fn should_propagate_errors_and_restore_redirects_and_vars() {
                 RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
             ],
             None,
-            &env,
+            &mut env,
         );
 
-        let err = EvalRedirectOrVarAssigError::Redirect(MockErr::Fatal(false));
         assert_eq!(
-            Compat01As03::new(poll_fn(|| future.poll(&mut env))).await,
-            Err(err)
+            future.await.unwrap_err(),
+            EvalRedirectOrVarAssigError::Redirect(MockErr::Fatal(false))
         );
         assert_eq!(env.file_desc(1), None);
         assert_eq!(env.var(&key), None);
     }
-}
-
-#[tokio::test]
-async fn should_propagate_cancel_and_restore_redirects_and_vars() {
-    let mut env = new_env_with_no_fds();
-
-    let key = Arc::new("key".to_owned());
-
-    test_cancel!(
-        eval(
-            vec!(RedirectOrVarAssig::VarAssig(
-                key.clone(),
-                Some(mock_word_must_cancel())
-            )),
-            None,
-            &env,
-        ),
-        env
-    );
-
-    assert_eq!(env.file_desc(1), None);
-    test_cancel!(
-        eval(
-            vec!(
-                RedirectOrVarAssig::Redirect(mock_redirect(RedirectAction::Open(
-                    1,
-                    dev_null(&mut env),
-                    Permissions::Write
-                ))),
-                RedirectOrVarAssig::VarAssig(
-                    key.clone(),
-                    Some(mock_word_fields(Fields::Single("val".to_owned())))
-                ),
-                RedirectOrVarAssig::Redirect(mock_redirect_must_cancel()),
-                RedirectOrVarAssig::VarAssig(key.clone(), Some(mock_word_panic("should not run"))),
-            ),
-            None,
-            &env,
-        ),
-        env
-    );
-    assert_eq!(env.file_desc(1), None);
-    assert_eq!(env.var(&key), None);
 }

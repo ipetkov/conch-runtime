@@ -4,8 +4,6 @@
 use crate::env::StringWrapper;
 use crate::error::ExpansionError;
 use futures_core::future::BoxFuture;
-//use crate::future::{Async, EnvFuture, Poll};
-//use std::borrow::Borrow;
 
 mod assignment;
 mod concat;
@@ -14,7 +12,7 @@ mod fields;
 mod param_subst;
 mod redirect;
 mod redirect_or_cmd_word;
-//mod redirect_or_var_assig;
+mod redirect_or_var_assig;
 
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
@@ -35,10 +33,10 @@ pub use self::redirect_or_cmd_word::{
     eval_redirects_or_cmd_words, eval_redirects_or_cmd_words_with_restorer,
     EvalRedirectOrCmdWordError, RedirectOrCmdWord,
 };
-//pub use self::redirect_or_var_assig::{
-//    eval_redirects_or_var_assignments_with_restorers, EvalRedirectOrVarAssig,
-//    EvalRedirectOrVarAssigError, RedirectOrVarAssig,
-//};
+pub use self::redirect_or_var_assig::{
+    eval_redirects_or_var_assignments, eval_redirects_or_var_assignments_with_restorers,
+    EvalRedirectOrVarAssigError, RedirectOrVarAssig,
+};
 
 /// A trait for evaluating parameters.
 pub trait ParamEval<E: ?Sized> {
@@ -170,68 +168,6 @@ where
         (**self).eval_with_config(env, cfg)
     }
 }
-
-///// A trait for evaluating shell words with various rules for expansion.
-//// FIXME: should Assignment and Pattern be associated types? Currently there is no way to override
-//// the assignment/pattern behavior since the trait requires an explicit adapter be returned...
-//pub trait WordEval<E: ?Sized>: Sized {
-//    /// The underlying representation of the evaulation type (e.g. `String`, `Rc<String>`).
-//    type EvalResult: StringWrapper;
-//    /// An error that can arise during evaluation.
-//    type Error;
-//    /// A future which will carry out the evaluation.
-//    type EvalFuture: EnvFuture<E, Item = Fields<Self::EvalResult>, Error = Self::Error>;
-
-//    /// Evaluates a word just like `eval`, but converts the result into a `glob::Pattern`.
-//    // FIXME: implement patterns according to spec
-//    // FIXME: globbing should be done relative to the shell's cwd WITHOUT changing the process's cwd
-//    fn eval_as_pattern(self, env: &E) -> Pattern<Self::EvalFuture> {
-//        Pattern {
-//            f: self.eval_with_config(
-//                env,
-//                WordEvalConfig {
-//                    tilde_expansion: TildeExpansion::First,
-//                    split_fields_further: false,
-//                },
-//            ),
-//        }
-//    }
-
-//    /// Evaluate and take a provided config into account.
-//    ///
-//    /// Generally `$*` should always be joined by the first char of `$IFS` or have all
-//    /// fields concatenated if `$IFS` is null or `$*` is in double quotes.
-//    ///
-//    /// If `cfg.split_fields_further` is false then all empty fields will be kept.
-//    ///
-//    /// The caller is responsible for doing path expansions.
-//    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture;
-//}
-
-//impl<E: ?Sized, W: WordEval<E>> WordEval<E> for Box<W> {
-//    type EvalResult = W::EvalResult;
-//    type Error = W::Error;
-//    type EvalFuture = W::EvalFuture;
-
-//    #[allow(clippy::boxed_local)]
-//    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-//        (*self).eval_with_config(env, cfg)
-//    }
-//}
-
-//impl<'a, E: ?Sized, W: 'a> WordEval<E> for &'a Box<W>
-//where
-//    &'a W: WordEval<E>,
-//{
-//    type EvalResult = <&'a W as WordEval<E>>::EvalResult;
-//    type Error = <&'a W as WordEval<E>>::Error;
-//    type EvalFuture = <&'a W as WordEval<E>>::EvalFuture;
-
-//    #[allow(clippy::boxed_local)]
-//    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-//        (&**self).eval_with_config(env, cfg)
-//    }
-//}
 
 // Evaluate a word as a pattern. Note this is not a public API since there needs to be a
 // better abstraction for allowing consumers to override/define patterns (i.e. don't
