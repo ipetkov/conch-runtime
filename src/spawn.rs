@@ -9,7 +9,7 @@ use futures_core::future::BoxFuture;
 
 mod and_or;
 //mod builtin_exec;
-//mod case;
+mod case;
 mod for_cmd;
 mod func_exec;
 mod if_cmd;
@@ -34,7 +34,7 @@ mod swallow_non_fatal;
 // Pub reexports
 pub use self::and_or::{and_or_list, AndOr};
 //pub use self::builtin_exec::builtin;
-//pub use self::case::{case, Case, PatternBodyPair};
+pub use self::case::{case, PatternBodyPair};
 pub use self::for_cmd::{for_args, for_loop, for_with_args};
 pub use self::func_exec::{function, function_body};
 pub use self::if_cmd::if_cmd;
