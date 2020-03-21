@@ -1,14 +1,9 @@
 #![deny(rust_2018_idioms)]
-#![cfg(feature = "conch-parser")]
 
-use conch_runtime;
-use futures;
-
-use conch_parser::ast::CompoundCommand;
 use conch_runtime::io::{FileDesc, Permissions};
 use conch_runtime::spawn::spawn_with_local_redirections;
 use conch_runtime::{Fd, EXIT_SUCCESS, STDIN_FILENO, STDOUT_FILENO};
-use futures::future::{ok, FutureResult};
+use futures_core::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -17,7 +12,6 @@ use std::io;
 use std::path::Path;
 use std::sync::Arc;
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -54,19 +48,22 @@ impl FileDescOpener for MockEnv {
 
 impl AsyncIoEnvironment for MockEnv {
     type IoHandle = Arc<FileDesc>;
-    type Read = PlatformSpecificAsyncRead;
-    type WriteAll = PlatformSpecificWriteAll;
 
-    fn read_async(&mut self, _: Self::IoHandle) -> io::Result<Self::Read> {
+    fn read_all(&mut self, _: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
         unimplemented!()
     }
 
-    fn write_all(&mut self, _: Self::IoHandle, _: Vec<u8>) -> io::Result<Self::WriteAll> {
+    /// Asynchronously write `data` into the specified handle.
+    fn write_all<'a>(
+        &mut self,
+        _: Self::IoHandle,
+        _: Cow<'a, [u8]>,
+    ) -> BoxFuture<'a, io::Result<()>> {
         unimplemented!()
     }
 
     fn write_all_best_effort(&mut self, _: Self::IoHandle, _: Vec<u8>) {
-        // Nothing to do
+        unimplemented!()
     }
 }
 
@@ -107,7 +104,6 @@ impl VariableEnvironment for MockEnv {
     }
 }
 
-#[must_use = "futures do nothing unless polled"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MockCmd2 {
     expected_fds: HashMap<Fd, Option<(Arc<FileDesc>, Permissions)>>,
@@ -115,21 +111,14 @@ pub struct MockCmd2 {
     value: &'static str,
 }
 
+#[async_trait::async_trait]
 impl Spawn<MockEnv> for MockCmd2 {
     type Error = MockErr;
-    type EnvFuture = Self;
-    type Future = FutureResult<ExitStatus, Self::Error>;
 
-    fn spawn(self, _: &MockEnv) -> Self::EnvFuture {
-        self
-    }
-}
-
-impl EnvFuture<MockEnv> for MockCmd2 {
-    type Item = FutureResult<ExitStatus, Self::Error>;
-    type Error = MockErr;
-
-    fn poll(&mut self, env: &mut MockEnv) -> Poll<Self::Item, Self::Error> {
+    async fn spawn(
+        &self,
+        env: &mut MockEnv,
+    ) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
         for (&fd, expected) in &self.expected_fds {
             match *expected {
                 Some((ref fdes, perms)) => assert_eq!(env.file_desc(fd), Some((fdes, perms))),
@@ -138,24 +127,17 @@ impl EnvFuture<MockEnv> for MockCmd2 {
         }
 
         env.set_var(self.var, self.value);
-        Ok(Async::Ready(ok(EXIT_SUCCESS)))
-    }
-
-    fn cancel(&mut self, _env: &mut MockEnv) {
-        // Nothing to do
+        Ok(Box::pin(async { EXIT_SUCCESS }))
     }
 }
 
 async fn run_with_local_redirections(
-    redirects: Vec<MockRedirect<PlatformSpecificManagedHandle>>,
+    redirects: Vec<MockRedirect<Arc<FileDesc>>>,
     cmd: MockCmd,
 ) -> Result<ExitStatus, MockErr> {
-    let env = new_env();
-    let future = spawn_with_local_redirections(redirects, cmd)
-        .pin_env(env)
-        .flatten();
-
-    Compat01As03::new(future).await
+    let mut env = new_env();
+    let future = spawn_with_local_redirections(redirects, cmd, &mut env).await?;
+    Ok(future.await)
 }
 
 #[tokio::test]
@@ -174,25 +156,6 @@ async fn should_propagate_errors() {
             err
         );
     }
-}
-
-#[tokio::test]
-async fn should_propagate_cancel() {
-    let mut env = new_env();
-
-    let should_not_run = mock_panic("must not run");
-
-    let redirects = vec![mock_redirect_must_cancel()];
-    test_cancel!(
-        spawn_with_local_redirections(redirects, should_not_run),
-        env
-    );
-
-    let redirects: Vec<MockRedirect<_>> = vec![];
-    test_cancel!(
-        spawn_with_local_redirections(redirects, mock_must_cancel()),
-        env
-    );
 }
 
 #[tokio::test]
@@ -254,82 +217,10 @@ async fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain
         value,
     };
 
-    let mut future = spawn_with_local_redirections(redirects.clone(), cmd);
-    while let Ok(Async::NotReady) = future.poll(&mut env) {
-        // loop
-    }
+    let _ = spawn_with_local_redirections(redirects.clone(), cmd, &mut env)
+        .await
+        .unwrap();
     assert!(env != env_original);
-    let env = env;
-
-    let mut env_original = env_original;
-    env_original.set_var(var, value);
-    assert_eq!(env, env_original);
-}
-
-#[tokio::test]
-async fn cancel_should_restore_environment_fds_but_retain_other_side_effects() {
-    let mut env = MockEnv::new();
-    let mut expected_fds = HashMap::new();
-
-    let fdes = dev_null(&mut env);
-    env.set_file_desc(STDIN_FILENO, fdes.clone(), Permissions::Read);
-    expected_fds.insert(STDIN_FILENO, Some((fdes, Permissions::Read)));
-
-    let fdes = dev_null(&mut env);
-    env.set_file_desc(STDOUT_FILENO, fdes.clone(), Permissions::Write);
-    expected_fds.insert(STDOUT_FILENO, Some((fdes, Permissions::Write)));
-
-    let env_original = env.clone();
-    let mut redirects = vec![];
-
-    redirects.push(mock_redirect(RedirectAction::Open(
-        5,
-        dev_null(&mut env),
-        Permissions::Read,
-    )));
-    redirects.push(mock_redirect(RedirectAction::Open(
-        5,
-        dev_null(&mut env),
-        Permissions::Write,
-    )));
-    redirects.push(mock_redirect(RedirectAction::Close(5)));
-
-    let fdes = dev_null(&mut env);
-    redirects.push(mock_redirect(RedirectAction::Open(
-        5,
-        fdes.clone(),
-        Permissions::ReadWrite,
-    )));
-    expected_fds.insert(5, Some((fdes, Permissions::ReadWrite))); // Last change wins
-
-    let fdes = dev_null(&mut env);
-    redirects.push(mock_redirect(RedirectAction::Open(
-        6,
-        fdes.clone(),
-        Permissions::Write,
-    )));
-    expected_fds.insert(6, Some((fdes, Permissions::Write)));
-
-    redirects.push(mock_redirect(RedirectAction::Close(STDIN_FILENO)));
-    expected_fds.insert(STDIN_FILENO, None);
-
-    let expected_fds = expected_fds;
-    let redirects = redirects;
-
-    let var = "var";
-    let value = "value";
-
-    let cmd = MockCmd2 {
-        expected_fds: expected_fds.clone(),
-        var,
-        value,
-    };
-
-    let mut future = spawn_with_local_redirections(redirects.clone(), cmd);
-    let _ = future.poll(&mut env); // Initialize things
-
-    assert!(env != env_original);
-    future.cancel(&mut env);
     let env = env;
 
     let mut env_original = env_original;
@@ -367,24 +258,22 @@ async fn fds_restored_after_cmd_or_redirect_error() {
         mock_redirect(RedirectAction::Close(STDIN_FILENO)),
     ];
 
-    let mut future = spawn_with_local_redirections(redirects.clone(), mock_error(false));
-    while let Ok(Async::NotReady) = future.poll(&mut env) {
-        // loop
-    }
+    let _ = spawn_with_local_redirections(redirects.clone(), mock_error(false), &mut env).await;
     assert_eq!(env, env_original);
 
     let mut redirects = redirects;
     redirects.push(mock_redirect_error(false));
 
-    let mut future = spawn_with_local_redirections(redirects.clone(), mock_panic("should not run"));
-    while let Ok(Async::NotReady) = future.poll(&mut env) {
-        // loop
-    }
+    let _ =
+        spawn_with_local_redirections(redirects.clone(), mock_panic("should not run"), &mut env)
+            .await;
     assert_eq!(env, env_original);
 }
 
+#[cfg(all(feature = "conch-parser", feature = "broken"))]
 #[tokio::test]
 async fn spawn_compound_command_smoke() {
+    use conch_parser::ast::CompoundCommand;
     let mut env = MockEnv::new();
     let mut expected_fds = HashMap::new();
 
@@ -420,18 +309,7 @@ async fn spawn_compound_command_smoke() {
         io: redirects,
     };
 
-    let mut future = compound.spawn(&env);
-    loop {
-        match future.poll(&mut env) {
-            Ok(Async::Ready(f)) => {
-                f.wait().unwrap();
-                break;
-            }
-            Ok(Async::NotReady) => {}
-            Err(e) => panic!("unexpected error: {}", e),
-        }
-    }
-
+    compound.spawn(&mut env).await.unwrap().await;
     assert!(env != env_original);
     let env = env;
 

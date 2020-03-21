@@ -3,223 +3,84 @@ use crate::env::{
 };
 use crate::error::RedirectionError;
 use crate::eval::RedirectEval;
-use crate::future::{Async, EnvFuture, Poll};
-use crate::{Spawn, CANCELLED_TWICE, POLLED_TWICE};
-use std::fmt;
+use crate::spawn::{ExitStatus, Spawn};
+use futures_core::future::BoxFuture;
 
-/// A future representing the spawning of a command with some local redirections.
-#[must_use = "futures do nothing unless polled"]
-pub struct LocalRedirections<I, S, E: ?Sized, RR = RedirectRestorer<E>>
-where
-    I: Iterator,
-    I::Item: RedirectEval<E>,
-    S: Spawn<E>,
-{
-    restorer: Option<RR>,
-    state: State<I, <I::Item as RedirectEval<E>>::EvalFuture, S, S::EnvFuture>,
-}
-
-impl<R, I, S, E: ?Sized, RR> fmt::Debug for LocalRedirections<I, S, E, RR>
-where
-    I: Iterator<Item = R> + fmt::Debug,
-    R: RedirectEval<E>,
-    R::EvalFuture: fmt::Debug,
-    S: Spawn<E> + fmt::Debug,
-    S::EnvFuture: fmt::Debug,
-    RR: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("LocalRedirections")
-            .field("restorer", &self.restorer)
-            .field("state", &self.state)
-            .finish()
-    }
-}
-
-#[derive(Debug)]
-enum State<I, RF, S, SEF> {
-    Redirections {
-        cur_redirect: Option<RF>,
-        remaining_redirects: I,
-        cmd: Option<S>,
-    },
-    Spawned(SEF),
-    Gone,
-}
-
-/// Creates a future which will evaluate a number of local redirects before
-/// spawning the inner command.
+/// Evaluate a number of local redirects before spawning the inner command.
 ///
 /// The local redirects will be evaluated and applied to the environment one by
-/// one, after which the inner command will be spawned and polled.
-///
-/// Upon resolution of the inner future (successful or with an error), or if
-/// this future is cancelled, the local redirects will be removed and restored
-/// with their previous file descriptors.
+/// one, after which the inner command will be spawned and awaited. Once the
+/// environment-aware future resolves (either successfully or with an error),
+/// the local redirects will be remove and restored with their previous file
+/// descriptors via the provided `RedirectEnvRestorer` implementation.
 ///
 /// > *Note*: any other file descriptor changes that may be applied to the
 /// > environment externally will **NOT** be captured or restored here.
-pub fn spawn_with_local_redirections<I, S, E: ?Sized>(
+pub async fn spawn_with_local_redirections<'a, R, I, S, E>(
     redirects: I,
     cmd: S,
-) -> LocalRedirections<I::IntoIter, S, E, RedirectRestorer<E>>
+    env: &'a mut E,
+) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
-    I: IntoIterator,
-    I::Item: RedirectEval<E>,
+    I: IntoIterator<Item = R>,
+    R: RedirectEval<E, Handle = E::FileHandle>,
     S: Spawn<E>,
-    E: FileDescEnvironment,
-    E::FileHandle: Clone,
+    S::Error: From<RedirectionError> + From<R::Error>,
+    E: 'a + ?Sized + Send + Sync + AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+    E::FileHandle: Clone + From<E::OpenedFileHandle>,
+    E::IoHandle: Send + From<E::FileHandle>,
 {
-    spawn_with_local_redirections_and_restorer(RedirectRestorer::new(), redirects, cmd)
+    spawn_with_local_redirections_and_restorer(redirects, cmd, RedirectRestorer::new(env)).await
 }
 
-/// Creates a future which will evaluate a number of local redirects before
-/// spawning the inner command.
+/// Evaluate a number of local redirects before spawning the inner command.
 ///
 /// The local redirects will be evaluated and applied to the environment one by
-/// one, after which the inner command will be spawned and polled.
-///
-/// Upon resolution of the inner future (successful or with an error), or if
-/// this future is cancelled, the local redirects will be removed and restored
-/// with their previous file descriptors using the provided `RedirectEnvRestorer`
-/// implementation.
+/// one, after which the inner command will be spawned and awaited. Once the
+/// environment-aware future resolves (either successfully or with an error),
+/// the local redirects will be remove and restored with their previous file
+/// descriptors via the provided `RedirectEnvRestorer` implementation.
 ///
 /// > *Note*: any other file descriptor changes that may be applied to the
 /// > environment externally will **NOT** be captured or restored here.
-pub fn spawn_with_local_redirections_and_restorer<RR, I, S, E: ?Sized>(
+pub async fn spawn_with_local_redirections_and_restorer<'a, R, I, S, E, RR>(
+    redirects: I,
+    cmd: S,
     mut restorer: RR,
-    redirects: I,
-    cmd: S,
-) -> LocalRedirections<I::IntoIter, S, E, RR>
+) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
-    I: IntoIterator,
-    I::Item: RedirectEval<E>,
+    I: IntoIterator<Item = R>,
+    R: RedirectEval<E, Handle = E::FileHandle>,
     S: Spawn<E>,
-    RR: RedirectEnvRestorer<E>,
+    S::Error: From<RedirectionError> + From<R::Error>,
+    E: 'a + ?Sized + FileDescEnvironment,
+    RR: RedirectEnvRestorer<&'a mut E>,
+    RR: AsyncIoEnvironment + FileDescOpener,
+    RR::FileHandle: From<RR::OpenedFileHandle>,
+    RR::IoHandle: From<RR::FileHandle>,
 {
-    let iter = redirects.into_iter();
-    let (lo, hi) = iter.size_hint();
+    let redirects = redirects.into_iter();
+    let (lo, hi) = redirects.size_hint();
     let capacity = hi.unwrap_or(lo);
 
     restorer.reserve(capacity);
 
-    LocalRedirections {
-        restorer: Some(restorer),
-        state: State::Redirections {
-            cur_redirect: None,
-            remaining_redirects: iter,
-            cmd: Some(cmd),
-        },
-    }
-}
-
-impl<R, I, S, E: ?Sized, RR> EnvFuture<E> for LocalRedirections<I, S, E, RR>
-where
-    R: RedirectEval<E, Handle = E::FileHandle>,
-    I: Iterator<Item = R>,
-    S: Spawn<E>,
-    S::Error: From<RedirectionError> + From<R::Error>,
-    E: AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-    E::FileHandle: From<E::OpenedFileHandle>,
-    E::IoHandle: From<E::FileHandle>,
-    RR: RedirectEnvRestorer<E>,
-{
-    type Item = S::Future;
-    type Error = S::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        /// Like the `try!` macro, but will restore the environment
-        /// before returning an error.
-        macro_rules! try_restore {
-            ($result:expr) => {{
-                match $result {
-                    Ok(ret) => ret,
-                    Err(e) => {
-                        self.restorer.take().expect(POLLED_TWICE).restore(env);
-                        return Err(e.into());
-                    }
+    for redirect in redirects {
+        match redirect.eval(restorer.get_mut()).await {
+            Ok(action) => {
+                if let Err(e) = action.apply(&mut restorer) {
+                    restorer.restore();
+                    return Err(S::Error::from(RedirectionError::Io(e, None)));
                 }
-            }};
-        }
-
-        /// Like the `try_ready!` macro, but will restore the environment
-        /// if we resolve with an error.
-        macro_rules! try_ready_restore {
-            ($result:expr) => {
-                match try_restore!($result) {
-                    Async::Ready(ret) => ret,
-                    Async::NotReady => return Ok(Async::NotReady),
-                }
-            };
-        }
-
-        loop {
-            let next_state = match self.state {
-                State::Redirections {
-                    ref mut cur_redirect,
-                    ref mut remaining_redirects,
-                    ref mut cmd,
-                } => {
-                    if cur_redirect.is_none() {
-                        *cur_redirect = remaining_redirects.next().map(|r| r.eval(env));
-                    }
-
-                    let should_continue = match *cur_redirect {
-                        None => false,
-                        Some(ref mut rf) => {
-                            let action = try_ready_restore!(rf.poll(env));
-                            let action_result = self
-                                .restorer
-                                .as_mut()
-                                .expect(POLLED_TWICE)
-                                .apply_action(action, env)
-                                .map_err(|err| RedirectionError::Io(err, None));
-
-                            try_restore!(action_result);
-                            true
-                        }
-                    };
-
-                    // Ensure we don't double poll the current redirect future
-                    if should_continue {
-                        *cur_redirect = None;
-                        continue;
-                    }
-
-                    // Else no more redirects remain, spawn the command
-                    State::Spawned(cmd.take().expect(POLLED_TWICE).spawn(env))
-                }
-
-                State::Spawned(ref mut f) => {
-                    let ret = try_ready_restore!(f.poll(env));
-                    self.restorer.take().expect(POLLED_TWICE).restore(env);
-                    return Ok(Async::Ready(ret));
-                }
-
-                State::Gone => panic!(POLLED_TWICE),
-            };
-
-            self.state = next_state;
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        match self.state {
-            State::Redirections {
-                ref mut cur_redirect,
-                ..
-            } => {
-                if let Some(r) = cur_redirect.as_mut() {
-                    r.cancel(env)
-                };
             }
-            State::Spawned(ref mut f) => f.cancel(env),
-            State::Gone => panic!(CANCELLED_TWICE),
-        }
-
-        self.state = State::Gone;
-        if let Some(mut restorer) = self.restorer.take() {
-            restorer.restore(env);
+            Err(e) => {
+                restorer.restore();
+                return Err(S::Error::from(e));
+            }
         }
     }
+
+    let ret = cmd.spawn(restorer.get_mut()).await;
+    restorer.restore();
+    ret
 }
