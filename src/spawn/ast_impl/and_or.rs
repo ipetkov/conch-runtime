@@ -1,6 +1,6 @@
 use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
 use crate::error::IsFatalError;
-use crate::spawn::{and_or_list, AndOr, Spawn, ExitStatus};
+use crate::spawn::{and_or_list, AndOr, ExitStatus, Spawn};
 use conch_parser::ast;
 use futures_core::future::BoxFuture;
 
@@ -36,7 +36,7 @@ where
                 ast::AndOr::And(and) => AndOr::And(and),
                 ast::AndOr::Or(or) => AndOr::Or(or),
             }),
-            env
+            env,
         ))
     }
 }

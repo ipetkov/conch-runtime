@@ -5,14 +5,13 @@ use crate::spawn::{GuardBodyPair, PatternBodyPair};
 use conch_parser::ast;
 
 mod and_or;
-// mod command;
+mod command;
 // mod compound;
 // mod listable;
 // mod pipeable;
 // mod simple;
 // #[cfg(feature = "top-level")]
 // mod top_level_impl;
-
 
 impl<T> From<ast::GuardBodyPair<T>> for GuardBodyPair<Vec<T>> {
     fn from(guard_body_pair: ast::GuardBodyPair<T>) -> Self {
