@@ -17,7 +17,7 @@ pub struct PatternBodyPair<W, C> {
     pub body: C,
 }
 
-/// Spawns a `Case` commands from a word to match number of case arms.
+/// Spawns a `case` commands from a word to match number of case arms.
 ///
 /// First the provided `word` will be evaluated and compared to each
 /// pattern of each case arm. The first arm which contains a pattern that

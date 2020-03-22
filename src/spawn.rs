@@ -14,7 +14,7 @@ mod for_cmd;
 mod func_exec;
 mod if_cmd;
 mod local_redirections;
-//mod loop_cmd;
+mod loop_cmd;
 mod pipeline;
 //mod rc;
 mod sequence;
@@ -41,7 +41,7 @@ pub use self::if_cmd::if_cmd;
 pub use self::local_redirections::{
     spawn_with_local_redirections, spawn_with_local_redirections_and_restorer,
 };
-//pub use self::loop_cmd::{loop_cmd, Loop};
+pub use self::loop_cmd::loop_cmd;
 pub use self::pipeline::pipeline;
 pub use self::sequence::{sequence, sequence_slice};
 //pub use self::simple::{
