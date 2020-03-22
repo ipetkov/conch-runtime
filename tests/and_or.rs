@@ -113,3 +113,22 @@ async fn test_and_or_should_propagate_fatal_errors() {
     drop(env);
     assert_eq!(Some(MockErr::Fatal(true)), result);
 }
+
+#[cfg(feature = "conch-parser")]
+#[tokio::test]
+async fn ast_smoke() {
+    use conch_parser::ast;
+
+    let exit = ExitStatus::Code(42);
+    let cmd = ast::AndOrList {
+        first: mock_status(EXIT_SUCCESS),
+        rest: vec![
+            ast::AndOr::Or(mock_panic("should not run")),
+            ast::AndOr::And(mock_status(EXIT_ERROR)),
+            ast::AndOr::And(mock_panic("should not run")),
+            ast::AndOr::Or(mock_status(exit)),
+        ],
+    };
+
+    assert_eq!(exit, cmd.spawn(&mut new_env()).await.unwrap().await);
+}

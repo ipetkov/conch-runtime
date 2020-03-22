@@ -24,8 +24,8 @@ mod substitution;
 mod swallow_non_fatal;
 //mod vec_sequence;
 
-//#[cfg(feature = "conch-parser")]
-//pub mod ast_impl;
+#[cfg(feature = "conch-parser")]
+pub mod ast_impl;
 //pub mod builtin;
 
 //// Private definitions
