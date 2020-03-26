@@ -8,9 +8,16 @@ async fn run(
     else_branch: Option<Vec<MockCmd>>,
 ) -> ExitStatus {
     let mut env = new_env();
-    let future = if_cmd(conditionals, else_branch, &mut env)
-        .await
-        .expect("cmd failed");
+    let future = if_cmd(
+        conditionals.iter().map(|gbp| GuardBodyPair {
+            guard: &*gbp.guard,
+            body: &*gbp.body,
+        }),
+        else_branch.as_ref().map(Vec::as_slice),
+        &mut env,
+    )
+    .await
+    .expect("cmd failed");
     drop(env);
 
     future.await
@@ -80,17 +87,19 @@ async fn should_propagate_fatal_errors() {
 
     let result = if_cmd(
         vec![GuardBodyPair {
-            guard: vec![mock_error(true), should_not_run.clone()],
-            body: vec![should_not_run.clone()],
-        }],
-        Some(vec![should_not_run.clone()]),
+            guard: &[mock_error(true), should_not_run.clone()] as &[_],
+            body: &[should_not_run.clone()],
+        }]
+        .into_iter(),
+        Some(&[should_not_run.clone()]),
         &mut new_env(),
     )
     .await
     .err();
     assert_eq!(Some(MockErr::Fatal(true)), result);
 
-    let result = if_cmd(vec![], Some(vec![mock_error(true)]), &mut new_env())
+    let v: Vec<GuardBodyPair<&[MockCmd]>> = vec![];
+    let result = if_cmd(v.into_iter(), Some(&[mock_error(true)]), &mut new_env())
         .await
         .err();
     assert_eq!(Some(MockErr::Fatal(true)), result);

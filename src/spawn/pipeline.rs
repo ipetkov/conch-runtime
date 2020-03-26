@@ -26,7 +26,6 @@ where
     I: IntoIterator<Item = S>,
     S: 'static + Send + Sync + Spawn<E>,
     S::Error: Fail + From<io::Error>,
-    E: FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
     E: 'static
         + Send
         + FileDescEnvironment

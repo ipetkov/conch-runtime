@@ -6,7 +6,7 @@ use conch_parser::ast;
 
 mod and_or;
 mod command;
-// mod compound;
+mod compound;
 // mod listable;
 // mod pipeable;
 // mod simple;

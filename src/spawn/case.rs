@@ -1,9 +1,7 @@
-use crate::env::{
-    IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment, StringWrapper,
-};
+use crate::env::{LastStatusEnvironment, ReportFailureEnvironment, StringWrapper};
 use crate::error::IsFatalError;
 use crate::eval::{eval_as_pattern, TildeExpansion, WordEval, WordEvalConfig};
-use crate::spawn::{sequence, ExitStatus};
+use crate::spawn::{sequence_slice, ExitStatus};
 use crate::{Spawn, EXIT_ERROR, EXIT_SUCCESS};
 use futures_core::future::BoxFuture;
 use glob::MatchOptions;
@@ -24,20 +22,19 @@ pub struct PatternBodyPair<W, C> {
 /// matches the `word` will have its (and only its) body evaluated.
 ///
 /// If no arms are matched, the `case` command will exit successfully.
-pub async fn case<IA, IW, W, IS, S, E>(
-    word: IW::Item,
-    arms: IA,
+pub async fn case<'a, I, W, P, S, E>(
+    word: W,
+    arms: I,
     env: &mut E,
 ) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
-    IA: IntoIterator<Item = PatternBodyPair<IW, IS>>,
-    IW: IntoIterator<Item = W>,
+    I: Iterator<Item = PatternBodyPair<&'a [P], &'a [S]>>,
     W: WordEval<E>,
-    W::Error: IsFatalError,
-    IS: IntoIterator<Item = S>,
-    S: Spawn<E>,
-    S::Error: From<W::Error> + IsFatalError,
-    E: ?Sized + IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    P: 'a + WordEval<E>,
+    P::Error: IsFatalError,
+    S: 'a + Spawn<E>,
+    S::Error: From<W::Error> + From<P::Error> + IsFatalError,
+    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
 {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::First,
@@ -73,7 +70,7 @@ where
             };
 
             if pat.matches_with(&word, match_opts) {
-                return sequence(arm.body, env).await;
+                return sequence_slice(arm.body, env).await;
             }
         }
     }

@@ -8,7 +8,16 @@ async fn run(
     arms: Vec<PatternBodyPair<Vec<MockWord>, Vec<MockCmd>>>,
 ) -> Result<ExitStatus, MockErr> {
     let mut env = new_env();
-    Ok(case(word, arms, &mut env).await?.await)
+    Ok(case(
+        word,
+        arms.iter().map(|pbp| PatternBodyPair {
+            patterns: &*pbp.patterns,
+            body: &*pbp.body,
+        }),
+        &mut env,
+    )
+    .await?
+    .await)
 }
 
 #[tokio::test]
