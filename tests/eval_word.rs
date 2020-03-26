@@ -47,7 +47,7 @@ async fn test_simple() {
     let mut env = VarEnv::<String, String>::new();
     assert_eq!(
         Some(MockErr::Fatal(false)),
-        Simple(mock_word_error(false))
+        Word::Simple(mock_word_error(false))
             .eval_with_config(&mut env, cfg)
             .await
             .err()

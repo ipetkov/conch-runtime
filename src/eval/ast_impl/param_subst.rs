@@ -18,7 +18,7 @@ use std::io::Error as IoError;
 impl<P, W, C, A, E> WordEval<E> for ast::ParameterSubstitution<P, W, C, A>
 where
     P: Send + Sync + ParamEval<E, EvalResult = W::EvalResult> + fmt::Display,
-    W: 'static + Send + Sync + WordEval<E>,
+    W: Send + Sync + WordEval<E>,
     W::EvalResult: 'static + Send,
     W::Error: Send + From<ExpansionError> + From<C::Error>,
     C: Send + Sync + Spawn<E>,

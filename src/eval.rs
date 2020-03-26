@@ -137,7 +137,7 @@ pub trait WordEval<E: ?Sized> {
 
 impl<'a, T, E> WordEval<E> for &'a T
 where
-    T: 'a + WordEval<E>,
+    T: ?Sized + WordEval<E>,
     E: ?Sized,
 {
     type EvalResult = T::EvalResult;

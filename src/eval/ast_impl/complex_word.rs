@@ -4,7 +4,7 @@ use futures_core::future::BoxFuture;
 
 impl<W, E> WordEval<E> for ComplexWord<W>
 where
-    W: 'static + Send + Sync + WordEval<E>,
+    W: Send + Sync + WordEval<E>,
     W::EvalResult: 'static + Send,
     E: ?Sized + Send,
 {
@@ -23,7 +23,7 @@ where
     {
         match self {
             ComplexWord::Single(w) => w.eval_with_config(env, cfg),
-            ComplexWord::Concat(words) => Box::pin(async move { concat(words, env, cfg).await }),
+            ComplexWord::Concat(words) => Box::pin(concat(words, env, cfg)),
         }
     }
 }

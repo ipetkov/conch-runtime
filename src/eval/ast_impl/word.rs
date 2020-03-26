@@ -1,13 +1,14 @@
-use crate::env::{StringWrapper, VariableEnvironment};
+use crate::env::VariableEnvironment;
 use crate::eval::{double_quoted, Fields, WordEval, WordEvalConfig, WordEvalResult};
 use conch_parser::ast::Word;
 use futures_core::future::BoxFuture;
 use std::borrow::Borrow;
 
-impl<W, E> WordEval<E> for Word<W::EvalResult, W>
+impl<T, W, E> WordEval<E> for Word<T, W>
 where
-    W: 'static + Send + Sync + WordEval<E>,
-    W::EvalResult: 'static + Send + Sync + StringWrapper,
+    T: Send + Sync + Clone,
+    W: Send + Sync + WordEval<E>,
+    W::EvalResult: 'static + Send + Sync + From<T>,
     W::Error: Send,
     E: ?Sized + Send + VariableEnvironment<Var = W::EvalResult>,
     E::VarName: Borrow<String>,
@@ -28,10 +29,10 @@ where
         match self {
             Word::Simple(w) => w.eval_with_config(env, cfg),
             Word::SingleQuoted(s) => {
-                let ret = Fields::Single(s.clone());
+                let ret = Fields::Single(W::EvalResult::from(s.clone()));
                 Box::pin(async move { Ok(box_up(ret)) })
             }
-            Word::DoubleQuoted(d) => Box::pin(async move { double_quoted(d, env).await }),
+            Word::DoubleQuoted(d) => Box::pin(double_quoted(d, env)),
         }
     }
 }

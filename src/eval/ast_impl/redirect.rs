@@ -12,7 +12,7 @@ use conch_parser::ast;
 #[async_trait::async_trait]
 impl<W, E> RedirectEval<E> for ast::Redirect<W>
 where
-    W: 'static + Send + Sync + WordEval<E>,
+    W: Send + Sync + WordEval<E>,
     W::Error: From<RedirectionError> + Send,
     E: ?Sized
         + Send
