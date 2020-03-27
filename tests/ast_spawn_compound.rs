@@ -66,3 +66,17 @@ async fn compound_command_kind_smoke() {
         CompoundCommandKind::Subshell(vec![mock_status(ExitStatus::Code(5)), mock_status(exit)]);
     assert_eq!(exit, cmd.spawn(&mut new_env()).await.unwrap().await);
 }
+
+#[tokio::test]
+async fn loop_should_bail_on_empty_commands() {
+    let gbp = GuardBodyPair {
+        guard: vec![],
+        body: vec![],
+    };
+
+    let cmd: Kind = CompoundCommandKind::While(gbp.clone());
+    assert_eq!(EXIT_SUCCESS, cmd.spawn(&mut new_env()).await.unwrap().await);
+
+    let cmd: Kind = CompoundCommandKind::Until(gbp);
+    assert_eq!(EXIT_SUCCESS, cmd.spawn(&mut new_env()).await.unwrap().await);
+}

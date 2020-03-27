@@ -8,7 +8,7 @@ use crate::eval::{
     remove_smallest_prefix, remove_smallest_suffix, ArithEval, Fields, ParamEval, WordEval,
     WordEvalConfig, WordEvalResult,
 };
-use crate::spawn::{substitution, Spawn};
+use crate::spawn::{sequence_slice, substitution, Spawn};
 use conch_parser::ast;
 use conch_parser::ast::ParameterSubstitution::*;
 use std::fmt;
@@ -54,7 +54,10 @@ where
         let te = cfg.tilde_expansion;
 
         let fields = match self {
-            Command(body) => Fields::Single(W::EvalResult::from(substitution(body, env).await?)),
+            Command(body) => {
+                let ret = substitution(sequence_slice(body), env).await?;
+                Fields::Single(W::EvalResult::from(ret))
+            }
             Len(ref p) => Fields::Single(len(p, env)),
 
             Arith(a) => {

@@ -43,7 +43,7 @@ pub use self::local_redirections::{
 };
 pub use self::loop_cmd::loop_cmd;
 pub use self::pipeline::pipeline;
-pub use self::sequence::{sequence, sequence_slice};
+pub use self::sequence::{sequence, sequence_exact, sequence_slice, SequenceSlice};
 //pub use self::simple::{
 //    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
 //};

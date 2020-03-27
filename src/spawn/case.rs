@@ -1,7 +1,7 @@
 use crate::env::{LastStatusEnvironment, ReportFailureEnvironment, StringWrapper};
 use crate::error::IsFatalError;
 use crate::eval::{eval_as_pattern, TildeExpansion, WordEval, WordEvalConfig};
-use crate::spawn::{sequence_slice, ExitStatus};
+use crate::spawn::ExitStatus;
 use crate::{Spawn, EXIT_ERROR, EXIT_SUCCESS};
 use futures_core::future::BoxFuture;
 use glob::MatchOptions;
@@ -28,12 +28,12 @@ pub async fn case<'a, I, W, P, S, E>(
     env: &mut E,
 ) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
-    I: Iterator<Item = PatternBodyPair<&'a [P], &'a [S]>>,
+    I: Iterator<Item = PatternBodyPair<&'a [P], S>>,
     W: WordEval<E>,
     P: 'a + WordEval<E>,
     P::Error: IsFatalError,
-    S: 'a + Spawn<E>,
-    S::Error: From<W::Error> + From<P::Error> + IsFatalError,
+    S: Spawn<E>,
+    S::Error: From<W::Error> + From<P::Error>,
     E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
 {
     let cfg = WordEvalConfig {
@@ -70,7 +70,7 @@ where
             };
 
             if pat.matches_with(&word, match_opts) {
-                return sequence_slice(arm.body, env).await;
+                return arm.body.spawn(env).await;
             }
         }
     }

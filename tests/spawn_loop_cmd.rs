@@ -10,7 +10,13 @@ async fn run(
     guard: &[MockCmd2],
     body: &[MockCmd2],
 ) -> Result<ExitStatus, MockErr> {
-    loop_cmd(invert_guard_status, guard, body, &mut new_env()).await
+    loop_cmd(
+        invert_guard_status,
+        sequence_slice(guard),
+        sequence_slice(body),
+        &mut new_env(),
+    )
+    .await
 }
 
 #[derive(Debug, Clone)]
@@ -52,22 +58,29 @@ impl Spawn<DefaultEnvArc> for MockCmd2 {
 }
 
 #[tokio::test]
-async fn should_bail_on_empty_commands() {
-    assert_eq!(Ok(EXIT_SUCCESS), run(false, &[], &[]).await);
-}
-
-#[tokio::test]
 async fn should_not_run_body_if_guard_unsuccessful() {
     let body = &[mock_panic("must not run")];
 
     assert_eq!(
         Ok(EXIT_SUCCESS),
-        loop_cmd(false, &[mock_status(EXIT_ERROR)], body, &mut new_env()).await
+        loop_cmd(
+            false,
+            sequence_slice(&[mock_status(EXIT_ERROR)]),
+            sequence_slice(body),
+            &mut new_env()
+        )
+        .await
     );
 
     assert_eq!(
         Ok(EXIT_SUCCESS),
-        loop_cmd(true, &[mock_status(EXIT_SUCCESS)], body, &mut new_env()).await
+        loop_cmd(
+            true,
+            sequence_slice(&[mock_status(EXIT_SUCCESS)]),
+            sequence_slice(body),
+            &mut new_env()
+        )
+        .await
     );
 }
 
@@ -137,8 +150,8 @@ async fn should_propagate_fatal_errors() {
         Err(MockErr::Fatal(true)),
         loop_cmd(
             false,
-            &[&mock_error(true), &should_not_run],
-            &[&should_not_run],
+            sequence_slice(&[&mock_error(true), &should_not_run]),
+            sequence_slice(&[&should_not_run]),
             &mut new_env(),
         )
         .await
@@ -148,8 +161,8 @@ async fn should_propagate_fatal_errors() {
         Err(MockErr::Fatal(true)),
         loop_cmd(
             false,
-            &[&mock_status(EXIT_SUCCESS)],
-            &[&mock_error(true), &should_not_run],
+            sequence_slice(&[&mock_status(EXIT_SUCCESS)]),
+            sequence_slice(&[&mock_error(true), &should_not_run]),
             &mut new_env(),
         )
         .await

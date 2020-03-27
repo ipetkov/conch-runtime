@@ -1,6 +1,5 @@
 #![deny(rust_2018_idioms)]
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -13,9 +12,23 @@ where
     C: Fn() -> DefaultEnvArc,
     F: FnOnce(DefaultEnvArc),
 {
-    let slice_result = {
+    let slice_exact_result = {
         let mut env = make_env();
-        match sequence_slice(&*cmds, &mut env).await {
+        match sequence_exact(&cmds, &mut env).await {
+            Ok(future) => {
+                drop(env);
+                Ok(future.await)
+            }
+            Err(e) => {
+                drop(env);
+                Err(e)
+            }
+        }
+    };
+
+    let spawn_slice_result = {
+        let mut env = make_env();
+        match sequence_slice(&cmds).spawn(&mut env).await {
             Ok(future) => {
                 drop(env);
                 Ok(future.await)
@@ -29,7 +42,7 @@ where
 
     let sequence_result = {
         let mut env = make_env();
-        match sequence(cmds, &mut env).await {
+        match sequence(&cmds, &mut env).await {
             Ok(future) => {
                 check_env(env);
                 Ok(future.await)
@@ -41,8 +54,9 @@ where
         }
     };
 
-    assert_eq!(slice_result, sequence_result);
-    slice_result
+    assert_eq!(slice_exact_result, sequence_result);
+    assert_eq!(slice_exact_result, spawn_slice_result);
+    slice_exact_result
 }
 
 async fn test(cmds: Vec<MockCmd>) -> Result<ExitStatus, MockErr> {

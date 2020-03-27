@@ -12,7 +12,7 @@ async fn run(
         word,
         arms.iter().map(|pbp| PatternBodyPair {
             patterns: &*pbp.patterns,
-            body: &*pbp.body,
+            body: sequence_slice(&pbp.body),
         }),
         &mut env,
     )

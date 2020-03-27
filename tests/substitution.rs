@@ -8,7 +8,7 @@ pub use self::support::*;
 
 async fn test(expected_msg: &str, cmds: Vec<MockOutCmd>) {
     let env = new_env();
-    let future = substitution(cmds, &env);
+    let future = substitution(sequence_slice(&cmds), &env);
     drop(env);
 
     assert_eq!(expected_msg, future.await.expect("future failed"));

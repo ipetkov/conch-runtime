@@ -3,7 +3,6 @@ use crate::error::IsFatalError;
 use crate::spawn::swallow_non_fatal_errors;
 use crate::{ExitStatus, Spawn, EXIT_SUCCESS};
 use futures_core::future::BoxFuture;
-use std::iter::Peekable;
 
 /// Spawns any iterable collection of sequential items.
 ///
@@ -20,53 +19,83 @@ where
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
 {
-    do_sequence(iter.into_iter().peekable(), env, |env| env.is_interactive()).await
+    // NB: if in interactive mode, don't peek at the next command
+    // because the input may not be ready (e.g. blocking iterator)
+    // and we don't want to block this command on further, unrelated, input.
+    do_sequence(iter.into_iter().peekable(), env, |env, iter| {
+        env.is_interactive() || iter.peek().is_some()
+    })
+    .await
 }
 
-/// Spawns a slice of sequential items.
+/// Spawns an exact-size iterator of sequential items.
 ///
 /// Commands are sequentially executed regardless of the exit status of
 /// previous commands. All non-fatal errors are reported and swallowed,
 /// however, "fatal" errors are bubbled up and the sequence terminated.
-pub async fn sequence_slice<S, E: ?Sized>(
-    cmds: &[S],
+pub async fn sequence_exact<I, E>(
+    cmds: I,
     env: &mut E,
-) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
-where
-    E: LastStatusEnvironment + ReportFailureEnvironment,
-    S: Spawn<E>,
-    S::Error: IsFatalError,
-{
-    do_sequence(cmds.iter().peekable(), env, |_| false).await
-}
-
-async fn do_sequence<I, E: ?Sized>(
-    mut iter: Peekable<I>,
-    env: &mut E,
-    is_interactive: impl Fn(&E) -> bool,
 ) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
 where
-    E: LastStatusEnvironment + ReportFailureEnvironment,
+    I: IntoIterator,
+    I::IntoIter: ExactSizeIterator,
+    I::Item: Spawn<E>,
+    <I::Item as Spawn<E>>::Error: IsFatalError,
+    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+{
+    do_sequence(cmds.into_iter(), env, |_, iter| iter.len() != 0).await
+}
+
+/// Creates a [`Spawn`] adapter around a maybe owned slice of commands.
+///
+/// Spawn behavior is the same as [`sequence_exact`].
+pub fn sequence_slice<S>(cmds: &'_ [S]) -> SequenceSlice<'_, S> {
+    SequenceSlice { cmds }
+}
+
+/// [`Spawn`] adapter around a maybe owned slice of commands.
+///
+/// Created by the [`sequence_slice`] function.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SequenceSlice<'a, S> {
+    cmds: &'a [S],
+}
+
+#[async_trait::async_trait]
+impl<'a, S, E> Spawn<E> for SequenceSlice<'a, S>
+where
+    S: Send + Sync + Spawn<E>,
+    S::Error: IsFatalError,
+    E: ?Sized + Send + LastStatusEnvironment + ReportFailureEnvironment,
+{
+    type Error = S::Error;
+
+    async fn spawn(&self, env: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+        sequence_exact(self.cmds, env).await
+    }
+}
+
+async fn do_sequence<I, E>(
+    mut iter: I,
+    env: &mut E,
+    has_more: impl Fn(&E, &mut I) -> bool,
+) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
+where
+    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
     I: Iterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
 {
-    if iter.peek().is_none() {
-        return Ok(Box::pin(async { EXIT_SUCCESS }));
-    }
-
+    let mut last_status = EXIT_SUCCESS; // Init in case we don't run at all
     while let Some(cmd) = iter.next() {
         let cmd = swallow_non_fatal_errors(&cmd, env).await?;
 
-        // NB: if in interactive mode, don't peek at the next command
-        // because the input may not be ready (e.g. blocking iterator)
-        // and we don't want to block this command on further, unrelated, input.
-        let is_not_last = is_interactive(&env) || iter.peek().is_some();
-        if is_not_last {
+        if has_more(env, &mut iter) {
             // We still expect more commands in the sequence, therefore,
             // we should keep polling and hold on to the environment here
-            let status = cmd.await;
-            env.set_last_status(status);
+            last_status = cmd.await;
+            env.set_last_status(last_status);
         } else {
             // The last command of our sequence which no longer needs
             // an environment context, so we can yield it back to the caller.
@@ -74,7 +103,5 @@ where
         }
     }
 
-    // Return the last status here if we're running in interactive mode.
-    let status = env.last_status();
-    Ok(Box::pin(async move { status }))
+    Ok(Box::pin(async move { last_status }))
 }

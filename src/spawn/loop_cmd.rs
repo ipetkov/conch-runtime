@@ -1,6 +1,5 @@
-use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
-use crate::error::IsFatalError;
-use crate::spawn::{sequence_slice, Spawn};
+use crate::env::LastStatusEnvironment;
+use crate::spawn::Spawn;
 use crate::{ExitStatus, EXIT_SUCCESS};
 use std::future::Future;
 use std::pin::Pin;
@@ -13,27 +12,18 @@ use std::task::{Context, Poll};
 /// `invert_guard_status == false`, the loop will continue as long as the guard
 /// exits successfully. If `invert_guard_status == true`, the loop will continue
 /// **until** the guard exits successfully.
-///
-/// Any nonfatal errors will be swallowed and reported. Fatal errors will be
-/// propagated to the caller.
 // FIXME: implement a `break` built in command to break loops
-pub async fn loop_cmd<S, E>(
+pub async fn loop_cmd<G, B, E>(
     invert_guard_status: bool,
-    guard: &[S],
-    body: &[S],
+    guard: G,
+    body: B,
     env: &mut E,
-) -> Result<ExitStatus, S::Error>
+) -> Result<ExitStatus, G::Error>
 where
-    S: Spawn<E>,
-    S::Error: IsFatalError,
-    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    G: Spawn<E>,
+    B: Spawn<E, Error = G::Error>,
+    E: ?Sized + LastStatusEnvironment,
 {
-    if guard.is_empty() && body.is_empty() {
-        // Not a well formed command, rather than burning CPU and spinning
-        // here, we'll just bail out.
-        return Ok(EXIT_SUCCESS);
-    }
-
     // bash/zsh will exit loops with a successful status if
     // loop breaks out of the first round without running the body,
     // so if it hasn't yet run, consider it a success
@@ -45,7 +35,7 @@ where
         // readiness) every once in a while so that other futures running on
         // the same thread get a chance to make some progress too.
         for _ in 0..20usize {
-            let guard_status = sequence_slice(guard, env).await?.await;
+            let guard_status = guard.spawn(env).await?.await;
             let should_continue = guard_status.success() ^ invert_guard_status;
 
             if !should_continue {
@@ -58,7 +48,7 @@ where
             // Set the guard status so that the body can access it if needed
             env.set_last_status(guard_status);
 
-            last_body_status = sequence_slice(body, env).await?.await;
+            last_body_status = body.spawn(env).await?.await;
             env.set_last_status(last_body_status);
         }
 
