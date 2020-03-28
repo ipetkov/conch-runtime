@@ -13,7 +13,7 @@ async fn run(
     second: MockCmd,
     rest: Vec<MockCmd>,
 ) -> Result<ExitStatus, MockErr> {
-    let env = new_env();
+    let env = new_env_with_no_fds();
     let future = pipeline(invert_last_status, first, second, rest, &env).await;
     drop(env);
 
