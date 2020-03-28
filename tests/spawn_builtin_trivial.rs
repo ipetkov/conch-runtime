@@ -5,7 +5,8 @@ pub use self::support::spawn::builtin::{colon, false_cmd, true_cmd};
 pub use self::support::*;
 
 async fn run<S>(cmd: S) -> ExitStatus
-where S: Spawn<DefaultEnvArc, Error = void::Void>
+where
+    S: Spawn<DefaultEnvArc, Error = void::Void>,
 {
     let mut env = new_env();
     match cmd.spawn(&mut env).await {
@@ -18,7 +19,6 @@ where S: Spawn<DefaultEnvArc, Error = void::Void>
 async fn colon_smoke() {
     assert_eq!(EXIT_SUCCESS, run(colon()).await);
 }
-
 
 #[tokio::test]
 async fn false_smoke() {

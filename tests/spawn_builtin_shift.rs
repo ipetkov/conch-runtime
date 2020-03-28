@@ -1,7 +1,5 @@
 #![deny(rust_2018_idioms)]
-use futures;
 
-use futures::future::poll_fn;
 use std::sync::Arc;
 
 mod support;
@@ -24,12 +22,8 @@ async fn run_shift(
             .into(),
     );
 
-    let shift = shift(shift_args.iter().map(|&s| s.to_owned()));
-
-    let mut shift = shift.spawn(&env);
-    let exit = Compat01As03::new(poll_fn(|| shift.poll(&mut env)).flatten())
-        .await
-        .expect("command failed");
+    let args = shift_args.iter().map(|&s| s.to_owned());
+    let exit = shift(args, &mut env).await.await;
 
     assert_eq!(exit, expected_status);
 
@@ -75,14 +69,4 @@ async fn shift_non_numeric_arg_does_nothing_and_exit_with_error() {
 async fn shift_multiple_arg_does_nothing_and_exit_with_error() {
     let args = &["a", "b"];
     run_shift(args, &["1", "2"], args, EXIT_ERROR).await;
-}
-
-#[test]
-#[should_panic]
-fn polling_canceled_shift_panics() {
-    let mut env = new_env_with_no_fds();
-    let mut shift = shift(Vec::<Arc<String>>::new()).spawn(&env);
-
-    shift.cancel(&mut env);
-    let _ = shift.poll(&mut env);
 }
