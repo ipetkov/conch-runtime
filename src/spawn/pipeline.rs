@@ -1,5 +1,7 @@
 use crate::env::{FileDescEnvironment, FileDescOpener, ReportFailureEnvironment, SubEnvironment};
+use crate::error::IsFatalError;
 use crate::io::Permissions;
+use crate::spawn::swallow_non_fatal_errors;
 use crate::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS, STDIN_FILENO, STDOUT_FILENO};
 use failure::Fail;
 use futures_core::future::BoxFuture;
@@ -23,32 +25,30 @@ use std::task::{Context, Poll};
 pub async fn pipeline<S, I, E>(
     invert_last_status: bool,
     first: S,
-    second: S,
     rest: I,
-    env: &E,
+    env: &mut E,
 ) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
     I: IntoIterator<Item = S>,
-    S: Spawn<E>,
-    S::Error: Fail + From<io::Error>,
-    E: FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
+    S: Send + Sync + Spawn<E>,
+    S::Error: From<io::Error> + IsFatalError,
+    E: Send + FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
 {
-    do_pipeline(invert_last_status, first, second, rest.into_iter(), env).await
+    do_pipeline(invert_last_status, first, rest.into_iter(), env).await
 }
 
 async fn do_pipeline<S, I, E>(
     invert_last_status: bool,
     first: S,
-    second: S,
-    rest: I,
-    orig_env: &E,
+    mut rest: I,
+    orig_env: &mut E,
 ) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
     I: Iterator<Item = S>,
-    S: Spawn<E>,
-    S::Error: Fail + From<io::Error>,
-    E: FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
+    S: Send + Sync + Spawn<E>,
+    S::Error: From<io::Error> + IsFatalError,
+    E: Send + FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
 {
     // When we spawn each command in the pipeline, we'll pins them to their own
@@ -77,35 +77,43 @@ where
     // bound on the caller).
     let env_futures = FuturesUnordered::new();
 
-    let mut next_in = {
-        // First command will automatically inherit the stdin of the
-        // parent environment, so no need to manually set it
+    let final_cmd_env_future: BoxFuture<_> = if let Some(second) = rest.next() {
+        let mut next_in = {
+            // First command will automatically inherit the stdin of the
+            // parent environment, so no need to manually set it
+            let mut env = orig_env.sub_env();
+            let pipe = env.open_pipe()?;
+
+            env.set_file_desc(STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
+            env_futures.push(spawn_and_swallow_errors(first, env));
+
+            pipe.reader
+        };
+
+        let mut last = second;
+        for next in rest {
+            let mut env = orig_env.sub_env();
+            let pipe = env.open_pipe()?;
+
+            env.set_file_desc(STDIN_FILENO, next_in.into(), Permissions::Read);
+            env.set_file_desc(STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
+            next_in = pipe.reader;
+
+            env_futures.push(spawn_and_swallow_errors(last, env));
+            last = next;
+        }
+
         let mut env = orig_env.sub_env();
-        let pipe = env.open_pipe()?;
-
-        env.set_file_desc(STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
-        env_futures.push(spawn_and_swallow_errors(first, env));
-
-        pipe.reader
-    };
-
-    let mut last = second;
-    for next in rest {
-        let mut env = orig_env.sub_env();
-        let pipe = env.open_pipe()?;
-
         env.set_file_desc(STDIN_FILENO, next_in.into(), Permissions::Read);
-        env.set_file_desc(STDOUT_FILENO, pipe.writer.into(), Permissions::Write);
-        next_in = pipe.reader;
 
-        env_futures.push(spawn_and_swallow_errors(last, env));
-        last = next;
-    }
-
-    let mut env = orig_env.sub_env();
-    env.set_file_desc(STDIN_FILENO, next_in.into(), Permissions::Read);
-
-    let final_cmd_env_future = spawn_and_swallow_errors(last, env);
+        Box::pin(async move {
+            let ret = swallow_non_fatal_errors(last, &mut env).await;
+            drop(env);
+            ret
+        })
+    } else {
+        Box::pin(swallow_non_fatal_errors(first, orig_env))
+    };
 
     // At this point every single command in the pipeline has been "spawned" into
     // the first future which holds references to the command itself. We now have
@@ -126,7 +134,7 @@ where
 
     let mut env_futures = Box::pin(env_futures);
     let mut static_futures = Box::pin(FuturesUnordered::new());
-    let mut final_cmd_state = FinalCmdState::EnvFuture(Box::pin(final_cmd_env_future));
+    let mut final_cmd_state = FinalCmdState::EnvFuture(final_cmd_env_future);
 
     poll_fn(|cx| {
         let env_futures_done = loop {
@@ -142,10 +150,12 @@ where
                 FinalCmdState::EnvFuture(ef) => {
                     final_cmd_state = match ef.as_mut().poll(cx) {
                         Poll::Pending => break,
-                        Poll::Ready(Some(f)) => FinalCmdState::Maybe(MaybeDone::Future(f)),
-                        Poll::Ready(None) => FinalCmdState::Maybe(MaybeDone::Done(EXIT_ERROR)),
+                        Poll::Ready(Ok(f)) => FinalCmdState::Maybe(MaybeDone::Future(f)),
+                        Poll::Ready(Err(e)) => FinalCmdState::Error(e),
                     };
                 }
+
+                FinalCmdState::Error(_) => {}
 
                 FinalCmdState::Maybe(f) => {
                     let _ = Pin::new(f).poll(cx);
@@ -170,6 +180,14 @@ where
     let final_cmd = match final_cmd_state {
         FinalCmdState::EnvFuture(_) => unreachable!(),
         FinalCmdState::Maybe(m) => m,
+        FinalCmdState::Error(e) => {
+            // We need to return an error back to the caller, but before we
+            // do so, we should continue to poll any pending futures and give
+            // those commands a chance to complete (or die due to pipe errors)
+            // rather than abruptly dropping/killing them.
+            while let Some(_status) = static_futures.next().await {}
+            return Err(e);
+        }
     };
 
     Ok(Box::pin(async move {
@@ -208,10 +226,12 @@ where
     }
 }
 
-enum FinalCmdState<EF> {
+enum FinalCmdState<EF, ERR> {
     /// The outer future (with a reference to the environment and command)
     /// is still pending.
     EnvFuture(EF),
+    /// "env future" errored out
+    Error(ERR),
     /// The static future that the "env future" will resolve to, or the final result.
     Maybe(MaybeDone),
 }

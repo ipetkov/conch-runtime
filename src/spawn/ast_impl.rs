@@ -7,7 +7,7 @@ use conch_parser::ast;
 mod and_or;
 mod command;
 mod compound;
-// mod listable;
+mod listable;
 // mod pipeable;
 // mod simple;
 // #[cfg(feature = "top-level")]

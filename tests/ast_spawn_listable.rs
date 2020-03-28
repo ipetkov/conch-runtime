@@ -1,59 +1,57 @@
 #![deny(rust_2018_idioms)]
 #![cfg(feature = "conch-parser")]
 
-extern crate conch_parser as syntax;
-extern crate conch_runtime as runtime;
-use futures;
+use conch_parser::ast::ListableCommand;
+use conch_runtime::io::{FileDescWrapper, Permissions};
+use conch_runtime::{STDIN_FILENO, STDOUT_FILENO};
+use std::sync::{Arc, Mutex};
 
-use crate::runtime::io::{FileDescWrapper, Permissions};
-use crate::runtime::{STDIN_FILENO, STDOUT_FILENO};
-use crate::syntax::ast::ListableCommand;
-use futures::future::{ok, FutureResult};
-use futures::{Async, Poll};
-use std::sync::Arc;
-
-#[macro_use]
 mod support;
 pub use self::support::*;
 
+async fn run(list: ListableCommand<MockCmd>) -> Result<ExitStatus, MockErr> {
+    let mut env = new_env_with_no_fds();
+    Ok(list.spawn(&mut env).await?.await)
+}
+
 #[tokio::test]
 async fn empty_pipeline_is_noop() {
-    let list: ListableCommand<MockCmd> = ListableCommand::Pipe(false, vec![]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    let list = ListableCommand::Pipe(false, vec![]);
+    assert_eq!(run(list).await, Ok(EXIT_SUCCESS));
 }
 
 #[tokio::test]
 async fn single_command_propagates_status() {
     let exit = ExitStatus::Code(42);
     let list = ListableCommand::Single(mock_status(exit));
-    assert_eq!(run!(list), Ok(exit));
+    assert_eq!(run(list).await, Ok(exit));
 }
 
 #[tokio::test]
 async fn single_command_propagates_error() {
     let list = ListableCommand::Single(mock_error(false));
-    run!(list).unwrap_err();
+    assert_eq!(run(list).await, Err(MockErr::Fatal(false)));
 
     let list = ListableCommand::Single(mock_error(true));
-    run!(list).unwrap_err();
+    assert_eq!(run(list).await, Err(MockErr::Fatal(true)));
 }
 
 #[tokio::test]
 async fn single_command_status_inversion() {
     let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_SUCCESS)]);
-    assert_eq!(run!(list), Ok(EXIT_ERROR));
+    assert_eq!(run(list).await, Ok(EXIT_ERROR));
 
     let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_ERROR)]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Ok(EXIT_SUCCESS));
 }
 
 #[tokio::test]
 async fn single_command_status_inversion_on_error() {
     let list = ListableCommand::Pipe(true, vec![mock_error(false)]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Ok(EXIT_SUCCESS));
 
     let list = ListableCommand::Pipe(true, vec![mock_error(true)]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Err(MockErr::Fatal(true)));
 }
 
 #[tokio::test]
@@ -62,33 +60,28 @@ async fn single_command_env_changes_remain() {
     const VALUE: &str = "value";
 
     struct MockCmdWithSideEffects;
+
+    #[async_trait::async_trait]
     impl Spawn<DefaultEnvArc> for MockCmdWithSideEffects {
-        type Error = ();
-        type EnvFuture = Self;
-        type Future = FutureResult<ExitStatus, Self::Error>;
+        type Error = MockErr;
 
-        fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
-            self
-        }
-    }
-
-    impl EnvFuture<DefaultEnvArc> for MockCmdWithSideEffects {
-        type Item = FutureResult<ExitStatus, Self::Error>;
-        type Error = ();
-
-        fn poll(&mut self, env: &mut DefaultEnvArc) -> Poll<Self::Item, Self::Error> {
+        async fn spawn(
+            &self,
+            env: &mut DefaultEnvArc,
+        ) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
             env.set_var(VAR.to_owned().into(), VALUE.to_owned().into());
-            Ok(Async::Ready(ok(EXIT_SUCCESS)))
+            Ok(Box::pin(async { EXIT_SUCCESS }))
         }
-
-        fn cancel(&mut self, _env: &mut DefaultEnvArc) {}
     }
 
     let var = VAR.to_owned();
-    let mut env = new_env();
+    let env = &mut new_env();
     assert_eq!(env.var(&var), None);
 
-    MockCmdWithSideEffects.spawn(&env).poll(&mut env).unwrap();
+    assert_eq!(
+        EXIT_SUCCESS,
+        MockCmdWithSideEffects.spawn(env).await.unwrap().await
+    );
     assert_eq!(env.var(&var), Some(&VALUE.to_owned().into()));
 }
 
@@ -103,7 +96,7 @@ async fn multiple_commands_propagates_last_status() {
             mock_status(exit),
         ],
     );
-    assert_eq!(run!(list), Ok(exit));
+    assert_eq!(run(list).await, Ok(exit));
 }
 
 #[tokio::test]
@@ -116,7 +109,7 @@ async fn multiple_commands_propagates_last_error() {
             mock_error(false),
         ],
     );
-    run!(list).unwrap_err();
+    assert_eq!(run(list).await, Ok(EXIT_ERROR));
 
     let list = ListableCommand::Pipe(
         false,
@@ -126,7 +119,7 @@ async fn multiple_commands_propagates_last_error() {
             mock_error(true),
         ],
     );
-    run!(list).unwrap_err();
+    assert_eq!(run(list).await, Err(MockErr::Fatal(true)));
 }
 
 #[tokio::test]
@@ -139,67 +132,47 @@ async fn multiple_commands_swallows_inner_errors() {
             mock_status(EXIT_SUCCESS),
         ],
     );
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Ok(EXIT_SUCCESS));
 }
 
 #[tokio::test]
 async fn multiple_commands_status_inversion() {
     let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_SUCCESS)]);
-    assert_eq!(run!(list), Ok(EXIT_ERROR));
+    assert_eq!(run(list).await, Ok(EXIT_ERROR));
 
     let list = ListableCommand::Pipe(true, vec![mock_status(EXIT_ERROR)]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Ok(EXIT_SUCCESS));
 }
 
 #[tokio::test]
 async fn multiple_commands_status_inversion_on_error() {
     let list = ListableCommand::Pipe(true, vec![mock_error(false)]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Ok(EXIT_SUCCESS));
 
     let list = ListableCommand::Pipe(true, vec![mock_error(true)]);
-    assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+    assert_eq!(run(list).await, Err(MockErr::Fatal(true)));
 }
 
 #[tokio::test]
 async fn multiple_commands_smoke() {
-    use std::cell::RefCell;
     use std::io::{Read, Write};
     use std::thread;
 
     #[derive(Clone)]
-    struct MockCmdFn<'a>(Arc<RefCell<dyn FnMut(&mut DefaultEnvArc) + 'a>>);
+    struct MockCmdFn<'a>(Arc<Mutex<dyn FnMut(&mut DefaultEnvArc) + Send + 'a>>);
 
+    #[async_trait::async_trait]
     impl<'a> Spawn<DefaultEnvArc> for MockCmdFn<'a> {
         type Error = RuntimeError;
-        type EnvFuture = Self;
-        type Future = FutureResult<ExitStatus, Self::Error>;
 
-        fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
-            self
+        async fn spawn(
+            &self,
+            env: &mut DefaultEnvArc,
+        ) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+            let mut f = self.0.lock().unwrap();
+            (&mut *f)(env);
+            Ok(Box::pin(async move { EXIT_SUCCESS }))
         }
-    }
-
-    impl<'a: 'b, 'b> Spawn<DefaultEnvArc> for &'b MockCmdFn<'a> {
-        type Error = RuntimeError;
-        type EnvFuture = MockCmdFn<'a>;
-        type Future = FutureResult<ExitStatus, Self::Error>;
-
-        fn spawn(self, _: &DefaultEnvArc) -> Self::EnvFuture {
-            self.clone()
-        }
-    }
-
-    impl<'a> EnvFuture<DefaultEnvArc> for MockCmdFn<'a> {
-        type Item = FutureResult<ExitStatus, Self::Error>;
-        type Error = RuntimeError;
-
-        fn poll(&mut self, env: &mut DefaultEnvArc) -> Poll<Self::Item, Self::Error> {
-            use std::ops::DerefMut;
-            (self.0.as_ref().borrow_mut().deref_mut())(env);
-            Ok(Async::Ready(ok(EXIT_SUCCESS)))
-        }
-
-        fn cancel(&mut self, _env: &mut DefaultEnvArc) {}
     }
 
     let mut writer = None;
@@ -209,19 +182,22 @@ async fn multiple_commands_smoke() {
         let list = ListableCommand::Pipe(
             false,
             vec![
-                MockCmdFn(Arc::new(RefCell::new(|env: &mut DefaultEnvArc| {
+                MockCmdFn(Arc::new(Mutex::new(|env: &mut DefaultEnvArc| {
                     let fdes_perms = env.file_desc(STDOUT_FILENO).unwrap();
                     assert_eq!(fdes_perms.1, Permissions::Write);
                     writer = Some(fdes_perms.0.clone());
                 }))),
-                MockCmdFn(Arc::new(RefCell::new(|env: &mut DefaultEnvArc| {
+                MockCmdFn(Arc::new(Mutex::new(|env: &mut DefaultEnvArc| {
                     let fdes_perms = env.file_desc(STDIN_FILENO).unwrap();
                     assert_eq!(fdes_perms.1, Permissions::Read);
                     reader = Some(fdes_perms.0.clone());
                 }))),
             ],
         );
-        assert_eq!(run!(list), Ok(EXIT_SUCCESS));
+        assert_eq!(
+            EXIT_SUCCESS,
+            list.spawn(&mut new_env_with_no_fds()).await.unwrap().await
+        );
     }
 
     // Verify we are the only owners of the pipe ends,
@@ -247,11 +223,4 @@ async fn multiple_commands_smoke() {
     assert_eq!(read, msg);
 
     join.join().expect("failed to join thread");
-}
-
-#[tokio::test]
-async fn single_command_should_propagate_cancel() {
-    let list = ListableCommand::Pipe(false, vec![mock_must_cancel()]);
-
-    run_cancel!(list);
 }

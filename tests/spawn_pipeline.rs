@@ -10,11 +10,10 @@ pub use self::support::*;
 async fn run(
     invert_last_status: bool,
     first: MockCmd,
-    second: MockCmd,
     rest: Vec<MockCmd>,
 ) -> Result<ExitStatus, MockErr> {
-    let env = new_env_with_no_fds();
-    let future = pipeline(invert_last_status, first, second, rest, &env).await;
+    let mut env = new_env_with_no_fds();
+    let future = pipeline(invert_last_status, first, rest, &mut env).await;
     drop(env);
 
     Ok(future?.await)
@@ -27,12 +26,11 @@ async fn propagates_last_status() {
     let future = run(
         false,
         mock_status(EXIT_SUCCESS),
-        mock_status(EXIT_ERROR),
-        vec![mock_status(exit)],
+        vec![mock_status(EXIT_ERROR), mock_status(exit)],
     );
     assert_eq!(Ok(exit), future.await);
 
-    let future = run(false, mock_status(EXIT_SUCCESS), mock_status(exit), vec![]);
+    let future = run(false, mock_status(EXIT_SUCCESS), vec![mock_status(exit)]);
     assert_eq!(Ok(exit), future.await);
 }
 
@@ -40,13 +38,12 @@ async fn propagates_last_status() {
 async fn swallows_inner_errors() {
     let future = run(
         false,
-        mock_error(false),
         mock_error(true),
-        vec![mock_status(EXIT_SUCCESS)],
+        vec![mock_error(false), mock_status(EXIT_SUCCESS)],
     );
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
 
-    let future = run(false, mock_error(false), mock_status(EXIT_SUCCESS), vec![]);
+    let future = run(false, mock_error(false), vec![mock_status(EXIT_SUCCESS)]);
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
 }
 
@@ -55,14 +52,19 @@ async fn status_inversion() {
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
-        mock_status(EXIT_SUCCESS),
-        vec![],
+        vec![mock_status(EXIT_SUCCESS)],
     );
     assert_eq!(Ok(EXIT_ERROR), future.await);
 
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
+        vec![mock_status(ExitStatus::Code(42)), mock_status(EXIT_SUCCESS)],
+    );
+    assert_eq!(Ok(EXIT_ERROR), future.await);
+
+    let future = run(
+        true,
         mock_status(ExitStatus::Code(42)),
         vec![mock_status(EXIT_SUCCESS)],
     );
@@ -71,32 +73,21 @@ async fn status_inversion() {
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
-        mock_status(EXIT_SUCCESS),
-        vec![],
-    );
-    assert_eq!(Ok(EXIT_ERROR), future.await);
-
-    let future = run(
-        true,
-        mock_status(ExitStatus::Code(42)),
-        mock_status(ExitStatus::Code(42)),
-        vec![mock_status(EXIT_ERROR)],
+        vec![mock_status(ExitStatus::Code(42)), mock_status(EXIT_ERROR)],
     );
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
 
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
-        mock_status(ExitStatus::Code(42)),
-        vec![],
-    );
-    assert_eq!(Ok(EXIT_SUCCESS), future.await);
-
-    let future = run(
-        true,
-        mock_status(ExitStatus::Code(42)),
-        mock_status(EXIT_SUCCESS),
         vec![mock_status(ExitStatus::Code(42))],
+    );
+    assert_eq!(Ok(EXIT_SUCCESS), future.await);
+
+    let future = run(
+        true,
+        mock_status(ExitStatus::Code(42)),
+        vec![mock_status(EXIT_SUCCESS), mock_status(ExitStatus::Code(42))],
     );
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
 }
@@ -106,15 +97,6 @@ async fn status_inversion_on_error() {
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
-        mock_error(false),
-        vec![],
-    );
-    assert_eq!(Ok(EXIT_SUCCESS), future.await);
-
-    let future = run(
-        true,
-        mock_status(ExitStatus::Code(42)),
-        mock_status(ExitStatus::Code(42)),
         vec![mock_error(false)],
     );
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
@@ -122,16 +104,28 @@ async fn status_inversion_on_error() {
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
-        mock_error(true),
-        vec![],
+        vec![mock_status(ExitStatus::Code(42)), mock_error(false)],
     );
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
 
     let future = run(
         true,
         mock_status(ExitStatus::Code(42)),
-        mock_status(ExitStatus::Code(42)),
         vec![mock_error(true)],
+    );
+    assert_eq!(Err(MockErr::Fatal(true)), future.await);
+
+    let future = run(
+        true,
+        mock_status(ExitStatus::Code(42)),
+        vec![mock_status(ExitStatus::Code(42)), mock_error(true)],
+    );
+    assert_eq!(Err(MockErr::Fatal(true)), future.await);
+
+    let future = run(
+        true,
+        mock_status(ExitStatus::Code(42)),
+        vec![mock_error(true), mock_status(ExitStatus::Code(42))],
     );
     assert_eq!(Ok(EXIT_SUCCESS), future.await);
 }
@@ -181,7 +175,7 @@ async fn pipeline_io_smoke() {
         let third_reader = third_reader.clone();
         let third_writer = third_writer.clone();
 
-        let env = new_env();
+        let mut env = new_env();
 
         default_stdin = env.file_desc(STDIN_FILENO).unwrap().0.clone();
         default_stdout = env.file_desc(STDOUT_FILENO).unwrap().0.clone();
@@ -192,15 +186,17 @@ async fn pipeline_io_smoke() {
                 capture_fd(env, STDIN_FILENO, Permissions::Read, &first_reader);
                 capture_fd(env, STDOUT_FILENO, Permissions::Write, &first_writer);
             })),
-            EnvSpy(Arc::new(move |env| {
-                capture_fd(env, STDIN_FILENO, Permissions::Read, &second_reader);
-                capture_fd(env, STDOUT_FILENO, Permissions::Write, &second_writer);
-            })),
-            vec![EnvSpy(Arc::new(move |env| {
-                capture_fd(env, STDIN_FILENO, Permissions::Read, &third_reader);
-                capture_fd(env, STDOUT_FILENO, Permissions::Write, &third_writer);
-            }))],
-            &env,
+            vec![
+                EnvSpy(Arc::new(move |env| {
+                    capture_fd(env, STDIN_FILENO, Permissions::Read, &second_reader);
+                    capture_fd(env, STDOUT_FILENO, Permissions::Write, &second_writer);
+                })),
+                EnvSpy(Arc::new(move |env| {
+                    capture_fd(env, STDIN_FILENO, Permissions::Read, &third_reader);
+                    capture_fd(env, STDOUT_FILENO, Permissions::Write, &third_writer);
+                })),
+            ],
+            &mut env,
         );
 
         let future = future.await.unwrap();

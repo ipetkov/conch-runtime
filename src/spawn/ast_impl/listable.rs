@@ -1,117 +1,52 @@
-use crate::env::{FileDescEnvironment, FileDescOpener, SubEnvironment};
-use crate::future::{EnvFuture, Poll};
-use crate::spawn::{pipeline, ExitResult, Pipeline, SpawnedPipeline};
-use crate::{Spawn, CANCELLED_TWICE, POLLED_TWICE};
+use crate::env::{FileDescEnvironment, FileDescOpener, ReportFailureEnvironment, SubEnvironment};
+use crate::error::IsFatalError;
+use crate::spawn::{pipeline, ExitStatus, Spawn};
+use crate::{EXIT_ERROR, EXIT_SUCCESS};
 use conch_parser::ast;
-use std::fmt;
+use futures_core::future::BoxFuture;
 use std::io;
-use std::iter;
-
-/// A future representing the spawning of a `ListableCommand`.
-#[must_use = "futures do nothing unless polled"]
-pub struct ListableCommand<S, E>
-where
-    S: Spawn<E>,
-{
-    state: State<Pipeline<S, E>>,
-}
-
-impl<S, E> fmt::Debug for ListableCommand<S, E>
-where
-    S: Spawn<E> + fmt::Debug,
-    S::EnvFuture: fmt::Debug,
-    S::Future: fmt::Debug,
-    S::Error: fmt::Debug,
-    E: fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ListableCommand")
-            .field("state", &self.state)
-            .finish()
-    }
-}
-
-#[derive(Debug)]
-enum State<F> {
-    Init(Option<io::Result<F>>),
-    Spawned(F),
-}
 
 impl<S, E> Spawn<E> for ast::ListableCommand<S>
 where
-    S: Spawn<E>,
-    S::Error: From<io::Error>,
-    E: FileDescEnvironment + FileDescOpener + SubEnvironment,
-    E::FileHandle: From<E::OpenedFileHandle> + Clone,
+    S: Send + Sync + Spawn<E>,
+    S::Error: From<io::Error> + IsFatalError,
+    E: ?Sized
+        + Send
+        + Sync
+        + FileDescEnvironment
+        + FileDescOpener
+        + ReportFailureEnvironment
+        + SubEnvironment,
+    E::FileHandle: From<E::OpenedFileHandle>,
+    E::OpenedFileHandle: Send,
 {
-    type EnvFuture = ListableCommand<S, E>;
-    type Future = ExitResult<SpawnedPipeline<S, E>>;
     type Error = S::Error;
 
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        let pipeline = match self {
-            ast::ListableCommand::Single(cmd) => pipeline(false, iter::once(cmd), env),
-            ast::ListableCommand::Pipe(invert, cmds) => pipeline(invert, cmds, env),
-        };
-
-        ListableCommand {
-            state: State::Init(Some(pipeline)),
-        }
-    }
-}
-
-impl<'a, S: 'a, E> Spawn<E> for &'a ast::ListableCommand<S>
-where
-    &'a S: Spawn<E>,
-    <&'a S as Spawn<E>>::Error: From<io::Error>,
-    E: FileDescEnvironment + FileDescOpener + SubEnvironment,
-    E::FileHandle: From<E::OpenedFileHandle> + Clone,
-{
-    type EnvFuture = ListableCommand<&'a S, E>;
-    type Future = ExitResult<SpawnedPipeline<&'a S, E>>;
-    type Error = <&'a S as Spawn<E>>::Error;
-
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        let pipeline = match *self {
-            ast::ListableCommand::Single(ref cmd) => pipeline(false, iter::once(cmd), env),
-            ast::ListableCommand::Pipe(invert, ref cmds) => pipeline(invert, cmds, env),
-        };
-
-        ListableCommand {
-            state: State::Init(Some(pipeline)),
-        }
-    }
-}
-
-impl<S, E> EnvFuture<E> for ListableCommand<S, E>
-where
-    S: Spawn<E>,
-    S::Error: From<io::Error>,
-{
-    type Item = ExitResult<SpawnedPipeline<S, E>>;
-    type Error = S::Error;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        loop {
-            let next_state = match self.state {
-                State::Init(ref mut pipeline) => {
-                    let pipeline = pipeline.take().expect(POLLED_TWICE);
-                    State::Spawned(pipeline?)
+    fn spawn<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        match self {
+            ast::ListableCommand::Single(cmd) => cmd.spawn(env),
+            ast::ListableCommand::Pipe(invert, cmds) => {
+                match cmds.as_slice() {
+                    // Malformed command, just treat it as a successfull command
+                    [] => Box::pin(async move { Ok(dummy(*invert)) }),
+                    [first, rest @ ..] => {
+                        Box::pin(async move { Ok(pipeline(*invert, first, rest, env).await?) })
+                    }
                 }
-
-                State::Spawned(ref mut f) => return f.poll(env),
-            };
-
-            self.state = next_state;
-        }
-    }
-
-    fn cancel(&mut self, env: &mut E) {
-        match self.state {
-            State::Init(ref mut pipeline) => {
-                drop(pipeline.take().expect(CANCELLED_TWICE));
             }
-            State::Spawned(ref mut f) => f.cancel(env),
         }
     }
+}
+
+fn dummy(invert: bool) -> BoxFuture<'static, ExitStatus> {
+    let ret = if invert { EXIT_ERROR } else { EXIT_SUCCESS };
+    Box::pin(async move { ret })
 }

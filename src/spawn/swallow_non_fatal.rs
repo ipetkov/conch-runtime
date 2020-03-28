@@ -8,7 +8,7 @@ use futures_core::future::BoxFuture;
 ///
 /// All other responses are propagated through as is.
 pub async fn swallow_non_fatal_errors<S, E>(
-    cmd: &S,
+    cmd: S,
     env: &mut E,
 ) -> Result<BoxFuture<'static, ExitStatus>, S::Error>
 where
