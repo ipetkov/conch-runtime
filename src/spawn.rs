@@ -26,7 +26,7 @@ mod swallow_non_fatal;
 
 #[cfg(feature = "conch-parser")]
 pub mod ast_impl;
-//pub mod builtin;
+pub mod builtin;
 
 //// Private definitions
 //use self::vec_sequence::{VecSequence, VecSequenceWithLast};

@@ -10,8 +10,5 @@ impl_trivial_builtin_cmd! {
     /// Creates a new `:` builtin command.
     pub fn colon();
 
-    /// A future representing a fully spawned `:` builtin command.
-    pub struct SpawnedColon;
-
     EXIT_SUCCESS
 }

@@ -9,8 +9,5 @@ impl_trivial_builtin_cmd! {
     /// Creates a new `false` builtin command.
     pub fn false_cmd();
 
-    /// A future representing a fully spawned `false` builtin command.
-    pub struct SpawnedFalse;
-
     EXIT_ERROR
 }
