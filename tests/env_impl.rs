@@ -1,36 +1,25 @@
 #![deny(rust_2018_idioms)]
-use futures;
 
-use futures::future::lazy;
 use std::borrow::Cow;
 
 #[macro_use]
 pub mod support;
 use crate::support::*;
 
-#[tokio::test]
-async fn is_interactive() {
-    Compat01As03::new(lazy(|| {
-        for &interactive in &[true, false] {
-            let env = DefaultEnvArc::with_config(DefaultEnvConfigArc {
-                interactive,
-                ..DefaultEnvConfigArc::new(Some(1)).unwrap()
-            });
-            assert_eq!(env.is_interactive(), interactive);
-        }
-
-        let ret: Result<_, ()> = Ok(());
-        ret
-    }))
-    .await
-    .unwrap();
+#[test]
+fn is_interactive() {
+    for &interactive in &[true, false] {
+        let env = DefaultEnvArc::with_config(DefaultEnvConfigArc {
+            interactive,
+            ..DefaultEnvConfigArc::new().unwrap()
+        });
+        assert_eq!(env.is_interactive(), interactive);
+    }
 }
 
 #[tokio::test]
 async fn sets_pwd_and_oldpwd_env_vars() {
-    let mut env = Compat01As03::new(lazy(|| DefaultEnv::<String>::new(Some(1))))
-        .await
-        .unwrap();
+    let mut env = DefaultEnv::<String>::new().unwrap();
 
     let old_cwd;
     {
