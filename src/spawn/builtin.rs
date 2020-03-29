@@ -44,68 +44,17 @@ where
     .await
 }
 
-/// Implements a builtin command which accepts no arguments,
-/// has no side effects, and simply exits with some status.
-macro_rules! impl_trivial_builtin_cmd {
-    (
-        $(#[$cmd_attr:meta])*
-        pub struct $Cmd:ident;
-
-        $(#[$constructor_attr:meta])*
-        pub fn $constructor:ident ();
-
-        $exit:expr
-    ) => {
-        $(#[$cmd_attr])*
-        #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-        pub struct $Cmd(());
-
-        $(#[$constructor_attr])*
-        pub fn $constructor() -> $Cmd {
-            $Cmd(())
-        }
-
-        impl<E> $crate::Spawn<E> for $Cmd
-            where E: ?Sized,
-        {
-            type Error = void::Void;
-
-            fn spawn<'life0, 'life1, 'async_trait>(
-                &'life0 self,
-                _: &'life1 mut E,
-            ) -> futures_core::future::BoxFuture<'async_trait, Result<
-                futures_core::future::BoxFuture<'static, $crate::ExitStatus>,
-                Self::Error
-            >>
-            where
-                'life0: 'async_trait,
-                'life1: 'async_trait,
-                Self: 'async_trait,
-            {
-                Box::pin(async move {
-                    let ret: futures_core::future::BoxFuture<_> = Box::pin(async { $exit });
-                    Ok(ret)
-                })
-            }
-        }
-    }
-}
-
 mod cd;
-mod colon;
 mod echo;
-mod false_cmd;
 mod pwd;
 mod shift;
-mod true_cmd;
+mod trivial;
 
 pub use self::cd::cd;
-pub use self::colon::{colon, Colon};
 pub use self::echo::echo;
-pub use self::false_cmd::{false_cmd, False};
 pub use self::pwd::pwd;
 pub use self::shift::shift;
-pub use self::true_cmd::{true_cmd, True};
+pub use self::trivial::{colon, false_cmd, true_cmd};
 
 pub(crate) async fn generate_and_print_output<E, F, ERR>(
     builtin_name: &str,
