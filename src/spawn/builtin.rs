@@ -91,7 +91,7 @@ macro_rules! impl_trivial_builtin_cmd {
     }
 }
 
-//mod cd;
+mod cd;
 mod colon;
 mod echo;
 mod false_cmd;
@@ -99,7 +99,7 @@ mod pwd;
 mod shift;
 mod true_cmd;
 
-//pub use self::cd::{cd, Cd, CdFuture, SpawnedCd};
+pub use self::cd::cd;
 pub use self::colon::{colon, Colon};
 pub use self::echo::echo;
 pub use self::false_cmd::{false_cmd, False};

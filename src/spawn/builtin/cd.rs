@@ -1,12 +1,12 @@
+use super::{generate_and_print_output, report_err};
 use crate::env::{
     AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment, FileDescEnvironment, StringWrapper,
     VariableEnvironment, WorkingDirectoryEnvironment,
 };
-use crate::future::{Async, EnvFuture, Poll};
 use crate::path::{NormalizationError, NormalizedPath};
-use crate::spawn::{ExitResult, Spawn};
-use crate::{EXIT_SUCCESS, HOME, POLLED_TWICE};
+use crate::{ExitStatus, EXIT_SUCCESS, HOME};
 use clap::{App, AppSettings, Arg, ArgMatches, Result as ClapResult};
+use futures_util::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -37,7 +37,7 @@ lazy_static::lazy_static! {
     static ref OLDPWD: String = { String::from("OLDPWD") };
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, failure::Fail)]
 enum VarNotDefinedError {
     #[fail(display = "HOME not set")]
     Home,
@@ -45,7 +45,7 @@ enum VarNotDefinedError {
     OldPwd,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, failure::Fail)]
 enum CdError {
     #[fail(display = "{}", _0)]
     VarNotDefinedError(#[cause] VarNotDefinedError),
@@ -65,27 +65,13 @@ impl From<NormalizationError> for CdError {
     }
 }
 
-impl_generic_builtin_cmd_no_spawn! {
-    /// Represents a `cd` builtin command which will
-    /// change the current working directory.
-    pub struct Cd;
-
-    /// Creates a new `cd` builtin command with the provided arguments.
-    pub fn cd();
-
-    /// A future representing a fully spawned `cd` builtin command.
-    pub struct SpawnedCd;
-
-    /// A future representing a fully spawned `cd` builtin command
-    /// which no longer requires an environment to run.
-    pub struct CdFuture;
-}
-
-impl<T, I, E: ?Sized> Spawn<E> for Cd<I>
+/// The `cd` builtin command will change the current working directory.
+pub async fn cd<I, E>(args: I, env: &mut E) -> BoxFuture<'static, ExitStatus>
 where
-    T: StringWrapper,
-    I: Iterator<Item = T>,
-    E: AsyncIoEnvironment
+    I: IntoIterator,
+    I::Item: StringWrapper,
+    E: ?Sized
+        + AsyncIoEnvironment
         + ChangeWorkingDirectoryEnvironment
         + FileDescEnvironment
         + VariableEnvironment
@@ -95,54 +81,60 @@ where
     E::VarName: Borrow<String> + From<String>,
     E::Var: Borrow<String> + From<String>,
 {
-    type EnvFuture = SpawnedCd<I>;
-    type Future = ExitResult<CdFuture<E::WriteAll>>;
-    type Error = Void;
+    let matches = try_and_report!(CD, get_matches(args.into_iter()), env);
+    let flags = get_flags(&matches);
 
-    fn spawn(self, _env: &E) -> Self::EnvFuture {
-        SpawnedCd {
-            args: Some(self.args),
+    let (new_working_dir, should_print_pwd) = match get_new_working_dir(&flags, env) {
+        Ok(ret) => ret,
+        Err(e) => return report_err(CD, env, e).await,
+    };
+
+    let new_working_dir = new_working_dir.into_inner();
+    let result = try_and_report!(
+        CD,
+        perform_cd_change(should_print_pwd, new_working_dir, env),
+        env
+    );
+
+    match result {
+        Some(pwd) => {
+            generate_and_print_output(CD, env, |_| -> Result<_, Void> { Ok(pwd.into_bytes()) })
+                .await
         }
+        None => Box::pin(async { EXIT_SUCCESS }),
     }
 }
 
-impl<I> SpawnedCd<I> {
-    fn get_matches(&mut self) -> ClapResult<ArgMatches<'static>>
-    where
-        I: Iterator,
-        I::Item: StringWrapper,
-    {
-        let app = App::new(CD)
-            .setting(AppSettings::NoBinaryName)
-            .setting(AppSettings::DisableVersion)
-            .about("Changes the current working directory of the shell")
-            .long_about(LONG_ABOUT)
-            .arg(
-                Arg::with_name(ARG_LOGICAL)
-                    .short(ARG_LOGICAL)
-                    .multiple(true)
-                    .overrides_with(ARG_PHYSICAL)
-                    .help("Handle paths logically (symbolic links will not be resolved)"),
-            )
-            .arg(
-                Arg::with_name(ARG_PHYSICAL)
-                    .short(ARG_PHYSICAL)
-                    .multiple(true)
-                    .overrides_with(ARG_LOGICAL)
-                    .help("Handle paths physically (all symbolic links resolved)"),
-            )
-            .arg(Arg::with_name(ARG_DIR).help(
-                "An absolute or relative path for the what shall become the new working directory",
-            ));
+fn get_matches<I>(args: I) -> ClapResult<ArgMatches<'static>>
+where
+    I: Iterator,
+    I::Item: StringWrapper,
+{
+    let app = App::new(CD)
+        .setting(AppSettings::NoBinaryName)
+        .setting(AppSettings::DisableVersion)
+        .about("Changes the current working directory of the shell")
+        .long_about(LONG_ABOUT)
+        .arg(
+            Arg::with_name(ARG_LOGICAL)
+                .short(ARG_LOGICAL)
+                .multiple(true)
+                .overrides_with(ARG_PHYSICAL)
+                .help("Handle paths logically (symbolic links will not be resolved)"),
+        )
+        .arg(
+            Arg::with_name(ARG_PHYSICAL)
+                .short(ARG_PHYSICAL)
+                .multiple(true)
+                .overrides_with(ARG_LOGICAL)
+                .help("Handle paths physically (all symbolic links resolved)"),
+        )
+        .arg(Arg::with_name(ARG_DIR).help(
+            "An absolute or relative path for the what shall become the new working directory",
+        ));
 
-        let app_args = self
-            .args
-            .take()
-            .expect(POLLED_TWICE)
-            .map(StringWrapper::into_owned);
-
-        app.get_matches_from_safe(app_args)
-    }
+    let app_args = args.map(StringWrapper::into_owned);
+    app.get_matches_from_safe(app_args)
 }
 
 #[derive(Debug)]
@@ -155,54 +147,6 @@ fn get_flags<'a>(matches: &'a ArgMatches<'a>) -> Flags<'a> {
     Flags {
         resolve_symlinks: matches.is_present(ARG_PHYSICAL),
         dir: matches.value_of(ARG_DIR),
-    }
-}
-
-impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedCd<I>
-where
-    T: StringWrapper,
-    I: Iterator<Item = T>,
-    E: AsyncIoEnvironment
-        + ChangeWorkingDirectoryEnvironment
-        + FileDescEnvironment
-        + VariableEnvironment
-        + WorkingDirectoryEnvironment,
-    E::FileHandle: Clone,
-    E::IoHandle: From<E::FileHandle>,
-    E::VarName: Borrow<String> + From<String>,
-    E::Var: Borrow<String> + From<String>,
-{
-    type Item = ExitResult<CdFuture<E::WriteAll>>;
-    type Error = Void;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let matches = try_and_report!(CD, self.get_matches(), env);
-        let flags = get_flags(&matches);
-
-        let (new_working_dir, should_print_pwd) = match get_new_working_dir(&flags, env) {
-            Ok(ret) => ret,
-            Err(e) => {
-                let err: Result<Void, _> = Err(e);
-                let void = try_and_report!(CD, err, env);
-                void::unreachable(void);
-            }
-        };
-
-        let new_working_dir = new_working_dir.into_inner();
-        match try_and_report!(
-            CD,
-            perform_cd_change(should_print_pwd, new_working_dir, env),
-            env
-        ) {
-            Some(pwd) => {
-                generate_and_print_output!(CD, env, |_| -> Result<_, Void> { Ok(pwd.into_bytes()) })
-            }
-            None => Ok(Async::Ready(ExitResult::from(EXIT_SUCCESS))),
-        }
-    }
-
-    fn cancel(&mut self, _env: &mut E) {
-        self.args.take();
     }
 }
 

@@ -1,8 +1,8 @@
 #![deny(rust_2018_idioms)]
+
 use conch_runtime::io::Permissions;
-use futures::future::{poll_fn, Future};
+use futures_util::future::join3;
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::symlink as symlink_dir;
@@ -28,7 +28,7 @@ async fn run_cd<F>(cd_args: &[&str], env_setup: F) -> CdResult
 where
     for<'a> F: FnOnce(&'a mut DefaultEnvArc),
 {
-    let mut env = new_env_with_threads(4);
+    let mut env = new_env_with_no_fds();
 
     let pipe_out = env.open_pipe().expect("err pipe failed");
     let pipe_err = env.open_pipe().expect("out pipe failed");
@@ -47,34 +47,23 @@ where
     env_setup(&mut env);
     let initial_cwd = env.current_working_dir().to_path_buf();
 
-    let read_to_end_out = env
-        .read_async(pipe_out.reader)
-        .expect("failed to create read_to_end_out");
-    let read_to_end_err = env
-        .read_async(pipe_err.reader)
-        .expect("failed to create read_to_end_err");
-    let read_to_end_out = tokio_io::io::read_to_end(read_to_end_out, Vec::new());
-    let read_to_end_err = tokio_io::io::read_to_end(read_to_end_err, Vec::new());
+    let read_to_end_out = tokio::spawn(env.read_all(pipe_out.reader));
+    let read_to_end_err = tokio::spawn(env.read_all(pipe_err.reader));
 
-    let mut cd = cd(cd_args.iter().map(|&s| s.to_owned())).spawn(&env);
+    let cd_args = cd_args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
 
-    let env = RefCell::new(env);
-    let cd = poll_fn(|| cd.poll(&mut *env.borrow_mut()))
-        .flatten()
-        .and_then(|exit| {
-            env.borrow_mut()
-                .close_file_desc(conch_runtime::STDOUT_FILENO);
-            env.borrow_mut()
-                .close_file_desc(conch_runtime::STDERR_FILENO);
-            exit
-        })
-        .map_err(|void| void::unreachable(void));
+    let exit = tokio::spawn(async move {
+        let future = cd(cd_args, &mut env).await;
+        env.close_file_desc(conch_runtime::STDOUT_FILENO);
+        env.close_file_desc(conch_runtime::STDERR_FILENO);
+        (future.await, env)
+    });
 
-    let ((_, err), (_, out), exit) = Compat01As03::new(read_to_end_err.join3(read_to_end_out, cd))
-        .await
-        .expect("future failed");
+    let (exit_result, out, err) = join3(exit, read_to_end_out, read_to_end_err).await;
+    let (exit, env) = exit_result.unwrap();
+    let out = out.unwrap().unwrap();
+    let err = err.unwrap().unwrap();
 
-    let env = env.borrow();
     let final_cwd = env.current_working_dir().to_path_buf();
 
     let pwd = env.var(&String::from("PWD")).expect("unset PWD");
@@ -97,10 +86,9 @@ async fn successful_if_no_stdout() {
     let mut env = new_env_with_no_fds();
 
     let args: Vec<Arc<String>> = vec![input.to_string_lossy().into_owned().into()];
-    let mut cd = cd(args).spawn(&env);
+    let exit = cd(args, &mut env).await.await;
 
-    let exit = Compat01As03::new(poll_fn(|| cd.poll(&mut env)).flatten()).await;
-    assert_eq!(exit, Ok(EXIT_SUCCESS));
+    assert_eq!(exit, EXIT_SUCCESS);
     assert_eq!(env.current_working_dir(), input);
 }
 
@@ -220,7 +208,7 @@ async fn no_arg_uses_home_var() {
 #[tokio::test]
 async fn no_arg_unset_home_is_error() {
     let result = run_cd(&[], |env| {
-        env.unset_var(&String::from("HOME"));
+        env.unset_var(&Arc::new(String::from("HOME")));
         let pwd = env
             .current_working_dir()
             .to_string_lossy()
@@ -314,7 +302,7 @@ async fn nulls_in_cdargs_treated_as_current_directory() {
 #[tokio::test]
 async fn dash_unset_old_pwd_is_error() {
     let result = run_cd(&["-"], |env| {
-        env.unset_var(&String::from("OLDPWD"));
+        env.unset_var(&Arc::new(String::from("OLDPWD")));
         let pwd = env
             .current_working_dir()
             .to_string_lossy()
@@ -327,14 +315,4 @@ async fn dash_unset_old_pwd_is_error() {
     assert_eq!(result.status, EXIT_ERROR);
     assert_eq!(result.initial_cwd, result.final_cwd);
     assert!(result.err.ends_with(": OLDPWD not set\n"));
-}
-
-#[test]
-#[should_panic]
-fn polling_canceled_pwd_panics() {
-    let mut env = new_env_with_no_fds();
-    let mut cd = cd(Vec::<Arc<String>>::new()).spawn(&env);
-
-    cd.cancel(&mut env);
-    let _ = cd.poll(&mut env);
 }
