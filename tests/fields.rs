@@ -113,7 +113,7 @@ async fn test_fields_into_iter() {
 #[tokio::test]
 async fn test_eval_parameter_substitution_splitting_default_ifs() {
     let mut env = VarEnv::<String, String>::new();
-    env.unset_var("IFS");
+    env.unset_var(&String::from("IFS"));
 
     // Splitting SHOULD keep empty fields between IFS chars which are NOT whitespace
     assert_eq!(
