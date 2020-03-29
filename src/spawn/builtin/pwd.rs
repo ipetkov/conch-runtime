@@ -1,92 +1,70 @@
+use super::generate_and_print_output;
 use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, StringWrapper, WorkingDirectoryEnvironment,
 };
-use crate::future::{EnvFuture, Poll};
 use crate::path::{has_dot_components, NormalizationError, NormalizedPath};
-use crate::spawn::ExitResult;
-use crate::POLLED_TWICE;
+use crate::spawn::ExitStatus;
 use clap::{App, AppSettings, Arg};
+use futures_util::future::BoxFuture;
 use std::path::Path;
-use void::Void;
 
-impl_generic_builtin_cmd! {
-    /// Represents a `pwd` builtin command which will
-    /// print out the current working directory.
-    pub struct Pwd;
+const PWD: &str = "pwd";
 
-    /// Creates a new `pwd` builtin command with the provided arguments.
-    pub fn pwd();
-
-    /// A future representing a fully spawned `pwd` builtin command.
-    pub struct SpawnedPwd;
-
-    /// A future representing a fully spawned `pwd` builtin command
-    /// which no longer requires an environment to run.
-    pub struct PwdFuture;
-
-    where T: StringWrapper,
-          E: WorkingDirectoryEnvironment,
-}
-
-impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedPwd<I>
+/// The `pwd` builtin command will print out the current working directory.
+pub async fn pwd<I, E>(args: I, env: &mut E) -> BoxFuture<'static, ExitStatus>
 where
-    T: StringWrapper,
-    I: Iterator<Item = T>,
-    E: AsyncIoEnvironment + FileDescEnvironment + WorkingDirectoryEnvironment,
+    I: IntoIterator,
+    I::Item: StringWrapper,
+    E: ?Sized + AsyncIoEnvironment + FileDescEnvironment + WorkingDirectoryEnvironment,
     E::FileHandle: Clone,
     E::IoHandle: From<E::FileHandle>,
 {
-    type Item = ExitResult<PwdFuture<E::WriteAll>>;
-    type Error = Void;
+    let args = args.into_iter().map(StringWrapper::into_owned);
+    let is_physical = try_and_report!(PWD, parse_args_is_physical(args), env);
 
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        const PWD: &str = "pwd";
-        const ARG_LOGICAL: &str = "L";
-        const ARG_PHYSICAL: &str = "P";
+    generate_and_print_output(PWD, env, |env| {
+        let mut cwd_bytes = if is_physical {
+            physical(env.current_working_dir())
+        } else {
+            logical(env.current_working_dir())
+        };
 
-        let app = App::new(PWD)
-            .setting(AppSettings::NoBinaryName)
-            .setting(AppSettings::DisableVersion)
-            .about("Prints the absolute path name of the current working directory")
-            .arg(Arg::with_name(ARG_LOGICAL)
-                 .short(ARG_LOGICAL)
-                 .multiple(true)
-                 .overrides_with(ARG_PHYSICAL)
-                 .help("Display the logical current working directory.")
-            )
-            .arg(Arg::with_name(ARG_PHYSICAL)
-                 .short(ARG_PHYSICAL)
-                 .multiple(true)
-                 .overrides_with(ARG_LOGICAL)
-                 .help("Display the physical current working directory (all symbolic links resolved).")
-            );
+        if let Ok(ref mut bytes) = cwd_bytes {
+            bytes.push(b'\n');
+        }
 
-        let app_args = self
-            .args
-            .take()
-            .expect(POLLED_TWICE)
-            .map(StringWrapper::into_owned);
+        cwd_bytes
+    })
+    .await
+}
 
-        let matches = try_and_report!(PWD, app.get_matches_from_safe(app_args), env);
+fn parse_args_is_physical<I: Iterator<Item = String>>(args: I) -> Result<bool, clap::Error> {
+    const ARG_LOGICAL: &str = "L";
+    const ARG_PHYSICAL: &str = "P";
 
-        generate_and_print_output!(PWD, env, |env| {
-            let mut cwd_bytes = if matches.is_present(ARG_PHYSICAL) {
-                physical(env.current_working_dir())
-            } else {
-                logical(env.current_working_dir())
-            };
+    let app = App::new(PWD)
+        .setting(AppSettings::NoBinaryName)
+        .setting(AppSettings::DisableVersion)
+        .about("Prints the absolute path name of the current working directory")
+        .arg(
+            Arg::with_name(ARG_LOGICAL)
+                .short(ARG_LOGICAL)
+                .multiple(true)
+                .overrides_with(ARG_PHYSICAL)
+                .help("Display the logical current working directory."),
+        )
+        .arg(
+            Arg::with_name(ARG_PHYSICAL)
+                .short(ARG_PHYSICAL)
+                .multiple(true)
+                .overrides_with(ARG_LOGICAL)
+                .help(
+                    "Display the physical current working directory (all symbolic links resolved).",
+                ),
+        );
 
-            if let Ok(ref mut bytes) = cwd_bytes {
-                bytes.push(b'\n');
-            }
-
-            cwd_bytes
-        })
-    }
-
-    fn cancel(&mut self, _env: &mut E) {
-        self.args.take();
-    }
+    app.get_matches_from_safe(args)
+        .map(|matches| matches.is_present(ARG_PHYSICAL))
 }
 
 fn logical(path: &Path) -> Result<Vec<u8>, NormalizationError> {

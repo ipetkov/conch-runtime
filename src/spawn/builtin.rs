@@ -91,147 +91,21 @@ macro_rules! impl_trivial_builtin_cmd {
     }
 }
 
-//macro_rules! impl_generic_builtin_cmd {
-//    (
-//        $(#[$cmd_attr:meta])*
-//        pub struct $Cmd:ident;
-
-//        $(#[$constructor_attr:meta])*
-//        pub fn $constructor:ident ();
-
-//        $(#[$spawned_future_attr:meta])*
-//        pub struct $SpawnedFuture:ident;
-
-//        $(#[$future_attr:meta])*
-//        pub struct $Future:ident;
-
-//        where T: $($t_bounds:path)+,
-//    ) => {
-//        impl_generic_builtin_cmd! {
-//            $(#[$cmd_attr])*
-//            pub struct $Cmd;
-
-//            $(#[$constructor_attr])*
-//            pub fn $constructor();
-
-//            $(#[$spawned_future_attr])*
-//            pub struct $SpawnedFuture;
-
-//            $(#[$future_attr])*
-//            pub struct $Future;
-
-//            where T: $($t_bounds)+,
-//                  E: ,
-//        }
-//    };
-
-//    (
-//        $(#[$cmd_attr:meta])*
-//        pub struct $Cmd:ident;
-
-//        $(#[$constructor_attr:meta])*
-//        pub fn $constructor:ident ();
-
-//        $(#[$spawned_future_attr:meta])*
-//        pub struct $SpawnedFuture:ident;
-
-//        $(#[$future_attr:meta])*
-//        pub struct $Future:ident;
-
-//        where T: $($t_bounds:path)+,
-//              E: $($e_bounds:path),*,
-//    ) => {
-//        impl_generic_builtin_cmd_no_spawn! {
-//            $(#[$cmd_attr])*
-//            pub struct $Cmd;
-
-//            $(#[$constructor_attr])*
-//            pub fn $constructor();
-
-//            $(#[$spawned_future_attr])*
-//            pub struct $SpawnedFuture;
-
-//            $(#[$future_attr])*
-//            pub struct $Future;
-//        }
-
-//        impl<T, I, E: ?Sized> $crate::Spawn<E> for $Cmd<I>
-//            where $(T: $t_bounds),+,
-//                  I: Iterator<Item = T>,
-//                  E: $crate::env::AsyncIoEnvironment,
-//                  E: $crate::env::FileDescEnvironment,
-//                  E::FileHandle: Clone,
-//                  E::IoHandle: From<E::FileHandle>,
-//                  $(E: $e_bounds),*
-//        {
-//            type EnvFuture = $SpawnedFuture<I>;
-//            type Future = $crate::spawn::ExitResult<$Future<E::WriteAll>>;
-//            #[allow(unused_qualifications)]
-//            type Error = void::Void;
-
-//            fn spawn(self, _env: &E) -> Self::EnvFuture {
-//                $SpawnedFuture {
-//                    args: Some(self.args)
-//                }
-//            }
-//        }
-//    }
-//}
-
-//macro_rules! generate_and_print_output {
-//    ($builtin_name:expr, $env:expr, $generate:expr) => {{
-//        let ret = $crate::spawn::builtin::generate_and_write_bytes_to_fd_if_present(
-//            $builtin_name,
-//            $env,
-//            $crate::STDOUT_FILENO,
-//            $crate::EXIT_SUCCESS,
-//            $generate,
-//        );
-
-//        Ok($crate::future::Async::Ready(ret.map(Into::into)))
-//    }};
-//}
-
 //mod cd;
 mod colon;
-//mod echo;
+mod echo;
 mod false_cmd;
-//mod pwd;
+mod pwd;
 mod shift;
 mod true_cmd;
 
 //pub use self::cd::{cd, Cd, CdFuture, SpawnedCd};
 pub use self::colon::{colon, Colon};
-//pub use self::echo::{echo, Echo, EchoFuture, SpawnedEcho};
+pub use self::echo::echo;
 pub use self::false_cmd::{false_cmd, False};
-//pub use self::pwd::{pwd, Pwd, PwdFuture, SpawnedPwd};
+pub use self::pwd::pwd;
 pub use self::shift::shift;
 pub use self::true_cmd::{true_cmd, True};
-
-//#[must_use = "futures do nothing unless polled"]
-//#[derive(Debug)]
-//struct WriteOutputFuture<W> {
-//    write_all: W,
-//    /// The exit status to return if we successfully wrote out all bytes without error
-//    exit_status_when_complete: ExitStatus,
-//}
-
-//impl<W> Future for WriteOutputFuture<W>
-//where
-//    W: Future,
-//{
-//    type Item = ExitStatus;
-//    type Error = Void;
-
-//    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-//        match self.write_all.poll() {
-//            Ok(Async::Ready(_)) => Ok(Async::Ready(self.exit_status_when_complete)),
-//            Ok(Async::NotReady) => Ok(Async::NotReady),
-//            // FIXME: report error anywhere? at least for debug logs?
-//            Err(_) => Ok(Async::Ready(EXIT_ERROR)),
-//        }
-//    }
-//}
 
 pub(crate) async fn generate_and_print_output<E, F, ERR>(
     builtin_name: &str,

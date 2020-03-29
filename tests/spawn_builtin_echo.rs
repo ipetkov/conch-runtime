@@ -1,18 +1,12 @@
 #![deny(rust_2018_idioms)]
-use conch_runtime;
-
-use tokio_io;
-use void;
-
 use conch_runtime::io::Permissions;
 
-#[macro_use]
 mod support;
 pub use self::support::spawn::builtin::echo;
 pub use self::support::*;
 
 async fn run_echo(args: &[&str]) -> String {
-    let mut env = new_env_with_threads(2);
+    let mut env = new_env_with_no_fds();
 
     let pipe = env.open_pipe().expect("pipe failed");
     env.set_file_desc(
@@ -21,23 +15,19 @@ async fn run_echo(args: &[&str]) -> String {
         Permissions::Write,
     );
 
-    let read_to_end = env
-        .read_async(pipe.reader)
-        .expect("failed to get read_to_end");
-    let read_to_end = tokio_io::io::read_to_end(read_to_end, Vec::new());
+    let args = args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
 
-    let echo = echo(args.iter().map(|&s| s.to_owned()))
-        .spawn(&env)
-        .pin_env(env)
-        .flatten()
-        .map_err(|void| void::unreachable(void));
+    let read_to_end = tokio::spawn(env.read_all(pipe.reader));
+    let exit = tokio::spawn(async move {
+        let future = echo(args, &mut env).await;
+        drop(env);
+        future.await
+    });
 
-    let ((_, output), exit) = Compat01As03::new(read_to_end.join(echo))
-        .await
-        .expect("future failed");
-    assert_eq!(exit, EXIT_SUCCESS);
+    let (output, exit) = join(read_to_end, exit).await;
+    assert_eq!(exit.unwrap(), EXIT_SUCCESS);
 
-    String::from_utf8(output).expect("invalid utf8")
+    String::from_utf8(output.unwrap().unwrap()).expect("invalid utf8")
 }
 
 #[tokio::test]

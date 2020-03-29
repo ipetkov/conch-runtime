@@ -6,6 +6,9 @@ use crate::{ExitStatus, EXIT_ERROR, EXIT_SUCCESS};
 use clap::{App, AppSettings, Arg};
 use futures_util::future::BoxFuture;
 use std::borrow::Cow;
+use std::num::ParseIntError;
+
+const SHIFT: &str = "shift";
 
 #[derive(Debug, failure::Fail)]
 #[fail(display = "numeric argument required")]
@@ -27,7 +30,27 @@ where
     E::FileHandle: Clone,
     E::IoHandle: From<E::FileHandle>,
 {
-    const SHIFT: &str = "shift";
+    let app_args = args.into_iter().map(StringWrapper::into_owned);
+    let amt_parse_result = try_and_report!(SHIFT, parse_args_amount(app_args), env);
+    let amt = try_and_report!(
+        SHIFT,
+        amt_parse_result.map_err(|_| NumericArgumentRequiredError),
+        env
+    );
+
+    let ret = if amt > env.args_len() {
+        EXIT_ERROR
+    } else {
+        env.shift_args(amt);
+        EXIT_SUCCESS
+    };
+
+    Box::pin(async move { ret })
+}
+
+fn parse_args_amount<I: Iterator<Item = String>>(
+    args: I,
+) -> Result<Result<usize, ParseIntError>, clap::Error> {
     const AMT_ARG_NAME: &str = "n";
     const DEFAULT_SHIFT_AMOUNT: &str = "1";
 
@@ -47,23 +70,10 @@ where
                 .default_value(DEFAULT_SHIFT_AMOUNT),
         );
 
-    let app_args = args.into_iter().map(StringWrapper::into_owned);
-    let matches = try_and_report!(SHIFT, app.get_matches_from_safe(app_args), env);
-
-    let amt_arg = matches
-        .value_of_lossy(AMT_ARG_NAME)
-        .unwrap_or(Cow::Borrowed(DEFAULT_SHIFT_AMOUNT))
-        .parse()
-        .map_err(|_| NumericArgumentRequiredError);
-
-    let amt = try_and_report!(SHIFT, amt_arg, env);
-
-    let ret = if amt > env.args_len() {
-        EXIT_ERROR
-    } else {
-        env.shift_args(amt);
-        EXIT_SUCCESS
-    };
-
-    Box::pin(async move { ret })
+    app.get_matches_from_safe(args).map(|matches| {
+        matches
+            .value_of_lossy(AMT_ARG_NAME)
+            .unwrap_or(Cow::Borrowed(DEFAULT_SHIFT_AMOUNT))
+            .parse()
+    })
 }

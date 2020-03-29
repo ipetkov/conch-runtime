@@ -1,58 +1,33 @@
+use super::generate_and_print_output;
 use crate::env::{AsyncIoEnvironment, FileDescEnvironment, StringWrapper};
-use crate::future::{EnvFuture, Poll};
-use crate::spawn::ExitResult;
-use crate::POLLED_TWICE;
+use crate::ExitStatus;
+use futures_util::future::BoxFuture;
 use std::cmp;
 use std::iter::Peekable;
 use void::Void;
 
-impl_generic_builtin_cmd! {
-    /// Represents a `echo` builtin command which will
-    /// print out its arguments joined by a space.
-    pub struct Echo;
+/// The `echo` builtin command will print out its arguments joined by a space.
+pub async fn echo<I, E>(args: I, env: &mut E) -> BoxFuture<'static, ExitStatus>
+where
+    I: IntoIterator,
+    I::Item: StringWrapper,
+    E: ?Sized + AsyncIoEnvironment + FileDescEnvironment,
+    E::FileHandle: Clone,
+    E::IoHandle: From<E::FileHandle>,
+{
+    let args = args.into_iter().fuse().peekable();
+    let (flags, args) = parse_args(args);
 
-    /// Creates a new `echo` builtin command with the provided arguments.
-    pub fn echo();
-
-    /// A future representing a fully spawned `echo` builtin command.
-    pub struct SpawnedEcho;
-
-    /// A future representing a fully spawned `echo` builtin command
-    /// which no longer requires an environment to run.
-    pub struct EchoFuture;
-
-    where T: StringWrapper,
+    generate_and_print_output("echo", env, |_| -> Result<_, Void> {
+        Ok(generate_output(flags, args.into_iter().flatten()))
+    })
+    .await
 }
 
 #[derive(Debug, Clone, Copy)]
 struct Flags {
     interpret_escapes: bool,
     suppress_newline: bool,
-}
-
-impl<T, I, E: ?Sized> EnvFuture<E> for SpawnedEcho<I>
-where
-    T: StringWrapper,
-    I: Iterator<Item = T>,
-    E: AsyncIoEnvironment + FileDescEnvironment,
-    E::FileHandle: Clone,
-    E::IoHandle: From<E::FileHandle>,
-{
-    type Item = ExitResult<EchoFuture<E::WriteAll>>;
-    type Error = Void;
-
-    fn poll(&mut self, env: &mut E) -> Poll<Self::Item, Self::Error> {
-        let args = self.args.take().expect(POLLED_TWICE).fuse().peekable();
-
-        generate_and_print_output!("echo", env, |_| -> Result<_, Void> {
-            let (flags, args) = parse_args(args);
-            Ok(generate_output(flags, args.into_iter().flat_map(|a| a)))
-        })
-    }
-
-    fn cancel(&mut self, _env: &mut E) {
-        self.args.take();
-    }
 }
 
 fn parse_args<I>(mut args: Peekable<I>) -> (Flags, Option<Peekable<I>>)

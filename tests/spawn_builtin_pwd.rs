@@ -1,10 +1,8 @@
 #![deny(rust_2018_idioms)]
 use conch_runtime;
 
-use tokio_io;
-use void;
-
 use conch_runtime::io::Permissions;
+use futures_util::future::join;
 use std::borrow::Cow;
 use std::fs;
 #[cfg(unix)]
@@ -19,7 +17,6 @@ mod support;
 pub use self::support::spawn::builtin::pwd;
 pub use self::support::*;
 
-#[derive(Debug, Clone)]
 struct DummyWorkingDirEnv(PathBuf);
 
 impl WorkingDirectoryEnvironment for DummyWorkingDirEnv {
@@ -65,14 +62,11 @@ async fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
     fs::create_dir(&path_foo_sym).expect("failed to create foo");
 
     let mut env = Env::with_config(
-        DefaultEnvConfigArc::new(Some(2))
+        DefaultEnvConfigArc::new()
             .expect("failed to create test env")
-            .change_file_desc_manager_env(PlatformSpecificFileDescManagerEnv::new(Some(2)))
             .change_var_env(VarEnv::<String, String>::new())
             .change_working_dir_env(DummyWorkingDirEnv(cur_dir)),
     );
-
-    let pwd = pwd(pwd_args.iter().map(|&s| s.to_owned()));
 
     let pipe = env.open_pipe().expect("pipe failed");
     env.set_file_desc(
@@ -81,21 +75,17 @@ async fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
         Permissions::Write,
     );
 
-    let read_to_end = env
-        .read_async(pipe.reader)
-        .expect("failed to get read_to_end");
-    let ((_, output), exit) = Compat01As03::new(
-        tokio_io::io::read_to_end(read_to_end, Vec::new()).join(
-            pwd.spawn(&env)
-                .pin_env(env)
-                .flatten()
-                .map_err(|void| void::unreachable(void)),
-        ),
-    )
-    .await
-    .expect("future failed");
+    let args = pwd_args.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
 
-    assert_eq!(exit, EXIT_SUCCESS);
+    let read_to_end = tokio::spawn(env.read_all(pipe.reader));
+    let exit = tokio::spawn(async move {
+        let future = pwd(args, &mut env).await;
+        drop(env);
+        future.await
+    });
+
+    let (output, exit) = join(read_to_end, exit).await;
+    assert_eq!(exit.unwrap(), EXIT_SUCCESS);
 
     let path_expected = if physical_result {
         path_foo_real
@@ -103,6 +93,7 @@ async fn run_pwd(use_dots: bool, pwd_args: &[&str], physical_result: bool) {
         path_foo_sym
     };
 
+    let output = output.unwrap().unwrap();
     let path_expected = format!("{}\n", path_expected.to_string_lossy());
     assert_eq!(String::from_utf8_lossy(&output), path_expected);
 }
@@ -145,18 +136,7 @@ async fn last_specified_flag_wins() {
 
 #[tokio::test]
 async fn successful_if_no_stdout() {
-    let env = new_env_with_no_fds();
-    let pwd = pwd(Vec::<Arc<String>>::new());
-    let exit = Compat01As03::new(pwd.spawn(&env).pin_env(env).flatten()).await;
-    assert_eq!(exit, Ok(EXIT_SUCCESS));
-}
-
-#[test]
-#[should_panic]
-fn polling_canceled_pwd_panics() {
     let mut env = new_env_with_no_fds();
-    let mut pwd = pwd(Vec::<Arc<String>>::new()).spawn(&env);
-
-    pwd.cancel(&mut env);
-    let _ = pwd.poll(&mut env);
+    let exit = pwd(Vec::<Arc<String>>::new(), &mut env).await.await;
+    assert_eq!(exit, EXIT_SUCCESS);
 }
