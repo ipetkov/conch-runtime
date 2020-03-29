@@ -146,7 +146,7 @@ where
         self.get_mut().set_var(name, val);
     }
 
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
         self.get().env_vars()
     }
 }

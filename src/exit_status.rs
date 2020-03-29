@@ -31,7 +31,7 @@ impl ExitStatus {
 }
 
 impl fmt::Display for ExitStatus {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             ExitStatus::Code(code) => write!(f, "exit code: {}", code),
             ExitStatus::Signal(code) => write!(f, "signal: {}", code),

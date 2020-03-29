@@ -214,7 +214,7 @@ where
         self.env.as_mut().unwrap().set_var(name, val);
     }
 
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
         self.env.as_ref().unwrap().env_vars()
     }
 }

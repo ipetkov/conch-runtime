@@ -150,7 +150,10 @@ fn get_flags<'a>(matches: &'a ArgMatches<'a>) -> Flags<'a> {
     }
 }
 
-fn get_new_working_dir<E: ?Sized>(flags: &Flags, env: &E) -> Result<(NormalizedPath, bool), CdError>
+fn get_new_working_dir<E: ?Sized>(
+    flags: &Flags<'_>,
+    env: &E,
+) -> Result<(NormalizedPath, bool), CdError>
 where
     E: VariableEnvironment + WorkingDirectoryEnvironment,
     E::VarName: Borrow<String>,

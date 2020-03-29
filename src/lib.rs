@@ -41,6 +41,7 @@
 #![deny(trivial_casts)]
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]
+#![deny(rust_2018_idioms)]
 
 pub mod env;
 pub mod error;

@@ -77,7 +77,7 @@ where
     // bound on the caller).
     let env_futures = FuturesUnordered::new();
 
-    let final_cmd_env_future: BoxFuture<_> = if let Some(second) = rest.next() {
+    let final_cmd_env_future: BoxFuture<'_, _> = if let Some(second) = rest.next() {
         let mut next_in = {
             // First command will automatically inherit the stdin of the
             // parent environment, so no need to manually set it

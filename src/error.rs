@@ -92,7 +92,7 @@ impl PartialEq for RedirectionError {
 }
 
 impl Display for RedirectionError {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
         match *self {
             RedirectionError::Ambiguous(ref v) => {
                 write!(fmt, "a redirect path evaluated to multiple fields: ")?;
@@ -164,7 +164,7 @@ impl PartialEq for CommandError {
 }
 
 impl Display for CommandError {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
         match *self {
             CommandError::NotFound(ref c) => write!(fmt, "{}: command not found", c),
             CommandError::NotExecutable(ref c) => write!(fmt, "{}: command not executable", c),
@@ -217,7 +217,7 @@ impl PartialEq for RuntimeError {
 }
 
 impl Display for RuntimeError {
-    fn fmt(&self, fmt: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
         match *self {
             RuntimeError::Expansion(ref e) => write!(fmt, "{}", e),
             RuntimeError::Redirection(ref e) => write!(fmt, "{}", e),

@@ -130,7 +130,7 @@ impl<N: Hash + Eq, F> FnEnv<N, F> {
         }
     }
 
-    pub(crate) fn fn_names(&self) -> ::std::collections::hash_map::Keys<N, F> {
+    pub(crate) fn fn_names(&self) -> ::std::collections::hash_map::Keys<'_, N, F> {
         self.functions.keys()
     }
 }
@@ -140,7 +140,7 @@ where
     N: Hash + Eq + fmt::Debug + Ord,
     F: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         use std::collections::BTreeMap;
         use std::iter::FromIterator;
 

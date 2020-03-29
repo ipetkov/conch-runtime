@@ -40,13 +40,19 @@ pub trait ExecutableEnvironment {
     type ExecFuture: Future<Output = ExitStatus>;
 
     /// Attempt to spawn the executable command.
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError>;
+    fn spawn_executable(
+        &mut self,
+        data: ExecutableData<'_>,
+    ) -> Result<Self::ExecFuture, CommandError>;
 }
 
 impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a mut T {
     type ExecFuture = T::ExecFuture;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+    fn spawn_executable(
+        &mut self,
+        data: ExecutableData<'_>,
+    ) -> Result<Self::ExecFuture, CommandError> {
         (**self).spawn_executable(data)
     }
 }
@@ -73,7 +79,10 @@ impl TokioExecEnv {
 impl ExecutableEnvironment for TokioExecEnv {
     type ExecFuture = BoxFuture<'static, ExitStatus>;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+    fn spawn_executable(
+        &mut self,
+        data: ExecutableData<'_>,
+    ) -> Result<Self::ExecFuture, CommandError> {
         let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
         let name = data.name;

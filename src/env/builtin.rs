@@ -92,7 +92,7 @@ impl<T> PartialEq<BuiltinEnv<T>> for BuiltinEnv<T> {
 }
 
 impl<T> fmt::Debug for BuiltinEnv<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("BuiltinEnv").finish()
     }
 }

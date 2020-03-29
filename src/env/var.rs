@@ -22,7 +22,7 @@ pub trait VariableEnvironment {
     fn set_var(&mut self, name: Self::VarName, val: Self::Var);
     /// Unset the value of some variable (including environment variables).
     /// Get all current pairs of environment variables and their values.
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]>;
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]>;
 }
 
 impl<'a, T: ?Sized + VariableEnvironment> VariableEnvironment for &'a mut T {
@@ -41,7 +41,7 @@ impl<'a, T: ?Sized + VariableEnvironment> VariableEnvironment for &'a mut T {
         (**self).set_var(name, val);
     }
 
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
         (**self).env_vars()
     }
 }
@@ -149,7 +149,7 @@ where
         }
     }
 
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
         let ret: Vec<_> = self
             .vars
             .iter()
@@ -200,7 +200,7 @@ where
     N: Eq + Ord + Hash + fmt::Debug,
     V: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         use std::collections::BTreeMap;
 
         let mut vars = BTreeMap::new();

@@ -385,7 +385,7 @@ where
     EX: fmt::Debug,
     WD: fmt::Debug,
 {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         use std::collections::BTreeSet;
         let fn_names: BTreeSet<_> = self.fn_env.fn_names().collect();
 
@@ -475,7 +475,7 @@ where
         self.args_env.args_len()
     }
 
-    fn args(&self) -> Cow<[Self::Arg]> {
+    fn args(&self) -> Cow<'_, [Self::Arg]> {
         self.args_env.args()
     }
 }
@@ -670,7 +670,7 @@ where
         self.var_env.set_var(name, val);
     }
 
-    fn env_vars(&self) -> Cow<[(&Self::VarName, &Self::Var)]> {
+    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
         self.var_env.env_vars()
     }
 }
@@ -708,7 +708,10 @@ where
 {
     type ExecFuture = EX::ExecFuture;
 
-    fn spawn_executable(&mut self, data: ExecutableData) -> Result<Self::ExecFuture, CommandError> {
+    fn spawn_executable(
+        &mut self,
+        data: ExecutableData<'_>,
+    ) -> Result<Self::ExecFuture, CommandError> {
         self.exec_env.spawn_executable(data)
     }
 }

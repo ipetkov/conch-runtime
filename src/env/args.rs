@@ -15,7 +15,7 @@ pub trait ArgumentsEnvironment {
     /// Get the number of current arguments, NOT including the shell name.
     fn args_len(&self) -> usize;
     /// Get all current arguments as a possibly owned slice.
-    fn args(&self) -> Cow<[Self::Arg]>;
+    fn args(&self) -> Cow<'_, [Self::Arg]>;
 }
 
 impl<'a, T: ?Sized + ArgumentsEnvironment> ArgumentsEnvironment for &'a T {
@@ -33,7 +33,7 @@ impl<'a, T: ?Sized + ArgumentsEnvironment> ArgumentsEnvironment for &'a T {
         (**self).args_len()
     }
 
-    fn args(&self) -> Cow<[Self::Arg]> {
+    fn args(&self) -> Cow<'_, [Self::Arg]> {
         (**self).args()
     }
 }
@@ -53,7 +53,7 @@ impl<'a, T: ?Sized + ArgumentsEnvironment> ArgumentsEnvironment for &'a mut T {
         (**self).args_len()
     }
 
-    fn args(&self) -> Cow<[Self::Arg]> {
+    fn args(&self) -> Cow<'_, [Self::Arg]> {
         (**self).args()
     }
 }
@@ -174,7 +174,7 @@ impl<T: Clone> ArgumentsEnvironment for ArgsEnv<T> {
         self.args.len()
     }
 
-    fn args(&self) -> Cow<[Self::Arg]> {
+    fn args(&self) -> Cow<'_, [Self::Arg]> {
         Cow::Borrowed(&self.args)
     }
 }
