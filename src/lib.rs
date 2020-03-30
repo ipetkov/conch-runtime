@@ -46,15 +46,11 @@
 pub mod env;
 pub mod error;
 pub mod eval;
-#[cfg(broken)]
-pub mod future;
 pub mod io;
 pub mod path;
 pub mod spawn;
 
 mod exit_status;
-#[cfg(broken)]
-mod future_ext;
 mod ref_counted;
 
 mod sys {
@@ -74,13 +70,6 @@ pub use self::exit_status::{
 };
 pub use self::ref_counted::RefCounted;
 pub use self::spawn::Spawn;
-
-/// Generic panic message for futures which have been polled after completion.
-#[cfg(broken)]
-const POLLED_TWICE: &str = "this future cannot be polled again after completion!";
-/// Generic panic message for futures which have been cancelled after completion.
-#[cfg(broken)]
-const CANCELLED_TWICE: &str = "this future cannot be cancelled again after completion!";
 
 /// The default value of `$IFS` unless overriden.
 const IFS_DEFAULT: &str = " \t\n";
