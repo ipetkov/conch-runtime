@@ -44,7 +44,7 @@ where
 
     let exit = tokio::spawn(async move {
         let future = builtin
-            .spawn_builtin(args, VarRestorer::new(RedirectRestorer::new(&mut env)))
+            .spawn_builtin(args, &mut EnvRestorer::new(&mut env))
             .await;
         env.close_file_desc(conch_runtime::STDOUT_FILENO);
         env.close_file_desc(conch_runtime::STDERR_FILENO);

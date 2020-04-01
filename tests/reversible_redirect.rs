@@ -1,163 +1,126 @@
 #![deny(rust_2018_idioms)]
 
-use conch_runtime::env::{
-    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, RedirectEnvRestorer,
-    RedirectRestorer,
-};
+use conch_runtime::env::{EnvRestorer, FileDescEnvironment, RedirectEnvRestorer};
 use conch_runtime::eval::RedirectAction;
 use conch_runtime::io::{FileDesc, Permissions};
-use conch_runtime::Fd;
-use futures_core::future::BoxFuture;
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io;
-use std::path::Path;
+use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct MockFileDescEnv<T> {
-    fds: HashMap<Fd, (T, Permissions)>,
-}
+mod mock_env;
+mod support;
 
-impl<T> MockFileDescEnv<T> {
-    fn new() -> Self {
-        MockFileDescEnv {
-            fds: HashMap::new(),
-        }
-    }
-}
-
-impl<T> FileDescEnvironment for MockFileDescEnv<T> {
-    type FileHandle = T;
-
-    fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
-        self.fds
-            .get(&fd)
-            .map(|&(ref handle, perms)| (handle, perms))
-    }
-
-    fn set_file_desc(&mut self, fd: Fd, handle: Self::FileHandle, perms: Permissions) {
-        self.fds.insert(fd, (handle, perms));
-    }
-
-    fn close_file_desc(&mut self, fd: Fd) {
-        self.fds.remove(&fd);
-    }
-}
-
-impl<T> AsyncIoEnvironment for MockFileDescEnv<T> {
-    type IoHandle = T;
-
-    fn read_all(&mut self, _: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
-        unimplemented!()
-    }
-
-    fn write_all<'a>(
-        &mut self,
-        _: Self::IoHandle,
-        _: Cow<'a, [u8]>,
-    ) -> BoxFuture<'a, io::Result<()>> {
-        unimplemented!()
-    }
-
-    fn write_all_best_effort(&mut self, _: Self::IoHandle, _: Vec<u8>) {
-        // Nothing to do
-    }
-}
-
-impl FileDescOpener for MockFileDescEnv<S> {
-    type OpenedFileHandle = S;
-
-    fn open_path(&mut self, _: &Path, _: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
-        unimplemented!()
-    }
-
-    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
-        Ok(Pipe {
-            reader: S("reader"),
-            writer: S("writer"),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct S(&'static str);
-
-impl From<FileDesc> for S {
-    fn from(_fdes: FileDesc) -> Self {
-        S("FileDesc conversion")
-    }
-}
+pub use self::mock_env::*;
+pub use self::support::*;
 
 #[test]
 fn smoke() {
-    type RA = RedirectAction<S>;
+    type RA = RedirectAction<Arc<FileDesc>>;
 
-    let mut env = MockFileDescEnv::new();
-    env.set_file_desc(1, S("a"), Permissions::Read);
-    env.set_file_desc(2, S("b"), Permissions::Write);
-    env.set_file_desc(3, S("c"), Permissions::ReadWrite);
+    let mut env = MockFileAndVarEnv::new();
+
+    let a = dev_null(&mut env);
+    let b = dev_null(&mut env);
+    let c = dev_null(&mut env);
+    let x = dev_null(&mut env);
+    let y = dev_null(&mut env);
+    let z = dev_null(&mut env);
+    let w = dev_null(&mut env);
+    let s = dev_null(&mut env);
+    let t = dev_null(&mut env);
+
+    env.set_file_desc(1, a, Permissions::Read);
+    env.set_file_desc(2, b, Permissions::Write);
+    env.set_file_desc(3, c, Permissions::ReadWrite);
     env.close_file_desc(4);
     env.close_file_desc(5);
 
     let env_original = env.clone();
 
-    let mut restorer = RedirectRestorer::new(env);
+    let mut restorer = EnvRestorer::new(&mut env);
 
     // Existing fd set to multiple other values
-    RA::Open(1, S("x"), Permissions::Read)
+    RA::Open(1, x, Permissions::Read)
         .apply(&mut restorer)
         .unwrap();
-    RA::Open(1, S("y"), Permissions::Write)
+    RA::Open(1, y, Permissions::Write)
         .apply(&mut restorer)
         .unwrap();
     RA::HereDoc(1, vec![]).apply(&mut restorer).unwrap();
 
     // Existing fd closed, then opened
     RA::Close(2).apply(&mut restorer).unwrap();
-    RA::Open(2, S("z"), Permissions::Write)
+    RA::Open(2, z, Permissions::Write)
         .apply(&mut restorer)
         .unwrap();
 
     // Existing fd changed, then closed
-    RA::Open(3, S("w"), Permissions::Write)
+    RA::Open(3, w, Permissions::Write)
         .apply(&mut restorer)
         .unwrap();
     RA::Close(3).apply(&mut restorer).unwrap();
 
     // Nonexistent fd set, then changed
     RA::HereDoc(4, vec![]).apply(&mut restorer).unwrap();
-    RA::Open(4, S("s"), Permissions::Write)
+    RA::Open(4, s, Permissions::Write)
         .apply(&mut restorer)
         .unwrap();
 
     // Nonexistent fd set, then closed
-    RA::Open(5, S("t"), Permissions::Read)
+    RA::Open(5, t, Permissions::Read)
         .apply(&mut restorer)
         .unwrap();
     RA::Close(5).apply(&mut restorer).unwrap();
 
     assert_ne!(env_original, *restorer.get());
-    let env = restorer.restore();
+    restorer.restore_redirects();
+    drop(restorer);
     assert_eq!(env_original, env);
 }
 
 #[test]
-fn forget_persists_changes() {
-    let mut env = MockFileDescEnv::new();
-    env.set_file_desc(1, S("a"), Permissions::Read);
-    env.set_file_desc(2, S("b"), Permissions::Write);
+fn clear_persists_changes() {
+    let mut env = MockFileAndVarEnv::new();
+
+    let a = dev_null(&mut env);
+    let b = dev_null(&mut env);
+    let foo = dev_null(&mut env);
+    let bar = dev_null(&mut env);
+
+    env.set_file_desc(1, a, Permissions::Read);
+    env.set_file_desc(2, b, Permissions::Write);
     env.close_file_desc(5);
 
     let env_original = env.clone();
 
-    let mut restorer = RedirectRestorer::new(env);
+    let mut restorer = EnvRestorer::new(&mut env);
 
     restorer.close_file_desc(1);
-    restorer.set_file_desc(2, S("foo"), Permissions::ReadWrite);
-    restorer.set_file_desc(3, S("var"), Permissions::ReadWrite);
+    restorer.set_file_desc(2, foo, Permissions::ReadWrite);
+    restorer.set_file_desc(3, bar, Permissions::ReadWrite);
 
     let current = restorer.get().clone();
     assert_ne!(env_original, current);
-    assert_eq!(current, restorer.forget());
+    restorer.clear_redirects();
+    restorer.restore_redirects();
+    drop(restorer);
+    assert_eq!(current, env);
+}
+
+#[test]
+fn restore_on_drop() {
+    type RA = RedirectAction<Arc<FileDesc>>;
+
+    let mut env = MockFileAndVarEnv::new();
+    let env_original = env.clone();
+
+    let x = dev_null(&mut env);
+
+    let mut restorer = EnvRestorer::new(&mut env);
+
+    RA::Open(1, x, Permissions::Read)
+        .apply(&mut restorer)
+        .unwrap();
+
+    assert_ne!(env_original, *restorer.get());
+    drop(restorer);
+    assert_eq!(env_original, env);
 }

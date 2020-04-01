@@ -1,108 +1,16 @@
 #![deny(rust_2018_idioms)]
 
 use conch_runtime::io::{FileDesc, Permissions};
-use conch_runtime::spawn::spawn_with_local_redirections;
+use conch_runtime::spawn::spawn_with_local_redirections_and_restorer;
 use conch_runtime::{Fd, EXIT_SUCCESS, STDIN_FILENO, STDOUT_FILENO};
 use futures_core::future::BoxFuture;
-use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::hash::Hash;
-use std::io;
-use std::path::Path;
 use std::sync::Arc;
 
+mod mock_env;
 mod support;
+pub use self::mock_env::*;
 pub use self::support::*;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct MockEnv {
-    file_desc_env: FileDescEnv<Arc<FileDesc>>,
-    var_env: VarEnv<&'static str, &'static str>,
-}
-
-impl MockEnv {
-    fn new() -> Self {
-        MockEnv {
-            file_desc_env: FileDescEnv::new(),
-            var_env: VarEnv::new(),
-        }
-    }
-}
-
-impl FileDescOpener for MockEnv {
-    type OpenedFileHandle = Arc<FileDesc>;
-
-    fn open_path(&mut self, path: &Path, opts: &OpenOptions) -> io::Result<Self::OpenedFileHandle> {
-        opts.open(&path).map(FileDesc::from).map(Arc::new)
-    }
-
-    fn open_pipe(&mut self) -> io::Result<Pipe<Self::OpenedFileHandle>> {
-        let pipe = ::conch_runtime::io::Pipe::new()?;
-        Ok(Pipe {
-            reader: Arc::new(pipe.reader),
-            writer: Arc::new(pipe.writer),
-        })
-    }
-}
-
-impl AsyncIoEnvironment for MockEnv {
-    type IoHandle = Arc<FileDesc>;
-
-    fn read_all(&mut self, _: Self::IoHandle) -> BoxFuture<'static, io::Result<Vec<u8>>> {
-        unimplemented!()
-    }
-
-    /// Asynchronously write `data` into the specified handle.
-    fn write_all<'a>(
-        &mut self,
-        _: Self::IoHandle,
-        _: Cow<'a, [u8]>,
-    ) -> BoxFuture<'a, io::Result<()>> {
-        unimplemented!()
-    }
-
-    fn write_all_best_effort(&mut self, _: Self::IoHandle, _: Vec<u8>) {
-        unimplemented!()
-    }
-}
-
-impl FileDescEnvironment for MockEnv {
-    type FileHandle = Arc<FileDesc>;
-
-    fn file_desc(&self, fd: Fd) -> Option<(&Self::FileHandle, Permissions)> {
-        self.file_desc_env.file_desc(fd)
-    }
-
-    fn set_file_desc(&mut self, fd: Fd, fdes: Self::FileHandle, perms: Permissions) {
-        self.file_desc_env.set_file_desc(fd, fdes, perms)
-    }
-
-    fn close_file_desc(&mut self, fd: Fd) {
-        self.file_desc_env.close_file_desc(fd)
-    }
-}
-
-impl VariableEnvironment for MockEnv {
-    type VarName = &'static str;
-    type Var = &'static str;
-
-    fn var<Q: ?Sized>(&self, name: &Q) -> Option<&Self::Var>
-    where
-        Self::VarName: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.var_env.var(name)
-    }
-
-    fn set_var(&mut self, name: Self::VarName, val: Self::Var) {
-        self.var_env.set_var(name, val);
-    }
-
-    fn env_vars(&self) -> Cow<'_, [(&Self::VarName, &Self::Var)]> {
-        self.var_env.env_vars()
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MockCmd2 {
@@ -112,12 +20,12 @@ pub struct MockCmd2 {
 }
 
 #[async_trait::async_trait]
-impl Spawn<MockEnv> for MockCmd2 {
+impl Spawn<MockFileAndVarEnv> for MockCmd2 {
     type Error = MockErr;
 
     async fn spawn(
         &self,
-        env: &mut MockEnv,
+        env: &mut MockFileAndVarEnv,
     ) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
         for (&fd, expected) in &self.expected_fds {
             match *expected {
@@ -136,7 +44,9 @@ async fn run_with_local_redirections(
     cmd: MockCmd,
 ) -> Result<ExitStatus, MockErr> {
     let mut env = new_env();
-    let future = spawn_with_local_redirections(redirects, cmd, &mut env).await?;
+    let future =
+        spawn_with_local_redirections_and_restorer(redirects, cmd, &mut EnvRestorer::new(&mut env))
+            .await?;
     Ok(future.await)
 }
 
@@ -160,7 +70,7 @@ async fn should_propagate_errors() {
 
 #[tokio::test]
 async fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain() {
-    let mut env = MockEnv::new();
+    let mut env = MockFileAndVarEnv::new();
     let mut expected_fds = HashMap::new();
 
     let fdes = dev_null(&mut env);
@@ -217,9 +127,13 @@ async fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain
         value,
     };
 
-    let _ = spawn_with_local_redirections(redirects.clone(), cmd, &mut env)
-        .await
-        .unwrap();
+    let _ = spawn_with_local_redirections_and_restorer(
+        redirects.clone(),
+        cmd,
+        &mut EnvRestorer::new(&mut env),
+    )
+    .await
+    .unwrap();
     assert!(env != env_original);
     let env = env;
 
@@ -230,7 +144,7 @@ async fn last_redirect_seen_by_command_then_fds_restored_but_side_effects_remain
 
 #[tokio::test]
 async fn fds_restored_after_cmd_or_redirect_error() {
-    let mut env = MockEnv::new();
+    let mut env = MockFileAndVarEnv::new();
     let dev_null = dev_null(&mut env);
     env.set_file_desc(STDIN_FILENO, dev_null.clone(), Permissions::Read);
     env.set_file_desc(STDOUT_FILENO, dev_null.clone(), Permissions::Write);
@@ -258,23 +172,30 @@ async fn fds_restored_after_cmd_or_redirect_error() {
         mock_redirect(RedirectAction::Close(STDIN_FILENO)),
     ];
 
-    let _ = spawn_with_local_redirections(redirects.clone(), mock_error(false), &mut env).await;
+    let _ = spawn_with_local_redirections_and_restorer(
+        redirects.clone(),
+        mock_error(false),
+        &mut EnvRestorer::new(&mut env),
+    );
     assert_eq!(env, env_original);
 
     let mut redirects = redirects;
     redirects.push(mock_redirect_error(false));
 
-    let _ =
-        spawn_with_local_redirections(redirects.clone(), mock_panic("should not run"), &mut env)
-            .await;
+    let _ = spawn_with_local_redirections_and_restorer(
+        redirects.clone(),
+        mock_panic("should not run"),
+        &mut EnvRestorer::new(&mut env),
+    )
+    .await;
     assert_eq!(env, env_original);
 }
 
-#[cfg(all(feature = "conch-parser", feature = "broken"))]
+#[cfg(feature = "conch-parser")]
 #[tokio::test]
 async fn spawn_compound_command_smoke() {
     use conch_parser::ast::CompoundCommand;
-    let mut env = MockEnv::new();
+    let mut env = MockFileAndVarEnv::new();
     let mut expected_fds = HashMap::new();
 
     let fdes = dev_null(&mut env);

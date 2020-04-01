@@ -30,12 +30,11 @@ pub use self::redirect::{
     redirect_read, redirect_readwrite, redirect_write, RedirectAction, RedirectEval,
 };
 pub use self::redirect_or_cmd_word::{
-    eval_redirects_or_cmd_words, eval_redirects_or_cmd_words_with_restorer,
-    EvalRedirectOrCmdWordError, RedirectOrCmdWord,
+    eval_redirects_or_cmd_words_with_restorer, EvalRedirectOrCmdWordError, RedirectOrCmdWord,
 };
 pub use self::redirect_or_var_assig::{
-    eval_redirects_or_var_assignments, eval_redirects_or_var_assignments_with_restorers,
-    EvalRedirectOrVarAssigError, RedirectOrVarAssig,
+    eval_redirects_or_var_assignments_with_restorer, EvalRedirectOrVarAssigError,
+    RedirectOrVarAssig,
 };
 
 /// A trait for evaluating parameters.

@@ -1,12 +1,13 @@
 use crate::env::{
-    ArgumentsEnvironment, AsyncIoEnvironment, FileDescEnvironment, FileDescOpener,
-    LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment, VariableEnvironment,
+    ArgumentsEnvironment, AsyncIoEnvironment, EnvRestorer, ExportedVariableEnvironment,
+    FileDescEnvironment, FileDescOpener, LastStatusEnvironment, ReportFailureEnvironment,
+    SubEnvironment, UnsetVariableEnvironment, VariableEnvironment,
 };
 use crate::error::{IsFatalError, RedirectionError};
 use crate::eval::{RedirectEval, WordEval};
 use crate::spawn::{
     case, for_args, for_loop, if_cmd, loop_cmd, sequence_exact, sequence_slice,
-    spawn_with_local_redirections, subshell, GuardBodyPair, PatternBodyPair, Spawn,
+    spawn_with_local_redirections_and_restorer, subshell, GuardBodyPair, PatternBodyPair, Spawn,
 };
 use crate::{ExitStatus, EXIT_SUCCESS};
 use conch_parser::ast;
@@ -18,14 +19,24 @@ where
     S: Send + Sync + Spawn<E>,
     S::Error: From<RedirectionError> + From<R::Error>,
     R: Send + Sync + RedirectEval<E, Handle = E::FileHandle>,
-    E: ?Sized + Sync + Send + AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
+    E: ?Sized
+        + Sync
+        + Send
+        + AsyncIoEnvironment
+        + ExportedVariableEnvironment
+        + FileDescEnvironment
+        + FileDescOpener
+        + UnsetVariableEnvironment,
     E::FileHandle: Clone + Send + From<E::OpenedFileHandle>,
     E::IoHandle: Send + From<E::FileHandle>,
+    E::VarName: Send + Clone,
+    E::Var: Send + Clone,
 {
     type Error = S::Error;
 
     async fn spawn(&self, env: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
-        spawn_with_local_redirections(&self.io, &self.kind, env).await
+        spawn_with_local_redirections_and_restorer(&self.io, &self.kind, &mut EnvRestorer::new(env))
+            .await
     }
 }
 

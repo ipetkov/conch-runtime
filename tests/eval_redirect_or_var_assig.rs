@@ -13,11 +13,10 @@ async fn eval(
     vars: Vec<MockRedirectOrVarAssig>,
     export_vars: Option<bool>,
     env: &mut DefaultEnvArc,
-) -> Result<
-    VarRestorer<RedirectRestorer<&mut DefaultEnvArc>>,
-    EvalRedirectOrVarAssigError<MockErr, MockErr>,
-> {
-    eval_redirects_or_var_assignments(export_vars, vars, env).await
+) -> Result<EnvRestorer<'_, DefaultEnvArc>, EvalRedirectOrVarAssigError<MockErr, MockErr>> {
+    let mut restorer = EnvRestorer::new(env);
+    eval_redirects_or_var_assignments_with_restorer(export_vars, vars, &mut restorer).await?;
+    Ok(restorer)
 }
 
 #[tokio::test]
@@ -77,30 +76,32 @@ async fn smoke() {
         None,
         &mut env,
     );
-    let var_restorer = future.await.unwrap();
+    let mut restorer = future.await.unwrap();
 
-    assert_eq!(var_restorer.get().var(&key), Some(&Arc::new(val)));
+    assert_eq!(restorer.get().var(&key), Some(&Arc::new(val)));
     assert_eq!(
-        var_restorer.get().var(&key_empty),
+        restorer.get().var(&key_empty),
         Some(&Arc::new(String::new()))
     );
     assert_eq!(
-        var_restorer.get().var(&key_empty2),
+        restorer.get().var(&key_empty2),
         Some(&Arc::new(String::new()))
     );
     assert_eq!(
-        var_restorer.get().var(&key_split),
+        restorer.get().var(&key_split),
         Some(&Arc::new("foo bar".to_owned()))
     );
 
-    let redirect_restorer = var_restorer.restore();
-    assert_empty_vars(redirect_restorer.get());
+    restorer.restore_vars();
+    assert_empty_vars(restorer.get());
 
     assert_eq!(
-        redirect_restorer.get().file_desc(1),
+        restorer.get().file_desc(1),
         Some((&fdes, Permissions::Write))
     );
-    let env = redirect_restorer.restore();
+    restorer.restore_redirects();
+    drop(restorer);
+
     assert_eq!(env.file_desc(1), None);
 }
 

@@ -1,6 +1,4 @@
-use crate::env::{
-    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, RedirectEnvRestorer, RedirectRestorer,
-};
+use crate::env::{AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, RedirectEnvRestorer};
 use crate::error::{IsFatalError, RedirectionError};
 use crate::eval::{RedirectEval, WordEval};
 use failure::Fail;
@@ -42,32 +40,6 @@ where
     }
 }
 
-/// Evaluate a series of redirections and shell words.
-///
-/// All redirections will be applied to the environment. On successful completion,
-/// a `RedirectRestorer` will be returned which allows the caller to reverse the
-/// changes from applying these redirections. On error, the redirections will
-/// be automatically restored.
-pub async fn eval_redirects_or_cmd_words<'a, R, W, I, E>(
-    words: I,
-    env: &'a mut E,
-) -> Result<
-    (RedirectRestorer<&'a mut E>, Vec<W::EvalResult>),
-    EvalRedirectOrCmdWordError<R::Error, W::Error>,
->
-where
-    I: IntoIterator<Item = RedirectOrCmdWord<R, W>>,
-    R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
-    W: WordEval<E>,
-    W::Error: Fail,
-    E: 'a + ?Sized + Send + Sync + AsyncIoEnvironment + FileDescEnvironment + FileDescOpener,
-    E::FileHandle: Clone + From<E::OpenedFileHandle>,
-    E::IoHandle: Send + From<E::FileHandle>,
-{
-    eval_redirects_or_cmd_words_with_restorer(RedirectRestorer::new(env), words).await
-}
-
 /// Evaluate a series of redirections and shell words,
 /// and supply a `RedirectEnvRestorer` to use.
 ///
@@ -76,9 +48,9 @@ where
 /// changes from applying these redirections. On error, the redirections will
 /// be automatically restored.
 pub async fn eval_redirects_or_cmd_words_with_restorer<'a, R, W, I, E, RR>(
-    mut restorer: RR,
+    restorer: &mut RR,
     words: I,
-) -> Result<(RR, Vec<W::EvalResult>), EvalRedirectOrCmdWordError<R::Error, W::Error>>
+) -> Result<Vec<W::EvalResult>, EvalRedirectOrCmdWordError<R::Error, W::Error>>
 where
     I: IntoIterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
@@ -86,7 +58,7 @@ where
     W: WordEval<E>,
     W::Error: Fail,
     E: 'a + ?Sized + Send + Sync + FileDescEnvironment,
-    RR: AsyncIoEnvironment + FileDescOpener + RedirectEnvRestorer<&'a mut E>,
+    RR: ?Sized + Send + Sync + AsyncIoEnvironment + FileDescOpener + RedirectEnvRestorer<'a, E>,
     RR::FileHandle: From<RR::OpenedFileHandle>,
     RR::IoHandle: Send + From<RR::FileHandle>,
 {
@@ -98,13 +70,13 @@ where
     let mut results = Vec::with_capacity(size_hint);
 
     for w in words {
-        if let Err(e) = eval(&mut restorer, w, &mut results).await {
-            restorer.restore();
+        if let Err(e) = eval(restorer, w, &mut results).await {
+            restorer.restore_redirects();
             return Err(e);
         }
     }
 
-    Ok((restorer, results))
+    Ok(results)
 }
 
 async fn eval<'r, 'a: 'r, W, R, E, RR>(
@@ -118,7 +90,7 @@ where
     W: WordEval<E>,
     W::Error: Fail,
     E: 'a + ?Sized + Send + Sync + FileDescEnvironment,
-    RR: AsyncIoEnvironment + FileDescOpener + RedirectEnvRestorer<&'a mut E>,
+    RR: ?Sized + AsyncIoEnvironment + FileDescOpener + RedirectEnvRestorer<'a, E>,
     RR::FileHandle: From<RR::OpenedFileHandle>,
     RR::IoHandle: Send + From<RR::FileHandle>,
 {

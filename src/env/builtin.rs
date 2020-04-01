@@ -20,7 +20,11 @@ use std::marker::PhantomData;
 /// Thus when a builtin is prepared for execution, it is provided any local
 /// redirection or variable restorers, and it becomes the builtin's responsibility
 /// to restore the redirects/variables (or not) based on its specific semantics.
-pub trait BuiltinUtility<A, R, V, E: ?Sized> {
+pub trait BuiltinUtility<'a, A, R, E>
+where
+    R: ?Sized,
+    E: 'a + ?Sized,
+{
     /// Spawn the builtin utility using the provided arguments.
     ///
     /// Builtin utilities are different than regular commands, and may wish to have
@@ -32,20 +36,16 @@ pub trait BuiltinUtility<A, R, V, E: ?Sized> {
     /// For example, the `exec` utility appears like a regular command, but any
     /// redirections that have been applied to it remain in effect for the rest
     /// of the script.
-    fn spawn_builtin<'this, 'env, 'async_trait>(
-        &'this self,
+    fn spawn_builtin<'life0, 'life1, 'async_trait>(
+        &'life0 self,
         args: A,
-        restorer: V,
+        restorer: &'life1 mut R,
     ) -> BoxFuture<'async_trait, BoxFuture<'static, ExitStatus>>
     where
-        'this: 'async_trait,
+        'life0: 'async_trait,
+        'life1: 'async_trait,
         Self: 'async_trait,
-        A: 'async_trait,
-        R: 'async_trait
-            + RedirectEnvRestorer<&'env mut E>
-            + VariableEnvironment<Var = E::Var, VarName = E::VarName>,
-        V: 'async_trait + VarEnvRestorer<R>,
-        E: 'env + 'async_trait + FileDescEnvironment + VariableEnvironment;
+        A: 'async_trait;
 }
 
 /// An interface for getting shell builtin utilities.
@@ -157,14 +157,14 @@ where
     }
 }
 
-impl<A, R, V, E> BuiltinUtility<A, R, V, E> for Builtin
+impl<'a, A, R, E> BuiltinUtility<'a, A, R, E> for Builtin
 where
     A: Send + IntoIterator,
     A::Item: Send + StringWrapper,
     A::IntoIter: Send,
-    R: Send + AsyncIoEnvironment + FileDescEnvironment,
-    V: Send,
-    E: ?Sized
+    R: ?Sized + Send + RedirectEnvRestorer<'a, E> + VarEnvRestorer<'a, E>,
+    E: 'a
+        + ?Sized
         + Send
         + Sync
         + AsyncIoEnvironment
@@ -178,37 +178,36 @@ where
     E::Var: Borrow<String> + From<String>,
     E::VarName: Borrow<String> + From<String>,
 {
-    fn spawn_builtin<'this, 'env, 'async_trait>(
-        &'this self,
+    fn spawn_builtin<'life0, 'life1, 'async_trait>(
+        &'life0 self,
         args: A,
-        mut var_restorer: V,
+        restorer: &'life1 mut R,
     ) -> BoxFuture<'async_trait, BoxFuture<'static, ExitStatus>>
     where
-        'this: 'async_trait,
+        'life0: 'async_trait,
+        'life1: 'async_trait,
         Self: 'async_trait,
         A: 'async_trait,
-        R: 'async_trait
-            + RedirectEnvRestorer<&'env mut E>
-            + VariableEnvironment<Var = E::Var, VarName = E::VarName>,
-        V: 'async_trait + VarEnvRestorer<R>,
-        E: 'env + 'async_trait + FileDescEnvironment + VariableEnvironment,
     {
         let kind = self.kind;
 
         Box::pin(async move {
+            let env = restorer.get_mut();
+
             let ret = match kind {
-                BuiltinKind::Cd => builtin::cd(args, *var_restorer.get_mut().get_mut()).await,
-                BuiltinKind::Echo => builtin::echo(args, *var_restorer.get_mut().get_mut()).await,
-                BuiltinKind::Pwd => builtin::pwd(args, *var_restorer.get_mut().get_mut()).await,
-                BuiltinKind::Shift => builtin::shift(args, *var_restorer.get_mut().get_mut()).await,
+                BuiltinKind::Cd => builtin::cd(args, *env).await,
+                BuiltinKind::Echo => builtin::echo(args, *env).await,
+                BuiltinKind::Pwd => builtin::pwd(args, *env).await,
+                BuiltinKind::Shift => builtin::shift(args, *env).await,
 
                 BuiltinKind::Colon => Box::pin(async { builtin::colon() }),
                 BuiltinKind::False => Box::pin(async { builtin::false_cmd() }),
                 BuiltinKind::True => Box::pin(async { builtin::true_cmd() }),
             };
 
-            let redirect_restorer = var_restorer.restore();
-            let _ = redirect_restorer.restore();
+            restorer.restore_vars();
+            restorer.restore_redirects();
+
             ret
         })
     }

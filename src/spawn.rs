@@ -28,9 +28,7 @@ pub use self::case::{case, PatternBodyPair};
 pub use self::for_cmd::{for_args, for_loop, for_with_args};
 pub use self::func_exec::{function, function_body};
 pub use self::if_cmd::if_cmd;
-pub use self::local_redirections::{
-    spawn_with_local_redirections, spawn_with_local_redirections_and_restorer,
-};
+pub use self::local_redirections::spawn_with_local_redirections_and_restorer;
 pub use self::loop_cmd::loop_cmd;
 pub use self::pipeline::pipeline;
 pub use self::sequence::{sequence, sequence_exact, sequence_slice, SequenceSlice};

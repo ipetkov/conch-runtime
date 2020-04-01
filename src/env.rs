@@ -15,8 +15,7 @@ mod fd_manager;
 mod fd_opener;
 mod func;
 mod last_status;
-mod reversible_redirect;
-mod reversible_var;
+mod restorer;
 mod string_wrapper;
 mod var;
 
@@ -41,8 +40,7 @@ pub use self::func::{
     FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment, UnsetFunctionEnvironment,
 };
 pub use self::last_status::{LastStatusEnv, LastStatusEnvironment};
-pub use self::reversible_redirect::{RedirectEnvRestorer, RedirectRestorer};
-pub use self::reversible_var::{VarEnvRestorer, VarRestorer};
+pub use self::restorer::{EnvRestorer, RedirectEnvRestorer, Restorer, VarEnvRestorer};
 pub use self::string_wrapper::StringWrapper;
 pub use self::var::{
     ExportedVariableEnvironment, UnsetVariableEnvironment, VarEnv, VariableEnvironment,
