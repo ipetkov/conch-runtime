@@ -706,12 +706,10 @@ where
     N: Hash + Eq,
     EX: ExecutableEnvironment,
 {
-    type ExecFuture = EX::ExecFuture;
-
     fn spawn_executable(
-        &mut self,
+        &self,
         data: ExecutableData<'_>,
-    ) -> Result<Self::ExecFuture, CommandError> {
+    ) -> Result<BoxFuture<'static, ExitStatus>, CommandError> {
         self.exec_env.spawn_executable(data)
     }
 }

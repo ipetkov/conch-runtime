@@ -52,7 +52,7 @@ pub async fn eval_redirects_or_cmd_words_with_restorer<'a, R, W, I, E, RR>(
     words: I,
 ) -> Result<Vec<W::EvalResult>, EvalRedirectOrCmdWordError<R::Error, W::Error>>
 where
-    I: IntoIterator<Item = RedirectOrCmdWord<R, W>>,
+    I: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
     R::Error: Fail + From<RedirectionError>,
     W: WordEval<E>,
@@ -62,8 +62,6 @@ where
     RR::FileHandle: From<RR::OpenedFileHandle>,
     RR::IoHandle: Send + From<RR::FileHandle>,
 {
-    let words = words.into_iter();
-
     let (lo, hi) = words.size_hint();
     let size_hint = hi.unwrap_or(lo);
 

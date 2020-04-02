@@ -23,7 +23,7 @@ pub use self::args::{
     ArgsEnv, ArgumentsEnvironment, SetArgumentsEnvironment, ShiftArgumentsEnvironment,
 };
 pub use self::async_io::{ArcUnwrappingAsyncIoEnv, AsyncIoEnvironment, TokioAsyncIoEnv};
-pub use self::builtin::BuiltinEnvironment;
+pub use self::builtin::{Builtin, BuiltinEnvironment};
 pub use self::cur_dir::{
     ChangeWorkingDirectoryEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
 };

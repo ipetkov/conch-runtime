@@ -4,7 +4,6 @@ use crate::io::FileDesc;
 use crate::{ExitStatus, EXIT_ERROR};
 use futures_core::future::BoxFuture;
 use std::ffi::OsStr;
-use std::future::Future;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::Path;
 use std::process::Stdio;
@@ -36,23 +35,18 @@ pub struct ExecutableData<'a> {
 
 /// An interface for asynchronously spawning executables.
 pub trait ExecutableEnvironment {
-    /// A future which will resolve to the executable's exit status.
-    type ExecFuture: Future<Output = ExitStatus>;
-
     /// Attempt to spawn the executable command.
     fn spawn_executable(
-        &mut self,
+        &self,
         data: ExecutableData<'_>,
-    ) -> Result<Self::ExecFuture, CommandError>;
+    ) -> Result<BoxFuture<'static, ExitStatus>, CommandError>;
 }
 
-impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a mut T {
-    type ExecFuture = T::ExecFuture;
-
+impl<'a, T: ExecutableEnvironment> ExecutableEnvironment for &'a T {
     fn spawn_executable(
-        &mut self,
+        &self,
         data: ExecutableData<'_>,
-    ) -> Result<Self::ExecFuture, CommandError> {
+    ) -> Result<BoxFuture<'static, ExitStatus>, CommandError> {
         (**self).spawn_executable(data)
     }
 }
@@ -77,12 +71,10 @@ impl TokioExecEnv {
 }
 
 impl ExecutableEnvironment for TokioExecEnv {
-    type ExecFuture = BoxFuture<'static, ExitStatus>;
-
     fn spawn_executable(
-        &mut self,
+        &self,
         data: ExecutableData<'_>,
-    ) -> Result<Self::ExecFuture, CommandError> {
+    ) -> Result<BoxFuture<'static, ExitStatus>, CommandError> {
         let stdio = |fdes: Option<FileDesc>| fdes.map(Into::into).unwrap_or_else(Stdio::null);
 
         let name = data.name;

@@ -48,6 +48,27 @@ where
         A: 'async_trait;
 }
 
+impl<'a, A, R, E, T> BuiltinUtility<'a, A, R, E> for &'_ T
+where
+    R: ?Sized,
+    E: 'a + ?Sized,
+    T: BuiltinUtility<'a, A, R, E>,
+{
+    fn spawn_builtin<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        args: A,
+        restorer: &'life1 mut R,
+    ) -> BoxFuture<'async_trait, BoxFuture<'static, ExitStatus>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+        A: 'async_trait,
+    {
+        (**self).spawn_builtin(args, restorer)
+    }
+}
+
 /// An interface for getting shell builtin utilities.
 pub trait BuiltinEnvironment {
     /// The name for looking up a builtin utility.
@@ -195,10 +216,10 @@ where
             let env = restorer.get_mut();
 
             let ret = match kind {
-                BuiltinKind::Cd => builtin::cd(args, *env).await,
-                BuiltinKind::Echo => builtin::echo(args, *env).await,
-                BuiltinKind::Pwd => builtin::pwd(args, *env).await,
-                BuiltinKind::Shift => builtin::shift(args, *env).await,
+                BuiltinKind::Cd => builtin::cd(args, env).await,
+                BuiltinKind::Echo => builtin::echo(args, env).await,
+                BuiltinKind::Pwd => builtin::pwd(args, env).await,
+                BuiltinKind::Shift => builtin::shift(args, env).await,
 
                 BuiltinKind::Colon => Box::pin(async { builtin::colon() }),
                 BuiltinKind::False => Box::pin(async { builtin::false_cmd() }),

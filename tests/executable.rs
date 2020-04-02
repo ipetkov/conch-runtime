@@ -13,7 +13,7 @@ const EXECUTABLE_WITH_IO_MSG: &str = "hello\nworld!\n";
 
 #[tokio::test]
 async fn spawn_executable_with_io() {
-    let mut env = TokioExecEnv::new();
+    let env = TokioExecEnv::new();
     let mut io_env = TokioFileDescManagerEnv::new();
 
     let pipe_in = io_env.open_pipe().unwrap();
@@ -62,7 +62,7 @@ async fn spawn_executable_with_io() {
 
 #[tokio::test]
 async fn env_vars_set_from_data_without_inheriting_from_process() {
-    let mut env = TokioExecEnv::new();
+    let env = TokioExecEnv::new();
     let mut io_env = TokioFileDescManagerEnv::new();
 
     let pipe_out = io_env.open_pipe().unwrap();
@@ -99,7 +99,7 @@ async fn env_vars_set_from_data_without_inheriting_from_process() {
 
 #[tokio::test]
 async fn remote_spawn_smoke() {
-    let mut env = TokioExecEnv::new();
+    let env = TokioExecEnv::new();
 
     let bin_path = bin_path("env");
 
@@ -122,7 +122,7 @@ async fn remote_spawn_smoke() {
 
 #[tokio::test]
 async fn defines_empty_path_env_var_if_not_provided_by_caller() {
-    let mut env = TokioExecEnv::new();
+    let env = TokioExecEnv::new();
     let mut io_env = TokioFileDescManagerEnv::new();
 
     let pipe_out = io_env.open_pipe().unwrap();

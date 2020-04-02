@@ -14,7 +14,7 @@ async fn smoke() {
         let words =
             eval_redirects_or_cmd_words_with_restorer::<MockRedirect<_>, MockWord, _, _, _>(
                 &mut restorer,
-                vec![],
+                vec![].into_iter(),
             )
             .await
             .unwrap();
@@ -39,7 +39,8 @@ async fn smoke() {
                 "bar".to_owned(),
                 "baz".to_owned(),
             ]))),
-        ],
+        ]
+        .into_iter(),
     )
     .await
     .unwrap();
@@ -77,7 +78,8 @@ async fn should_propagate_errors_and_restore_redirects() {
                 ))),
                 RedirectOrCmdWord::CmdWord(mock_word_error(false)),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
-            ],
+            ]
+            .into_iter(),
         );
 
         assert_eq!(
@@ -102,7 +104,8 @@ async fn should_propagate_errors_and_restore_redirects() {
                 ))),
                 RedirectOrCmdWord::Redirect(mock_redirect_error(false)),
                 RedirectOrCmdWord::CmdWord(mock_word_panic("should not run")),
-            ],
+            ]
+            .into_iter(),
         );
 
         assert_eq!(

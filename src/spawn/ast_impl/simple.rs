@@ -1,160 +1,71 @@
 use crate::env::builtin::{BuiltinEnvironment, BuiltinUtility};
 use crate::env::{
-    AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
-    FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment, RedirectRestorer,
-    SetArgumentsEnvironment, UnsetVariableEnvironment, VarRestorer, WorkingDirectoryEnvironment,
+    AsyncIoEnvironment, EnvRestorer, ExecutableEnvironment, ExportedVariableEnvironment,
+    FileDescEnvironment, FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment,
+    SetArgumentsEnvironment, UnsetVariableEnvironment, WorkingDirectoryEnvironment,
 };
 use crate::error::{CommandError, RedirectionError};
 use crate::eval::{RedirectEval, RedirectOrCmdWord, RedirectOrVarAssig, WordEval};
 use crate::io::FileDescWrapper;
-use crate::spawn::{simple_command, ExitResult, SimpleCommand, Spawn, SpawnedSimpleCommand};
+use crate::spawn::{simple_command, Spawn};
+use crate::ExitStatus;
 use conch_parser::ast;
 use failure::Fail;
-use futures::Future;
+use futures_core::future::BoxFuture;
 use std::borrow::Borrow;
-use std::hash::Hash;
-use std::vec::IntoIter;
 
-/// A type alias for the `EnvFuture` implementation returned when spawning
-/// a `SimpleCommand` AST node.
-pub type SimpleCommandEnvFuture<R, V, W, E> = SimpleCommand<
-    R,
-    V,
-    W,
-    IntoIter<RedirectOrVarAssig<R, V, W>>,
-    IntoIter<RedirectOrCmdWord<R, W>>,
-    E,
-    RedirectRestorer<E>,
-    VarRestorer<E>,
->;
-
-impl<V, W, R, S, B, PB, E: ?Sized> Spawn<E> for ast::SimpleCommand<V, W, R>
+#[async_trait::async_trait]
+impl<V, W, R, E> Spawn<E> for ast::SimpleCommand<V, W, R>
 where
-    R: RedirectEval<E, Handle = E::FileHandle>,
+    R: Send + Sync + RedirectEval<E, Handle = E::FileHandle>,
     R::Error: Fail + From<RedirectionError>,
-    V: Hash + Eq + Borrow<String>,
-    W: WordEval<E>,
+    V: Send + Sync + Clone,
+    W: Send + Sync + WordEval<E>,
+    W::EvalResult: Send,
     W::Error: Fail,
-    S: Clone + Spawn<E>,
-    S::Error: From<CommandError>
-        + From<RedirectionError>
-        + From<R::Error>
-        + From<W::Error>
-        + From<<E::ExecFuture as Future>::Error>
-        + From<PB::Error>,
-    B: BuiltinUtility<
-        IntoIter<W::EvalResult>,
-        RedirectRestorer<E>,
-        VarRestorer<E>,
-        PreparedBuiltin = PB,
-    >,
-    PB: Spawn<E>,
-    E: AsyncIoEnvironment
-        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
+    E: ?Sized
+        + Send
+        + Sync
+        + AsyncIoEnvironment
+        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName>
         + ExecutableEnvironment
         + ExportedVariableEnvironment
         + FileDescEnvironment
         + FileDescOpener
-        + FunctionEnvironment<Fn = S>
+        + FunctionEnvironment
         + FunctionFrameEnvironment
         + SetArgumentsEnvironment
         + UnsetVariableEnvironment
         + WorkingDirectoryEnvironment,
-    E::Arg: From<W::EvalResult>,
-    E::Args: From<Vec<E::Arg>>,
-    E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
-    E::FnName: From<W::EvalResult>,
-    <E::ExecFuture as Future>::Error: Fail,
-    E::IoHandle: From<E::FileHandle>,
-    E::VarName: Borrow<String> + Clone + From<V>,
-    E::Var: Borrow<String> + Clone + From<W::EvalResult>,
+    E::Arg: Send + From<W::EvalResult>,
+    E::Args: Send + From<Vec<E::Arg>>,
+    E::Builtin: Send + Sync,
+    for<'a> E::Builtin: BuiltinUtility<'a, Vec<W::EvalResult>, EnvRestorer<'a, E>, E>,
+    E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,
+    E::FnName: Send + Sync + From<W::EvalResult>,
+    E::Fn: Send + Sync + Clone + Spawn<E>,
+    <E::Fn as Spawn<E>>::Error:
+        From<CommandError> + From<RedirectionError> + From<R::Error> + From<W::Error>,
+    E::IoHandle: Send + Sync + From<E::FileHandle>,
+    E::VarName: Send + Sync + Clone + Borrow<String> + From<V>,
+    E::Var: Send + Sync + Clone + Borrow<String> + From<W::EvalResult>,
 {
-    type EnvFuture = SimpleCommandEnvFuture<R, V, W, E>;
-    type Future = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future, PB::Future>>;
-    type Error = S::Error;
+    type Error = <E::Fn as Spawn<E>>::Error;
 
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        let vars: Vec<_> = self
-            .redirects_or_env_vars
-            .into_iter()
-            .map(Into::into)
-            .collect();
-        let words: Vec<_> = self
-            .redirects_or_cmd_words
-            .into_iter()
-            .map(Into::into)
-            .collect();
-
-        simple_command(vars, words, env)
-    }
-}
-
-impl<'a, V, W, R, S, B, PB, E: ?Sized> Spawn<E> for &'a ast::SimpleCommand<V, W, R>
-where
-    &'a R: RedirectEval<E, Handle = E::FileHandle>,
-    <&'a R as RedirectEval<E>>::Error: Fail + From<RedirectionError>,
-    V: Hash + Eq + Borrow<String> + Clone,
-    &'a W: WordEval<E>,
-    <&'a W as WordEval<E>>::Error: Fail,
-    S: Clone + Spawn<E>,
-    S::Error: From<CommandError>
-        + From<RedirectionError>
-        + From<<&'a R as RedirectEval<E>>::Error>
-        + From<<&'a W as WordEval<E>>::Error>
-        + From<<E::ExecFuture as Future>::Error>
-        + From<PB::Error>,
-    B: BuiltinUtility<
-        IntoIter<<&'a W as WordEval<E>>::EvalResult>,
-        RedirectRestorer<E>,
-        VarRestorer<E>,
-        PreparedBuiltin = PB,
-    >,
-    PB: Spawn<E>,
-    E: AsyncIoEnvironment
-        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
-        + ExecutableEnvironment
-        + ExportedVariableEnvironment
-        + FileDescEnvironment
-        + FileDescOpener
-        + FunctionEnvironment<Fn = S>
-        + FunctionFrameEnvironment
-        + SetArgumentsEnvironment
-        + UnsetVariableEnvironment
-        + WorkingDirectoryEnvironment,
-    E::Arg: From<<&'a W as WordEval<E>>::EvalResult>,
-    E::Args: From<Vec<E::Arg>>,
-    E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
-    E::FnName: From<<&'a W as WordEval<E>>::EvalResult>,
-    <E::ExecFuture as Future>::Error: Fail,
-    E::IoHandle: From<E::FileHandle>,
-    E::VarName: Borrow<String> + Clone + From<V>,
-    E::Var: Borrow<String> + Clone + From<<&'a W as WordEval<E>>::EvalResult>,
-{
-    type EnvFuture = SimpleCommandEnvFuture<&'a R, V, &'a W, E>;
-    type Future = ExitResult<SpawnedSimpleCommand<E::ExecFuture, S::Future, PB::Future>>;
-    type Error = S::Error;
-
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        let vars: Vec<_> = self
-            .redirects_or_env_vars
-            .iter()
-            .map(|v| {
-                use self::ast::RedirectOrEnvVar::*;
-                match *v {
-                    Redirect(ref r) => RedirectOrVarAssig::Redirect(r),
-                    EnvVar(ref v, ref w) => RedirectOrVarAssig::VarAssig(v.clone(), w.as_ref()),
+    async fn spawn(&self, env: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
+        simple_command(
+            self.redirects_or_env_vars.iter().map(|rova| match rova {
+                ast::RedirectOrEnvVar::Redirect(r) => RedirectOrVarAssig::Redirect(r),
+                ast::RedirectOrEnvVar::EnvVar(k, v) => {
+                    RedirectOrVarAssig::VarAssig(k.clone(), v.as_ref())
                 }
-            })
-            .collect();
-        let words: Vec<_> = self
-            .redirects_or_cmd_words
-            .iter()
-            .map(|w| match *w {
-                ast::RedirectOrCmdWord::Redirect(ref r) => RedirectOrCmdWord::Redirect(r),
-                ast::RedirectOrCmdWord::CmdWord(ref w) => RedirectOrCmdWord::CmdWord(w),
-            })
-            .collect();
-
-        simple_command(vars, words, env)
+            }),
+            self.redirects_or_cmd_words.iter().map(|rocw| match rocw {
+                ast::RedirectOrCmdWord::Redirect(r) => RedirectOrCmdWord::Redirect(r),
+                ast::RedirectOrCmdWord::CmdWord(w) => RedirectOrCmdWord::CmdWord(w),
+            }),
+            env,
+        )
+        .await
     }
 }

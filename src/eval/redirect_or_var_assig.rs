@@ -61,7 +61,7 @@ pub async fn eval_redirects_or_var_assignments_with_restorer<'a, R, V, W, I, E, 
     restorer: &mut RR,
 ) -> Result<(), EvalRedirectOrVarAssigError<R::Error, W::Error>>
 where
-    I: IntoIterator<Item = RedirectOrVarAssig<R, V, W>>,
+    I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
     R::Error: Fail + From<RedirectionError>,
     W: WordEval<E>,
@@ -79,8 +79,6 @@ where
     RR::FileHandle: From<RR::OpenedFileHandle>,
     RR::IoHandle: Send + From<RR::FileHandle>,
 {
-    let vars = vars.into_iter();
-
     let (lo, hi) = vars.size_hint();
     let size_hint = hi.unwrap_or(lo);
 

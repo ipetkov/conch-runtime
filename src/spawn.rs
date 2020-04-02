@@ -13,7 +13,7 @@ mod local_redirections;
 mod loop_cmd;
 mod pipeline;
 mod sequence;
-//mod simple;
+mod simple;
 mod subshell;
 mod substitution;
 mod swallow_non_fatal;
@@ -32,9 +32,7 @@ pub use self::local_redirections::spawn_with_local_redirections_and_restorer;
 pub use self::loop_cmd::loop_cmd;
 pub use self::pipeline::pipeline;
 pub use self::sequence::{sequence, sequence_exact, sequence_slice, SequenceSlice};
-//pub use self::simple::{
-//    simple_command, simple_command_with_restorers, SimpleCommand, SpawnedSimpleCommand,
-//};
+pub use self::simple::{simple_command, simple_command_with_restorer};
 pub use self::subshell::subshell;
 pub use self::substitution::substitution;
 pub use self::swallow_non_fatal::swallow_non_fatal_errors;

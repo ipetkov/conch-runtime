@@ -15,7 +15,8 @@ async fn eval(
     env: &mut DefaultEnvArc,
 ) -> Result<EnvRestorer<'_, DefaultEnvArc>, EvalRedirectOrVarAssigError<MockErr, MockErr>> {
     let mut restorer = EnvRestorer::new(env);
-    eval_redirects_or_var_assignments_with_restorer(export_vars, vars, &mut restorer).await?;
+    eval_redirects_or_var_assignments_with_restorer(export_vars, vars.into_iter(), &mut restorer)
+        .await?;
     Ok(restorer)
 }
 
