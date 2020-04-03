@@ -1,8 +1,7 @@
 environment:
   matrix:
   - TARGET: x86_64-pc-windows-msvc
-    #RUST_VERSION: stable
-    RUST_VERSION: beta
+    RUST_VERSION: stable
 
 branches:
   only:
