@@ -82,8 +82,8 @@ fn clear_persists_changes() {
 
     let a = dev_null(&mut env);
     let b = dev_null(&mut env);
-    let foo = dev_null(&mut env);
-    let bar = dev_null(&mut env);
+    let c = dev_null(&mut env);
+    let d = dev_null(&mut env);
 
     env.set_file_desc(1, a, Permissions::Read);
     env.set_file_desc(2, b, Permissions::Write);
@@ -94,8 +94,8 @@ fn clear_persists_changes() {
     let mut restorer = EnvRestorer::new(&mut env);
 
     restorer.close_file_desc(1);
-    restorer.set_file_desc(2, foo, Permissions::ReadWrite);
-    restorer.set_file_desc(3, bar, Permissions::ReadWrite);
+    restorer.set_file_desc(2, c, Permissions::ReadWrite);
+    restorer.set_file_desc(3, d, Permissions::ReadWrite);
 
     let current = restorer.get().clone();
     assert_ne!(env_original, current);

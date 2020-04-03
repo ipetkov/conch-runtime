@@ -13,12 +13,12 @@ async fn test_fields_is_null() {
     assert_eq!(Single("".to_owned()).is_null(), true);
     assert_eq!(At(empty_strs.clone()).is_null(), true);
     assert_eq!(Star(empty_strs.clone()).is_null(), true);
-    assert_eq!(Split(empty_strs.clone()).is_null(), true);
+    assert_eq!(Split(empty_strs).is_null(), true);
 
     assert_eq!(Single("foo".to_owned()).is_null(), false);
     assert_eq!(At(mostly_non_empty_strs.clone()).is_null(), false);
     assert_eq!(Star(mostly_non_empty_strs.clone()).is_null(), false);
-    assert_eq!(Split(mostly_non_empty_strs.clone()).is_null(), false);
+    assert_eq!(Split(mostly_non_empty_strs).is_null(), false);
 }
 
 #[tokio::test]
@@ -29,7 +29,7 @@ async fn test_fields_join() {
     assert_eq!(Single("foo".to_owned()).join(), "foo");
     assert_eq!(At(strs.clone()).join(), "foo bar");
     assert_eq!(Star(strs.clone()).join(), "foo bar");
-    assert_eq!(Split(strs.clone()).join(), "foo bar");
+    assert_eq!(Split(strs).join(), "foo bar");
 }
 
 #[tokio::test]
@@ -63,7 +63,7 @@ async fn test_fields_join_with_ifs() {
     assert_eq!(Single("foo".to_owned()).join_with_ifs(&env), "foo");
     assert_eq!(At(strs.clone()).join_with_ifs(&env), "foo  bar");
     assert_eq!(Star(strs.clone()).join_with_ifs(&env), "foo  bar");
-    assert_eq!(Split(strs.clone()).join_with_ifs(&env), "foo  bar");
+    assert_eq!(Split(strs).join_with_ifs(&env), "foo  bar");
 }
 
 #[tokio::test]
@@ -72,8 +72,8 @@ async fn test_fields_from_vec() {
     let strs = vec![s.clone(), "".to_owned(), "bar".to_owned()];
 
     assert_eq!(Zero::<String>, Vec::<String>::new().into());
-    assert_eq!(Single(s.clone()), vec!(s.clone()).into());
-    assert_eq!(Split(strs.clone()), strs.clone().into());
+    assert_eq!(Single(s.clone()), vec!(s).into());
+    assert_eq!(Split(strs.clone()), strs.into());
 }
 
 #[tokio::test]
@@ -92,10 +92,7 @@ async fn test_fields_into_iter() {
 
     let empty: Vec<String> = vec![];
     assert_eq!(empty, Zero::<String>.into_iter().collect::<Vec<_>>());
-    assert_eq!(
-        vec!(s.clone()),
-        Single(s.clone()).into_iter().collect::<Vec<_>>()
-    );
+    assert_eq!(vec!(s.clone()), Single(s).into_iter().collect::<Vec<_>>());
     assert_eq!(
         strs.clone(),
         At(strs.clone()).into_iter().collect::<Vec<_>>()
@@ -104,10 +101,7 @@ async fn test_fields_into_iter() {
         strs.clone(),
         Star(strs.clone()).into_iter().collect::<Vec<_>>()
     );
-    assert_eq!(
-        strs.clone(),
-        Split(strs.clone()).into_iter().collect::<Vec<_>>()
-    );
+    assert_eq!(strs.clone(), Split(strs).into_iter().collect::<Vec<_>>());
 }
 
 #[tokio::test]

@@ -162,7 +162,7 @@ async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
                 } else {
                     let cur_args: Vec<_> = env.args().iter().cloned().collect();
 
-                    let mut next_args = cur_args.clone();
+                    let mut next_args = cur_args;
                     next_args.reverse();
                     next_args.push(format!("arg{}", num_calls));
 

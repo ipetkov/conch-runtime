@@ -32,7 +32,7 @@ async fn test_eval_parameter_with_set_vars() {
     env.set_var("var3".to_owned(), var3.clone());
 
     assert_eq!(At.eval(false, &env), Some(Fields::At(args.clone())));
-    assert_eq!(Star.eval(false, &env), Some(Fields::Star(args.clone())));
+    assert_eq!(Star.eval(false, &env), Some(Fields::Star(args)));
 
     assert_eq!(
         Dollar.eval(false, &env),
@@ -139,20 +139,20 @@ async fn test_eval_parameter_splitting_with_default_ifs() {
         Some(Fields::Star(fields_args.clone()))
     );
 
-    let fields_foo_bar = Fields::Split(fields_args.clone());
+    let fields_foo_bar = Fields::Split(fields_args);
 
     assert_eq!(Positional(1).eval(true, &env), Some(fields_foo_bar.clone()));
     assert_eq!(Positional(2).eval(true, &env), Some(Fields::Zero));
 
     assert_eq!(
         Var("var1".to_owned()).eval(true, &env),
-        Some(fields_foo_bar.clone())
+        Some(fields_foo_bar)
     );
     assert_eq!(Var("var2".to_owned()).eval(true, &env), Some(Fields::Zero));
 
     // Without splitting
     assert_eq!(At.eval(false, &env), Some(Fields::At(args.clone())));
-    assert_eq!(Star.eval(false, &env), Some(Fields::Star(args.clone())));
+    assert_eq!(Star.eval(false, &env), Some(Fields::Star(args)));
 
     assert_eq!(
         Positional(1).eval(false, &env),
@@ -209,10 +209,7 @@ async fn test_eval_parameter_splitting_with_custom_ifs() {
 
     // With splitting
     assert_eq!(At.eval(true, &env), Some(Fields::At(fields_args.clone())));
-    assert_eq!(
-        Star.eval(true, &env),
-        Some(Fields::Star(fields_args.clone()))
-    );
+    assert_eq!(Star.eval(true, &env), Some(Fields::Star(fields_args)));
 
     let fields_foo_bar = Fields::Split(vec![
         "foo".to_owned(),
@@ -258,7 +255,7 @@ async fn test_eval_parameter_splitting_with_custom_ifs() {
 
     // Without splitting
     assert_eq!(At.eval(false, &env), Some(Fields::At(args.clone())));
-    assert_eq!(Star.eval(false, &env), Some(Fields::Star(args.clone())));
+    assert_eq!(Star.eval(false, &env), Some(Fields::Star(args)));
 
     assert_eq!(
         Positional(1).eval(false, &env),
@@ -338,20 +335,11 @@ async fn test_eval_parameter_splitting_with_empty_ifs() {
 
     // Without splitting
     assert_eq!(At.eval(false, &env), Some(Fields::At(field_args.clone())));
-    assert_eq!(
-        Star.eval(false, &env),
-        Some(Fields::Star(field_args.clone()))
-    );
+    assert_eq!(Star.eval(false, &env), Some(Fields::Star(field_args)));
 
     assert_eq!(Positional(1).eval(false, &env), Some(field1.clone()));
     assert_eq!(Positional(2).eval(false, &env), Some(field2.clone()));
 
-    assert_eq!(
-        Var("var1".to_owned()).eval(false, &env),
-        Some(field1.clone())
-    );
-    assert_eq!(
-        Var("var2".to_owned()).eval(false, &env),
-        Some(field2.clone())
-    );
+    assert_eq!(Var("var1".to_owned()).eval(false, &env), Some(field1));
+    assert_eq!(Var("var2".to_owned()).eval(false, &env), Some(field2));
 }

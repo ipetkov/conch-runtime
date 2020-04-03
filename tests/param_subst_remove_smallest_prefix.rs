@@ -9,8 +9,7 @@ async fn eval<W: Into<Option<MockWord>>>(
     param: &MockParam,
     word: W,
 ) -> Result<Fields<String>, MockErr> {
-    let mut env = ();
-    remove_smallest_prefix(param, word.into(), &mut env).await
+    remove_smallest_prefix(param, word.into(), &mut ()).await
 }
 
 #[tokio::test]

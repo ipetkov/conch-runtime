@@ -258,7 +258,7 @@ async fn eval_append() {
 async fn eval_heredoc() {
     let single = "single";
     let fields = vec!["first".to_owned(), "second".to_owned()];
-    let joined = Vec::from("firstsecond".as_bytes());
+    let joined = b"firstsecond".to_vec();
 
     let cases = vec![
         (mock_word_fields(Fields::Zero), vec![]),
@@ -382,7 +382,7 @@ async fn should_eval_dup_raises_appropriate_perms_or_bad_src_errors() {
 
     let path = mock_word_fields(Fields::Single("foo".to_string()));
     let err = Err(MockErr::RedirectionError(Arc::new(BadFdSrc(
-        "foo".to_string().into(),
+        "foo".to_string(),
     ))));
     assert_eq!(env.file_desc(src_fd), None);
     assert_eq!(

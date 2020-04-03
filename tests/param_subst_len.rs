@@ -6,7 +6,7 @@ mod support;
 pub use self::support::*;
 
 fn assert_len(expected_len: usize, param: MockParam) {
-    assert_eq!(len(&param, &()).to_string(), expected_len.to_string());
+    assert_eq!(len(&param, &()), expected_len.to_string());
 }
 
 #[tokio::test]

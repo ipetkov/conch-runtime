@@ -117,7 +117,7 @@ async fn join_physical_normalizes_paths_and_resolves_symlinks() {
 
     // Test physical normalization via constructor canonicalizes paths without dots
     {
-        let constructed = NormalizedPath::new_normalized_physical(path_foo_sym.clone())
+        let constructed = NormalizedPath::new_normalized_physical(path_foo_sym)
             .expect("new_normalized_physical failed");
         assert_eq!(*constructed, path_foo_real);
     }

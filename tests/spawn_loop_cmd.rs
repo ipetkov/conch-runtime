@@ -48,7 +48,7 @@ impl Spawn<DefaultEnvArc> for MockCmd2 {
                 }
             }
             MockCmd2::SetVar => {
-                env.set_var(has_run_body.clone(), has_run_body.clone());
+                env.set_var(has_run_body.clone(), has_run_body);
                 MOCK_EXIT
             }
         };

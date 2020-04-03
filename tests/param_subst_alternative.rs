@@ -12,8 +12,7 @@ async fn eval<W: Into<Option<MockWord>>>(
     param: &MockParam,
     word: W,
 ) -> Result<Fields<String>, MockErr> {
-    let mut env = ();
-    alternative(strict, param, word.into(), &mut env, CFG).await
+    alternative(strict, param, word.into(), &mut (), CFG).await
 }
 
 #[tokio::test]

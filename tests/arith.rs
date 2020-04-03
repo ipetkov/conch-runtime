@@ -27,7 +27,7 @@ async fn test_eval_arith() {
     assert_eq!(lit(5).eval(env), Ok(5));
 
     assert_eq!(Var(var.clone()).eval(env), Ok(var_value));
-    assert_eq!(Var(var_string.clone()).eval(env), Ok(0));
+    assert_eq!(Var(var_string).eval(env), Ok(0));
     assert_eq!(Var("missing var".to_owned()).eval(env), Ok(0));
 
     assert_eq!(PostIncr(var.clone()).eval(env), Ok(var_value));

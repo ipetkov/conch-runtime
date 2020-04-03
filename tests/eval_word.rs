@@ -15,6 +15,5 @@ async fn test_eval_expands_first_tilde_and_splits_words() {
         },
     );
 
-    let mut env = ();
-    assert_eq!(word.eval(&mut env).await.unwrap().await, Fields::Zero);
+    assert_eq!(word.eval(&mut ()).await.unwrap().await, Fields::Zero);
 }

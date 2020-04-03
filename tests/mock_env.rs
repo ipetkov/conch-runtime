@@ -11,7 +11,7 @@ use std::io;
 use std::path::Path;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MockFileAndVarEnv {
     file_desc_env: FileDescEnv<Arc<FileDesc>>,
     var_env: VarEnv<&'static str, &'static str>,

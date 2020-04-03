@@ -62,7 +62,6 @@ pub struct SequenceSlice<'a, S> {
     cmds: &'a [S],
 }
 
-#[async_trait::async_trait]
 impl<'a, S, E> Spawn<E> for SequenceSlice<'a, S>
 where
     S: Send + Sync + Spawn<E>,
@@ -71,8 +70,16 @@ where
 {
     type Error = S::Error;
 
-    async fn spawn(&self, env: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error> {
-        sequence_exact(self.cmds, env).await
+    fn spawn<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        Box::pin(sequence_exact(self.cmds, env))
     }
 }
 
