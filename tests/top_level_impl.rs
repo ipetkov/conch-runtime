@@ -1,12 +1,9 @@
 #![deny(rust_2018_idioms)]
-#![cfg(all(feature = "conch-parser", feature = "top-level"))]
-
-use conch_runtime;
+#![cfg(feature = "conch-parser")]
 
 use conch_parser::ast;
 use std::sync::Arc;
 
-#[macro_use]
 mod support;
 pub use self::support::*;
 
@@ -30,8 +27,10 @@ async fn smoke() {
         rest: vec![],
     }));
 
-    let mut env = DefaultEnvArc::new(Some(1)).unwrap();
-    env.close_file_desc(conch_runtime::STDOUT_FILENO); // NB: don't dump env vars here
+    let mut env = new_env_with_no_fds();
 
-    assert_eq!(run!(cmd, env), Ok(EXIT_SUCCESS));
+    let future = cmd.spawn(&mut env).await.unwrap();
+    drop(env);
+
+    assert_eq!(EXIT_SUCCESS, future.await);
 }

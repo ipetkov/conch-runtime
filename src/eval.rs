@@ -168,6 +168,74 @@ where
     }
 }
 
+impl<T, E> WordEval<E> for Box<T>
+where
+    T: ?Sized + WordEval<E>,
+    E: ?Sized,
+{
+    type EvalResult = T::EvalResult;
+    type Error = T::Error;
+
+    fn eval<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).eval(env)
+    }
+
+    fn eval_with_config<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+        cfg: WordEvalConfig,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).eval_with_config(env, cfg)
+    }
+}
+
+impl<T, E> WordEval<E> for std::sync::Arc<T>
+where
+    T: ?Sized + WordEval<E>,
+    E: ?Sized,
+{
+    type EvalResult = T::EvalResult;
+    type Error = T::Error;
+
+    fn eval<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).eval(env)
+    }
+
+    fn eval_with_config<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+        cfg: WordEvalConfig,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        (**self).eval_with_config(env, cfg)
+    }
+}
+
 // Evaluate a word as a pattern. Note this is not a public API since there needs to be a
 // better abstraction for allowing consumers to override/define patterns (i.e. don't
 // tie ourselves to `glob`).

@@ -1,32 +1,30 @@
 use crate::env::builtin::{BuiltinEnvironment, BuiltinUtility};
 use crate::env::{
-    ArgumentsEnvironment, AsyncIoEnvironment, ExecutableEnvironment, ExportedVariableEnvironment,
-    FileDescEnvironment, FileDescOpener, FunctionEnvironment, FunctionFrameEnvironment,
-    IsInteractiveEnvironment, LastStatusEnvironment, RedirectRestorer, ReportFailureEnvironment,
-    SetArgumentsEnvironment, StringWrapper, SubEnvironment, UnsetVariableEnvironment, VarRestorer,
-    WorkingDirectoryEnvironment,
+    ArgumentsEnvironment, AsyncIoEnvironment, EnvRestorer, ExecutableEnvironment,
+    ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, FunctionEnvironment,
+    FunctionFrameEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
+    ReportFailureEnvironment, SetArgumentsEnvironment, StringWrapper, SubEnvironment,
+    UnsetVariableEnvironment, WorkingDirectoryEnvironment,
 };
 use crate::error::RuntimeError;
-use crate::eval::{Fields, WordEval, WordEvalConfig};
-use crate::future::EnvFuture;
+use crate::eval::{WordEval, WordEvalConfig, WordEvalResult};
 use crate::io::FileDescWrapper;
-use crate::spawn::{BoxSpawnEnvFuture, BoxStatusFuture, Spawn, SpawnBoxed};
+use crate::spawn::Spawn;
+use crate::ExitStatus;
 use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord};
-use failure::Fail;
-use futures::Future;
+use futures_core::future::BoxFuture;
 use std::fmt::Display;
 use std::sync::Arc;
-use std::vec::IntoIter;
 
-impl<T, B, PB, E: ?Sized> Spawn<E> for AtomicTopLevelCommand<T>
+impl<T, E> Spawn<E> for AtomicTopLevelCommand<T>
 where
     T: 'static + StringWrapper + Display + Send + Sync,
-    B: BuiltinUtility<IntoIter<T>, RedirectRestorer<E>, VarRestorer<E>, PreparedBuiltin = PB>,
-    PB: Spawn<E>,
-    E: 'static
+    E: ?Sized
+        + Send
+        + Sync
         + AsyncIoEnvironment
         + ArgumentsEnvironment<Arg = T>
-        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
+        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName>
         + ExecutableEnvironment
         + ExportedVariableEnvironment<VarName = T, Var = T>
         + FileDescEnvironment
@@ -40,34 +38,43 @@ where
         + SubEnvironment
         + UnsetVariableEnvironment
         + WorkingDirectoryEnvironment,
-    E::Args: From<Vec<E::Arg>>,
-    E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
-    E::FnName: From<T>,
-    E::Fn: Clone
-        + From<Arc<dyn SpawnBoxed<E, Error = RuntimeError> + 'static + Send + Sync>>
+    E::Args: Send + From<Vec<E::Arg>>,
+    E::Builtin: Send + Sync,
+    for<'a> E::Builtin: BuiltinUtility<'a, Vec<T>, EnvRestorer<'a, E>, E>,
+    E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,
+    E::OpenedFileHandle: Send,
+    E::FnName: Send + Sync + From<T>,
+    E::Fn: Send
+        + Sync
+        + Clone
+        + From<Arc<dyn Spawn<E, Error = RuntimeError> + 'static + Send + Sync>>
         + Spawn<E, Error = RuntimeError>,
-    <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error> + From<PB::Error>,
-    <E::ExecFuture as Future>::Error: Fail,
-    E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
+    E::IoHandle: Send + Sync + From<E::FileHandle> + From<E::OpenedFileHandle>,
 {
-    type EnvFuture = BoxSpawnEnvFuture<'static, E, Self::Error>;
-    type Future = BoxStatusFuture<'static, Self::Error>;
     type Error = RuntimeError;
 
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        Box::new(self.0.spawn(env).boxed_result())
+    fn spawn<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+    ) -> BoxFuture<'async_trait, Result<BoxFuture<'static, ExitStatus>, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        self.0.spawn(env)
     }
 }
 
-impl<'a, T: 'a, B, PB, E: ?Sized> Spawn<E> for &'a AtomicTopLevelCommand<T>
+impl<T, E> WordEval<E> for AtomicTopLevelWord<T>
 where
     T: 'static + StringWrapper + Display + Send + Sync,
-    B: BuiltinUtility<IntoIter<T>, RedirectRestorer<E>, VarRestorer<E>, PreparedBuiltin = PB>,
-    PB: Spawn<E>,
-    E: 'static
+    E: ?Sized
+        + Send
+        + Sync
         + AsyncIoEnvironment
         + ArgumentsEnvironment<Arg = T>
-        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
+        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName>
         + ExecutableEnvironment
         + ExportedVariableEnvironment<VarName = T, Var = T>
         + FileDescEnvironment
@@ -81,103 +88,32 @@ where
         + SubEnvironment
         + UnsetVariableEnvironment
         + WorkingDirectoryEnvironment,
-    E::Args: From<Vec<E::Arg>>,
-    E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
-    E::FnName: From<T>,
-    E::Fn: Clone
-        + From<Arc<dyn SpawnBoxed<E, Error = RuntimeError> + 'static + Send + Sync>>
+    E::Args: Send + From<Vec<E::Arg>>,
+    E::Builtin: Send + Sync,
+    for<'a> E::Builtin: BuiltinUtility<'a, Vec<T>, EnvRestorer<'a, E>, E>,
+    E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,
+    E::OpenedFileHandle: Send,
+    E::FnName: Send + Sync + From<T>,
+    E::Fn: Send
+        + Sync
+        + Clone
+        + From<Arc<dyn Spawn<E, Error = RuntimeError> + 'static + Send + Sync>>
         + Spawn<E, Error = RuntimeError>,
-    <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error> + From<PB::Error>,
-    <E::ExecFuture as Future>::Error: Fail,
-    E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
-{
-    type EnvFuture = BoxSpawnEnvFuture<'a, E, Self::Error>;
-    type Future = BoxStatusFuture<'a, Self::Error>;
-    type Error = RuntimeError;
-
-    fn spawn(self, env: &E) -> Self::EnvFuture {
-        Box::new(Spawn::spawn(&self.0, env).boxed_result())
-    }
-}
-
-impl<T, B, PB, E: ?Sized> WordEval<E> for AtomicTopLevelWord<T>
-where
-    T: 'static + StringWrapper + Display + Send + Sync,
-    B: BuiltinUtility<IntoIter<T>, RedirectRestorer<E>, VarRestorer<E>, PreparedBuiltin = PB>,
-    PB: Spawn<E>,
-    E: 'static
-        + AsyncIoEnvironment
-        + ArgumentsEnvironment<Arg = T>
-        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
-        + ExecutableEnvironment
-        + ExportedVariableEnvironment<VarName = T, Var = T>
-        + FileDescEnvironment
-        + FileDescOpener
-        + FunctionEnvironment
-        + FunctionFrameEnvironment
-        + IsInteractiveEnvironment
-        + LastStatusEnvironment
-        + ReportFailureEnvironment
-        + SetArgumentsEnvironment
-        + SubEnvironment
-        + UnsetVariableEnvironment
-        + WorkingDirectoryEnvironment,
-    E::Args: From<Vec<E::Arg>>,
-    E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
-    E::FnName: From<T>,
-    E::Fn: Clone
-        + From<Arc<dyn SpawnBoxed<E, Error = RuntimeError> + 'static + Send + Sync>>
-        + Spawn<E, Error = RuntimeError>,
-    <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error> + From<PB::Error>,
-    <E::ExecFuture as Future>::Error: Fail,
-    E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
+    E::IoHandle: Send + Sync + From<E::FileHandle> + From<E::OpenedFileHandle>,
 {
     type EvalResult = T;
-    type EvalFuture = Box<dyn EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
     type Error = RuntimeError;
 
-    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-        Box::new(self.0.eval_with_config(env, cfg))
-    }
-}
-
-impl<'a, T, B, PB, E: ?Sized> WordEval<E> for &'a AtomicTopLevelWord<T>
-where
-    T: 'static + StringWrapper + Display + Send + Sync,
-    B: BuiltinUtility<IntoIter<T>, RedirectRestorer<E>, VarRestorer<E>, PreparedBuiltin = PB>,
-    PB: Spawn<E>,
-    E: 'static
-        + AsyncIoEnvironment
-        + ArgumentsEnvironment<Arg = T>
-        + BuiltinEnvironment<BuiltinName = <E as FunctionEnvironment>::FnName, Builtin = B>
-        + ExecutableEnvironment
-        + ExportedVariableEnvironment<VarName = T, Var = T>
-        + FileDescEnvironment
-        + FileDescOpener
-        + FunctionEnvironment
-        + FunctionFrameEnvironment
-        + IsInteractiveEnvironment
-        + LastStatusEnvironment
-        + ReportFailureEnvironment
-        + SetArgumentsEnvironment
-        + SubEnvironment
-        + UnsetVariableEnvironment
-        + WorkingDirectoryEnvironment,
-    E::Args: From<Vec<E::Arg>>,
-    E::FileHandle: Clone + FileDescWrapper + From<E::OpenedFileHandle>,
-    E::FnName: From<T>,
-    E::Fn: Clone
-        + From<Arc<dyn SpawnBoxed<E, Error = RuntimeError> + 'static + Send + Sync>>
-        + Spawn<E, Error = RuntimeError>,
-    <E::Fn as Spawn<E>>::Error: From<<E::ExecFuture as Future>::Error> + From<PB::Error>,
-    <E::ExecFuture as Future>::Error: Fail,
-    E::IoHandle: From<E::FileHandle> + From<E::OpenedFileHandle>,
-{
-    type EvalResult = T;
-    type EvalFuture = Box<dyn 'a + EnvFuture<E, Item = Fields<T>, Error = Self::Error>>;
-    type Error = RuntimeError;
-
-    fn eval_with_config(self, env: &E, cfg: WordEvalConfig) -> Self::EvalFuture {
-        Box::new(WordEval::eval_with_config(&self.0, env, cfg))
+    fn eval_with_config<'life0, 'life1, 'async_trait>(
+        &'life0 self,
+        env: &'life1 mut E,
+        cfg: WordEvalConfig,
+    ) -> BoxFuture<'async_trait, WordEvalResult<Self::EvalResult, Self::Error>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        self.0.eval_with_config(env, cfg)
     }
 }

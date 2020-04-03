@@ -24,15 +24,8 @@
 //!
 //! * `conch-parser`: enable implementations on the default AST types provided
 //! by the `conch-parser` crate
-//! * `top-level`: enable compiling implementations on thte `TopLevel{Command,Word}`
-//! provided by the `conch-parser` crate (useful for disabling to speed up compile
-//! times during local development)
 
 #![doc(html_root_url = "https://docs.rs/conch-runtime/0.1")]
-#![cfg_attr(
-    all(feature = "conch-parser", feature = "top-level"),
-    recursion_limit = "128"
-)]
 #![cfg_attr(not(test), deny(clippy::print_stdout))]
 #![deny(clippy::wrong_self_convention)]
 #![deny(missing_copy_implementations)]
