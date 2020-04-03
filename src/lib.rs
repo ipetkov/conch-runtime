@@ -30,7 +30,7 @@
 #![deny(clippy::wrong_self_convention)]
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![deny(trivial_casts)]
 #![deny(unused_import_braces)]
 #![deny(unused_qualifications)]

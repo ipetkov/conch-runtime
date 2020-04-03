@@ -37,10 +37,40 @@ pub use self::subshell::subshell;
 pub use self::substitution::substitution;
 pub use self::swallow_non_fatal::swallow_non_fatal_errors;
 
+/// A trait for spawning commands.
+///
+/// Spawning a command is separated into two distinct parts: a future
+/// that requires a mutable environment to make progress, and a future
+/// which no longer needs any context and can make progress on its own.
+///
+/// This distinction allows a caller to drop an environment as soon as
+/// it is no longer needed, which will free up resources, and especially
+/// important in preventing deadlocks between pipelines (since the parent
+/// process will contain extra reader/writer ends of a pipe and may prevent
+/// processes from exiting).
 #[async_trait]
 pub trait Spawn<E: ?Sized> {
+    /// The type of error that can arise if there is an error during spawning.
     type Error;
 
+    /// Spawn the command as a future which returns another future.
+    ///
+    /// The first, or "outer" future returned is allowed to maintain references
+    /// to both the type being spawned, and the environment itself. Once the command
+    /// no longer needs a reference to the environment or any other data, it should
+    /// return a second future which represents the final result of the command.
+    ///
+    /// This separation allows the caller (or poller) to drop the environment as son as
+    /// it is no longer needed, which will free up resources, and especially
+    /// important in preventing deadlocks between pipelines (since the parent
+    /// process will contain extra reader/writer ends of a pipe and may prevent
+    /// processes from exiting).
+    ///
+    /// Although the implementation is free to make any optimizations or
+    /// pre-computations, there should be no observable side-effects until the
+    /// very first call to `poll` or `.await` on the future. That way a constructed
+    /// future that was never `poll`ed could be dropped without the risk of unintended
+    /// side effects.
     async fn spawn(&self, env: &mut E) -> Result<BoxFuture<'static, ExitStatus>, Self::Error>;
 }
 
@@ -103,46 +133,6 @@ where
         (**self).spawn(env)
     }
 }
-
-///// A trait for spawning commands into an `EnvFuture` which can be
-///// polled to completion.
-/////
-///// Spawning a command is separated into two distinct parts: a future
-///// that requires a mutable environment to make progress, and a future
-///// which no longer needs any context and can make progress on its own.
-/////
-///// This distinction allows a caller to drop an environment as soon as
-///// it is no longer needed, which will free up resources, and especially
-///// important in preventing deadlocks between pipelines (since the parent
-///// process will contain extra reader/writer ends of a pipe and may prevent
-///// processes from exiting).
-//pub trait Spawn<E: ?Sized> {
-//    /// The future that represents spawning the command.
-//    ///
-//    /// It represents all computations that may need an environment to
-//    /// progress further.
-//    type EnvFuture: EnvFuture<E, Item = Self::Future, Error = Self::Error>;
-//    /// The future that represents the exit status of a fully bootstrapped
-//    /// command, which no longer requires an environment to be driven to completion.
-//    type Future: Future<Item = ExitStatus, Error = Self::Error>;
-//    /// The type of error that a future will resolve with if it fails in a
-//    /// normal fashion.
-//    type Error;
-
-//    /// Spawn the command as a future.
-//    ///
-//    /// Although the implementation is free to make any optimizations or
-//    /// pre-computations, there should be no observable side-effects until the
-//    /// very first call to `poll` on the future. That way a constructed future
-//    /// that was never `poll`ed could be dropped without the risk of unintended
-//    /// side effects.
-//    ///
-//    /// **Note**: There are no guarantees that the environment will not change
-//    /// between the `spawn` invocation and the first call to `poll()` on the
-//    /// future. Thus any optimizations the implementation may decide to make
-//    /// based on the environment should be done with care.
-//    fn spawn(self, env: &E) -> Self::EnvFuture;
-//}
 
 /// A grouping of guard and body commands.
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -99,12 +99,24 @@ pub struct WordEvalConfig {
     pub split_fields_further: bool,
 }
 
+/// A convenience trait representing the result of a word evaluation.
 pub type WordEvalResult<T, E> = Result<BoxFuture<'static, Fields<T>>, E>;
 
+/// A trait for evaluating shell words with various rules for expansion.
 pub trait WordEval<E: ?Sized> {
+    /// The underlying representation of the evaulation type (e.g. `String`, `Arc<String>`).
     type EvalResult: StringWrapper;
+    /// An error that can arise during evaluation.
     type Error;
 
+    /// Evaluates a word in a given environment and performs all expansions.
+    ///
+    /// Tilde, parameter, command substitution, and arithmetic expansions are
+    /// performed first. All resulting fields are then further split based on
+    /// the contents of the `IFS` variable (no splitting is performed if `IFS`
+    /// is set to be the empty or null string). Finally, quotes and escaping
+    /// backslashes are removed from the original word (unless they themselves
+    /// have been quoted).
     fn eval<'life0, 'life1, 'async_trait>(
         &'life0 self,
         env: &'life1 mut E,
@@ -123,6 +135,14 @@ pub trait WordEval<E: ?Sized> {
         )
     }
 
+    /// Evaluate and take a provided config into account.
+    ///
+    /// Generally `$*` should always be joined by the first char of `$IFS` or have all
+    /// fields concatenated if `$IFS` is null or `$*` is in double quotes.
+    ///
+    /// If `cfg.split_fields_further` is false then all empty fields will be kept.
+    ///
+    /// The caller is responsible for doing path expansions.
     fn eval_with_config<'life0, 'life1, 'async_trait>(
         &'life0 self,
         env: &'life1 mut E,
