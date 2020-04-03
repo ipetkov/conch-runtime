@@ -37,13 +37,14 @@ macro_rules! mktmp {
 pub fn mktmp_impl(path: &str) -> TempDir {
     let mut builder = tempfile::Builder::new();
 
-    #[cfg(windows)]
-    builder.prefix(&path.replace(":", "_"));
-    #[cfg(not(windows))]
-    builder.prefix(path);
+    let path = if cfg!(windows) {
+        path.replace(":", "_")
+    } else {
+        path.to_owned()
+    };
 
     builder
-        .prefix(path)
+        .prefix(&path)
         .tempdir()
         .expect("tempdir creation failed")
 }

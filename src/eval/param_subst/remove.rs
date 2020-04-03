@@ -1,6 +1,5 @@
 use crate::env::StringWrapper;
 use crate::eval::{eval_as_pattern, Fields, ParamEval, WordEval};
-use glob;
 
 const PAT_REMOVE_MATCH_OPTS: glob::MatchOptions = glob::MatchOptions {
     case_sensitive: true,

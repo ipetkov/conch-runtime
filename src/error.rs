@@ -7,7 +7,6 @@ use failure::Fail;
 use std::convert::From;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
-use void;
 
 /// Determines whether an error should be treated as "fatal".
 ///

@@ -34,21 +34,55 @@ enum AsyncIo {
 
 impl AsyncIo {
     fn new(fd: FileDesc) -> Self {
-        if let Ok(true) = supports_async_operations(&fd) {
-            let evented = fd
+        match Self::try_as_evented(&fd) {
+            Some(io) => io,
+            None => AsyncIo::File(tokio::fs::File::from_std(convert_to_file(fd))),
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn try_as_evented(_: &FileDesc) -> Option<Self> {
+        None
+    }
+
+    #[cfg(unix)]
+    fn try_as_evented(fd: &FileDesc) -> Option<Self> {
+        use crate::sys::cvt_r;
+        use std::mem;
+        use std::os::unix::io::AsRawFd;
+
+        #[cfg(not(linux))]
+        fn get_mode(fd: &FileDesc) -> io::Result<libc::mode_t> {
+            unsafe {
+                let mut stat: libc::stat = mem::zeroed();
+                cvt_r(|| libc::fstat(fd.as_raw_fd(), &mut stat)).map(|_| stat.st_mode)
+            }
+        }
+
+        #[cfg(linux)]
+        fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {
+            unsafe {
+                let mut stat: libc::stat64 = mem::zeroed();
+                cvt_r(|| libc::fstat64(fd.as_raw_fd(), &mut stat)).map(|_| stat.st_mode)
+            }
+        }
+
+        let supports_evented_io = get_mode(&fd)
+            .map(|mode| mode & libc::S_IFMT == libc::S_IFREG)
+            .map(|is_regular_file| !is_regular_file);
+
+        match supports_evented_io {
+            Ok(true) => fd
                 .duplicate()
                 .and_then(|mut fd| {
                     fd.set_nonblock(true)?;
                     tokio::io::PollEvented::new(fd)
                 })
-                .map(AsyncIo::PollEvented);
+                .map(AsyncIo::PollEvented)
+                .ok(),
 
-            if let Ok(e) = evented {
-                return e;
-            }
+            _ => None,
         }
-
-        AsyncIo::File(tokio::fs::File::from_std(convert_to_file(fd)))
     }
 }
 
@@ -90,38 +124,6 @@ impl AsyncIoEnvironment for TokioAsyncIoEnv {
             let _ = do_write_all(fd, Cow::Owned(data)).await;
         });
     }
-}
-
-#[cfg(unix)]
-fn supports_async_operations(fd: &FileDesc) -> io::Result<bool> {
-    use crate::sys::cvt_r;
-    use std::mem;
-    use std::os::unix::io::AsRawFd;
-
-    #[cfg(not(linux))]
-    fn get_mode(fd: &FileDesc) -> io::Result<libc::mode_t> {
-        unsafe {
-            let mut stat: libc::stat = mem::zeroed();
-            cvt_r(|| libc::fstat(fd.as_raw_fd(), &mut stat)).map(|_| stat.st_mode)
-        }
-    }
-
-    #[cfg(linux)]
-    fn get_mode(fd: &FileDesc) -> Result<libc::mode_t> {
-        unsafe {
-            let mut stat: libc::stat64 = mem::zeroed();
-            cvt_r(|| libc::fstat64(fd.as_raw_fd(), &mut stat)).map(|_| stat.st_mode)
-        }
-    }
-
-    get_mode(&fd)
-        .map(|mode| mode & libc::S_IFMT == libc::S_IFREG)
-        .map(|is_regular_file| !is_regular_file)
-}
-
-#[cfg(not(unix))]
-fn supports_async_operations(fd: &FileDesc) -> io::Result<bool> {
-    Ok(true)
 }
 
 #[cfg(unix)]

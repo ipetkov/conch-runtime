@@ -1,13 +1,14 @@
 //! Defines interfaces and methods for doing IO operations on Windows HANDLEs.
 
-use io::FileDesc;
+use crate::io::FileDesc;
+use crate::sys::cvt;
+use crate::IntoInner;
 use std::fs::File;
 use std::io::{ErrorKind, Result, SeekFrom};
 use std::mem;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
 use std::process::Stdio;
 use std::ptr;
-use sys::cvt;
 use winapi::shared::minwindef::{DWORD, FALSE, LPVOID};
 use winapi::um::fileapi::{ReadFile, SetFilePointerEx, WriteFile};
 use winapi::um::handleapi::{CloseHandle, DuplicateHandle, INVALID_HANDLE_VALUE};
@@ -18,7 +19,6 @@ use winapi::um::winbase::{
     FILE_BEGIN, FILE_CURRENT, FILE_END, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
 };
 use winapi::um::winnt::{DUPLICATE_SAME_ACCESS, LARGE_INTEGER};
-use IntoInner;
 
 /// A wrapper around an owned Windows HANDLE. The wrapper
 /// allows reading from or write to the HANDLE, and will
@@ -187,7 +187,6 @@ impl Drop for RawIo {
 
 /// Creates and returns a `(reader, writer)` pipe pair.
 pub fn pipe() -> Result<(RawIo, RawIo)> {
-    use std::ptr;
     unsafe {
         let mut reader = INVALID_HANDLE_VALUE;
         let mut writer = INVALID_HANDLE_VALUE;
