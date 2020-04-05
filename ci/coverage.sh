@@ -26,7 +26,7 @@ set -e
 for file in $(cargo test 2>&1 1>/dev/null | grep -oP '(?<=Running target\/debug\/).*'); do
 	cov_dir="target/cov/$(basename "$file")";
 	mkdir -p "$cov_dir"
-	./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib --verify "$cov_dir" "target/debug/$file";
+	./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib,conch-runtime-tests --verify "$cov_dir" "target/debug/$file";
 done
 
 # Report the coverage to codecov
