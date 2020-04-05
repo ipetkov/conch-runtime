@@ -369,7 +369,12 @@ where
     W: WordEval<E>,
     E: ?Sized + FileDescEnvironment + IsInteractiveEnvironment,
 {
-    let body = match eval_path(heredoc, env).await? {
+    let cfg = WordEvalConfig {
+        tilde_expansion: TildeExpansion::None,
+        split_fields_further: false,
+    };
+
+    let body = match heredoc.eval_with_config(env, cfg).await?.await {
         Fields::Zero => Vec::new(),
         Fields::Single(path) => path.into_owned().into_bytes(),
         Fields::At(mut v) | Fields::Star(mut v) | Fields::Split(mut v) => {

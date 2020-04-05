@@ -338,7 +338,14 @@ async fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
             split_fields_further: interactive,
         };
 
+        let cfg_heredoc = WordEvalConfig {
+            tilde_expansion: TildeExpansion::None,
+            split_fields_further: false,
+        };
+
         let path = mock_word_assert_cfg_with_fields(Fields::Single(DEV_NULL.to_owned()), cfg);
+        let path_heredoc =
+            mock_word_assert_cfg_with_fields(Fields::Single(DEV_NULL.to_owned()), cfg_heredoc);
         let dup_close = mock_word_assert_cfg_with_fields(Fields::Single("-".to_owned()), cfg);
 
         let cases = vec![
@@ -349,7 +356,7 @@ async fn should_split_word_fields_if_interactive_and_expand_first_tilde() {
             Append(None, path.clone()),
             DupRead(None, dup_close.clone()),
             DupWrite(None, dup_close.clone()),
-            Heredoc(None, path.clone()),
+            Heredoc(None, path_heredoc.clone()),
         ];
 
         for redirect in cases {
