@@ -1,5 +1,4 @@
 #![deny(rust_2018_idioms)]
-#![cfg(feature = "conch-parser")]
 
 use conch_parser::ast::PipeableCommand;
 use conch_parser::ast::PipeableCommand::*;

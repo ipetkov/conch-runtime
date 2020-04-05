@@ -58,7 +58,6 @@ impl BuiltinEnvironment for DummyBuiltinEnv {
     }
 }
 
-#[cfg(feature = "conch-parser")]
 #[tokio::test]
 async fn ast_node_smoke_test() {
     use conch_parser::ast;

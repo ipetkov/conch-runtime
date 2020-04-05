@@ -1,0 +1,16 @@
+[package]
+name = "conch-runtime-tests"
+version = "0.0.0"
+edition = "2018"
+publish = false
+
+[dev-dependencies]
+async-trait = "0.1"
+conch-parser = "*"
+conch-runtime = { path = "../conch-runtime" }
+failure     = "0.1"
+futures-core = "0.3"
+futures-util = "0.3"
+tempfile = "3.1"
+tokio = { version = "0.2", features = ["full"] }
+void = "1"

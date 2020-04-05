@@ -114,7 +114,6 @@ async fn test_and_or_should_propagate_fatal_errors() {
     assert_eq!(Some(MockErr::Fatal(true)), result);
 }
 
-#[cfg(feature = "conch-parser")]
 #[tokio::test]
 async fn ast_smoke() {
     use conch_parser::ast;

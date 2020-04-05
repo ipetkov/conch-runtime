@@ -1,0 +1,59 @@
+[package]
+name = "conch-runtime"
+version = "0.1.6"
+edition = "2018"
+authors = ["Ivan Petkov <ivanppetkov@gmail.com>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/ipetkov/conch-runtime"
+homepage = "https://github.com/ipetkov/conch-runtime"
+documentation = "https://docs.rs/conch-runtime/"
+keywords = ["shell", "runtime"]
+categories = ["asynchronous"]
+description = """
+A library for evaluating/executing programs written in the shell programming language.
+"""
+
+[features]
+default = ["conch-parser"]
+
+[dependencies]
+async-trait = "0.1"
+conch-parser = { version = "0.1", optional = true }
+clap        = "2"
+failure     = "0.1"
+failure_derive = "0.1"
+futures-core = "0.3"
+futures-util = "0.3"
+glob        = "0.3"
+lazy_static = "1"
+tokio = { version = "0.2", features = ["fs", "io-util", "process"] }
+void = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+mio  = "0.6"
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3.4"
+features = [
+  "fileapi",
+  "handleapi",
+  "minwindef",
+  "namedpipeapi",
+  "processenv",
+  "processthreadsapi",
+  "winbase",
+  "winnt"
+]
+
+[dev-dependencies]
+owned_chars = "0.3"
+tokio = { version = "0.2", features = ["macros"] }
+
+[badges]
+travis-ci = { repository = "ipetkov/conch-runtime" }
+appveyor = { repository = "ipetkov/conch-runtime" }
+is-it-maintained-issue-resolution = { repository = "ipetkov/conch-runtime" }
+is-it-maintained-open-issues = { repository = "ipetkov/conch-runtime" }
+codecov = { repository = "ipetkov/conch-runtime" }

@@ -191,7 +191,6 @@ async fn fds_restored_after_cmd_or_redirect_error() {
     assert_eq!(env, env_original);
 }
 
-#[cfg(feature = "conch-parser")]
 #[tokio::test]
 async fn spawn_compound_command_smoke() {
     use conch_parser::ast::CompoundCommand;
