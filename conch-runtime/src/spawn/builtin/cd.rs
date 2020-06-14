@@ -33,8 +33,8 @@ discovered using an alternative directory name from $CDPATH, the new working
 directory will be printed to standard output.";
 
 lazy_static::lazy_static! {
-    static ref CDPATH: String = { String::from("CDPATH") };
-    static ref OLDPWD: String = { String::from("OLDPWD") };
+    static ref CDPATH: String = String::from("CDPATH");
+    static ref OLDPWD: String = String::from("OLDPWD");
 }
 
 #[derive(Debug, failure::Fail)]

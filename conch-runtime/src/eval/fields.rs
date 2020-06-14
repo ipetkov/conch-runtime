@@ -4,7 +4,7 @@ use std::borrow::Borrow;
 use std::vec;
 
 lazy_static::lazy_static! {
-    static ref IFS: String = { String::from("IFS") };
+    static ref IFS: String = String::from("IFS");
 }
 
 /// Represents the types of fields that may result from evaluating a word.

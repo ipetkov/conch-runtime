@@ -75,7 +75,7 @@ pub const STDOUT_FILENO: Fd = 1;
 pub const STDERR_FILENO: Fd = 2;
 
 lazy_static::lazy_static! {
-    static ref HOME: String = { String::from("HOME") };
+    static ref HOME: String = String::from("HOME");
 }
 
 /// The type that represents a file descriptor within shell scripts.
