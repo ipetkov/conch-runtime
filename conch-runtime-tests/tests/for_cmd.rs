@@ -1,5 +1,6 @@
 #![deny(rust_2018_idioms)]
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 mod support;
@@ -38,10 +39,10 @@ impl Spawn<DefaultEnvArc> for MockCmd2 {
 #[tokio::test]
 async fn should_run_with_appropriate_args() {
     let mut env = new_env();
-    env.set_args(Arc::new(vec![
+    env.set_args(Arc::new(VecDeque::from(vec![
         Arc::new("arg_foo".to_owned()),
         Arc::new("arg_bar".to_owned()),
-    ]));
+    ])));
 
     let result_var = Arc::new(RESULT_VAR.to_owned());
     let name = Arc::new(VAR.to_owned());
@@ -84,10 +85,10 @@ async fn should_run_with_appropriate_args() {
 #[tokio::test]
 async fn should_swallow_non_fatal_errors_in_body() {
     let env = &mut new_env();
-    env.set_args(Arc::new(vec![
+    env.set_args(Arc::new(VecDeque::from(vec![
         Arc::new("arg_foo".to_owned()),
         Arc::new("arg_bar".to_owned()),
-    ]));
+    ])));
 
     let name = Arc::new("name".to_owned());
     let vars = &[mock_word_fields(Fields::Single((*name).clone()))];
@@ -108,7 +109,7 @@ async fn should_swallow_non_fatal_errors_in_body() {
 #[tokio::test]
 async fn should_not_run_body_args_are_empty() {
     let env = &mut new_env();
-    env.set_args(Arc::new(vec![]));
+    env.set_args(Arc::new(VecDeque::from(vec![])));
 
     let should_not_run = mock_panic("must not run");
     let name = Arc::new("name".to_owned());
@@ -151,10 +152,10 @@ async fn should_propagate_all_word_errors() {
 #[tokio::test]
 async fn should_propagate_fatal_errors_in_body() {
     let env = &mut new_env();
-    env.set_args(Arc::new(vec![
+    env.set_args(Arc::new(VecDeque::from(vec![
         Arc::new("foo".to_owned()),
         Arc::new("bar".to_owned()),
-    ]));
+    ])));
 
     let name = Arc::new("name".to_owned());
     let vars_raw = vec!["foo".to_owned(), "bar".to_owned()];

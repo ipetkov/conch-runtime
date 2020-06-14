@@ -20,6 +20,7 @@ use crate::{
 use failure::{AsFail, Fail};
 use futures_core::future::BoxFuture;
 use std::borrow::Borrow;
+use std::collections::VecDeque;
 use std::ffi::OsStr;
 
 /// Spawns a shell command (or function) after applying any redirects and
@@ -52,7 +53,7 @@ where
         + WorkingDirectoryEnvironment,
     E::Builtin: BuiltinUtility<'a, Vec<W::EvalResult>, EnvRestorer<'a, E>, E>,
     E::Arg: From<W::EvalResult>,
-    E::Args: From<Vec<E::Arg>>,
+    E::Args: From<VecDeque<E::Arg>>,
     E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,
     E::FnName: From<W::EvalResult>,
     E::IoHandle: Send + Sync + From<E::FileHandle>,
@@ -102,7 +103,7 @@ where
         + WorkingDirectoryEnvironment,
     E::Builtin: BuiltinUtility<'a, Vec<W::EvalResult>, RR, E>,
     E::Arg: From<W::EvalResult>,
-    E::Args: From<Vec<E::Arg>>,
+    E::Args: From<VecDeque<E::Arg>>,
     E::FileHandle: Clone + FileDescWrapper,
     E::FnName: From<W::EvalResult>,
     E::VarName: Borrow<String> + From<V>,
@@ -152,7 +153,7 @@ where
         + WorkingDirectoryEnvironment,
     E::Builtin: BuiltinUtility<'a, Vec<W::EvalResult>, RR, E>,
     E::Arg: From<W::EvalResult>,
-    E::Args: From<Vec<E::Arg>>,
+    E::Args: From<VecDeque<E::Arg>>,
     E::FileHandle: Clone + FileDescWrapper,
     E::FnName: From<W::EvalResult>,
     E::VarName: Borrow<String> + From<V>,

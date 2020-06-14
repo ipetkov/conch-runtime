@@ -113,7 +113,7 @@ async fn builtin_smoke_shift() {
         String::from("fourth").into(),
     ];
     let output = run_builtin_with_prep("shift", &["2"], |env| {
-        env.set_args(args.clone().into());
+        env.set_args(Arc::new(args.clone().into()));
     })
     .await;
 

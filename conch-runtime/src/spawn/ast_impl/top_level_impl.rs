@@ -13,6 +13,7 @@ use crate::spawn::Spawn;
 use crate::ExitStatus;
 use conch_parser::ast::{AtomicTopLevelCommand, AtomicTopLevelWord};
 use futures_core::future::BoxFuture;
+use std::collections::VecDeque;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -38,7 +39,7 @@ where
         + SubEnvironment
         + UnsetVariableEnvironment
         + WorkingDirectoryEnvironment,
-    E::Args: Send + From<Vec<E::Arg>>,
+    E::Args: Send + From<VecDeque<E::Arg>>,
     E::Builtin: Send + Sync,
     for<'a> E::Builtin: BuiltinUtility<'a, Vec<T>, EnvRestorer<'a, E>, E>,
     E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,
@@ -88,7 +89,7 @@ where
         + SubEnvironment
         + UnsetVariableEnvironment
         + WorkingDirectoryEnvironment,
-    E::Args: Send + From<Vec<E::Arg>>,
+    E::Args: Send + From<VecDeque<E::Arg>>,
     E::Builtin: Send + Sync,
     for<'a> E::Builtin: BuiltinUtility<'a, Vec<T>, EnvRestorer<'a, E>, E>,
     E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,

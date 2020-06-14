@@ -13,6 +13,7 @@ use conch_parser::ast;
 use failure::Fail;
 use futures_core::future::BoxFuture;
 use std::borrow::Borrow;
+use std::collections::VecDeque;
 
 #[async_trait::async_trait]
 impl<V, W, R, E> Spawn<E> for ast::SimpleCommand<V, W, R>
@@ -38,7 +39,7 @@ where
         + UnsetVariableEnvironment
         + WorkingDirectoryEnvironment,
     E::Arg: Send + From<W::EvalResult>,
-    E::Args: Send + From<Vec<E::Arg>>,
+    E::Args: Send + From<VecDeque<E::Arg>>,
     E::Builtin: Send + Sync,
     for<'a> E::Builtin: BuiltinUtility<'a, Vec<W::EvalResult>, EnvRestorer<'a, E>, E>,
     E::FileHandle: Send + Sync + Clone + FileDescWrapper + From<E::OpenedFileHandle>,

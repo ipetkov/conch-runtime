@@ -14,13 +14,12 @@ async fn run_shift(
 ) {
     // NB: Suppress usage dumping errors to console
     let mut env = new_env_with_no_fds();
-    env.set_args(
+    env.set_args(Arc::new(
         env_args_starting
             .iter()
             .map(|&s| s.to_owned().into())
-            .collect::<Vec<_>>()
-            .into(),
-    );
+            .collect(),
+    ));
 
     let args = shift_args.iter().map(|&s| s.to_owned());
     let exit = shift(args, &mut env).await.await;

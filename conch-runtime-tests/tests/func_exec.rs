@@ -1,6 +1,7 @@
 #![deny(rust_2018_idioms)]
 
 use conch_runtime::spawn::function;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -64,20 +65,22 @@ async fn should_restore_args_after_completion() {
 
     let exit = ExitStatus::Code(42);
     let fn_name = "fn_name".to_owned();
-    assert!(function(&fn_name, vec!(), &mut env).await.is_none());
+    assert!(function(&fn_name, VecDeque::new(), &mut env)
+        .await
+        .is_none());
     env.set_function(fn_name.clone(), mock_wrapper(mock_status(exit)));
 
-    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
-    env.set_args(args.clone());
+    let args = VecDeque::from(vec!["foo".to_owned(), "bar".to_owned()]);
+    env.set_args(Arc::new(args.clone()));
 
-    let result = function(&fn_name, vec!["qux".to_owned()], &mut env)
+    let result = function(&fn_name, VecDeque::from(vec!["qux".to_owned()]), &mut env)
         .await
         .expect("failed to find function")
         .expect("function failed")
         .await;
     assert_eq!(exit, result);
 
-    assert_eq!(env.args(), &**args);
+    assert_eq!(env.args(), Vec::from(args));
     assert_eq!(env.is_fn_running(), false);
 }
 
@@ -88,10 +91,10 @@ async fn should_propagate_errors_and_restore_args() {
     let fn_name = "fn_name".to_owned();
     env.set_function(fn_name.clone(), mock_wrapper(mock_error(false)));
 
-    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
-    env.set_args(args.clone());
+    let args = VecDeque::from(vec!["foo".to_owned(), "bar".to_owned()]);
+    env.set_args(Arc::new(args.clone()));
 
-    let result = function(&fn_name, vec!["qux".to_owned()], &mut env)
+    let result = function(&fn_name, VecDeque::from(vec!["qux".to_owned()]), &mut env)
         .await
         .expect("failed to find function");
 
@@ -100,7 +103,7 @@ async fn should_propagate_errors_and_restore_args() {
         Err(e) => assert_eq!(e, MockErr::Fatal(false)),
     }
 
-    assert_eq!(env.args(), &**args);
+    assert_eq!(env.args(), Vec::from(args));
     assert_eq!(env.is_fn_running(), false);
 }
 
@@ -160,15 +163,13 @@ async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
                 if depth.fetch_sub(1, Ordering::SeqCst) == 1 {
                     Box::pin(async move { mock_wrapper(mock_status(exit)).spawn(env).await })
                 } else {
-                    let cur_args: Vec<_> = env.args().iter().cloned().collect();
-
-                    let mut next_args = cur_args;
+                    let mut next_args = env.args().into_owned();
                     next_args.reverse();
                     next_args.push(format!("arg{}", num_calls));
 
                     let fn_name = fn_name.clone();
                     Box::pin(async move {
-                        function(&fn_name, next_args, env)
+                        function(&fn_name, VecDeque::from(next_args), env)
                             .await
                             .expect("failed to get function")
                     })
@@ -179,17 +180,17 @@ async fn test_env_run_function_nested_calls_do_not_destroy_upper_args() {
         depth_copy
     };
 
-    let args = Arc::new(vec!["foo".to_owned(), "bar".to_owned()]);
-    env.set_args(args.clone());
+    let args = VecDeque::from(vec!["foo".to_owned(), "bar".to_owned()]);
+    env.set_args(Arc::new(args.clone()));
 
-    let result = function(&fn_name, vec!["qux".to_owned()], &mut env)
+    let result = function(&fn_name, VecDeque::from(vec!["qux".to_owned()]), &mut env)
         .await
         .expect("failed to find function")
         .expect("function failed")
         .await;
     assert_eq!(exit, result);
 
-    assert_eq!(env.args(), &**args);
+    assert_eq!(env.args(), Vec::from(args));
     assert_eq!(depth.load(Ordering::SeqCst), 0);
     assert_eq!(env.is_fn_running(), false);
 }
