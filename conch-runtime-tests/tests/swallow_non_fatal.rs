@@ -1,13 +1,18 @@
 #![deny(rust_2018_idioms)]
 
+use std::error::Error;
+
 #[macro_use]
 mod support;
 pub use self::support::*;
 
 struct MockEnv;
 
-impl ReportFailureEnvironment for MockEnv {
-    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
+impl ReportErrorEnvironment for MockEnv {
+    fn report_error<'a>(
+        &mut self,
+        fail: &'a (dyn Error + Send + Sync + 'static),
+    ) -> BoxFuture<'a, ()> {
         Box::pin(async move {
             println!("{}", fail);
         })

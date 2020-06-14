@@ -15,7 +15,6 @@ pub use conch_runtime::eval::*;
 pub use conch_runtime::path::*;
 pub use conch_runtime::spawn::{self, *};
 pub use conch_runtime::{ExitStatus, EXIT_ERROR, EXIT_SUCCESS};
-pub use failure::Fail;
 pub use futures_core::future::*;
 pub use futures_util::future::*;
 
@@ -63,23 +62,13 @@ pub fn dev_null<E: ?Sized + FileDescOpener>(env: &mut E) -> E::OpenedFileHandle 
     .expect("failed to open DEV_NULL")
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("mock {}fatal error", if self.is_fatal() { "non-" } else { "" })]
 pub enum MockErr {
     Fatal(bool),
-    ExpansionError(ExpansionError),
-    RedirectionError(Arc<RedirectionError>),
-    CommandError(Arc<CommandError>),
-}
-
-impl failure::Fail for MockErr {
-    fn cause(&self) -> Option<&dyn failure::Fail> {
-        match *self {
-            MockErr::Fatal(_) => None,
-            MockErr::ExpansionError(ref e) => Some(e),
-            MockErr::RedirectionError(ref e) => Some(&**e),
-            MockErr::CommandError(ref e) => Some(&**e),
-        }
-    }
+    ExpansionError(#[from] ExpansionError),
+    RedirectionError(#[source] Arc<RedirectionError>),
+    CommandError(#[source] Arc<CommandError>),
 }
 
 impl conch_runtime::error::IsFatalError for MockErr {
@@ -93,25 +82,9 @@ impl conch_runtime::error::IsFatalError for MockErr {
     }
 }
 
-impl ::std::fmt::Display for MockErr {
-    fn fmt(&self, fmt: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        write!(
-            fmt,
-            "mock {}fatal error",
-            if self.is_fatal() { "non-" } else { "" }
-        )
-    }
-}
-
 impl From<RuntimeError> for MockErr {
     fn from(err: RuntimeError) -> Self {
         MockErr::Fatal(err.is_fatal())
-    }
-}
-
-impl From<ExpansionError> for MockErr {
-    fn from(err: ExpansionError) -> Self {
-        MockErr::ExpansionError(err)
     }
 }
 

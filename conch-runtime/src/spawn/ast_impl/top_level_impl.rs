@@ -3,7 +3,7 @@ use crate::env::{
     ArgumentsEnvironment, AsyncIoEnvironment, EnvRestorer, ExecutableEnvironment,
     ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener, FunctionEnvironment,
     FunctionFrameEnvironment, IsInteractiveEnvironment, LastStatusEnvironment,
-    ReportFailureEnvironment, SetArgumentsEnvironment, StringWrapper, SubEnvironment,
+    ReportErrorEnvironment, SetArgumentsEnvironment, StringWrapper, SubEnvironment,
     UnsetVariableEnvironment, WorkingDirectoryEnvironment,
 };
 use crate::error::RuntimeError;
@@ -34,7 +34,7 @@ where
         + FunctionFrameEnvironment
         + IsInteractiveEnvironment
         + LastStatusEnvironment
-        + ReportFailureEnvironment
+        + ReportErrorEnvironment
         + SetArgumentsEnvironment
         + SubEnvironment
         + UnsetVariableEnvironment
@@ -84,7 +84,7 @@ where
         + FunctionFrameEnvironment
         + IsInteractiveEnvironment
         + LastStatusEnvironment
-        + ReportFailureEnvironment
+        + ReportErrorEnvironment
         + SetArgumentsEnvironment
         + SubEnvironment
         + UnsetVariableEnvironment

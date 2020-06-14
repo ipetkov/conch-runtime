@@ -1,4 +1,4 @@
-use crate::env::{FileDescEnvironment, FileDescOpener, ReportFailureEnvironment, SubEnvironment};
+use crate::env::{FileDescEnvironment, FileDescOpener, ReportErrorEnvironment, SubEnvironment};
 use crate::error::IsFatalError;
 use crate::spawn::{pipeline, ExitStatus, Spawn};
 use crate::{EXIT_ERROR, EXIT_SUCCESS};
@@ -15,7 +15,7 @@ where
         + Sync
         + FileDescEnvironment
         + FileDescOpener
-        + ReportFailureEnvironment
+        + ReportErrorEnvironment
         + SubEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
     E::OpenedFileHandle: Send,

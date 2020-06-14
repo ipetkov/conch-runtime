@@ -1,8 +1,8 @@
 //! This module defines various interfaces and implementations of shell environments.
 //! See the documentation around `Env` or `DefaultEnv` to get started.
 
-use failure::Fail;
 use futures_core::future::BoxFuture;
+use std::error::Error;
 
 mod args;
 mod async_io;
@@ -58,15 +58,21 @@ impl<'a, T: ?Sized + IsInteractiveEnvironment> IsInteractiveEnvironment for &'a 
     }
 }
 
-/// An interface for reporting arbitrary failures.
-pub trait ReportFailureEnvironment {
-    /// Reports any `Fail`ure as appropriate, e.g. print to stderr.
-    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()>;
+/// An interface for reporting arbitrary errors.
+pub trait ReportErrorEnvironment {
+    /// Reports any `Error` as appropriate, e.g. print to stderr.
+    fn report_error<'a>(
+        &mut self,
+        fail: &'a (dyn Error + Sync + Send + 'static),
+    ) -> BoxFuture<'a, ()>;
 }
 
-impl<'b, T: ?Sized + ReportFailureEnvironment> ReportFailureEnvironment for &'b mut T {
-    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
-        (**self).report_failure(fail)
+impl<'b, T: ?Sized + ReportErrorEnvironment> ReportErrorEnvironment for &'b mut T {
+    fn report_error<'a>(
+        &mut self,
+        fail: &'a (dyn Error + Sync + Send + 'static),
+    ) -> BoxFuture<'a, ()> {
+        (**self).report_error(fail)
     }
 }
 

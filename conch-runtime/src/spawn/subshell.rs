@@ -1,6 +1,6 @@
-use crate::env::{ReportFailureEnvironment, SubEnvironment};
+use crate::env::{ReportErrorEnvironment, SubEnvironment};
 use crate::{ExitStatus, Spawn, EXIT_ERROR};
-use failure::Fail;
+use std::error::Error;
 use std::future::Future;
 
 /// Spawns anything as if running in a subshell environment.
@@ -10,8 +10,8 @@ use std::future::Future;
 pub fn subshell<S, E>(spawn: S, env: &E) -> impl Future<Output = ExitStatus>
 where
     S: Spawn<E>,
-    S::Error: Fail,
-    E: ReportFailureEnvironment + SubEnvironment,
+    S::Error: 'static + Send + Sync + Error,
+    E: ReportErrorEnvironment + SubEnvironment,
 {
     subshell_with_env(spawn, env.sub_env())
 }
@@ -19,13 +19,13 @@ where
 pub(crate) async fn subshell_with_env<S, E>(spawn: S, mut env: E) -> ExitStatus
 where
     S: Spawn<E>,
-    S::Error: Fail,
-    E: ReportFailureEnvironment,
+    S::Error: 'static + Send + Sync + Error,
+    E: ReportErrorEnvironment,
 {
     match spawn.spawn(&mut env).await {
         Ok(future) => future.await,
         Err(e) => {
-            env.report_failure(&e).await;
+            env.report_error(&e).await;
             EXIT_ERROR
         }
     }

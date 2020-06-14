@@ -1,10 +1,11 @@
 //! A module defining the various kinds of errors that may arise
 //! while executing commands.
+#![allow(unused_qualifications)] // False positives with thiserror derive
 
 use crate::io::Permissions;
 use crate::Fd;
-use failure::Fail;
 use std::convert::From;
+use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 
@@ -18,7 +19,7 @@ use std::io::Error as IoError;
 ///
 /// Ultimately it is up to the caller to decide how to handle fatal vs non-fatal
 /// errors.
-pub trait IsFatalError: Fail {
+pub trait IsFatalError: 'static + Send + Sync + Error {
     /// Checks whether the error should be considered a "fatal" error.
     fn is_fatal(&self) -> bool;
 }
@@ -30,19 +31,19 @@ impl IsFatalError for void::Void {
 }
 
 /// An error which may arise during parameter expansion.
-#[derive(PartialEq, Eq, Clone, Debug, failure_derive::Fail)]
+#[derive(PartialEq, Eq, Clone, Debug, thiserror::Error)]
 pub enum ExpansionError {
     /// Attempted to divide by zero in an arithmetic subsitution.
-    #[fail(display = "attempted to divide by zero")]
+    #[error("attempted to divide by zero")]
     DivideByZero,
     /// Attempted to raise to a negative power in an arithmetic subsitution.
-    #[fail(display = "attempted to raise to a negative power")]
+    #[error("attempted to raise to a negative power")]
     NegativeExponent,
-    /// Attempted to assign a special parameter, e.g. `${!:-value}`.
-    #[fail(display = "{}: cannot assign in this way", _0)]
+    /// Attempted to assign a special parameter, e.g. `${!:=value}`.
+    #[error("{0}: cannot assign in this way")]
     BadAssig(String),
     /// Attempted to evaluate a null or unset parameter, i.e. `${var:?msg}`.
-    #[fail(display = "{}: {}", _0, _1)]
+    #[error("{0}: {1}")]
     EmptyParameter(String /* var */, String /* msg */),
 }
 
@@ -59,7 +60,7 @@ impl IsFatalError for ExpansionError {
 }
 
 /// An error which may arise during redirection.
-#[derive(Debug, failure_derive::Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum RedirectionError {
     /// A redirect path evaluated to multiple fields.
     Ambiguous(Vec<String>),
@@ -70,7 +71,7 @@ pub enum RedirectionError {
     BadFdPerms(Fd, Permissions /* new perms */),
     /// Any I/O error returned by the OS during execution and the
     /// file that caused the error if applicable.
-    Io(#[cause] IoError, Option<String>),
+    Io(#[source] IoError, Option<String>),
 }
 
 impl Eq for RedirectionError {}
@@ -137,7 +138,7 @@ impl IsFatalError for RedirectionError {
 }
 
 /// An error which may arise when spawning a command process.
-#[derive(Debug, failure_derive::Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     /// Unable to find a command/function/builtin to execute.
     NotFound(String),
@@ -145,7 +146,7 @@ pub enum CommandError {
     NotExecutable(String),
     /// Any I/O error returned by the OS during execution and the
     /// file that caused the error if applicable.
-    Io(#[cause] IoError, Option<String>),
+    Io(#[source] IoError, Option<String>),
 }
 
 impl Eq for CommandError {}
@@ -184,17 +185,17 @@ impl IsFatalError for CommandError {
 }
 
 /// An error which may arise while executing commands.
-#[derive(Debug, failure_derive::Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
     /// Any I/O error returned by the OS during execution and the
     /// file that caused the error if applicable.
-    Io(#[cause] IoError, Option<String>),
+    Io(#[source] IoError, Option<String>),
     /// Any error that occured during a parameter expansion.
-    Expansion(#[cause] ExpansionError),
+    Expansion(#[from] ExpansionError),
     /// Any error that occured during a redirection.
-    Redirection(#[cause] RedirectionError),
+    Redirection(#[from] RedirectionError),
     /// Any error that occured during a command spawning.
-    Command(#[cause] CommandError),
+    Command(#[from] CommandError),
     /// Runtime feature not currently supported.
     Unimplemented(&'static str),
 }
@@ -242,24 +243,6 @@ impl IsFatalError for RuntimeError {
 impl From<IoError> for RuntimeError {
     fn from(err: IoError) -> Self {
         RuntimeError::Io(err, None)
-    }
-}
-
-impl From<ExpansionError> for RuntimeError {
-    fn from(err: ExpansionError) -> Self {
-        RuntimeError::Expansion(err)
-    }
-}
-
-impl From<RedirectionError> for RuntimeError {
-    fn from(err: RedirectionError) -> Self {
-        RuntimeError::Redirection(err)
-    }
-}
-
-impl From<CommandError> for RuntimeError {
-    fn from(err: CommandError) -> Self {
-        RuntimeError::Command(err)
     }
 }
 

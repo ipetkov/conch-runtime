@@ -1,4 +1,4 @@
-use crate::env::ReportFailureEnvironment;
+use crate::env::ReportErrorEnvironment;
 use crate::error::IsFatalError;
 use crate::{ExitStatus, Spawn, EXIT_ERROR};
 use futures_core::future::BoxFuture;
@@ -14,13 +14,13 @@ pub async fn swallow_non_fatal_errors<S, E>(
 where
     S: Spawn<E>,
     S::Error: IsFatalError,
-    E: ?Sized + ReportFailureEnvironment,
+    E: ?Sized + ReportErrorEnvironment,
 {
     cmd.spawn(env).await.or_else(|e| {
         if e.is_fatal() {
             Err(e)
         } else {
-            env.report_failure(&e);
+            env.report_error(&e);
             Ok(Box::pin(async { EXIT_ERROR }))
         }
     })

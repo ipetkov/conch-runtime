@@ -1,4 +1,4 @@
-use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
+use crate::env::{LastStatusEnvironment, ReportErrorEnvironment};
 use crate::error::IsFatalError;
 use crate::spawn::swallow_non_fatal_errors;
 use crate::{ExitStatus, Spawn};
@@ -24,7 +24,7 @@ where
     T: Spawn<E>,
     T::Error: IsFatalError,
     I: IntoIterator<Item = AndOr<T>>,
-    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + LastStatusEnvironment + ReportErrorEnvironment,
 {
     do_and_or_list(first, rest.into_iter().peekable(), env).await
 }
@@ -38,7 +38,7 @@ where
     T: Spawn<E>,
     T::Error: IsFatalError,
     I: Iterator<Item = AndOr<T>>,
-    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + LastStatusEnvironment + ReportErrorEnvironment,
 {
     loop {
         let future = swallow_non_fatal_errors(&next, env).await?;

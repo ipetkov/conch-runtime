@@ -1,4 +1,4 @@
-use crate::env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportFailureEnvironment};
+use crate::env::{IsInteractiveEnvironment, LastStatusEnvironment, ReportErrorEnvironment};
 use crate::error::IsFatalError;
 use crate::spawn::swallow_non_fatal_errors;
 use crate::{ExitStatus, Spawn, EXIT_SUCCESS};
@@ -14,7 +14,7 @@ pub async fn sequence<I, E: ?Sized>(
     env: &mut E,
 ) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
 where
-    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportFailureEnvironment,
+    E: IsInteractiveEnvironment + LastStatusEnvironment + ReportErrorEnvironment,
     I: IntoIterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
@@ -42,7 +42,7 @@ where
     I::IntoIter: ExactSizeIterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,
-    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + LastStatusEnvironment + ReportErrorEnvironment,
 {
     do_sequence(cmds.into_iter(), env, |_, iter| iter.len() != 0).await
 }
@@ -66,7 +66,7 @@ impl<'a, S, E> Spawn<E> for SequenceSlice<'a, S>
 where
     S: Send + Sync + Spawn<E>,
     S::Error: IsFatalError,
-    E: ?Sized + Send + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + Send + LastStatusEnvironment + ReportErrorEnvironment,
 {
     type Error = S::Error;
 
@@ -89,7 +89,7 @@ async fn do_sequence<I, E>(
     has_more: impl Fn(&E, &mut I) -> bool,
 ) -> Result<BoxFuture<'static, ExitStatus>, <I::Item as Spawn<E>>::Error>
 where
-    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + LastStatusEnvironment + ReportErrorEnvironment,
     I: Iterator,
     I::Item: Spawn<E>,
     <I::Item as Spawn<E>>::Error: IsFatalError,

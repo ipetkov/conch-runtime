@@ -10,8 +10,8 @@ use std::num::ParseIntError;
 
 const SHIFT: &str = "shift";
 
-#[derive(Debug, failure::Fail)]
-#[fail(display = "numeric argument required")]
+#[derive(Debug, thiserror::Error)]
+#[error("numeric argument required")]
 struct NumericArgumentRequiredError;
 
 /// The `shift` builtin command will shift all shell or function positional

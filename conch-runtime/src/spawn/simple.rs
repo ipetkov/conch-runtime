@@ -17,10 +17,10 @@ use crate::{
     ExitStatus, EXIT_CMD_NOT_EXECUTABLE, EXIT_CMD_NOT_FOUND, EXIT_ERROR, EXIT_SUCCESS,
     STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO,
 };
-use failure::{AsFail, Fail};
 use futures_core::future::BoxFuture;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
+use std::error::Error;
 use std::ffi::OsStr;
 
 /// Spawns a shell command (or function) after applying any redirects and
@@ -34,9 +34,9 @@ where
     IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
+    R::Error: 'static + Error + From<RedirectionError>,
     W: WordEval<E>,
-    W::Error: Fail,
+    W::Error: 'static + Error,
     E: ?Sized
         + Send
         + Sync
@@ -76,9 +76,9 @@ where
     IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
+    R::Error: 'static + Error + From<RedirectionError>,
     W: WordEval<E>,
-    W::Error: Fail,
+    W::Error: 'static + Error,
     RR: ?Sized
         + Send
         + Sync
@@ -126,9 +126,9 @@ where
     IV: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     IW: Iterator<Item = RedirectOrCmdWord<R, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
+    R::Error: 'static + Error + From<RedirectionError>,
     W: WordEval<E>,
-    W::Error: Fail,
+    W::Error: 'static + Error,
     RR: ?Sized
         + Send
         + Sync
@@ -287,7 +287,7 @@ where
     match child {
         Ok(ret) => Ok(ret),
         Err(e) => {
-            if let Some(e) = e.as_fail().find_root_cause().downcast_ref::<CommandError>() {
+            if let Some(e) = find_root_cause(&e).downcast_ref::<CommandError>() {
                 let status = match e {
                     CommandError::NotExecutable(_) => EXIT_CMD_NOT_EXECUTABLE,
                     CommandError::NotFound(_) => EXIT_CMD_NOT_FOUND,
@@ -300,4 +300,12 @@ where
             }
         }
     }
+}
+
+fn find_root_cause<'a>(mut err: &'a (dyn Error + 'static)) -> &'a (dyn Error + 'static) {
+    while let Some(e) = err.source() {
+        err = e;
+    }
+
+    err
 }

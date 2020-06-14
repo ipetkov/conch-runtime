@@ -37,20 +37,20 @@ lazy_static::lazy_static! {
     static ref OLDPWD: String = String::from("OLDPWD");
 }
 
-#[derive(Debug, failure::Fail)]
+#[derive(Debug, thiserror::Error)]
 enum VarNotDefinedError {
-    #[fail(display = "HOME not set")]
+    #[error("HOME not set")]
     Home,
-    #[fail(display = "OLDPWD not set")]
+    #[error("OLDPWD not set")]
     OldPwd,
 }
 
-#[derive(Debug, failure::Fail)]
+#[derive(Debug, thiserror::Error)]
 enum CdError {
-    #[fail(display = "{}", _0)]
-    VarNotDefinedError(#[cause] VarNotDefinedError),
-    #[fail(display = "{}", _0)]
-    NormalizationError(#[cause] NormalizationError),
+    #[error("{0}")]
+    VarNotDefinedError(#[source] VarNotDefinedError),
+    #[error("{0}")]
+    NormalizationError(#[source] NormalizationError),
 }
 
 impl From<VarNotDefinedError> for CdError {

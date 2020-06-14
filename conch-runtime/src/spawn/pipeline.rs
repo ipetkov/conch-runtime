@@ -1,13 +1,13 @@
-use crate::env::{FileDescEnvironment, FileDescOpener, ReportFailureEnvironment, SubEnvironment};
+use crate::env::{FileDescEnvironment, FileDescOpener, ReportErrorEnvironment, SubEnvironment};
 use crate::error::IsFatalError;
 use crate::io::Permissions;
 use crate::spawn::swallow_non_fatal_errors;
 use crate::{ExitStatus, Spawn, EXIT_ERROR, EXIT_SUCCESS, STDIN_FILENO, STDOUT_FILENO};
-use failure::Fail;
 use futures_core::future::BoxFuture;
 use futures_core::stream::Stream;
 use futures_util::future::poll_fn;
 use futures_util::stream::{FuturesUnordered, StreamExt};
+use std::error::Error;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -32,7 +32,7 @@ where
     I: IntoIterator<Item = S>,
     S: Send + Sync + Spawn<E>,
     S::Error: From<io::Error> + IsFatalError,
-    E: Send + FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
+    E: Send + FileDescEnvironment + FileDescOpener + ReportErrorEnvironment + SubEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
 {
     do_pipeline(invert_last_status, first, rest.into_iter(), env).await
@@ -48,7 +48,7 @@ where
     I: Iterator<Item = S>,
     S: Send + Sync + Spawn<E>,
     S::Error: From<io::Error> + IsFatalError,
-    E: Send + FileDescEnvironment + FileDescOpener + ReportFailureEnvironment + SubEnvironment,
+    E: Send + FileDescEnvironment + FileDescOpener + ReportErrorEnvironment + SubEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
 {
     // When we spawn each command in the pipeline, we'll pins them to their own
@@ -214,13 +214,13 @@ async fn spawn_and_swallow_errors<S, E>(
 ) -> Option<BoxFuture<'static, ExitStatus>>
 where
     S: Spawn<E>,
-    S::Error: Fail,
-    E: ReportFailureEnvironment,
+    S::Error: 'static + Send + Sync + Error,
+    E: ReportErrorEnvironment,
 {
     match cmd.spawn(&mut env).await {
         Ok(f) => Some(f),
         Err(e) => {
-            env.report_failure(&e).await;
+            env.report_error(&e).await;
             None
         }
     }

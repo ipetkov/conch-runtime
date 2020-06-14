@@ -1,4 +1,4 @@
-use crate::env::{LastStatusEnvironment, ReportFailureEnvironment, StringWrapper};
+use crate::env::{LastStatusEnvironment, ReportErrorEnvironment, StringWrapper};
 use crate::error::IsFatalError;
 use crate::eval::{eval_as_pattern, TildeExpansion, WordEval, WordEvalConfig};
 use crate::spawn::ExitStatus;
@@ -34,7 +34,7 @@ where
     P::Error: IsFatalError,
     S: Spawn<E>,
     S::Error: From<W::Error> + From<P::Error>,
-    E: ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + LastStatusEnvironment + ReportErrorEnvironment,
 {
     let cfg = WordEvalConfig {
         tilde_expansion: TildeExpansion::First,
@@ -63,7 +63,7 @@ where
                     if e.is_fatal() {
                         return Err(S::Error::from(e));
                     } else {
-                        env.report_failure(&e).await;
+                        env.report_error(&e).await;
                         continue;
                     }
                 }

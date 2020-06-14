@@ -1,11 +1,13 @@
+#![allow(unused_qualifications)] // False positives with thiserror derive
+
 use crate::env::{
     AsyncIoEnvironment, ExportedVariableEnvironment, FileDescEnvironment, FileDescOpener,
     RedirectEnvRestorer, VarEnvRestorer, VariableEnvironment,
 };
 use crate::error::{IsFatalError, RedirectionError};
 use crate::eval::{eval_as_assignment, RedirectEval, WordEval};
-use failure::Fail;
 use std::borrow::Borrow;
+use std::error::Error;
 
 /// Represents a redirect or a defined environment variable at the start of a
 /// command.
@@ -22,14 +24,14 @@ pub enum RedirectOrVarAssig<R, V, W> {
 }
 
 /// An error which may arise when evaluating a redirect or a variable assignment.
-#[derive(Debug, Clone, PartialEq, Eq, Fail)]
-pub enum EvalRedirectOrVarAssigError<R: Fail, V: Fail> {
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EvalRedirectOrVarAssigError<R: Error + 'static, V: Error + 'static> {
     /// A redirect error occured.
-    #[fail(display = "{}", _0)]
-    Redirect(#[cause] R),
+    #[error(transparent)]
+    Redirect(R),
     /// A variable assignment evaluation error occured.
-    #[fail(display = "{}", _0)]
-    VarAssig(#[cause] V),
+    #[error(transparent)]
+    VarAssig(V),
 }
 
 impl<R, V> IsFatalError for EvalRedirectOrVarAssigError<R, V>
@@ -63,9 +65,9 @@ pub async fn eval_redirects_or_var_assignments_with_restorer<'a, R, V, W, I, E, 
 where
     I: Iterator<Item = RedirectOrVarAssig<R, V, W>>,
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
+    R::Error: 'static + Error + From<RedirectionError>,
     W: WordEval<E>,
-    W::Error: Fail,
+    W::Error: 'static + Error,
     E: 'a + ?Sized + Send + Sync + FileDescEnvironment + VariableEnvironment,
     E::VarName: Borrow<String> + From<V>,
     E::Var: Borrow<String> + From<W::EvalResult>,
@@ -103,9 +105,9 @@ async fn eval<'r, 'a: 'r, R, V, W, E, RR>(
 ) -> Result<(), EvalRedirectOrVarAssigError<R::Error, W::Error>>
 where
     R: RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
+    R::Error: 'static + Error + From<RedirectionError>,
     W: WordEval<E>,
-    W::Error: Fail,
+    W::Error: 'static + Error,
     E: 'a + ?Sized + Send + Sync + FileDescEnvironment + VariableEnvironment,
     E::VarName: Borrow<String> + From<V>,
     E::Var: Borrow<String> + From<W::EvalResult>,

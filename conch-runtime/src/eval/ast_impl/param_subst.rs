@@ -1,6 +1,6 @@
 use crate::env::{
     AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, IsInteractiveEnvironment,
-    LastStatusEnvironment, ReportFailureEnvironment, SubEnvironment, VariableEnvironment,
+    LastStatusEnvironment, ReportErrorEnvironment, SubEnvironment, VariableEnvironment,
 };
 use crate::error::{ExpansionError, IsFatalError};
 use crate::eval::{
@@ -31,7 +31,7 @@ where
         + FileDescOpener
         + IsInteractiveEnvironment
         + LastStatusEnvironment
-        + ReportFailureEnvironment
+        + ReportErrorEnvironment
         + SubEnvironment
         + VariableEnvironment<VarName = W::EvalResult, Var = W::EvalResult>,
     E::FileHandle: Send + From<E::OpenedFileHandle>,

@@ -10,20 +10,20 @@ use crate::io::FileDescWrapper;
 use crate::spawn::{simple_command, Spawn};
 use crate::ExitStatus;
 use conch_parser::ast;
-use failure::Fail;
 use futures_core::future::BoxFuture;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
+use std::error::Error;
 
 #[async_trait::async_trait]
 impl<V, W, R, E> Spawn<E> for ast::SimpleCommand<V, W, R>
 where
     R: Send + Sync + RedirectEval<E, Handle = E::FileHandle>,
-    R::Error: Fail + From<RedirectionError>,
+    R::Error: 'static + Send + Sync + Error + From<RedirectionError>,
     V: Send + Sync + Clone,
     W: Send + Sync + WordEval<E>,
     W::EvalResult: Send,
-    W::Error: Fail,
+    W::Error: 'static + Send + Sync + Error,
     E: ?Sized
         + Send
         + Sync

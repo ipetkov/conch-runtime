@@ -6,7 +6,7 @@ use crate::env::{
     ArgsEnv, ArgumentsEnvironment, AsyncIoEnvironment, ChangeWorkingDirectoryEnvironment,
     ExecutableData, ExecutableEnvironment, ExportedVariableEnvironment, FileDescEnvironment,
     FileDescOpener, FnEnv, FnFrameEnv, FunctionEnvironment, FunctionFrameEnvironment,
-    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportFailureEnvironment,
+    IsInteractiveEnvironment, LastStatusEnv, LastStatusEnvironment, Pipe, ReportErrorEnvironment,
     SetArgumentsEnvironment, ShiftArgumentsEnvironment, StringWrapper, SubEnvironment,
     TokioExecEnv, TokioFileDescManagerEnv, UnsetFunctionEnvironment, UnsetVariableEnvironment,
     VarEnv, VariableEnvironment, VirtualWorkingDirEnv, WorkingDirectoryEnvironment,
@@ -14,10 +14,10 @@ use crate::env::{
 use crate::error::{CommandError, RuntimeError};
 use crate::io::Permissions;
 use crate::{ExitStatus, Fd, Spawn, IFS_DEFAULT, STDERR_FILENO};
-use failure::Fail;
 use futures_core::future::BoxFuture;
 use std::borrow::{Borrow, Cow};
 use std::convert::From;
+use std::error::Error;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::hash::Hash;
@@ -563,8 +563,7 @@ where
     }
 }
 
-impl<A, FM, L, V, EX, WD, B, N, ERR> ReportFailureEnvironment
-    for Env<A, FM, L, V, EX, WD, B, N, ERR>
+impl<A, FM, L, V, EX, WD, B, N, ERR> ReportErrorEnvironment for Env<A, FM, L, V, EX, WD, B, N, ERR>
 where
     A: ArgumentsEnvironment,
     A::Arg: fmt::Display,
@@ -573,7 +572,10 @@ where
     FM::IoHandle: From<FM::FileHandle>,
     N: Hash + Eq,
 {
-    fn report_failure<'a>(&mut self, fail: &'a dyn Fail) -> BoxFuture<'a, ()> {
+    fn report_error<'a>(
+        &mut self,
+        fail: &'a (dyn Error + Sync + Send + 'static),
+    ) -> BoxFuture<'a, ()> {
         let fd = match self.file_desc(STDERR_FILENO) {
             Some((fdes, perms)) if perms.writable() => fdes.clone(),
             _ => return Box::pin(async {}),

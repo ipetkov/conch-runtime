@@ -7,8 +7,8 @@ use conch_runtime::STDERR_FILENO;
 mod support;
 pub use self::support::*;
 
-#[derive(Debug, Fail)]
-#[fail(display = "some error message")]
+#[derive(Debug, thiserror::Error)]
+#[error("some error message")]
 struct MockErr;
 
 async fn test_with_perms(perms: Permissions) {
@@ -18,7 +18,7 @@ async fn test_with_perms(perms: Permissions) {
     env.set_file_desc(STDERR_FILENO, pipe.writer, perms);
 
     let reader = env.read_all(pipe.reader);
-    tokio::spawn(env.report_failure(&MockErr));
+    tokio::spawn(env.report_error(&MockErr));
 
     let name = env.name().clone();
     drop(env);
@@ -52,5 +52,5 @@ async fn read_write() {
 async fn closed_fd() {
     let mut env = DefaultEnv::<String>::new().expect("failed to create env");
     env.close_file_desc(STDERR_FILENO);
-    env.report_failure(&MockErr).await;
+    env.report_error(&MockErr).await;
 }

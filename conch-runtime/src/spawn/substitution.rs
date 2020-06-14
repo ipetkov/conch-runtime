@@ -1,12 +1,12 @@
 use crate::env::{
-    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, ReportFailureEnvironment,
+    AsyncIoEnvironment, FileDescEnvironment, FileDescOpener, Pipe, ReportErrorEnvironment,
     SubEnvironment,
 };
 use crate::io::Permissions;
 use crate::spawn::subshell::subshell_with_env;
 use crate::{Spawn, STDOUT_FILENO};
-use failure::Fail;
 use std::borrow::Cow;
+use std::error::Error;
 use std::future::Future;
 use std::io;
 
@@ -14,11 +14,11 @@ use std::io;
 pub fn substitution<S, E>(spawn: S, env: &E) -> impl Future<Output = Result<String, S::Error>>
 where
     S: Spawn<E>,
-    S::Error: From<io::Error> + Fail,
+    S::Error: 'static + Send + Sync + From<io::Error> + Error,
     E: AsyncIoEnvironment
         + FileDescEnvironment
         + FileDescOpener
-        + ReportFailureEnvironment
+        + ReportErrorEnvironment
         + SubEnvironment,
     E::FileHandle: From<E::OpenedFileHandle>,
     E::IoHandle: From<E::OpenedFileHandle>,

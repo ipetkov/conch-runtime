@@ -1,4 +1,4 @@
-use crate::env::{LastStatusEnvironment, ReportFailureEnvironment};
+use crate::env::{LastStatusEnvironment, ReportErrorEnvironment};
 use crate::error::IsFatalError;
 use crate::spawn::{and_or_list, AndOr, ExitStatus, Spawn};
 use conch_parser::ast;
@@ -17,7 +17,7 @@ impl<T, E> Spawn<E> for ast::AndOrList<T>
 where
     T: Sync + Spawn<E>,
     T::Error: IsFatalError,
-    E: Send + ?Sized + LastStatusEnvironment + ReportFailureEnvironment,
+    E: Send + ?Sized + LastStatusEnvironment + ReportErrorEnvironment,
 {
     type Error = T::Error;
 

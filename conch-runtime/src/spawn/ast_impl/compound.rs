@@ -1,6 +1,6 @@
 use crate::env::{
     ArgumentsEnvironment, AsyncIoEnvironment, EnvRestorer, ExportedVariableEnvironment,
-    FileDescEnvironment, FileDescOpener, LastStatusEnvironment, ReportFailureEnvironment,
+    FileDescEnvironment, FileDescOpener, LastStatusEnvironment, ReportErrorEnvironment,
     SubEnvironment, UnsetVariableEnvironment, VariableEnvironment,
 };
 use crate::error::{IsFatalError, RedirectionError};
@@ -53,7 +53,7 @@ where
         + Sync
         + ArgumentsEnvironment
         + LastStatusEnvironment
-        + ReportFailureEnvironment
+        + ReportErrorEnvironment
         + SubEnvironment
         + VariableEnvironment,
     E::Var: Send + From<E::Arg> + From<W::EvalResult>,
@@ -118,7 +118,7 @@ async fn spawn_loop<S, E>(
 where
     S: Send + Sync + Spawn<E>,
     S::Error: IsFatalError,
-    E: ?Sized + Send + Sync + LastStatusEnvironment + ReportFailureEnvironment,
+    E: ?Sized + Send + Sync + LastStatusEnvironment + ReportErrorEnvironment,
 {
     let ret = if guard.is_empty() && body.is_empty() {
         // Not a well formed command, rather than burning CPU and spinning
