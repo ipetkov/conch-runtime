@@ -49,29 +49,27 @@ impl From<File> for FileDesc {
     }
 }
 
-impl mio::Evented for FileDesc {
+impl mio::event::Source for FileDesc {
     fn register(
-        &self,
-        poll: &mio::Poll,
+        &mut self,
+        registry: &mio::Registry,
         token: mio::Token,
-        interest: mio::Ready,
-        opts: mio::PollOpt,
+        interests: mio::Interest,
     ) -> Result<()> {
-        mio::unix::EventedFd(&self.as_raw_fd()).register(poll, token, interest, opts)
+        mio::unix::SourceFd(&self.as_raw_fd()).register(registry, token, interests)
     }
 
     fn reregister(
-        &self,
-        poll: &mio::Poll,
+        &mut self,
+        registry: &mio::Registry,
         token: mio::Token,
-        interest: mio::Ready,
-        opts: mio::PollOpt,
+        interests: mio::Interest,
     ) -> Result<()> {
-        mio::unix::EventedFd(&self.as_raw_fd()).reregister(poll, token, interest, opts)
+        mio::unix::SourceFd(&self.as_raw_fd()).reregister(registry, token, interests)
     }
 
-    fn deregister(&self, poll: &mio::Poll) -> Result<()> {
-        mio::unix::EventedFd(&self.as_raw_fd()).deregister(poll)
+    fn deregister(&mut self, registry: &mio::Registry) -> Result<()> {
+        mio::unix::SourceFd(&self.as_raw_fd()).deregister(registry)
     }
 }
 
