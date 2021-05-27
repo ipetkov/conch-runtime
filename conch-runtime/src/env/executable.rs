@@ -100,7 +100,7 @@ impl ExecutableEnvironment for TokioExecEnv {
             .map_err(|err| map_io_err(err, name.to_string_lossy().into_owned()))?;
 
         Ok(Box::pin(async move {
-            child.await.map(ExitStatus::from).unwrap_or(EXIT_ERROR)
+            child.wait().await.map(ExitStatus::from).unwrap_or(EXIT_ERROR)
         }))
     }
 }

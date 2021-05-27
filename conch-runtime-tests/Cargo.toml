@@ -12,5 +12,5 @@ futures-core = "0.3"
 futures-util = "0.3"
 tempfile = "3.1"
 thiserror = "1"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "0.3", features = ["full"] }
 void = "1"
